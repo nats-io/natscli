@@ -131,6 +131,10 @@ func (j *JetStreamMgmt) ObservableCreate(set string, cfg *api.ObservableConfig) 
 		Config: *cfg,
 	}
 
+	if cfg.Subject == "" {
+		cfg.AckPolicy = api.AckExplicit
+	}
+
 	jreq, err := json.Marshal(req)
 	if err != nil {
 		return err
@@ -164,7 +168,13 @@ func (j *JetStreamMgmt) IsObservableKnown(set string, obs string) (bool, error) 
 func (j *JetStreamMgmt) Observables(set string) (observables []string, err error) {
 	observables = []string{}
 	err = j.requestAndUnMarshal(api.JetStreamObservables, []byte(set), &observables)
-	return observables, err
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Strings(observables)
+
+	return observables, nil
 }
 
 // ObservableDelete removes an observable from a message set

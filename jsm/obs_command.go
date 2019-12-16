@@ -36,6 +36,7 @@ type obsCmd struct {
 	replyPolicy string
 	startPolicy string
 	ackPolicy   string
+	ackWait     time.Duration
 
 	cfg *api.ObservableConfig
 }
@@ -71,6 +72,7 @@ func configureObsCommand(app *kingpin.Application) {
 	obsAdd.Flag("replay", "Replay Policy (instant, original)").EnumVar(&c.replyPolicy, "instant", "original")
 	obsAdd.Flag("deliver", "Start policy (all, last, 1h, msg sequence)").StringVar(&c.startPolicy)
 	obsAdd.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
+	obsAdd.Flag("wait", "Acknowledgement waiting time").Default("30s").DurationVar(&c.ackWait)
 	obsAdd.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
 
 	obsNext := obs.Command("next", "Retrieves the next message from a push message set").Action(c.nextAction)
@@ -184,7 +186,7 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		err = survey.AskOne(&survey.Input{
 			Message: "Observable name",
 			Help:    "This will be used for the name of the durable subscription to be used when referencing this observable later. Settable using 'name' CLI argument",
-		}, &c.cfg.Durable)
+		}, &c.cfg.Durable, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "could not request observable name")
 		c.obs = c.cfg.Durable
 	}
@@ -205,7 +207,7 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		err = survey.AskOne(&survey.Input{
 			Message: "Start policy (all, last, 1h, msg sequence)",
 			Help:    "This controls how the observable starts out, does it make all messages available, only the latest, ones after a certain time or time sequence. Settable using --deliver",
-		}, &c.startPolicy)
+		}, &c.startPolicy, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "could not request start policy")
 	}
 
@@ -222,25 +224,27 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		c.cfg.StartTime = time.Now().Add(-d)
 	}
 
-	if c.cfg.Delivery != "" {
-		if c.ackPolicy == "" {
-			err = survey.AskOne(&survey.Select{
-				Message: "Acknowledgement policy",
-				Options: []string{"none", "all", "explicit"},
-				Default: "none",
-				Help:    "Messages that are not acknowledged will be redelivered at a later time. 'none' means no acknowledgement is needed only 1 delivery ever, 'all' means acknowledging message 10 will also acknowledge 0-9 and 'explicit' means each has to be acknowledged specifically. Settable using --ack",
-			}, &c.ackPolicy)
-			kingpin.FatalIfError(err, "could not ask acknowledgement policy")
-		}
+	if c.cfg.Delivery == "" {
+		c.ackPolicy = "explicit"
+	}
 
-		switch c.ackPolicy {
-		case "none":
-			c.cfg.AckPolicy = api.AckNone
-		case "all":
-			c.cfg.AckPolicy = api.AckAll
-		case "explicit":
-			c.cfg.AckPolicy = api.AckExplicit
-		}
+	if c.ackPolicy == "" {
+		err = survey.AskOne(&survey.Select{
+			Message: "Acknowledgement policy",
+			Options: []string{"none", "all", "explicit"},
+			Default: "none",
+			Help:    "Messages that are not acknowledged will be redelivered at a later time. 'none' means no acknowledgement is needed only 1 delivery ever, 'all' means acknowledging message 10 will also acknowledge 0-9 and 'explicit' means each has to be acknowledged specifically. Settable using --ack",
+		}, &c.ackPolicy)
+		kingpin.FatalIfError(err, "could not ask acknowledgement policy")
+	}
+
+	switch c.ackPolicy {
+	case "none":
+		c.cfg.AckPolicy = api.AckNone
+	case "all":
+		c.cfg.AckPolicy = api.AckAll
+	case "explicit":
+		c.cfg.AckPolicy = api.AckExplicit
 	}
 
 	if c.cfg.Delivery != "" {

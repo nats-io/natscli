@@ -124,7 +124,7 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		err = survey.AskOne(&survey.Input{
 			Message: "Subjects to consume",
 			Help:    "Message sets consume messages from subjects, this is a space or comma separated list that can include wildcards. Settable using --subjects",
-		}, &subjects)
+		}, &subjects, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "invalid input")
 
 		c.subjects = splitString(subjects)
@@ -141,7 +141,7 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 			Message: "Storage backend",
 			Options: []string{"file", "memory"},
 			Help:    "Messages sets are stored on the server, this can be one of many backends and all are usable in clustering mode. Settable using --storage",
-		}, &c.storage)
+		}, &c.storage, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
@@ -267,7 +267,8 @@ func (c *msCmd) getAction(_ *kingpin.ParseContext) (err error) {
 	if c.msgID == -1 {
 		id := ""
 		err = survey.AskOne(&survey.Input{
-			Message: "Message ID to retrieve"}, &id)
+			Message: "Message ID to retrieve",
+		}, &id, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "invalid input")
 
 		idint, err := strconv.Atoi(id)
