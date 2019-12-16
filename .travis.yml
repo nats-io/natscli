@@ -1,0 +1,20 @@
+language: go
+go:
+  - 1.13.x
+  - 1.12.x
+env:
+  - GO111MODULE=off
+install:
+  - go get -u honnef.co/go/tools/cmd/staticcheck
+  - go get -u github.com/client9/misspell/cmd/misspell
+before_script:
+  - GO_LIST=$(go list ./...)
+  - cd jsm;go build;cd -
+  - $(exit $(go fmt $GO_LIST | wc -l))
+  - go vet $GO_LIST
+  - find . -type f -name "*.go" | grep -v "/vendor/" | xargs misspell -error -locale US
+  - staticcheck $GO_LIST
+script:
+  - set -e
+  - go test -i ./...
+  - set +e
