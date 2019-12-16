@@ -17,7 +17,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/nats-io/nats-server/v2/server"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -33,7 +32,6 @@ var (
 func main() {
 	jsm := kingpin.New("jsm", "JetStream Management Tool")
 	jsm.Author("NATS Authors <info@nats.io>")
-	jsm.Version(server.VERSION)
 	jsm.Flag("server", "NATS servers").Short('s').Default("localhost:4222").StringVar(&servers)
 	jsm.Flag("creds", "User credentials").StringVar(&creds)
 	jsm.Flag("tlscert", "TLS public certifcate").ExistingFileVar(&tlsCert)
