@@ -57,9 +57,7 @@ You can override the storage directory if you want.
 Once the server is running it's time to use the management tool. This is temporary but will do for this tech preview.
 
 ```bash
-> cd nats-server/jetstream/jsm
-> go build
-> go install
+> go get -u github.com/nats-io/jetstream/jsm
 > jsm --help
 usage: jsm [<flags>] <command> [<args> ...]
 JetStream Management Tool
