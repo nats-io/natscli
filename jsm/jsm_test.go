@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -29,7 +30,12 @@ func runJsmCli(t *testing.T, args ...string) (output []byte) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cmd := fmt.Sprintf("go run $(ls *.go | grep -v _test.go) %s", strings.Join(args, " "))
+	var cmd string
+	if os.Getenv("CI") == "true" {
+		cmd = fmt.Sprintf("./jsm %s", strings.Join(args, " "))
+	} else {
+		cmd = fmt.Sprintf("go run $(ls *.go | grep -v _test.go) %s", strings.Join(args, " "))
+	}
 	execution := exec.CommandContext(ctx, "bash", "-c", cmd)
 	out, err := execution.CombinedOutput()
 	if err != nil {

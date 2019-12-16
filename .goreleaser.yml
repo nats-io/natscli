@@ -1,0 +1,45 @@
+project_name: jetstream
+
+release:
+  github:
+    owner: nats-io
+    name: jetstream
+  name_template: "Release {{.Tag}}"
+  draft: true
+
+changelog:
+  skip: true
+
+builds:
+  - main: ./jsm
+    binary: jsm
+    env:
+      - GO111MODULE=off
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm
+      - arm64
+      - 386
+    goarm:
+      - 6
+      - 7
+    ignore:
+      - goos: darwin
+        goarch: 386
+
+archives:
+  - name_template: "{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
+    wrap_in_directory: true
+    format: zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "SHA256SUMS"
+  algorithm: sha256
