@@ -16,5 +16,5 @@ before_script:
   - staticcheck $GO_LIST
 script:
   - set -e
-  - go test -i ./...
+  - go test -v --failfast -p=1 ./...
   - set +e
