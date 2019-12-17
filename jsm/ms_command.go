@@ -27,10 +27,11 @@ import (
 )
 
 type msCmd struct {
-	set   string
-	force bool
-	json  bool
-	msgID int64
+	set              string
+	force            bool
+	json             bool
+	msgID            int64
+	retentionPolicyS string
 
 	subjects      []string
 	ack           bool
@@ -38,6 +39,7 @@ type msCmd struct {
 	maxMsgLimit   int64
 	maxBytesLimit int64
 	maxAgeLimit   string
+	rPolicy       api.RetentionPolicy
 }
 
 func configureMSCommand(app *kingpin.Application) {
@@ -50,14 +52,15 @@ func configureMSCommand(app *kingpin.Application) {
 	msInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 	msAdd := ms.Command("create", "Create a new message set").Alias("add").Action(c.addAction)
-	msAdd.Arg("name", "Message set name").Required().StringVar(&c.set)
+	msAdd.Arg("name", "Message set name").StringVar(&c.set)
 	msAdd.Flag("subjects", "Subjets thats belong to the Message set").Default().StringsVar(&c.subjects)
 	msAdd.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
 	msAdd.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
 	msAdd.Flag("max-bytes", "Maximum bytes to keep").Default("0").Int64Var(&c.maxBytesLimit)
 	msAdd.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
-	msAdd.Flag("storage", "Storage backend to use").EnumVar(&c.storage, "file", "f", "memory", "m")
+	msAdd.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 	msAdd.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	msAdd.Flag("retention", "Defines a retention policy (stream, interest, workq)").EnumVar(&c.retentionPolicyS, "stream", "interest", "workq", "work")
 
 	msRm := ms.Command("rm", "Removes a message set").Alias("delete").Alias("del").Action(c.rmAction)
 	msRm.Arg("name", "Message set name").StringVar(&c.set)
@@ -97,9 +100,11 @@ func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
 	fmt.Printf("  No Acknowledgements: %v\n", mstats.Config.NoAck)
 	fmt.Printf("            Retention: %s - %s\n", mstats.Config.Storage.String(), mstats.Config.Retention.String())
 	fmt.Printf("             Replicas: %d\n", mstats.Config.Replicas)
-	fmt.Printf("     Maximum Messages: %d\n", mstats.Config.MaxMsgs)
-	fmt.Printf("        Maximum Bytes: %d\n", mstats.Config.MaxBytes)
-	fmt.Printf("          Maximum Age: %s\n", mstats.Config.MaxAge.String())
+	if mstats.Config.Retention == api.StreamPolicy {
+		fmt.Printf("     Maximum Messages: %d\n", mstats.Config.MaxMsgs)
+		fmt.Printf("        Maximum Bytes: %d\n", mstats.Config.MaxBytes)
+		fmt.Printf("          Maximum Age: %s\n", mstats.Config.MaxAge.String())
+	}
 	fmt.Printf("  Maximum Observables: %d\n", mstats.Config.MaxObservables)
 	fmt.Println()
 	fmt.Println("Statistics:")
@@ -118,6 +123,13 @@ func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
 func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 	nc, err := connect()
 	kingpin.FatalIfError(err, "could not connect")
+
+	if c.set == "" {
+		err = survey.AskOne(&survey.Input{
+			Message: "Message Set Name",
+		}, &c.set, survey.WithValidator(survey.Required))
+		kingpin.FatalIfError(err, "invalid input")
+	}
 
 	if len(c.subjects) == 0 {
 		subjects := ""
@@ -155,40 +167,63 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		kingpin.Fatalf("invalid storage type %s", c.storage)
 	}
 
-	if c.maxMsgLimit == 0 {
-		c.maxMsgLimit, err = askOneInt("Message count limit", "-1", "Defines the amount of messages to keep in the store for this message set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-msgs")
+	if c.retentionPolicyS == "" {
+		err = survey.AskOne(&survey.Select{
+			Message: "Retention Policy",
+			Options: []string{"Stream", "Interest", "Work Queue"},
+			Help:    "Messages are retained either based on limits like size and age (Stream), as long as there are observables (Interest) or until any worker processed them (Work Queue)",
+			Default: "Stream",
+		}, &c.retentionPolicyS, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
-	if c.maxBytesLimit == 0 {
-		c.maxBytesLimit, err = askOneInt("Message size limit", "-1", "Defines the combined size of all messages in a message set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
-		kingpin.FatalIfError(err, "invalid input")
-	}
-
-	if c.maxAgeLimit == "" {
-		err = survey.AskOne(&survey.Input{
-			Message: "Maximum message age limit",
-			Default: "-1",
-			Help:    "Defines the oldest messages that can be stored in the message set, any messages older than this period will be removed, -1 for unlimited. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Setable using --max-age",
-		}, &c.maxAgeLimit)
-		kingpin.FatalIfError(err, "invalid input")
+	switch strings.ToLower(c.retentionPolicyS) {
+	case "stream":
+		c.rPolicy = api.StreamPolicy
+	case "interest":
+		c.rPolicy = api.InterestPolicy
+	case "work queue", "workq", "work":
+		c.rPolicy = api.WorkQueuePolicy
 	}
 
 	var maxAge time.Duration
+	if c.rPolicy == api.StreamPolicy {
+		if c.maxMsgLimit == 0 {
+			c.maxMsgLimit, err = askOneInt("Message count limit", "-1", "Defines the amount of messages to keep in the store for this message set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-msgs")
+			kingpin.FatalIfError(err, "invalid input")
+		}
 
-	if c.maxAgeLimit != "-1" {
-		maxAge, err = parseDurationString(c.maxAgeLimit)
-		kingpin.FatalIfError(err, "invalid maximum age limit format")
+		if c.maxBytesLimit == 0 {
+			c.maxBytesLimit, err = askOneInt("Message size limit", "-1", "Defines the combined size of all messages in a message set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
+			kingpin.FatalIfError(err, "invalid input")
+		}
+
+		if c.maxAgeLimit == "" {
+			err = survey.AskOne(&survey.Input{
+				Message: "Maximum message age limit",
+				Default: "-1",
+				Help:    "Defines the oldest messages that can be stored in the message set, any messages older than this period will be removed, -1 for unlimited. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Setable using --max-age",
+			}, &c.maxAgeLimit)
+			kingpin.FatalIfError(err, "invalid input")
+		}
+
+		if c.maxAgeLimit != "-1" {
+			maxAge, err = parseDurationString(c.maxAgeLimit)
+			kingpin.FatalIfError(err, "invalid maximum age limit format")
+		}
 	}
 
 	err = NewJSM(nc, timeout).MessageSetCreate(&api.MsgSetConfig{
-		Name:     c.set,
-		Subjects: c.subjects,
-		MaxMsgs:  c.maxMsgLimit,
-		MaxBytes: c.maxBytesLimit,
-		MaxAge:   maxAge,
-		Storage:  storage,
-		NoAck:    !c.ack,
+		Name:           c.set,
+		Subjects:       c.subjects,
+		MaxMsgs:        c.maxMsgLimit,
+		MaxBytes:       c.maxBytesLimit,
+		MaxAge:         maxAge,
+		Storage:        storage,
+		NoAck:          !c.ack,
+		Retention:      c.rPolicy,
+		MaxObservables: -1,
+		Replicas:       0,
 	})
 	kingpin.FatalIfError(err, "could not create message set")
 

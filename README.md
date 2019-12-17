@@ -190,6 +190,7 @@ The first thing we will do is create a message set. The utility will interactive
 $ jsm ms add derek
 ? Subjects to consume sub1 sub2 other.*
 ? Storage backend file
+? Retention Policy Stream
 ? Message count limit -1
 ? Message size limit -1
 ? Maximum message age limit -1
@@ -220,7 +221,7 @@ Statistics:
 The equivalent command to do this unprompted is:
 
 ```
-$ jsm ms add derek --subjects sub1 --subjecs sub2 --subjects "other.*" --ack --storage f --max-msgs=-1 --max-age=-1 --max-bytes=-1 
+$ jsm ms add derek --subjects sub1 --subjecs sub2 --subjects "other.*" --ack --storage f --max-msgs=-1 --max-age=-1 --max-bytes=-1 --retention stream
 ```
 
 This is the general pattern for the entire `jsm` utility - prompts for needed information but every action can be run non interactively making it usable as a cli api. All information output like seen above can be turned into JSON using `-j`.
