@@ -49,7 +49,7 @@ When defining Message Sets the items below make up the entire configuration of t
 |Replicas|How many replicas to keep for each message (not implemented today)|
 |NoAck|Disables acknowledging messages that are received by the message set|
 
-### Observables
+### Observables
 
 Each consumer, or related group of consumers, of a Message Set will need an observable defined.  It's ok to define thousands of these pointing at the same message set.
 
@@ -85,13 +85,13 @@ You will also want to have installed from the nats.go repo the examples/tools su
 
 You will need a copy of the nats-server source locally and will need to be in the jetstream branch.
 
-```bash
+```
 # Server
 git checkout jetstream
 ```
 Starting the server you can use the `-js` flag. This will setup the server to reasonably use memory and disk. This is a sample run on my machine. JetStream will default to 1TB of disk and 75% of available memory for now.
 
-```bash
+```
 > nats-server -js
 
 [16928] 2019/12/04 19:16:29.596968 [INF] Starting nats-server version 2.2.0-beta
@@ -109,7 +109,7 @@ Starting the server you can use the `-js` flag. This will setup the server to re
 
 You can override the storage directory if you want.
 
-```bash
+```
 > nats-server -js -sd /tmp/test
 
 [16943] 2019/12/04 19:20:00.874148 [INF] Starting nats-server version 2.2.0-beta
@@ -127,7 +127,7 @@ You can override the storage directory if you want.
 
 Once the server is running it's time to use the management tool. This is temporary but will do for this tech preview.
 
-```bash
+```
 > go get -u github.com/nats-io/jetstream/jsm
 > jsm --help
 usage: jsm [<flags>] <command> [<args> ...]
@@ -186,7 +186,7 @@ Commands:
 
 The first thing we will do is create a message set. The utility will interactively query you for information it needs and most inputs have help text that can be activated using `?`, all settings can also be supplied on the CLI and the help text in interactive mode will help you.
 
-```bash
+```
 $ jsm ms add derek
 ? Subjects to consume sub1 sub2 other.*
 ? Storage backend file
@@ -221,14 +221,14 @@ Statistics:
 The equivalent command to do this unprompted is:
 
 ```
-$ jsm ms add derek --subjects sub1 --subjecs sub2 --subjects "other.*" --ack --storage f --max-msgs=-1 --max-age=-1 --max-bytes=-1 --retention stream
+$ jsm ms add derek --subjects sub1 --subjects sub2 --subjects "other.*" --ack --storage f --max-msgs=-1 --max-age=-1 --max-bytes=-1 --retention stream
 ```
 
 This is the general pattern for the entire `jsm` utility - prompts for needed information but every action can be run non interactively making it usable as a cli api. All information output like seen above can be turned into JSON using `-j`.
 
 To get information on the account (The global account in these examples), use `jsm account info`
 
-```bash
+```
 $ jsm account info
 
       Memory: 0 B of 6.4 GB
@@ -239,7 +239,7 @@ Message Sets: 1 of Unlimited
 
 To list the message sets:
 
-```bash
+```
 $ jsm ms ls
 Message Sets:
 
@@ -249,7 +249,7 @@ Message Sets:
 
 To get information about a message set, use `jsm ms info <msgset>`, you can leave `msgset` off to get prompted with a list of all known sets.
 
-```bash
+```
 $ jsm ms info derek
 Information for message set derek
 
@@ -275,7 +275,7 @@ Statistics:
 
 Now let's add in some messages. You can use `nats-pub` or `nats-bench`. Or even `nats-req` to see the publish ack being returned.
 
-```bash
+```
 > nats-pub sub1 hello
 Published [sub1] : 'hello'
 
@@ -296,7 +296,7 @@ Statistics:
 
 I will now add 1M messages using `nats-bench`
 
-```bash
+```
 > nats-bench -np 20 -ns 0 -ms 128 -n 1000000 sub1
 > jsm ms info derek
 ...
@@ -311,9 +311,9 @@ Statistics:
 
 Let's now get rid of the message set. We can purge to delete all the messages or just delete it, which I will do here and recreate with limits.
 
-```bash
+```
 $ jsm ms rm derek -f
-$ jsm ms add derek --subjects "sub1,sub2,other.*" --ack --storage f --max-msgs=-1 --max-bytes=-1 --max-age=1m
+$ jsm ms add derek --subjects "sub1,sub2,other.*" --ack --storage f --max-msgs=-1 --max-bytes=-1 --max-age=1m --retention stream
 Message set derek was created
 
 Information for message set derek
@@ -342,8 +342,8 @@ Now we have a message set with no message or byte limits but a 1 minute TTL. We 
 
 Let's now create a message set with the single token wildcard and add some messages to it.
 
-```bash
-$ jsm ms add wild --subjects "*" --ack --storage f --max-msgs=-1 --max-age=-1 --max-bytes=-1                                                                                                                                                                                                                         <17:15:00
+```
+$ jsm ms add wild --subjects "*" --ack --storage f --max-msgs=-1 --max-age=-1 --max-bytes=-1 --retention stream
 Configuration:
 
              Subjects: *
@@ -375,7 +375,7 @@ Statistics:
 
 Now for some observables. JetStream observables can do both push and pull based consumption. So let's start with a simple pull based observable.
 
-```bash
+```
 $ jsm obs add
 ? Select a message set wild
 ? Observable name pull1
@@ -408,7 +408,7 @@ This shows us the we are about to deliver sequence 1. Note that observables alwa
 
 Since we have created a pull based observable, we need to send a request to the system to request the next message (or batch of messages). The subject to request the next message, or N messages, is created via the prefix $JS.RN.<msgset>.<obs>. RN may change, current stands for Request Next. So in the example above we can do the following.
 
-```bash
+```
 > nats-req \$JS.RN.wild.pull1 1
 Published [$JS.RN.wild.pull1] : '1'
 Received  [1] : 'hello.1'
@@ -417,7 +417,7 @@ Received  [1] : 'hello.1'
 This is using the basic tool, but if we could see the message received has a reply subject on it that allows us to communicate back to the system.
 Also, the payload is the number of messages we want JetStream to deliver us at a time, so in this case just 1. If we also look at the observable now we will notice the ack floor has not changed, but other things have.
 
-```bash
+```
 $ jsm obs info wild pull1
 Information for observable wild#pull1
 ...
@@ -434,7 +434,7 @@ We can see that messages are pending - waiting to be acked - and are being redel
 
 If we do this again we will see that we now also have items on the redelivery queue.
 
-```bash
+```
 > nats-req \$JS.RN.wild.pull1 1
 Published [$JS.RN.wild.pull1] : '1'
 Received  [1] : 'hello'
@@ -455,7 +455,7 @@ Of things to note here, pull based observables are always explicit ack to allow 
 
 Now jsm has a built in next function that can do a bit more..
 
-```bash
+```
 $ jsm obs next wild pull1
 hello.1
 Acknowledged message
@@ -474,7 +474,7 @@ if shouldAck {
 
 Now we will create a durable push based observable.
 
-```bash
+```
 $ jsm obs add
 ? Select a message set wild
 ? Observable name push1
@@ -496,7 +496,7 @@ Configuration:
 
 This subject is not active, and if this was an ephemeral observable this would have failed without registered interest, but since this is a durable the system knows to wait until the subject is active.
 
-```bash
+```
 $ nats-sub wild.push1.output
 Listening on [wild.push1.output]
 [#1] Received on [1]: 'hello.1'
@@ -508,7 +508,7 @@ Listening on [wild.push1.output]
 
 Creating the interest triggers delivery of the messages. Something to note here that is new with JetStream, the subscription is just a regular subscription on `wild.push1.output` however the messages are delivered with the original subject. Also note that this observable was not affected by the other observable we created early. Running the `nats-sub` command again will show no messages since we created the oversable above with the ack none policy. This means once the message is delivered it is considered ack'd. Use `nats-pub` to send more messages. Remember the message set's interest will match any single token subject. So if in a different tab or window you do the following you will see it immediately delivered to the subscriber.
 
-```bash
+```
 > nats-pub foo "hello jetsream"
 
 # Other window/tab with nats-sub running
@@ -519,7 +519,7 @@ Listening on [wild.push1.output]
 
 Now lets create another observable, very similar to the one above, but this time ask the system to replay the messages at the same rate they were originally published.
 
-```bash
+```
 $ jsm obs add wild push2 --target wild.push2.output --replay=original --deliver=all --ack=none
 
 Configuration:
@@ -534,7 +534,7 @@ Configuration:
 
 Now when we create our subscriber, the messages will be delivered at the same interval they were received.
 
-```bash
+```
 > nats-sub -t wild.push2.output
 Listening on [d.p3]
 2019/12/05 14:25:23 [#1] Received on [1]: 'hello'
