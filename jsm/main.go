@@ -30,14 +30,17 @@ var (
 )
 
 func main() {
-	jsm := kingpin.New("jsm", "JetStream Management Tool")
+	jsm := kingpin.New("jsm", "JetStream Management Utility")
 	jsm.Author("NATS Authors <info@nats.io>")
+
+	jsm.HelpFlag.Short('h')
+
 	jsm.Flag("server", "NATS servers").Short('s').Default("localhost:4222").StringVar(&servers)
 	jsm.Flag("creds", "User credentials").StringVar(&creds)
 	jsm.Flag("tlscert", "TLS public certifcate").ExistingFileVar(&tlsCert)
 	jsm.Flag("tlskey", "TLS private key").ExistingFileVar(&tlsCert)
 	jsm.Flag("tlsca", "TLS certifcate authority chain").ExistingFileVar(&tlsCA)
-	jsm.Flag("timeout", "Time to give JetStream to respond to queries").Default("2s").DurationVar(&timeout)
+	jsm.Flag("timeout", "Time to wait on responses from JetStream").Default("2s").DurationVar(&timeout)
 
 	configureActCommand(jsm)
 	configureMSCommand(jsm)

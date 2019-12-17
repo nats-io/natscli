@@ -64,7 +64,7 @@ func configureObsCommand(app *kingpin.Application) {
 	obsRm.Arg("name", "Observable name").StringVar(&c.obs)
 	obsRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
-	obsAdd := obs.Command("add", "Creates a new observable").Alias("create").Action(c.createAction)
+	obsAdd := obs.Command("add", "Creates a new observable").Alias("create").Alias("new").Action(c.createAction)
 	obsAdd.Arg("messageset", "Message set name").StringVar(&c.messageSet)
 	obsAdd.Arg("name", "Observable name").StringVar(&c.cfg.Durable)
 	obsAdd.Flag("target", "Push based delivery target subject").StringVar(&c.cfg.Delivery)
