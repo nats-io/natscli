@@ -215,6 +215,11 @@ func (j *JetStreamMgmt) AccountStats() (info *api.JetStreamAccountStats, err err
 	return info, err
 }
 
+// Flush calls flush on the underlying nats connection
+func (j *JetStreamMgmt) Flush() {
+	j.nc.Flush()
+}
+
 func (j *JetStreamMgmt) requestAndUnMarshal(t string, payload []byte, target interface{}) (err error) {
 	resp, err := j.request(t, payload)
 	if err != nil {
