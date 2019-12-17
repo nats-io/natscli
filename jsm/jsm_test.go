@@ -49,15 +49,25 @@ func TestCLIMSCreate(t *testing.T) {
 	srv, _, jsm := setupJSMTest(t)
 	defer srv.Shutdown()
 
-	runJsmCli(t, fmt.Sprintf("--server='%s' ms create mem1 --subjects 'js.mem.>,js.other' --storage m  --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack", srv.ClientURL()))
+	runJsmCli(t, fmt.Sprintf("--server='%s' ms create mem1 --subjects 'js.mem.>,js.other' --storage m  --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention stream", srv.ClientURL()))
 	mem1ShouldExist(t, jsm)
 	info, err := jsm.MessageSetInfo("mem1")
 	checkErr(t, err, "could not fetch message set: %v", err)
+
 	if len(info.Config.Subjects) != 2 {
 		t.Fatalf("expected 2 subjects in the message set, got %v", info.Config.Subjects)
 	}
+
 	if info.Config.Subjects[0] != "js.mem.>" && info.Config.Subjects[1] != "js.other" {
 		t.Fatalf("expects [js.mem.>, js.other] got %v", info.Config.Subjects)
+	}
+
+	if info.Config.Retention != api.StreamPolicy {
+		t.Fatalf("incorrect retention policy set, expected stream got %s", info.Config.Retention.String())
+	}
+
+	if info.Config.Storage != api.MemoryStorage {
+		t.Fatalf("incorrect storage received, expected memory got %s", info.Config.Storage.String())
 	}
 }
 
