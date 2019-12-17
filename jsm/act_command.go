@@ -32,10 +32,10 @@ func configureActCommand(app *kingpin.Application) {
 }
 
 func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
-	nc, err := connect()
-	kingpin.FatalIfError(err, "could not connect")
+	jsm, err := NewJSM(timeout, servers, natsOpts())
+	kingpin.FatalIfError(err, "setup failed")
 
-	info, err := NewJSM(nc, timeout).AccountStats()
+	info, err := jsm.AccountStats()
 	kingpin.FatalIfError(err, "could not request account info")
 
 	if c.json {

@@ -31,11 +31,16 @@ type JetStreamMgmt struct {
 }
 
 // NewJSM creates a new instance of the JetStream Management package
-func NewJSM(c *nats.Conn, timeout time.Duration) *JetStreamMgmt {
-	return &JetStreamMgmt{
-		timeout: time.Second,
-		nc:      c,
+func NewJSM(timeout time.Duration, servers string, opts []nats.Option) (jsm *JetStreamMgmt, err error) {
+	nc, err := nats.Connect(servers, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("connection failed: %v", err)
 	}
+
+	return &JetStreamMgmt{
+		timeout: timeout,
+		nc:      nc,
+	}, nil
 }
 
 // MessageSetCreate creates a new message set
@@ -218,6 +223,11 @@ func (j *JetStreamMgmt) AccountStats() (info *api.JetStreamAccountStats, err err
 // Flush calls flush on the underlying nats connection
 func (j *JetStreamMgmt) Flush() {
 	j.nc.Flush()
+}
+
+// Nats provides access to the underlying NATS client
+func (j *JetStreamMgmt) Nats() *nats.Conn {
+	return j.nc
 }
 
 func (j *JetStreamMgmt) requestAndUnMarshal(t string, payload []byte, target interface{}) (err error) {
