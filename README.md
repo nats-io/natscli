@@ -76,6 +76,16 @@ When defining Observables the items below make up the entire configuration of th
 |Subject|When consuming from a message set with many subjects, or wildcards, select only a specific incoming subject|
 |ReplayPolicy|How messages are set `ReplayInstant` or `ReplayOriginal`|
 
+### Configuration
+
+The rest of the document introduce the `jsm` utility, but for completeness and reference this is how you'd create the ORDERS scenario, we'll configure a 1 year retention for order related messages:
+
+```bash
+$ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream
+$ jsm obs add ORDERS NEW --subject ORDERS.received --ack explicit --pull --deliver all
+$ jsm obs add ORDERS DISPATCH --subject ORDERS.processed --ack explicit --pull --deliver all
+$ jsm obs add ORDERS MONITOR --ack none --target monitor.ORDERS --deliver last --replay instant
+```
 
 ## Getting Started
 
