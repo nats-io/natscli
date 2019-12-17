@@ -289,6 +289,7 @@ func (c *obsCmd) nextAction(pc *kingpin.ParseContext) error {
 	if c.ack {
 		err = msg.Respond(api.AckAck)
 		kingpin.FatalIfError(err, "could not Acknowledge message")
+		jsm.Flush()
 		if !c.raw {
 			fmt.Println("\nAcknowledged message")
 		}
