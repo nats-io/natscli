@@ -24,15 +24,15 @@ All messages are delivered to a `MONITOR` Observable without any acknowledgement
 
 ### Message Sets
 
-Message sets define how messages are stored and how long they are kept for.  Message sets consume normal NATS topics, any message found on those topics will be delivered to the defined storage system. You can do a normal publish to the topic for unacknowledged delivery, else if you send a Request to the topic the JetStream server will reply with an acknowledgement that it was stored.
+Message Sets define how messages are stored and how long they are kept for.  Message Sets consume normal NATS topics, any message found on those topics will be delivered to the defined storage system. You can do a normal publish to the topic for unacknowledged delivery, else if you send a Request to the topic the JetStream server will reply with an acknowledgement that it was stored.
 
 Today in the tech preview we have `file` and `memory` based storage systems, we do not yet support clustering.
 
 In the diagram above we show the concept of storing all `ORDERS.*` in the Message Set even though there are many types of order related message. We'll show how you can selectively consume subsets of messages later. Relatively speaking the Message Set is the most resource consuming component so being able to combine related data in this manner is important to consider.
 
-Message sets can consume many subjects, here we have `ORDERS.*` but we could also consume `SHIPPING.state` into the same message set should that make sense (not shown here).
+Message Sets can consume many subjects, here we have `ORDERS.*` but we could also consume `SHIPPING.state` into the same message set should that make sense (not shown here).
 
-Message sets support various retention policies - they can be kept based on limits like max count, size or age but also more novel methods like keep them as long as any observables have them unacknowledged or work queue like behavior where a message is removed after first ack.
+Message Sets support various retention policies - they can be kept based on limits like max count, size or age but also more novel methods like keep them as long as any observables have them unacknowledged or work queue like behavior where a message is removed after first ack.
 
 When defining Message Sets the items below make up the entire configuration of the set.
 
@@ -51,15 +51,15 @@ When defining Message Sets the items below make up the entire configuration of t
 
 ### Observables
 
-Each consumer, or related group of consumers, of a Message Set will need an observable defined.  It's ok to define thousands of these pointing at the same message set.
+Each consumer, or related group of consumers, of a Message Set will need an observable defined.  It's ok to define thousands of these pointing at the same Message Set.
 
 Observables can either be `push` based where JetStream will deliver the messages as fast as possible to a topic of your choice or `pull` based for typical work queue like behavior. The rate of message delivery in both cases is subject to `ReplayPolicy`.  A `ReplayInstant` Observable will receive all messages as fast as possible while a `ReplayOriginal` one will receive messages at the rate they were received in which is great for replaying production traffic in staging.
 
-In the orders example above we have 3 observables. The first two select a subset of the messages from the Message Set by specifying a specific subject like `ORDERS.processed`. The message set consumes `ORDERS.*` and this allows you to receive just what you need. The final observable receives all messages in a `push` fashion.
+In the orders example above we have 3 observables. The first two select a subset of the messages from the Message Set by specifying a specific subject like `ORDERS.processed`. The Message Set consumes `ORDERS.*` and this allows you to receive just what you need. The final observable receives all messages in a `push` fashion.
 
-Observables track their progress, they know what messages were delivered, acknowledged etc. But when they first start you can configure either a specific message in the set (`MsgSetSeq`), specific time (`StartTime`), all (`DeliverAll`) or last (`DeliverLast`).  This is where it starts and from there they all behave the same - delivers all following messages with optional Acknowledgement.
+Observables track their progress, they know what messages were delivered, acknowledged etc and will redeliver messages they sent that were not acknowledged. When first created it has to know what message to send as the first one,  you can configure either a specific message in the set (`MsgSetSeq`), specific time (`StartTime`), all (`DeliverAll`) or last (`DeliverLast`).  This is where it starts and from there they all behave the same - delivers all following messages with optional Acknowledgement.
 
-Acknowledgements default to `AckExplicit` - the only supported mode for pull based observables.  But for push based ones you can set `AckNone` to not require any acknowledgement or `AckAll` which is quite interesting in that it lets you acknowledge message `100` which will also acknowledge messages `1` through `99`, this can be a great performance boost.
+Acknowledgements default to `AckExplicit` - the only supported mode for pull based observables - meaning every message requires distinct acknowledgement.  But for push based ones you can set `AckNone` to not require any acknowledgement or `AckAll` which is quite interesting in that it lets you acknowledge message `100` which will also acknowledge messages `1` through `99`, this can be a great performance boost.
 
 When defining Observables the items below make up the entire configuration of the observable:
 
@@ -67,13 +67,13 @@ When defining Observables the items below make up the entire configuration of th
 |----|-----------|
 |Delivery|The subject to deliver observed messages, when not set a pull based observable is created|
 |Durable|The name of the observable|
-|MsgSetSeq|When first consuming messages from the message set start at this particular message in the set|
-|StartTime|When first consuming messages from the message set start with messages on or after this time|
+|MsgSetSeq|When first consuming messages from the Message Set start at this particular message in the set|
+|StartTime|When first consuming messages from the Message Set start with messages on or after this time|
 |DeliverAll|When first consuming messages start from the first message and deliver every message in the set|
 |DeliverLast|When first consuming messages start with the latest received message in the set|
 |AckPolicy|How messages should be acknowledged, `AckNone`, `AckAll` or `AckExplicit`|
 |AckWait|How long to allow messages to remain unacked before attempting redelivery|
-|Subject|When consuming from a message set with many subjects, or wildcards, select only a specific incoming subject|
+|Subject|When consuming from a Message Set with many subjects, or wildcards, select only a specific incoming subject|
 |ReplayPolicy|How messages are set `ReplayInstant` or `ReplayOriginal`|
 
 ### Configuration

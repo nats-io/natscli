@@ -51,7 +51,7 @@ func configureMSCommand(app *kingpin.Application) {
 	msInfo.Arg("set", "Message set to retrieve information for").StringVar(&c.set)
 	msInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
-	msAdd := ms.Command("create", "Create a new message set").Alias("add").Action(c.addAction)
+	msAdd := ms.Command("create", "Create a new message set").Alias("add").Alias("new").Action(c.addAction)
 	msAdd.Arg("name", "Message set name").StringVar(&c.set)
 	msAdd.Flag("subjects", "Subjets thats belong to the Message set").Default().StringsVar(&c.subjects)
 	msAdd.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
