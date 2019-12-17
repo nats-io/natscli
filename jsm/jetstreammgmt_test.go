@@ -38,10 +38,8 @@ func setupJSMTest(t *testing.T) (srv *natsd.Server, nc *nats.Conn, jsm *JetStrea
 		t.Errorf("nats server did not start")
 	}
 
-	nc, err = nats.Connect(srv.ClientURL())
+	jsm, err = NewJSM(time.Second, srv.ClientURL(), []nats.Option{})
 	checkErr(t, err, "could not connect client to server @ %s: %v", srv.ClientURL(), err)
-
-	jsm = NewJSM(nc, time.Second)
 
 	sets, err := jsm.MessageSets()
 	checkErr(t, err, "could not load sets: %v", err)
@@ -49,7 +47,7 @@ func setupJSMTest(t *testing.T) (srv *natsd.Server, nc *nats.Conn, jsm *JetStrea
 		t.Fatalf("found %v message sets but it should be empty", sets)
 	}
 
-	return srv, nc, jsm
+	return srv, jsm.Nats(), jsm
 }
 
 func setupObsTest(t *testing.T) (srv *natsd.Server, nc *nats.Conn, jsm *JetStreamMgmt) {

@@ -299,10 +299,8 @@ func (c *obsCmd) nextAction(pc *kingpin.ParseContext) error {
 }
 
 func (c *obsCmd) connectAndSetup(askSet bool, askObs bool) (jsm *JetStreamMgmt) {
-	nc, err := connect()
-	kingpin.FatalIfError(err, "could not connect")
-
-	jsm = NewJSM(nc, timeout)
+	jsm, err := NewJSM(timeout, servers, natsOpts())
+	kingpin.FatalIfError(err, "setup failed")
 
 	if askSet {
 		c.messageSet, err = selectMessageSet(jsm, c.messageSet)

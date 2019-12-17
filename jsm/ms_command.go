@@ -121,9 +121,6 @@ func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
-	nc, err := connect()
-	kingpin.FatalIfError(err, "could not connect")
-
 	if c.set == "" {
 		err = survey.AskOne(&survey.Input{
 			Message: "Message Set Name",
@@ -213,7 +210,10 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		}
 	}
 
-	err = NewJSM(nc, timeout).MessageSetCreate(&api.MsgSetConfig{
+	jsm, err := NewJSM(timeout, servers, natsOpts())
+	kingpin.FatalIfError(err, "setup failed")
+
+	err = jsm.MessageSetCreate(&api.MsgSetConfig{
 		Name:           c.set,
 		Subjects:       c.subjects,
 		MaxMsgs:        c.maxMsgLimit,
@@ -269,10 +269,10 @@ func (c *msCmd) purgeAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *msCmd) lsAction(_ *kingpin.ParseContext) (err error) {
-	nc, err := connect()
-	kingpin.FatalIfError(err, "could not connect")
+	jsm, err := NewJSM(timeout, servers, natsOpts())
+	kingpin.FatalIfError(err, "setup failed")
 
-	sets, err := NewJSM(nc, timeout).MessageSets()
+	sets, err := jsm.MessageSets()
 	kingpin.FatalIfError(err, "could not list message set")
 
 	if c.json {
@@ -327,10 +327,8 @@ func (c *msCmd) getAction(_ *kingpin.ParseContext) (err error) {
 }
 
 func (c *msCmd) connectAndAskSet() (jsm *JetStreamMgmt) {
-	nc, err := connect()
-	kingpin.FatalIfError(err, "could not connect")
-
-	jsm = NewJSM(nc, timeout)
+	jsm, err := NewJSM(timeout, servers, natsOpts())
+	kingpin.FatalIfError(err, "setup failed")
 
 	c.set, err = selectMessageSet(jsm, c.set)
 	kingpin.FatalIfError(err, "could not pick a message set")

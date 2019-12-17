@@ -196,9 +196,8 @@ func splitString(s string) []string {
 	})
 }
 
-func connect() (*nats.Conn, error) {
+func natsOpts() []nats.Option {
 	opts := []nats.Option{nats.Name("JetStream Management CLI"), nats.NoReconnect()}
-
 	if creds != "" {
 		opts = append(opts, nats.UserCredentials(creds))
 	}
@@ -211,5 +210,5 @@ func connect() (*nats.Conn, error) {
 		opts = append(opts, nats.RootCAs(tlsCA))
 	}
 
-	return nats.Connect(servers, opts...)
+	return opts
 }
