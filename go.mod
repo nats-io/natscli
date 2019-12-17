@@ -1,4 +1,4 @@
-module github.com/nats-io/jetstream/jsm
+module github.com/nats-io/jetstream
 
 go 1.12
 
