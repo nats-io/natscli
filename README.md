@@ -2,9 +2,80 @@
 
 JetStream is the [NATS.io](https://nats.io) persistence engine that will support streaming as well as traditional message and worker queues for At-Least-Once delivery semantics.
 
-JetStream is composed of two major components, Message Sets and Observables. Message Sets determine the interest set, global ordering, retention policy, replicas and resource limits. Observables define how Message Sets are consumed, and have quite a few options.
-
 More information can be found [here](https://nats.io/blog/tech-preview-oct-2019/#jetstream).
+
+## Concepts
+
+In JetStream the configuration for storing messages is defined separately from how they are consumed. Storage is defined in a *Message Set* and consuming messages is defined by multiple *Observables*.
+
+We'll discuss these 2 topics in the context of this architecture.
+
+![Orders](images/message-sets-and-observables-75p.png)
+
+While this is an incomplete architecture it does show a number of key points:
+
+ * Many related topics are stored in a Message Set
+ * Observables can have different modes of operation and receive just subsets of the messages
+ * Multiple Acknowledgement modes are supported
+
+A new order arrives on `ORDERS.received`, gets sent to the `NEW` Observable who, on success, will create a new message on `ORDERS.processed`.  The `ORDERS.processed` message again enters the store where a `DISPATCH` Observable receives it and once processed it will create a `ORDERS.completed` message which will again enter the Message Set. These operations are all `push` based meaning they are work queues and can scale horizontally.  All require acknowledged delivery ensuring no order is missed.
+
+All messages are delivered to a `MONITOR` Observable without any acknowledgement and using Pub/Sub semantics - they are pushed to the monitor.
+
+### Message Sets
+
+Message sets define how messages are stored and how long they are kept for.  Message sets consume normal NATS topics, any message found on those topics will be delivered to the defined storage system. You can do a normal publish to the topic for unacknowledged delivery, else if you send a Request to the topic the JetStream server will reply with an acknowledgement that it was stored.
+
+Today in the tech preview we have `file` and `memory` based storage systems, we do not yet support clustering.
+
+In the diagram above we show the concept of storing all `ORDERS.*` in the Message Set even though there are many types of order related message. We'll show how you can selectively consume subsets of messages later. Relatively speaking the Message Set is the most resource consuming component so being able to combine related data in this manner is important to consider.
+
+Message sets can consume many subjects, here we have `ORDERS.*` but we could also consume `SHIPPING.state` into the same message set should that make sense (not shown here).
+
+Message sets support various retention policies - they can be kept based on limits like max count, size or age but also more novel methods like keep them as long as any observables have them unacknowledged or work queue like behavior where a message is removed after first ack.
+
+When defining Message Sets the items below make up the entire configuration of the set.
+
+|Item|Description|
+|----|-----------|
+|Name|A name for the message set that may not have spaces, tabs or `.`|
+|Subjects|A list of subjects to consume, supports wildcards|
+|Retention|How message retention are considered, `StreamPolicy` (default), `InterestPolicy` or `WorkQueuePolicy`|
+|MaxObservables|How many Observables can be defined for a given message set, `-1` for unlimited|
+|MaxMsgs|When retention policy is `StreamPolicy` how many messages may be in a message set|
+|MaxBytes|When retention policy is `StreamPolicy` how big the message set may be|
+|MaxAge|When retention policy is `StreamPolicy` how old message in the set may be|
+|Storage|The type of storage backend, `file` and `memory` today|
+|Replicas|How many replicas to keep for each message (not implemented today)|
+|NoAck|Disables acknowledging messages that are received by the message set|
+
+### Observables
+
+Each consumer, or related group of consumers, of a Message Set will need an observable defined.  It's ok to define thousands of these pointing at the same message set.
+
+Observables can either be `push` based where JetStream will deliver the messages as fast as possible to a topic of your choice or `pull` based for typical work queue like behavior. The rate of message delivery in both cases is subject to `ReplayPolicy`.  A `ReplayInstant` Observable will receive all messages as fast as possible while a `ReplayOriginal` one will receive messages at the rate they were received in which is great for replaying production traffic in staging.
+
+In the orders example above we have 3 observables. The first two select a subset of the messages from the Message Set by specifying a specific subject like `ORDERS.processed`. The message set consumes `ORDERS.*` and this allows you to receive just what you need. The final observable receives all messages in a `push` fashion.
+
+Observables track their progress, they know what messages were delivered, acknowledged etc. But when they first start you can configure either a specific message in the set (`MsgSetSeq`), specific time (`StartTime`), all (`DeliverAll`) or last (`DeliverLast`).  This is where it starts and from there they all behave the same - delivers all following messages with optional Acknowledgement.
+
+Acknowledgements default to `AckExplicit` - the only supported mode for pull based observables.  But for push based ones you can set `AckNone` to not require any acknowledgement or `AckAll` which is quite interesting in that it lets you acknowledge message `100` which will also acknowledge messages `1` through `99`, this can be a great performance boost.
+
+When defining Observables the items below make up the entire configuration of the observable:
+
+|Item|Description|
+|----|-----------|
+|Delivery|The subject to deliver observed messages, when not set a pull based observable is created|
+|Durable|The name of the observable|
+|MsgSetSeq|When first consuming messages from the message set start at this particular message in the set|
+|StartTime|When first consuming messages from the message set start with messages on or after this time|
+|DeliverAll|When first consuming messages start from the first message and deliver every message in the set|
+|DeliverLast|When first consuming messages start with the latest received message in the set|
+|AckPolicy|How messages should be acknowledged, `AckNone`, `AckAll` or `AckExplicit`|
+|AckWait|How long to allow messages to remain unacked before attempting redelivery|
+|Subject|When consuming from a message set with many subjects, or wildcards, select only a specific incoming subject|
+|ReplayPolicy|How messages are set `ReplayInstant` or `ReplayOriginal`|
+
 
 ## Getting Started
 
