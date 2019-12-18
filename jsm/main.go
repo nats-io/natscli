@@ -27,11 +27,13 @@ var (
 	tlsKey  string
 	tlsCA   string
 	timeout time.Duration
+	version string
 )
 
 func main() {
 	jsm := kingpin.New("jsm", "JetStream Management Utility")
 	jsm.Author("NATS Authors <info@nats.io>")
+	jsm.Version(version)
 
 	jsm.HelpFlag.Short('h')
 

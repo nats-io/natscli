@@ -40,6 +40,16 @@ archives:
       - README.md
       - LICENSE
 
+dockers:
+  - goos: linux
+    goarch: amd64
+    skip_push: true
+    binaries:
+      - jsm
+    image_templates:
+      - "synadia/jsm:latest"
+      - "synadia/jsm:{{ .Tag }}"
+
 checksum:
   name_template: "SHA256SUMS"
   algorithm: sha256
