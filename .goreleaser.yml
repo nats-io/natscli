@@ -33,12 +33,22 @@ builds:
         goarch: 386
 
 archives:
-  - name_template: "{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
+  - name_template: "{{.ProjectName}}-{{.Version}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
     wrap_in_directory: true
     format: zip
     files:
       - README.md
       - LICENSE
+
+dockers:
+  - goos: linux
+    goarch: amd64
+    skip_push: true
+    binaries:
+      - jsm
+    image_templates:
+      - "synadia/jsm:latest"
+      - "synadia/jsm:{{.Version}}"
 
 checksum:
   name_template: "SHA256SUMS"
