@@ -18,7 +18,7 @@ While this is an incomplete architecture it does show a number of key points:
  * Observables can have different modes of operation and receive just subsets of the messages
  * Multiple Acknowledgement modes are supported
 
-A new order arrives on `ORDERS.received`, gets sent to the `NEW` Observable who, on success, will create a new message on `ORDERS.processed`.  The `ORDERS.processed` message again enters the store where a `DISPATCH` Observable receives it and once processed it will create a `ORDERS.completed` message which will again enter the Message Set. These operations are all `push` based meaning they are work queues and can scale horizontally.  All require acknowledged delivery ensuring no order is missed.
+A new order arrives on `ORDERS.received`, gets sent to the `NEW` Observable who, on success, will create a new message on `ORDERS.processed`.  The `ORDERS.processed` message again enters the store where a `DISPATCH` Observable receives it and once processed it will create a `ORDERS.completed` message which will again enter the Message Set. These operations are all `pull` based meaning they are work queues and can scale horizontally.  All require acknowledged delivery ensuring no order is missed.
 
 All messages are delivered to a `MONITOR` Observable without any acknowledgement and using Pub/Sub semantics - they are pushed to the monitor.
 
