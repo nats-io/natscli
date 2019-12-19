@@ -135,10 +135,9 @@ You can override the storage directory if you want.
 [16943] 2019/12/04 19:20:00.874877 [INF] Server is ready
 ```
 
-Once the server is running it's time to use the management tool. This is temporary but will do for this tech preview.
+Once the server is running it's time to use the management tool. This can be downloaded from the [GitHub Release Page](https://github.com/nats-io/jetstream/releases/) or you can use the `synadia/jsm:latest` docker image.
 
 ```
-> go get -u github.com/nats-io/jetstream/jsm
 > jsm --help
 usage: jsm [<flags>] <command> [<args> ...]
 JetStream Management Tool
