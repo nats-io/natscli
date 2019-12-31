@@ -282,7 +282,7 @@ Statistics:
   Active Observables: 0
 ```
 
-Now let's add in some messages. You can use `nats-pub` or `nats-bench`. Or even `nats-req` to see the publish ack being returned.
+Now let's add in some messages. You can use `nats-pub` or `nats-bench`. Or even `nats-req` to see the publish ack being returned (these are included in the `synadia/jsm:latest` docker image).
 
 ```
 > nats-pub sub1 hello

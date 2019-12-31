@@ -39,9 +39,9 @@ func main() {
 
 	jsm.Flag("server", "NATS servers").Short('s').Default("localhost:4222").StringVar(&servers)
 	jsm.Flag("creds", "User credentials").StringVar(&creds)
-	jsm.Flag("tlscert", "TLS public certifcate").ExistingFileVar(&tlsCert)
+	jsm.Flag("tlscert", "TLS public certificate").ExistingFileVar(&tlsCert)
 	jsm.Flag("tlskey", "TLS private key").ExistingFileVar(&tlsCert)
-	jsm.Flag("tlsca", "TLS certifcate authority chain").ExistingFileVar(&tlsCA)
+	jsm.Flag("tlsca", "TLS certificate authority chain").ExistingFileVar(&tlsCA)
 	jsm.Flag("timeout", "Time to wait on responses from JetStream").Default("2s").DurationVar(&timeout)
 
 	configureActCommand(jsm)

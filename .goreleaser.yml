@@ -49,6 +49,8 @@ dockers:
     image_templates:
       - "synadia/jsm:latest"
       - "synadia/jsm:{{.Version}}"
+    extra_files:
+      - README.md
 
 checksum:
   name_template: "SHA256SUMS"
