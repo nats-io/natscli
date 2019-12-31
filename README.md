@@ -91,18 +91,44 @@ $ jsm obs add ORDERS MONITOR --ack none --target monitor.ORDERS --deliver last -
 
 This tech preview is limited to a single server and defaults to the global account. JetStream is NATS 2.0 aware and is scoped to accounts from a resource limit perspective. This is not the same as an individual server's resources, but may feel that way starting out. Don't worry, clustering is coming next but we wanted to get input early from the community.
 
+### Using Docker
+
+The `synadia/jsm:latest` docker image contains both the JetStream enabled NATS Server and the `jsm` utility this guide covers.
+
+In one window start JetStream:
+
+```
+$ docker run -ti --rm --entrypoint /nats-server --name js synadia/jsm:latest -js -D
+```
+
+And in another log into the utilities:
+
+```
+$ docker exec -ti js sh -l
+```
+
+This shell has the `jsm` utility and all other nats cli tools used in the rest of this guide.
+
+Now skip to the `Administer JetStream` section.
+
+### Using Source
+
 You will also want to have installed from the nats.go repo the examples/tools such as nats-pub, nats-sub, nats-req and possibly nats-bench. One of the design goals of JetStream was to be native to NATS core, so even though we will most certainly add in syntatic sugar to clients to make them more appealing, for this tech preview we will be using plain old NATS.
 
 You will need a copy of the nats-server source locally and will need to be in the jetstream branch.
 
 ```
-# Server
-git checkout jetstream
+$ git clone https://github.com/nats-io/nats-server.git
+$ cd nats-server
+$ git checkout jetstream
+$ go build
+$ ls -l nats-server
 ```
+
 Starting the server you can use the `-js` flag. This will setup the server to reasonably use memory and disk. This is a sample run on my machine. JetStream will default to 1TB of disk and 75% of available memory for now.
 
 ```
-> nats-server -js
+$ ./nats-server -js
 
 [16928] 2019/12/04 19:16:29.596968 [INF] Starting nats-server version 2.2.0-beta
 [16928] 2019/12/04 19:16:29.597056 [INF] Git commit [not set]
@@ -120,7 +146,7 @@ Starting the server you can use the `-js` flag. This will setup the server to re
 You can override the storage directory if you want.
 
 ```
-> nats-server -js -sd /tmp/test
+$ ./nats-server -js -sd /tmp/test
 
 [16943] 2019/12/04 19:20:00.874148 [INF] Starting nats-server version 2.2.0-beta
 [16943] 2019/12/04 19:20:00.874247 [INF] Git commit [not set]
@@ -135,10 +161,12 @@ You can override the storage directory if you want.
 [16943] 2019/12/04 19:20:00.874877 [INF] Server is ready
 ```
 
+## Administer JetStream
+
 Once the server is running it's time to use the management tool. This can be downloaded from the [GitHub Release Page](https://github.com/nats-io/jetstream/releases/) or you can use the `synadia/jsm:latest` docker image.
 
 ```
-> jsm --help
+$ jsm --help
 usage: jsm [<flags>] <command> [<args> ...]
 JetStream Management Tool
 
