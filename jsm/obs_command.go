@@ -247,6 +247,8 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		c.cfg.AckPolicy = api.AckExplicit
 	}
 
+	c.cfg.AckWait = c.ackWait
+
 	if c.cfg.Delivery != "" {
 		if c.replyPolicy == "" {
 			mode := ""
