@@ -14,7 +14,7 @@ builds:
   - main: ./jsm
     binary: jsm
     env:
-      - GO111MODULE=off
+      - GO111MODULE=on
       - CGO_ENABLED=0
     goos:
       - darwin
