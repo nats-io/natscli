@@ -14,13 +14,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	api "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -75,7 +78,7 @@ func configureObsCommand(app *kingpin.Application) {
 	obsAdd.Flag("wait", "Acknowledgement waiting time").Default("30s").DurationVar(&c.ackWait)
 	obsAdd.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
 
-	obsNext := obs.Command("next", "Retrieves the next message from a push message set").Action(c.nextAction)
+	obsNext := obs.Command("next", "Retrieves the next message from a push message set").Alias("sub").Action(c.nextAction)
 	obsNext.Arg("messageset", "Message set name").StringVar(&c.messageSet)
 	obsNext.Arg("obs", "Observable name").StringVar(&c.obs)
 	obsNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
@@ -275,9 +278,7 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	return c.infoAction(pc)
 }
 
-func (c *obsCmd) nextAction(pc *kingpin.ParseContext) error {
-	jsm := c.connectAndSetup(true, true)
-
+func (c *obsCmd) getNextMsg(jsm *JetStreamMgmt) error {
 	msg, err := jsm.ObservableNext(c.messageSet, c.obs)
 	kingpin.FatalIfError(err, "could not load next message")
 
@@ -298,6 +299,71 @@ func (c *obsCmd) nextAction(pc *kingpin.ParseContext) error {
 	}
 
 	return nil
+}
+
+func (c *obsCmd) subscribeObs(jsm *JetStreamMgmt, info *api.ObservableInfo) (err error) {
+	if info.Config.Delivery == "" {
+		return fmt.Errorf("observable is not push based")
+	}
+
+	if !c.raw {
+		fmt.Printf("Subscribing to topic %s auto acknowlegement: %v\n\n", info.Config.Delivery, c.ack)
+		fmt.Println("Observable Info:")
+		fmt.Printf("  Ack Policy: %s\n", info.Config.AckPolicy.String())
+		if info.Config.AckPolicy != api.AckNone {
+			fmt.Printf("    Ack Wait: %v\n", info.Config.AckWait)
+		}
+		fmt.Println()
+	}
+
+	_, err = jsm.Nats().Subscribe(info.Config.Delivery, func(m *nats.Msg) {
+		parts := []string{}
+		wantsAck := false
+
+		if strings.HasPrefix(m.Reply, api.JetStreamAckPre) {
+			wantsAck = true
+			parts = strings.Split(m.Reply, ".")
+		}
+
+		if !c.raw {
+			if len(parts) > 0 {
+				fmt.Printf("[%s] topic: %s / delivered: %s / obs seq: %s / set seq: %s\n", time.Now().Format("15:04:05"), m.Subject, parts[4], parts[6], parts[5])
+			} else {
+				fmt.Printf("[%s] %s reply: %s\n", time.Now().Format("15:04:05"), m.Subject, m.Reply)
+			}
+
+			fmt.Printf("%s\n", string(m.Data))
+			if !strings.HasSuffix(string(m.Data), "\n") {
+				fmt.Println()
+			}
+		} else {
+			fmt.Println(string(m.Data))
+		}
+
+		if wantsAck && c.ack {
+			err = m.Respond(nil)
+			if err != nil {
+				fmt.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
+			}
+		}
+	})
+
+	<-context.Background().Done()
+
+	return nil
+}
+
+func (c *obsCmd) nextAction(pc *kingpin.ParseContext) error {
+	jsm := c.connectAndSetup(true, true)
+
+	info, err := jsm.ObservableInfo(c.messageSet, c.obs)
+	kingpin.FatalIfError(err, "could not get observable info")
+
+	if info.Config.Delivery == "" {
+		return c.getNextMsg(jsm)
+	}
+
+	return c.subscribeObs(jsm, info)
 }
 
 func (c *obsCmd) connectAndSetup(askSet bool, askObs bool) (jsm *JetStreamMgmt) {
