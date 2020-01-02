@@ -581,6 +581,60 @@ Listening on [d.p3]
 2019/12/05 14:25:34 [#5] Received on [4]: 'hello'
 ```
 
+## Ack Sampling
+
+As messages pass through an observable you'd be interested in knowing how many are being redelivered and how many times but also how long it takes for messages to be acknowledged.
+
+Observables can sample Ack'ed messages for you and publish samples so your monitoring system can observe the health of an observable. We will add support for this to [NATS Surveyor](https://github.com/nats-io/nats-surveyor).
+
+The definition for a Sample is:
+
+```go
+type ObservableAckSampleEvent struct {
+	MsgSet     string `json:"msg_set"`
+	Observable string `json:"obs"`
+	ObsSeq     uint64 `json:"obs_seq"`
+	MsgSetSeq  uint64 `json:"msg_set_seq"`
+	Delay      int64  `json:"ack_time"`
+	Deliveries uint64 `json:"delivered"`
+}
+```
+You can configure an observable for sampling by passing the `--sample 80` option to `jsm obs add`, this tells the system to sample 80% of Acknowledgements.
+
+Samples are published to `$JS.OBSERVABLE.ACKSAMPLE.<msg set name>.<observable name>` in JSON format. Use the `jsm obs sample` command to view samples:
+
+```nohighlight
+$ jsm obs sample
+? Select a message set js_f
+? Select an observable test
+Listening for Ack Samples on $JS.OBSERVABLE.ACKSAMPLE.js_f.test with sampling frequency 100 for js_f > test 
+
+[16:10:13] js_f > test
+  Message Set Sequence: 142
+   Observable Sequence: 154
+           Redelivered: 1
+                 Delay: 5.1684ms
+```
+
+```nohighlight
+$ jsm obs sample js_f test --json
+{
+  "msg_set": "js_f",
+  "obs": "test",
+  "obs_seq": 155,
+  "msg_set_seq": 143,
+  "ack_time": 5387000,
+  "delivered": 1
+}
+{
+  "msg_set": "js_f",
+  "obs": "test",
+  "obs_seq": 156,
+  "msg_set_seq": 144,
+  "ack_time": 5807800,
+  "delivered": 1
+}
+```
 ## Next Steps
 
 There is plenty to more to discuss and features to describe. We will continue to add things here and feel free to post any questions on the JetStream Slack channel. For the brave, take a look at `nats-server/test/jetstream_test.go` for all that jetstream can do. And please file and issues or communicate on slack or on email.

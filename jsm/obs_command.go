@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -40,6 +41,7 @@ type obsCmd struct {
 	startPolicy string
 	ackPolicy   string
 	ackWait     time.Duration
+	samplePct   int
 
 	cfg *api.ObservableConfig
 }
@@ -76,6 +78,7 @@ func configureObsCommand(app *kingpin.Application) {
 	obsAdd.Flag("deliver", "Start policy (all, last, 1h, msg sequence)").StringVar(&c.startPolicy)
 	obsAdd.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
 	obsAdd.Flag("wait", "Acknowledgement waiting time").Default("30s").DurationVar(&c.ackWait)
+	obsAdd.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("0").IntVar(&c.samplePct)
 	obsAdd.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
 
 	obsNext := obs.Command("next", "Retrieves the next message from a push message set").Alias("sub").Action(c.nextAction)
@@ -84,13 +87,59 @@ func configureObsCommand(app *kingpin.Application) {
 	obsNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	obsNext.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
 
+	obsSample := obs.Command("sample", "View samples for an observable").Action(c.sampleAction)
+	obsSample.Arg("messageset", "Message set name").StringVar(&c.messageSet)
+	obsSample.Arg("obs", "Observable name").StringVar(&c.obs)
+	obsSample.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+}
+
+func (c *obsCmd) sampleAction(_ *kingpin.ParseContext) error {
+	jsm := c.connectAndSetup(true, true)
+
+	info, err := jsm.ObservableInfo(c.messageSet, c.obs)
+	kingpin.FatalIfError(err, "could not load observable %s > %s", c.messageSet, c.obs)
+
+	if info.Config.SampleFrequency == "" {
+		kingpin.Fatalf("Sampling is not configured for observable %s > %s", c.messageSet, c.obs)
+	}
+
+	topic := api.JetStreamObservableAckSamplePre + "." + c.messageSet + "." + c.obs
+
+	if !c.json {
+		fmt.Printf("Listening for Ack Samples on %s with sampling frequency %s for %s > %s \n\n", topic, info.Config.SampleFrequency, c.messageSet, c.obs)
+	}
+
+	jsm.Nats().Subscribe(topic, func(m *nats.Msg) {
+		if c.json {
+			fmt.Println(string(m.Data))
+			return
+		}
+
+		sample := api.ObservableAckSampleEvent{}
+		err := json.Unmarshal(m.Data, &sample)
+		if err != nil {
+			fmt.Printf("Sample failed to parse: %s\n", err)
+			return
+		}
+
+		fmt.Printf("[%s] %s > %s\n", time.Now().Format("15:04:05"), sample.MsgSet, sample.Observable)
+		fmt.Printf("  Message Set Sequence: %d\n", sample.MsgSetSeq)
+		fmt.Printf("   Observable Sequence: %d\n", sample.ObsSeq)
+		fmt.Printf("           Redelivered: %d\n", sample.Deliveries)
+		fmt.Printf("                 Delay: %v\n", time.Duration(sample.Delay))
+		fmt.Println()
+	})
+
+	<-context.Background().Done()
+
+	return nil
 }
 
 func (c *obsCmd) rmAction(_ *kingpin.ParseContext) error {
 	jsm := c.connectAndSetup(true, true)
 
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Really delete observable %s#%s", c.messageSet, c.obs), false)
+		ok, err := askConfirmation(fmt.Sprintf("Really delete observable %s > %s", c.messageSet, c.obs), false)
 		kingpin.FatalIfError(err, "could not obtain confirmation")
 
 		if !ok {
@@ -132,14 +181,14 @@ func (c *obsCmd) infoAction(pc *kingpin.ParseContext) error {
 	jsm := c.connectAndSetup(true, true)
 
 	info, err := jsm.ObservableInfo(c.messageSet, c.obs)
-	kingpin.FatalIfError(err, "could not load observable %s#%s", c.messageSet, c.obs)
+	kingpin.FatalIfError(err, "could not load observable %s > %s", c.messageSet, c.obs)
 
 	if c.json {
 		printJSON(info)
 		return nil
 	}
 
-	fmt.Printf("Information for observable %s#%s\n", c.messageSet, c.obs)
+	fmt.Printf("Information for observable %s > %s\n", c.messageSet, c.obs)
 	fmt.Println()
 	fmt.Println("Configuration:")
 	fmt.Println()
@@ -167,6 +216,10 @@ func (c *obsCmd) infoAction(pc *kingpin.ParseContext) error {
 		fmt.Printf("          Ack Wait: %v\n", info.Config.AckWait)
 	}
 	fmt.Printf("     Replay Policy: %s\n", info.Config.ReplayPolicy.String())
+	if info.Config.SampleFrequency != "" {
+		fmt.Printf("     Sampling Rate: %s\n", info.Config.SampleFrequency)
+	}
+
 	fmt.Println()
 
 	fmt.Println("State:")
@@ -251,6 +304,14 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	}
 
 	c.cfg.AckWait = c.ackWait
+
+	if c.samplePct > 100 || c.samplePct < 0 {
+		kingpin.Fatalf("sample percent is not between 0 and 100")
+	}
+
+	if c.samplePct > 0 {
+		c.cfg.SampleFrequency = strconv.Itoa(c.samplePct)
+	}
 
 	if c.cfg.Delivery != "" {
 		if c.replyPolicy == "" {
