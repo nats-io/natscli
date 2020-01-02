@@ -163,7 +163,7 @@ $ ./nats-server -js -sd /tmp/test
 [16943] 2019/12/04 19:20:00.874877 [INF] Server is ready
 ```
 
-## Administer JetStream
+## CLI Administration JetStream
 
 Once the server is running it's time to use the management tool. This can be downloaded from the [GitHub Release Page](https://github.com/nats-io/jetstream/releases/) or you can use the `synadia/jsm:latest` docker image.
 
@@ -582,6 +582,151 @@ Listening on [d.p3]
 2019/12/05 14:25:31 [#4] Received on [4]: 'hello'
 2019/12/05 14:25:34 [#5] Received on [4]: 'hello'
 ```
+
+## NATS API
+
+Thus far we saw a lot of CLI interactions, the CLI works by sending and receiving specially crafted messages over standard NATS to configure the JetStream system. In time we will look to add file based configuration but for now the only method is the NATS API.
+
+To see how this works the `jsm` utility can TRACE all it's communication to the NATS Servers:
+
+```nohighlight
+$ JSM_TRACE=1 jsm ms info js_f
+>>> $JS.MSGSETS:
+nil
+---
+<<<
+[
+  "js_f"
+]
+---
+>>> $JS.MSGSET.INFO:
+js_f
+---
+<<<
+{
+  "config": {
+    "name": "js_f",
+    "subjects": [
+      "js.\u003e"
+    ],
+    "retention": "stream_limits",
+    "max_observables": -1,
+    "max_msgs": -1,
+    "max_bytes": -1,
+    "max_age": 86400000000000,
+    "storage": "file",
+    "num_replicas": 1
+  },
+  "stats": {
+    "messages": 145,
+    "bytes": 5075,
+    "first_seq": 1,
+    "last_seq": 145,
+    "observable_count": 1
+  }
+}
+---
+Information for message set js_f
+...
+```
+
+Here you see 2 interactions:
+
+ 1. It does a Request() to `$JS.MSGSETS` with an empty payload, the response is a JSON array of known sets
+ 1. It does a Request() to `$JS.MSGSET.INFO` with the set name as payload, the response is a JSON document describing the config and state of the message set.
+
+This section will walk you through all the current API interactions so you can perform these tasks programatically yourself. The `JetStreamMgmt` object has all these behaviours for your reference.
+
+### Reference
+
+All of these topics are found as constants in the NATS Server source, so for example the `$JS.MSGSETS` is a constant in the nats-server source `server.JetStreamMsgSets`. The table below will reference these constants and likewise data structures in Server for payloads.
+
+### Error Handling
+
+Many API calls that do not have specific structured data as response will reply with either `+OK` or `-ERR <reason>`, in the reference below this is whats known as `Standard OK/ERR`. Even those that reply with JSON structures can reply with `-ERR <reason>` instead of the expected JSON, so you need to check for that first before attempting to parse the result.
+
+```nohighlight
+$ nats-req '$JS.MSGSET.INFO' nonexisting
+Published [$JS.MSGSET.INFO] : 'nonexisting'
+Received  [_INBOX.lcWgjX2WgJLxqepU0K9pNf.mpBW9tHK] : '-ERR msgset not found'
+```
+
+```nohighlight
+$ nats-req '$JS.MSGSET.INFO' js_f
+Published [$JS.MSGSET.INFO] : 'js_f'
+Received  [_INBOX.fwqdpoWtG8XFXHKfqhQDVA.vBecyWmF] : '{
+  "config": {
+    "name": "js_f",
+  ...
+}
+```
+
+### Admin API
+
+All the admin actions the `jsm` CLI can do falls in the sections below.
+
+#### General Info
+
+|Topic|Description|Request Payload|Response Payload|
+|-----|-----------|---------------|----------------|
+|`server.JetStreamEnabled`|Determines is JetStream is enabled for your account|empty payload|`+OK` else no response|
+|`server.JetStreamInfo`|Retrieves stats and limits about your account|empty payload|`server.JetStreamAccountStats`
+
+### Message Sets
+
+|Topic|Description|Request Payload|Response Payload|
+|-----|-----------|---------------|----------------|
+|`server.JetStreamCreateMsgSet`|Creates a new Message Set|`server.MsgSetConfig`|Standard OK/ERR|
+|`server.JetStreamMsgSets`|List known message sets|empty payload|Array of names in JSON format|
+|`server.JetStreamMsgSetInfo`|Information about config and state of a message set|name of the message set|`server.MsgSetInfo`|
+|`server.JetStreamDeleteMsgSet`|Deletes a message set and all its data|name of the message set|Standard OK/ERR|
+|`server.JetStreamPurgeMsgSet`|Purges all the data in a message set, leaves the message set|name of the message set|Standard OK/ERR|
+|`server.JetStreamDeleteMsg`|Deletes a specific message in the message set by sequence|`set_name set_seq`|Standard OK/ERR|
+
+### Observables
+
+|Topic|Description|Request Payload|Response Payload|
+|-----|-----------|---------------|----------------|
+|`server.JetStreamCreateObservable`|Create an observable|`server.ObservableConfig`|Standard OK/ERR|
+|`server.JetStreamObservables`|List known observables|name of the message set|Array of names in JSON format|
+|`server.JetStreamObservableInfo`|Information about an observable|`set_name obs_name`|`server.ObservableInfo`|
+|`server.JetStreamDeleteObservable`|Deletes an observable|`set_name obs_name`|Standard OK/ERR|
+
+### Acknowledging messages
+
+Messages that need acknowledgement will have a Reply subject set, something like `$JS.A.js_f.test.1.2.2`, this is the prefix defined in `server.JetStreamAckPre` followed by `<message set>.<observable>.<delivery count>.<set sequence>.<obs sequence>`.
+
+In all the Synadia maintained API's you can simply do `msg.Respond(nil)` which will send nil to the reply subject.
+
+### Fetching the next message from a Pull based
+
+If you have a Pull based observable you can send a standard NATS Request to `$JS.RN.<message set>.<observable>`, here the prefix is defined in `server.JetStreamRequestNextPre`.
+
+```nohighlight
+$ nats-req '$JS.RN.js_f.test' ''
+Published [$JS.RN.js_f.test] : ''
+Received  [js.1] : 'message 1'
+```
+
+### Fetching from a message set by sequence
+
+If you know the message set sequence of a message you can fetch it directly, this does not support acks.  Do a Request() to `$JS.BYSEQ.js_f` sending it the message sequence as payload.  Here the prefix is defined in `server.JetStreamMsgBySeqPre`.
+
+```nohighlight
+$ nats-req '$JS.BYSEQ.js_f' '1'
+Published [$JS.BYSEQ.js_f] : '1'
+Received  [_INBOX.cJrbzPJfZrq8NrFm1DsZuH.k91Gb4xM] : '{
+  "Subject": "js.1",
+  "Data": "MQ==",
+  "Time": "2020-01-02T16:37:14.5611093Z"
+}'
+```
+
+The subject is there the message was received on, Data is base64 encoded and Time is when it was received.
+
+### Observable Samples
+
+Samples are published to a specific topic per observable, something like `$JS.OBSERVABLE.ACKSAMPLE.<message set>.<observable name>` you can just subscribe to that and get `server.ObservableAckSampleEvent` messages in JSON format.  The prefix is defined in `server.JetStreamObservableAckSamplePre`.
 
 ## Ack Sampling
 
