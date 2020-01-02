@@ -247,7 +247,11 @@ func (j *JetStreamMgmt) requestAndUnMarshal(t string, payload []byte, target int
 
 func (j *JetStreamMgmt) request(t string, payload []byte) (msg *nats.Msg, err error) {
 	if os.Getenv("JSM_TRACE") == "1" {
-		fmt.Printf(">>> %s:\n%s\n---\n", t, string(payload))
+		if len(payload) == 0 {
+			fmt.Printf(">>> %s:\nnil\n---\n", t)
+		} else {
+			fmt.Printf(">>> %s:\n%s\n---\n", t, string(payload))
+		}
 	}
 
 	resp, err := j.nc.Request(t, payload, j.timeout)
