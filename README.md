@@ -22,6 +22,8 @@ A new order arrives on `ORDERS.received`, gets sent to the `NEW` Observable who,
 
 All messages are delivered to a `MONITOR` Observable without any acknowledgement and using Pub/Sub semantics - they are pushed to the monitor.
 
+As messages are acknowledged to the `NEW` and `DISPATH` observables a percentage of them are sampled and messages indicating redelivery counts, ack delays and more are delivered to the monitoring system.
+
 ### Message Sets
 
 Message Sets define how messages are stored and how long they are kept for.  Message Sets consume normal NATS topics, any message found on those topics will be delivered to the defined storage system. You can do a normal publish to the topic for unacknowledged delivery, else if you send a Request to the topic the JetStream server will reply with an acknowledgement that it was stored.
