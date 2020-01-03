@@ -100,11 +100,9 @@ func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
 	fmt.Printf("  No Acknowledgements: %v\n", mstats.Config.NoAck)
 	fmt.Printf("            Retention: %s - %s\n", mstats.Config.Storage.String(), mstats.Config.Retention.String())
 	fmt.Printf("             Replicas: %d\n", mstats.Config.Replicas)
-	if mstats.Config.Retention == api.StreamPolicy {
-		fmt.Printf("     Maximum Messages: %d\n", mstats.Config.MaxMsgs)
-		fmt.Printf("        Maximum Bytes: %d\n", mstats.Config.MaxBytes)
-		fmt.Printf("          Maximum Age: %s\n", mstats.Config.MaxAge.String())
-	}
+	fmt.Printf("     Maximum Messages: %d\n", mstats.Config.MaxMsgs)
+	fmt.Printf("        Maximum Bytes: %d\n", mstats.Config.MaxBytes)
+	fmt.Printf("          Maximum Age: %s\n", mstats.Config.MaxAge.String())
 	fmt.Printf("  Maximum Observables: %d\n", mstats.Config.MaxObservables)
 	fmt.Println()
 	fmt.Println("Statistics:")
@@ -184,30 +182,28 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 	}
 
 	var maxAge time.Duration
-	if c.rPolicy == api.StreamPolicy {
-		if c.maxMsgLimit == 0 {
-			c.maxMsgLimit, err = askOneInt("Message count limit", "-1", "Defines the amount of messages to keep in the store for this message set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-msgs")
-			kingpin.FatalIfError(err, "invalid input")
-		}
+	if c.maxMsgLimit == 0 {
+		c.maxMsgLimit, err = askOneInt("Message count limit", "-1", "Defines the amount of messages to keep in the store for this message set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-msgs")
+		kingpin.FatalIfError(err, "invalid input")
+	}
 
-		if c.maxBytesLimit == 0 {
-			c.maxBytesLimit, err = askOneInt("Message size limit", "-1", "Defines the combined size of all messages in a message set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
-			kingpin.FatalIfError(err, "invalid input")
-		}
+	if c.maxBytesLimit == 0 {
+		c.maxBytesLimit, err = askOneInt("Message size limit", "-1", "Defines the combined size of all messages in a message set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
+		kingpin.FatalIfError(err, "invalid input")
+	}
 
-		if c.maxAgeLimit == "" {
-			err = survey.AskOne(&survey.Input{
-				Message: "Maximum message age limit",
-				Default: "-1",
-				Help:    "Defines the oldest messages that can be stored in the message set, any messages older than this period will be removed, -1 for unlimited. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Setable using --max-age",
-			}, &c.maxAgeLimit)
-			kingpin.FatalIfError(err, "invalid input")
-		}
+	if c.maxAgeLimit == "" {
+		err = survey.AskOne(&survey.Input{
+			Message: "Maximum message age limit",
+			Default: "-1",
+			Help:    "Defines the oldest messages that can be stored in the message set, any messages older than this period will be removed, -1 for unlimited. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Setable using --max-age",
+		}, &c.maxAgeLimit)
+		kingpin.FatalIfError(err, "invalid input")
+	}
 
-		if c.maxAgeLimit != "-1" {
-			maxAge, err = parseDurationString(c.maxAgeLimit)
-			kingpin.FatalIfError(err, "invalid maximum age limit format")
-		}
+	if c.maxAgeLimit != "-1" {
+		maxAge, err = parseDurationString(c.maxAgeLimit)
+		kingpin.FatalIfError(err, "invalid maximum age limit format")
 	}
 
 	jsm, err := NewJSM(timeout, servers, natsOpts())
