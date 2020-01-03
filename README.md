@@ -6,58 +6,59 @@ More information can be found [here](https://nats.io/blog/tech-preview-oct-2019/
 
 # Contents
 
-- [Concepts](#concepts)
-  * [Message Sets](#message-sets)
-  * [Observables](#observables)
-  * [Configuration](#configuration)
-- [Getting Started](#getting-started)
-  * [Using Docker](#using-docker)
-  * [Using Source](#using-source)
-- [Administration and Usage from the CLI](#administration-and-usage-from-the-cli)
-  * [Account Information](#account-information)
-  * [Message Sets](#message-sets-1)
-    + [Creating](#creating)
-    + [Listing](#listing)
-    + [Querying](#querying)
-    + [Publishing Into a Message Set](#publishing-into-a-message-set)
-    + [Deleting Data](#deleting-data)
-    + [Deleting Sets](#deleting-sets)
-  * [Observables](#observables-1)
-    + [Creating Pull Based Observables](#creating-pull-based-observables)
-    + [Creating Push Based Observables](#creating-push-based-observables)
-    + [Listing](#listing-1)
-    + [Querying](#querying-1)
-    + [Consuming Pull Based Observables](#consuming-pull-based-observables)
-    + [Consuming Push Based Observables](#consuming-push-based-observables)
-- [Model deep dive](#model-deep-dive)
-  * [Message Set Limits and Retention Modes](#message-set-limits-and-retention-modes)
-  * [Acknowledgement Models](#acknowledgement-models)
-  * [Observable Starting Position](#observable-starting-position)
-  * [Ephemeral Observables](#ephemeral-observables)
-  * [Observable Message Rates](#observable-message-rates)
-  * [Ack Sampling](#ack-sampling)
-    + [Configuration](#configuration-1)
-    + [Consuming](#consuming)
-- [NATS API Reference](#nats-api-reference)
-  * [Reference](#reference)
-  * [Error Handling](#error-handling)
-  * [Admin API](#admin-api)
-    + [General Info](#general-info)
-  * [Message Sets](#message-sets-2)
-  * [Observables](#observables-2)
-  * [Acknowledging messages](#acknowledging-messages)
-  * [Fetching the next message from a Pull based Observable](#fetching-the-next-message-from-a-pull-based-observable)
-  * [Fetching from a message set by sequence](#fetching-from-a-message-set-by-sequence)
-  * [Observable Samples](#observable-samples)
-- [Next Steps](#next-steps)
-- [Discussion Items](#discussion-items)
-  * [DLQ](#dlq)
-  * [Purge or Truncate (not everything)](#purge-or-truncate--not-everything-)
-  * [NAK w/ duration before redelivery](#nak-w--duration-before-redelivery)
-  * [MsgSet Immutable?](#msgset-immutable-)
-  * [DR/Mirror](#dr-mirror)
-  * [Account template to auto-create msgSets.](#account-template-to-auto-create-msgsets)
-
+- [Contents](#contents)
+  * [Concepts](#concepts)
+    + [Message Sets](#message-sets)
+    + [Observables](#observables)
+    + [Configuration](#configuration)
+  * [Getting Started](#getting-started)
+    + [Using Docker](#using-docker)
+    + [Using Source](#using-source)
+  * [Administration and Usage from the CLI](#administration-and-usage-from-the-cli)
+    + [Account Information](#account-information)
+    + [Message Sets](#message-sets-1)
+      - [Creating](#creating)
+      - [Listing](#listing)
+      - [Querying](#querying)
+      - [Publishing Into a Message Set](#publishing-into-a-message-set)
+      - [Deleting Data](#deleting-data)
+      - [Deleting Sets](#deleting-sets)
+    + [Observables](#observables-1)
+      - [Creating Pull Based Observables](#creating-pull-based-observables)
+      - [Creating Push Based Observables](#creating-push-based-observables)
+      - [Listing](#listing-1)
+      - [Querying](#querying-1)
+      - [Consuming Pull Based Observables](#consuming-pull-based-observables)
+      - [Consuming Push Based Observables](#consuming-push-based-observables)
+  * [Model deep dive](#model-deep-dive)
+    + [Message Set Limits and Retention Modes](#message-set-limits-and-retention-modes)
+    + [Acknowledgement Models](#acknowledgement-models)
+    + [Observable Starting Position](#observable-starting-position)
+    + [Ephemeral Observables](#ephemeral-observables)
+    + [Observable Message Rates](#observable-message-rates)
+    + [Ack Sampling](#ack-sampling)
+      - [Configuration](#configuration-1)
+      - [Consuming](#consuming)
+  * [NATS API Reference](#nats-api-reference)
+    + [Reference](#reference)
+    + [Error Handling](#error-handling)
+    + [Admin API](#admin-api)
+      - [General Info](#general-info)
+      - [Message Sets](#message-sets-2)
+      - [Observables](#observables-2)
+    + [Acknowledging messages](#acknowledging-messages)
+    + [Fetching the next message from a Pull based Observable](#fetching-the-next-message-from-a-pull-based-observable)
+    + [Fetching from a message set by sequence](#fetching-from-a-message-set-by-sequence)
+    + [Observable Samples](#observable-samples)
+  * [Next Steps](#next-steps)
+  * [Discussion Items](#discussion-items)
+    + [DLQ](#dlq)
+    + [Purge or Truncate (not everything)](#purge-or-truncate--not-everything-)
+    + [NAK w/ duration before redelivery](#nak-w--duration-before-redelivery)
+    + [MsgSet Immutable?](#msgset-immutable-)
+    + [DR/Mirror](#dr-mirror)
+    + [Account template to auto-create msgSets.](#account-template-to-auto-create-msgsets)
+    
 ## Concepts
 
 In JetStream the configuration for storing messages is defined separately from how they are consumed. Storage is defined in a *Message Set* and consuming messages is defined by multiple *Observables*.
@@ -1053,7 +1054,7 @@ All the admin actions the `jsm` CLI can do falls in the sections below.
 |`server.JetStreamEnabled`|Determines is JetStream is enabled for your account|empty payload|`+OK` else no response|
 |`server.JetStreamInfo`|Retrieves stats and limits about your account|empty payload|`server.JetStreamAccountStats`
 
-### Message Sets
+#### Message Sets
 
 |Topic|Description|Request Payload|Response Payload|
 |-----|-----------|---------------|----------------|
@@ -1064,7 +1065,7 @@ All the admin actions the `jsm` CLI can do falls in the sections below.
 |`server.JetStreamPurgeMsgSet`|Purges all the data in a message set, leaves the message set|name of the message set|Standard OK/ERR|
 |`server.JetStreamDeleteMsg`|Deletes a specific message in the message set by sequence, useful for GDPR compliance|`set_name set_seq`|Standard OK/ERR|
 
-### Observables
+#### Observables
 
 |Topic|Description|Request Payload|Response Payload|
 |-----|-----------|---------------|----------------|
