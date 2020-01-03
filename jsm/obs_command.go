@@ -323,12 +323,15 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 				Help:    "Replay policy is the time interval at which messages are delivered to interested parties. 'instant' means deliver all as soon as possible while 'original' will match the time intervals in which messages were received, useful for replaying production traffic in development. Settable using --replay",
 			}, &mode)
 			kingpin.FatalIfError(err, "could not ask replay policy")
-
-			c.cfg.ReplayPolicy = api.ReplayInstant
-			if mode == "original" {
-				c.cfg.ReplayPolicy = api.ReplayOriginal
-			}
+			c.replyPolicy = mode
 		}
+	}
+
+	switch c.replyPolicy {
+	case "instant":
+		c.cfg.ReplayPolicy = api.ReplayInstant
+	case "original":
+		c.cfg.ReplayPolicy = api.ReplayOriginal
 	}
 
 	err = jsm.ObservableCreate(c.messageSet, c.cfg)
