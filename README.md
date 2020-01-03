@@ -24,12 +24,12 @@ More information can be found [here](https://nats.io/blog/tech-preview-oct-2019/
       - [Deleting Data](#deleting-data)
       - [Deleting Sets](#deleting-sets)
     + [Observables](#observables-1)
-      - [Creating Pull Based Observables](#creating-pull-based-observables)
-      - [Creating Push Based Observables](#creating-push-based-observables)
+      - [Creating Pull-Based Observables](#creating-pull-based-observables)
+      - [Creating Push-Based Observables](#creating-push-based-observables)
       - [Listing](#listing-1)
       - [Querying](#querying-1)
-      - [Consuming Pull Based Observables](#consuming-pull-based-observables)
-      - [Consuming Push Based Observables](#consuming-push-based-observables)
+      - [Consuming Pull-Based Observables](#consuming-pull-based-observables)
+      - [Consuming Push-Based Observables](#consuming-push-based-observables)
   * [Model deep dive](#model-deep-dive)
     + [Message Set Limits and Retention Modes](#message-set-limits-and-retention-modes)
     + [Acknowledgement Models](#acknowledgement-models)
@@ -73,23 +73,23 @@ While this is an incomplete architecture it does show a number of key points:
  * Observables can have different modes of operation and receive just subsets of the messages
  * Multiple Acknowledgement modes are supported
 
-A new order arrives on `ORDERS.received`, gets sent to the `NEW` Observable who, on success, will create a new message on `ORDERS.processed`.  The `ORDERS.processed` message again enters the store where a `DISPATCH` Observable receives it and once processed it will create a `ORDERS.completed` message which will again enter the Message Set. These operations are all `pull` based meaning they are work queues and can scale horizontally.  All require acknowledged delivery ensuring no order is missed.
+A new order arrives on `ORDERS.received`, gets sent to the `NEW` Observable who, on success, will create a new message on `ORDERS.processed`.  The `ORDERS.processed` message again enters the store where a `DISPATCH` Observable receives it and once processed it will create an `ORDERS.completed` message which will again enter the Message Set. These operations are all `pull` based meaning they are work queues and can scale horizontally.  All require acknowledged delivery ensuring no order is missed.
 
 All messages are delivered to a `MONITOR` Observable without any acknowledgement and using Pub/Sub semantics - they are pushed to the monitor.
 
-As messages are acknowledged to the `NEW` and `DISPATH` observables a percentage of them are sampled and messages indicating redelivery counts, ack delays and more are delivered to the monitoring system.
+As messages are acknowledged to the `NEW` and `DISPATCH` observables, a percentage of them are sampled and messages indicating redelivery counts, ack delays and more, are delivered to the monitoring system.
 
 ### Message Sets
 
-Message Sets define how messages are stored and how long they are kept for.  Message Sets consume normal NATS topics, any message found on those topics will be delivered to the defined storage system. You can do a normal publish to the topic for unacknowledged delivery, else if you send a Request to the topic the JetStream server will reply with an acknowledgement that it was stored.
+Message Sets define how messages are stored and retention duration.  Message Sets consume normal NATS topics, any message found on those topics will be delivered to the defined storage system. You can do a normal publish to the topic for unacknowledged delivery, else if you send a Request to the topic the JetStream server will reply with an acknowledgement that it was stored.
 
-Today in the tech preview we have `file` and `memory` based storage systems, we do not yet support clustering.
+As of January 2020, in the tech preview we have `file` and `memory` based storage systems, we do not yet support clustering.
 
-In the diagram above we show the concept of storing all `ORDERS.*` in the Message Set even though there are many types of order related message. We'll show how you can selectively consume subsets of messages later. Relatively speaking the Message Set is the most resource consuming component so being able to combine related data in this manner is important to consider.
+In the diagram above we show the concept of storing all `ORDERS.*` in the Message Set even though there are many types of order related messages. We'll show how you can selectively consume subsets of messages later. Relatively speaking the Message Set is the most resource consuming component so being able to combine related data in this manner is important to consider.
 
-Message Sets can consume many subjects, here we have `ORDERS.*` but we could also consume `SHIPPING.state` into the same message set should that make sense (not shown here).
+Message Sets can consume many subjects. Here we have `ORDERS.*` but we could also consume `SHIPPING.state` into the same Message Set should that make sense (not shown here).
 
-Message Sets support various retention policies - they can be kept based on limits like max count, size or age but also more novel methods like keep them as long as any observables have them unacknowledged or work queue like behavior where a message is removed after first ack.
+Message Sets support various retention policies - they can be kept based on limits like max count, size or age but also more novel methods like keeping them as long as any observables have them unacknowledged, or work queue like behavior where a message is removed after first ack.
 
 When defining Message Sets the items below make up the entire configuration of the set.
 
@@ -97,34 +97,34 @@ When defining Message Sets the items below make up the entire configuration of t
 |----|-----------|
 |Name|A name for the message set that may not have spaces, tabs or `.`|
 |Subjects|A list of subjects to consume, supports wildcards|
-|Retention|How message retention are considered, `StreamPolicy` (default), `InterestPolicy` or `WorkQueuePolicy`|
+|Retention|How message retention is considered, `StreamPolicy` (default), `InterestPolicy` or `WorkQueuePolicy`|
 |MaxObservables|How many Observables can be defined for a given message set, `-1` for unlimited|
 |MaxMsgs|When retention policy is `StreamPolicy` how many messages may be in a message set|
 |MaxBytes|When retention policy is `StreamPolicy` how big the message set may be|
 |MaxAge|When retention policy is `StreamPolicy` how old message in the set may be|
-|Storage|The type of storage backend, `file` and `memory` today|
-|Replicas|How many replicas to keep for each message (not implemented today)|
+|Storage|The type of storage backend, `file` and `memory` as of January 2020|
+|Replicas|How many replicas to keep for each message (not implemented as of January 2020)|
 |NoAck|Disables acknowledging messages that are received by the message set|
 
 ### Observables
 
 Each consumer, or related group of consumers, of a Message Set will need an observable defined.  It's ok to define thousands of these pointing at the same Message Set.
 
-Observables can either be `push` based where JetStream will deliver the messages as fast as possible to a topic of your choice or `pull` based for typical work queue like behavior. The rate of message delivery in both cases is subject to `ReplayPolicy`.  A `ReplayInstant` Observable will receive all messages as fast as possible while a `ReplayOriginal` one will receive messages at the rate they were received in which is great for replaying production traffic in staging.
+Observables can either be `push` based where JetStream will deliver the messages as fast as possible to a topic of your choice or `pull` based for typical work queue like behavior. The rate of message delivery in both cases is subject to `ReplayPolicy`.  A `ReplayInstant` Observable will receive all messages as fast as possible while a `ReplayOriginal` Observable will receive messages at the rate they were received, which is great for replaying production traffic in staging.
 
 In the orders example above we have 3 observables. The first two select a subset of the messages from the Message Set by specifying a specific subject like `ORDERS.processed`. The Message Set consumes `ORDERS.*` and this allows you to receive just what you need. The final observable receives all messages in a `push` fashion.
 
-Observables track their progress, they know what messages were delivered, acknowledged etc and will redeliver messages they sent that were not acknowledged. When first created it has to know what message to send as the first one,  you can configure either a specific message in the set (`MsgSetSeq`), specific time (`StartTime`), all (`DeliverAll`) or last (`DeliverLast`).  This is where it starts and from there they all behave the same - delivers all following messages with optional Acknowledgement.
+Observables track their progress, they know what messages were delivered, acknowledged, etc., and will redeliver messages they sent that were not acknowledged. When first created, the Observable has to know what message to send as the first one. You can configure either a specific message in the set (`MsgSetSeq`), specific time (`StartTime`), all (`DeliverAll`) or last (`DeliverLast`).  This is the starting point and from there, they all behave the same - delivering all of the following messages with optional Acknowledgement.
 
-Acknowledgements default to `AckExplicit` - the only supported mode for pull based observables - meaning every message requires distinct acknowledgement.  But for push based ones you can set `AckNone` to not require any acknowledgement or `AckAll` which is quite interesting in that it lets you acknowledge message `100` which will also acknowledge messages `1` through `99`, this can be a great performance boost.
+Acknowledgements default to `AckExplicit` - the only supported mode for pull-based Observables - meaning every message requires distinct acknowledgement.  But for push-based Observables, you can set `AckNone` that does not require any acknowledgement, or `AckAll` which quite interestingly allows you to acknowledge a specific message, like message `100`, which will also acknowledge messages `1` through `99`. The `AckAll` mode can be a great performance boost.
 
-To assist with creating monitoring applications one can set a `SampleFrequency` which is a percentage of messages that the system should sample and create events for.  These events will include delivery counts and ack waits.
+To assist with creating monitoring applications, one can set a `SampleFrequency` which is a percentage of messages for which the system should sample and create events.  These events will include delivery counts and ack waits.
 
-When defining Observables the items below make up the entire configuration of the observable:
+When defining Observables the items below make up the entire configuration of the Observable:
 
 |Item|Description|
 |----|-----------|
-|Delivery|The subject to deliver observed messages, when not set a pull based observable is created|
+|Delivery|The subject to deliver observed messages, when not set, a pull-based Observable is created|
 |Durable|The name of the observable|
 |MsgSetSeq|When first consuming messages from the Message Set start at this particular message in the set|
 |StartTime|When first consuming messages from the Message Set start with messages on or after this time|
@@ -133,12 +133,12 @@ When defining Observables the items below make up the entire configuration of th
 |AckPolicy|How messages should be acknowledged, `AckNone`, `AckAll` or `AckExplicit`|
 |AckWait|How long to allow messages to remain unacked before attempting redelivery|
 |Subject|When consuming from a Message Set with many subjects, or wildcards, select only a specific incoming subject|
-|ReplayPolicy|How messages are set `ReplayInstant` or `ReplayOriginal`|
+|ReplayPolicy|How messages are sent `ReplayInstant` or `ReplayOriginal`|
 |SampleFrequency|What percentage of acknowledgements should be samples for observability, 0-100|
 
 ### Configuration
 
-The rest of the document introduce the `jsm` utility, but for completeness and reference this is how you'd create the ORDERS scenario, we'll configure a 1 year retention for order related messages:
+The rest of this document introduces the `jsm` utility, but for completeness and reference this is how you'd create the ORDERS scenario.  We'll configure a 1 year retention for order related messages:
 
 ```bash
 $ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream
@@ -167,13 +167,13 @@ And in another log into the utilities:
 $ docker exec -ti js sh -l
 ```
 
-This shell has the `jsm` utility and all other nats cli tools used in the rest of this guide.
+This shell has the `jsm` utility and all other NATS cli tools used in the rest of this guide.
 
 Now skip to the `Administer JetStream` section.
 
 ### Using Source
 
-You will also want to have installed from the nats.go repo the examples/tools such as nats-pub, nats-sub, nats-req and possibly nats-bench. One of the design goals of JetStream was to be native to NATS core, so even though we will most certainly add in syntatic sugar to clients to make them more appealing, for this tech preview we will be using plain old NATS.
+You will also want to have installed from the nats.go repo the examples/tools such as nats-pub, nats-sub, nats-req and possibly nats-bench. One of the design goals of JetStream was to be native to core NATS, so even though we will most certainly add in syntactic sugar to clients to make them more appealing, for this tech preview we will be using plain old NATS.
 
 You will need a copy of the nats-server source locally and will need to be in the jetstream branch.
 
@@ -248,13 +248,13 @@ Commands:
 
 We'll walk through the above scenario and introduce features of the CLI and of JetStream as we recreate the setup above.
 
-Throughout we'll show other commands like `nats-pub` and `nats-sub` to interact with the system, these are normal existing Core NATS clients, JetStream is fully usable by only using core NATS.
+Throughout this example, we'll show other commands like `nats-pub` and `nats-sub` to interact with the system. These are normal existing core NATS commands and JetStream is fully usable by only using core NATS.
 
 We'll touch on some additional features but please review the section on the design model to understand all possible permutations.
 
 ### Account Information
 
-JetStream is multi tenant and it could be that your account is not enabled for JetStream or that it is limited, you can view your limits:
+JetStream is multi-tenant so you will need to check that your account is enabled for JetStream and is not limited. You can view your limits as follows:
 
 ```nohighlight
 $ jsm account info
@@ -302,7 +302,7 @@ Statistics:
   Active Observables: 0
 ```
 
-You can get prompted interactively for missing information as above or do it all on one command, pressing `?` in the CLI will help you map prompts to CLI options:
+You can get prompted interactively for missing information as above, or do it all on one command. Pressing `?` in the CLI will help you map prompts to CLI options:
 
 ```
 $ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream
@@ -310,7 +310,7 @@ $ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --m
 
 #### Listing
 
-We can confirm our message set was created:
+We can confirm our Message Set was created:
 
 ```nohighlight
 $ jsm ms ls
@@ -321,7 +321,7 @@ Message Sets:
 
 #### Querying
 
-Information about the configuration of the message set can be seen, if you did not specify the Message Set like here it will prompt you based on all known ones:
+Information about the configuration of the Message Set can be seen, and if you did not specify the Message Set like below, it will prompt you based on all known ones:
 
 ```nohighlight
 $ jsm ms info ORDERS
@@ -375,7 +375,7 @@ $ jsm ms info ORDERS -j
 }
 ```
 
-This is the general pattern for the entire `jsm` utility - prompts for needed information but every action can be run non interactively making it usable as a cli api. All information output like seen above can be turned into JSON using `-j`.
+This is the general pattern for the entire `jsm` utility - prompting for needed information but every action can be run non-interactively making it usable as a cli api. All information output like seen above can be turned into JSON using `-j`.
 
 #### Publishing Into a Message Set
 
@@ -388,14 +388,14 @@ $ nats-pub ORDERS.scratch hello
 Published [sub1] : 'hello'
 ```
 
-But if you want to be sure your message got to JetStream and were persisted you can make a request:
+But if you want to be sure your messages got to JetStream and were persisted you can make a request:
 
 ```nohighlight
 $ nats-req ORDERS.scratch hello
 +OK
 ```
 
-Keep checking the status of the message set while doing this and you'll see it's stored messages increase.
+Keep checking the status of the Message Set while doing this and you'll see it's stored messages increase.
 
 ```nohighlight
 $ jsm ms info ORDERS
@@ -409,8 +409,7 @@ Statistics:
              LastSeq: 3
   Active Observables: 0
 ```
-
-After putting some throw away data into the message set we can purge all the data out - while keeping the message set active:
+After putting some throw away data into the Message Set, we can purge all the data out - while keeping the Message Set active:
 
 #### Deleting Data
 
@@ -428,7 +427,7 @@ Statistics:
 
 #### Deleting Sets
 
-Finally for demonstration you can also delete the whole Message Set and recreate it so we're ready for creating the observables:
+Finally for demonstration purposes, you can also delete the whole Message Set and recreate it so then we're ready for creating the observables:
 
 ```
 $ jsm ms rm ORDERS -f
@@ -437,13 +436,13 @@ $ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --m
 
 ### Observables
 
-Observables is how messages are read or consumed from the Message Set, we support pull and push based ones, the example scenario have both, lets walk through that.
+Observables is how messages are read or consumed from the Message Set. We support pull and push-based Observables and the example scenario has both, lets walk through that.
 
-#### Creating Pull Based Observables
+#### Creating Pull-Based Observables
 
-The `NEW` and `DISPATCH` observables are Pull based, this means the services consuming data from them have to ask the system for the next available message.  This means you can easily scale your services up by adding more workers and the messages will get spread across the workers based on their availability.
+The `NEW` and `DISPATCH` observables are pull-based, meaning the services consuming data from them have to ask the system for the next available message.  This means you can easily scale your services up by adding more workers and the messages will get spread across the workers based on their availability.
 
-Pull Based Observables are created the same as Push ones, just don't specify a delivery target.
+Pull-based Observables are created the same as push-based Observables, just don't specify a delivery target.
 
 ```
 $ jsm obs ls ORDERS
@@ -452,7 +451,7 @@ No observables defined
 
 We have no Observables, lets add the `NEW` one:
 
-I supply the `--sample` and `--subject` options on the CLI as this is not prompted for at present, everything else is prompted for. The help in the CLI explains each:
+I supply the `--sample` and `--subject` options on the CLI as this is not prompted for at present, everything else is prompted. The help in the CLI explains each:
 
 ```
 $ jsm obs add --sample 100 --subject ORDERS.received
@@ -482,9 +481,9 @@ State:
     Redelivered Messages: 0
 ```
 
-This is a Pull based Observable (empty Delivery Target), it gets messages from the 1st available message and requires specific acknowledgement of each and every message.
+This is a pull-based Observable (empty Delivery Target), it gets messages from the first available message and requires specific acknowledgement of each and every message.
 
-It only received messages that originally entered the Message Set on `ORDERS.received`, remember the Message Set subscribes to `ORDERS.*`, this lets us select a subset of messages from the Set.
+It only received messages that originally entered the Message Set on `ORDERS.received`. Remember the Message Set subscribes to `ORDERS.*`, this lets us select a subset of messages from the Message Set.
  
 Again this can all be done in a single CLI call, lets make the `DISPATCH` Observable:
 
@@ -492,9 +491,9 @@ Again this can all be done in a single CLI call, lets make the `DISPATCH` Observ
 $ jsm obs add ORDERS DISPATCH --subject ORDERS.processed --ack explicit --pull --deliver all --sample 100
 ```
 
-#### Creating Push Based Observables
+#### Creating Push-Based Observables
 
-Our `MONITOR` observable is push based, has no ack and will get only new messages and is not sampled:
+Our `MONITOR` Observable is push-based, has no ack and will only get new messages and is not sampled:
 
 ```
 $ jsm obs add
@@ -544,7 +543,7 @@ Observables for message set ORDERS:
 
 #### Querying
 
-All details for an Observable can be queried, lets first look at a Pull based one:
+All details for an Observable can be queried, lets first look at a pull-based Observable:
 
 ```
 $ jsm obs ifo ORDERS DISPATCH
@@ -572,9 +571,9 @@ State:
 
 More details about the `State` section will be shown later when discussing the ack models in depth.
 
-#### Consuming Pull Based Observables
+#### Consuming Pull-Based Observables
 
-Pull based Observables require you to specifically ask for messages and ack them, typically you would do this with the client library `Request()` feature, but the `jsm` utility has a helper:
+Pull-based Observables require you to specifically ask for messages and ack them, typically you would do this with the client library `Request()` feature, but the `jsm` utility has a helper:
 
 First we ensure we have a message:
 
@@ -609,11 +608,11 @@ Published [$JS.RN.ORDERS.DISPATCH] : ''
 Received  [ORDERS.processed] : 'order 4'
 ```
 
-Here `nats-req` cannot ack, but in your code you'd respond to the received message with a nil payload as a Ack to JetStream.
+Here `nats-req` cannot ack, but in your code you'd respond to the received message with a nil payload as an Ack to JetStream.
 
-#### Consuming Push Based Observables
+#### Consuming Push-Based Observables
 
-Push based observables will publish messages to a topic and anyone who subscribes to the topic will get them, they support different Acknowledgement models covered later, but here on the `MONITOR` one we have no Acknowledgement.
+Push-based Observables will publish messages to a topic and anyone who subscribes to the topic will get them, they support different Acknowledgement models covered later, but here on the `MONITOR` Observable we have no Acknowledgement.
 
 ```
 $ jsm obs info ORDERS MONITOR
@@ -637,15 +636,15 @@ Note the subject here of the received message is reported as `ORDERS.processed` 
 
 This Observable needs no ack, so any new message into the ORDERS system will show up here in real time.
 
-## Model deep dive
+## Model Deep Dive
 
-The Orders example touched on a lot of features but some like different Ack models and message limits need a bit more detail, this section will expand on the above and fill in some blanks.
+The Orders example touched on a lot of features, but some like different Ack models and message limits, need a bit more detail. This section will expand on the above and fill in some blanks.
 
 ### Message Set Limits and Retention Modes
 
-Message Sets store data on disk, but we cannot store all data forever so they need ways to control their size automatically.
+Message Sets store data on disk, but we cannot store all data forever so we need ways to control their size automatically.
 
-There are 2 features that come into play when Sets decide how long they store data for.
+There are 2 features that come into play when Message Sets decide how long they store data.
 
 The `Retention Policy` describes based on what criteria a set will evict messages from its storage:
 
@@ -655,25 +654,25 @@ The `Retention Policy` describes based on what criteria a set will evict message
 |`WorkQueuePolicy`|Messages are kept until they were consumed by any one single observer and then removed|
 |`InterestPolicy`|Messages are kept as long as there are observables active for them|
 
-In all Retention Policies the basic limits apply as upper bounds, these are `MaxMsgs` for how many messages are kept in total, `MaxBytes` for how bit the set can be in total and `MaxAge` for what is the oldest message that will be kept. These are the only limits in play with `StreamPolicy` retention.
+In all Retention Policies the basic limits apply as upper bounds, these are `MaxMsgs` for how many messages are kept in total, `MaxBytes` for how big the set can be in total and `MaxAge` for what is the oldest message that will be kept. These are the only limits in play with `StreamPolicy` retention.
 
-One can then define additional ways that a message may be removed from the Set earlier than these limits.  In `WorkQueuePolicy` the messages will be removed as soon as any Observable received an Acknowledgement. In `InterestPolicy` messages will be removed as soon as there are no more Observables.
+One can then define additional ways a message may be removed from the Message Set earlier than these limits.  In `WorkQueuePolicy` the messages will be removed as soon as any Observable received an Acknowledgement. In `InterestPolicy` messages will be removed as soon as there are no more Observables.
 
 In both `WorkQueuePolicy` and `InterestPolicy` the age, size and count limits will still apply as upper bounds.
 
 ### Acknowledgement Models
 
-Message Sets support acknowledging receiving a message, if you send a `Request()` to a topic covered by the configuration of the Set the service will reply to you once it stored the message.  If you just publish it will not. A Message Set can be set to disable Acknowledgements by setting `NoAck` to `true` in it's configuration.
+Message Sets support acknowledging receiving a message, if you send a `Request()` to a topic covered by the configuration of the Message Set the service will reply to you once it stored the message.  If you just publish, it will not. A Message Set can be set to disable Acknowledgements by setting `NoAck` to `true` in it's configuration.
 
 Observables have 3 acknowledgement modes:
 
 |Mode|Description|
 |----|-----------|
-|`AckExplicit`|This requires every message to be specifically acknowledged, it's the only supported option for Pull based|
-|`AckAll`|In this mode if you acknowledge mess `100` it will also acknowledge message `1`-`99`, this is good for processing batches and to reduce ack overhead|
+|`AckExplicit`|This requires every message to be specifically acknowledged, it's the only supported option for pull-based Observables|
+|`AckAll`|In this mode if you acknowledge message `100` it will also acknowledge message `1`-`99`, this is good for processing batches and to reduce ack overhead|
 |`AckNone`|No acknowledgements are supported|
 
-To understand how Observables track messages we will start with a clean `ORDERS` Set and `DISPATCH` Observable.
+To understand how Observables track messages we will start with a clean `ORDERS` Message Set and `DISPATCH` Observable.
 
 ```
 $ jsm ms info ORDERS
@@ -700,9 +699,9 @@ State:
     Redelivered Messages: 0
 ```
 
-The Observable have no messages oustanding and have never had any (Observable sequence is 1).
+The Observable has no messages oustanding and has never had any (Observable sequence is 1).
 
-We publish one message to the Set and see the Set got it:
+We publish one message to the Message Set and see that the Message Set received it:
 
 ```
 $ nats-pub ORDERS.processed "order 4"
@@ -718,7 +717,7 @@ Statistics:
   Active Observables: 1
 ```
 
-As the Observable is a Pull one we can fetch the message, ack it, and check the Observable state:
+As the Observable is pull-based, we can fetch the message, ack it, and check the Observable state:
 
 ```
 $ jsm obs next ORDERS DISPATCH
@@ -737,7 +736,7 @@ State:
     Redelivered Messages: 0
 ```
 
-The message got delivered and acknowledged - `Acknowledgement floor` is `1` and `1`, the sequence of the Observable is `2` which means its had only the one message through and got acked. Since it was acked nothing is pending or redelivering.
+The message got delivered and acknowledged - `Acknowledgement floor` is `1` and `1`, the sequence of the Observable is `2` which means its had only the one message through and got acked. Since it was acked, nothing is pending or redelivering.
 
 We'll publish another message, fetch it but not Ack it this time and see the status:
 
@@ -809,7 +808,7 @@ Regardless of what mode you set, this is only the starting point. Once started i
 
 Lets look at each of these, first we make a new Message Set `ORDERS` and add 100 messages to it.
 
-Now a `DeliverAll` Pull Observable:
+Now create a `DeliverAll` pull-based Observable:
 
 ```
 $ jsm obs add ORDERS ALL --pull --subject ORDERS.processed --ack none --replay instant --deliver all
@@ -820,7 +819,7 @@ order 1
 Acknowledged message
 ```
 
-Now a `DeliverLast` Pull Observable:
+Now create a `DeliverLast` pull-based Observable:
 
 ```
 $ jsm obs add ORDERS LAST --pull --subject ORDERS.processed --ack none --replay instant --deliver last
@@ -831,7 +830,7 @@ order 100
 Acknowledged message
 ``` 
 
-Now a `MsgSetSeq` Pull Observable:
+Now create a `MsgSetSeq` pull-based Observable:
 
 ```
 $ jsm obs add ORDERS TEN --pull --subject ORDERS.processed --ack none --replay instant --deliver 10
@@ -842,7 +841,7 @@ order 10
 Acknowledged message
 ```
 
-And finally a time based one, lets add some messages a minute apart:
+And finally a time-based Observable. Let's add some messages a minute apart:
 
 ```
 $ jsm ms purge ORDERS
@@ -853,7 +852,7 @@ do
 done
 ```
 
-Then a Observable that starts 2 minutes ago:
+Then create an Observable that starts 2 minutes ago:
 
 ```
 $ jsm obs add ORDERS 2MIN --pull --subject ORDERS.processed --ack none --replay instant --deliver 2m
@@ -870,11 +869,11 @@ TODO
 
 ### Observable Message Rates
 
-Typically what you want is if a new Observable is made the selected messages are delivered as to you as quickly as possible. You might want to replay messages at the rate they arrived though, meaning if messages first arrived 1 minute apart and you make a new Observable it will get the messages a minute apart.
+Typically what you want is if a new Observable is made the selected messages are delivered to you as quickly as possible. You might want to replay messages at the rate they arrived though, meaning if messages first arrived 1 minute apart and you make a new Observable it will get the messages a minute apart.
 
-This is useful in load testing scenarios etc. This is called the `ReplayPolicy` and have values `ReplayInstant` and `ReplayOriginal`.
+This is useful in load testing scenarios etc. This is called the `ReplayPolicy` and have values of `ReplayInstant` and `ReplayOriginal`.
 
-You can only set `ReplayPolicy` on push based observables.
+You can only set `ReplayPolicy` on push-based Observables.
 
 ```
 $ jsm obs add ORDERS REPLAY --target out.original --subject ORDERS.processed --ack none --deliver all --sample 100 --replay original
@@ -909,17 +908,17 @@ Listening on [out.original]
 
 ### Ack Sampling
 
-In the earlier sections we saw that samples are being sent to a monitoring system, lets look at that in depth, how they work and what is in them.
+In the earlier sections we saw that samples are being sent to a monitoring system. Let's look at that in depth; how the monitoring system works and what it contains.
 
-As messages pass through an observable you'd be interested in knowing how many are being redelivered and how many times but also how long it takes for messages to be acknowledged.
+As messages pass through an Observable you'd be interested in knowing how many are being redelivered and how many times but also how long it takes for messages to be acknowledged.
 
-Observables can sample Ack'ed messages for you and publish samples so your monitoring system can observe the health of an observable. We will add support for this to [NATS Surveyor](https://github.com/nats-io/nats-surveyor).
+Observables can sample Ack'ed messages for you and publish samples so your monitoring system can observe the health of an Observable. We will add support for this to [NATS Surveyor](https://github.com/nats-io/nats-surveyor).
 
 #### Configuration
 
-You can configure an observable for sampling by passing the `--sample 80` option to `jsm obs add`, this tells the system to sample 80% of Acknowledgements.
+You can configure an Observable for sampling by passing the `--sample 80` option to `jsm obs add`, this tells the system to sample 80% of Acknowledgements.
 
-When viewing info of an observable you can tell if it's sampled or not:
+When viewing info of an Observable you can tell if it's sampled or not:
 
 ```
 $ jsm obs info ORDERS NEW
@@ -967,7 +966,7 @@ $ jsm obs sample ORDERS NEW --json
 
 ## NATS API Reference
 
-Thus far we saw a lot of CLI interactions, the CLI works by sending and receiving specially crafted messages over standard NATS to configure the JetStream system. In time we will look to add file based configuration but for now the only method is the NATS API.
+Thus far we saw a lot of CLI interactions. The CLI works by sending and receiving specially crafted messages over core NATS to configure the JetStream system. In time we will look to add file based configuration but for now the only method is the NATS API.
 
 To see how this works the `jsm` utility can TRACE all it's communication to the NATS Servers:
 
@@ -1021,11 +1020,11 @@ This section will walk you through all the current API interactions so you can p
 
 ### Reference
 
-All of these topics are found as constants in the NATS Server source, so for example the `$JS.MSGSETS` is a constant in the nats-server source `server.JetStreamMsgSets`. The tables below will reference these constants and likewise data structures in Server for payloads.
+All of these topics are found as constants in the NATS Server source, so for example the `$JS.MSGSETS` is a constant in the nats-server source `server.JetStreamMsgSets`. The tables below will reference these constants and likewise data structures in the server for payloads.
 
 ### Error Handling
 
-Many API calls that do not have specific structured data as response will reply with either `+OK` or `-ERR <reason>`, in the reference below this is whats known as `Standard OK/ERR`. Even those that reply with JSON structures can reply with `-ERR <reason>` instead of the expected JSON, so you need to check for that first before attempting to parse the result.
+Many API calls that do not have specific structured data as response will reply with either `+OK` or `-ERR <reason>`, in the reference below this is what is known as `Standard OK/ERR`. Even those that reply with JSON structures can reply with `-ERR <reason>` instead of the expected JSON, so you need to check for that first before attempting to parse the result.
 
 ```nohighlight
 $ nats-req '$JS.MSGSET.INFO' nonexisting
@@ -1051,7 +1050,7 @@ All the admin actions the `jsm` CLI can do falls in the sections below.
 
 |Topic|Description|Request Payload|Response Payload|
 |-----|-----------|---------------|----------------|
-|`server.JetStreamEnabled`|Determines is JetStream is enabled for your account|empty payload|`+OK` else no response|
+|`server.JetStreamEnabled`|Determines if JetStream is enabled for your account|empty payload|`+OK` else no response|
 |`server.JetStreamInfo`|Retrieves stats and limits about your account|empty payload|`server.JetStreamAccountStats`
 
 #### Message Sets
@@ -1060,29 +1059,29 @@ All the admin actions the `jsm` CLI can do falls in the sections below.
 |-----|-----------|---------------|----------------|
 |`server.JetStreamMsgSets`|List known message sets|empty payload|Array of names in JSON format|
 |`server.JetStreamCreateMsgSet`|Creates a new Message Set|`server.MsgSetConfig`|Standard OK/ERR|
-|`server.JetStreamMsgSetInfo`|Information about config and state of a message set|name of the message set|`server.MsgSetInfo`|
-|`server.JetStreamDeleteMsgSet`|Deletes a message set and all its data|name of the message set|Standard OK/ERR|
-|`server.JetStreamPurgeMsgSet`|Purges all the data in a message set, leaves the message set|name of the message set|Standard OK/ERR|
-|`server.JetStreamDeleteMsg`|Deletes a specific message in the message set by sequence, useful for GDPR compliance|`set_name set_seq`|Standard OK/ERR|
+|`server.JetStreamMsgSetInfo`|Information about config and state of a Message Set|name of the Message Set|`server.MsgSetInfo`|
+|`server.JetStreamDeleteMsgSet`|Deletes a Message Set and all its data|name of the Message Set|Standard OK/ERR|
+|`server.JetStreamPurgeMsgSet`|Purges all of the data in a Message Set, leaves the Message Set|name of the Message sSet|Standard OK/ERR|
+|`server.JetStreamDeleteMsg`|Deletes a specific message in the Message Set by sequence, useful for GDPR compliance|`set_name set_seq`|Standard OK/ERR|
 
 #### Observables
 
 |Topic|Description|Request Payload|Response Payload|
 |-----|-----------|---------------|----------------|
-|`server.JetStreamObservables`|List known observables|name of the message set|Array of names in JSON format|
+|`server.JetStreamObservables`|List known observables|name of the Message Set|Array of names in JSON format|
 |`server.JetStreamCreateObservable`|Create an observable|`server.ObservableConfig`|Standard OK/ERR|
-|`server.JetStreamObservableInfo`|Information about an observable|`set_name obs_name`|`server.ObservableInfo`|
-|`server.JetStreamDeleteObservable`|Deletes an observable|`set_name obs_name`|Standard OK/ERR|
+|`server.JetStreamObservableInfo`|Information about an Observable|`set_name obs_name`|`server.ObservableInfo`|
+|`server.JetStreamDeleteObservable`|Deletes an Observable|`set_name obs_name`|Standard OK/ERR|
 
-### Acknowledging messages
+### Acknowledging Messages
 
 Messages that need acknowledgement will have a Reply subject set, something like `$JS.A.ORDERS.test.1.2.2`, this is the prefix defined in `server.JetStreamAckPre` followed by `<message set>.<observable>.<delivery count>.<set sequence>.<obs sequence>`.
 
 In all the Synadia maintained API's you can simply do `msg.Respond(nil)` (or language equivalent) which will send nil to the reply subject.
 
-### Fetching the next message from a Pull based Observable
+### Fetching The Next Message From a Pull-based Observable
 
-If you have a Pull based observable you can send a standard NATS Request to `$JS.RN.<message set>.<observable>`, here the prefix is defined in `server.JetStreamRequestNextPre`.
+If you have a pull-based Observable you can send a standard NATS Request to `$JS.RN.<message set>.<observable>`, here the prefix is defined in `server.JetStreamRequestNextPre`.
 
 ```nohighlight
 $ nats-req '$JS.RN.ORDERS.test' '1'
@@ -1092,9 +1091,9 @@ Received  [js.1] : 'message 1'
 
 Here we ask for just 1 message - `nats-req` only shows 1 - but you can fetch a batch of messages by varying the argument. This combines well with the `AckAll` Ack policy.
 
-### Fetching from a message set by sequence
+### Fetching From a Message Set By Sequence
 
-If you know the message set sequence of a message you can fetch it directly, this does not support acks.  Do a Request() to `$JS.BYSEQ.ORDERS` sending it the message sequence as payload.  Here the prefix is defined in `server.JetStreamMsgBySeqPre`.
+If you know the Message Set sequence of a message you can fetch it directly, this does not support acks.  Do a Request() to `$JS.BYSEQ.ORDERS` sending it the message sequence as payload.  Here the prefix is defined in `server.JetStreamMsgBySeqPre`.
 
 ```nohighlight
 $ nats-req '$JS.BYSEQ.ORDERS' '1'
@@ -1106,36 +1105,36 @@ Received  [_INBOX.cJrbzPJfZrq8NrFm1DsZuH.k91Gb4xM] : '{
 }'
 ```
 
-The subject is there the message was received on, Data is base64 encoded and Time is when it was received.
+The Subject shows where the message was received, Data is base64 encoded and Time is when it was received.
 
 ### Observable Samples
 
-Samples are published to a specific topic per observable, something like `$JS.OBSERVABLE.ACKSAMPLE.<message set>.<observable name>` you can just subscribe to that and get `server.ObservableAckSampleEvent` messages in JSON format.  The prefix is defined in `server.JetStreamObservableAckSamplePre`.
+Samples are published to a specific topic per Observable, something like `$JS.OBSERVABLE.ACKSAMPLE.<message set>.<observable name>` you can just subscribe to that and get `server.ObservableAckSampleEvent` messages in JSON format.  The prefix is defined in `server.JetStreamObservableAckSamplePre`.
 
 ## Next Steps
 
-There is plenty to more to discuss and features to describe. We will continue to add things here and feel free to post any questions on the JetStream Slack channel. For the brave, take a look at `nats-server/test/jetstream_test.go` for all that jetstream can do. And please file and issues or communicate on slack or on email.
+There is plenty more to discuss and features to describe. We will continue to add information to this document and feel free to post any questions on the JetStream Slack channel. For the brave, take a look at `nats-server/test/jetstream_test.go` for all that JetStream can do. And please file any issues or communicate on [Slack](slack.nats.io) or by email <info@nats.io>.
 
 Next up is a deep dive into the clustering implementation which will be completed before an official beta. The design has been ongoing since the beginning of coding but I wanted to get this out to the community to gather feedback and additional input.
 
 ## Discussion Items
 
-There a few items we are still considering/thinking about and would love the communities input. In no particular order.
+There a few items we are still considering/thinking about and would love the community's input. In no particular order.
 
-### DLQ
-Do we need or desire these? JetStream separates message sets (producing, retaining and ordering) from the observables (consumption). We do indicate the amount of times a message has been delivered and at least it may make sense when creating an observable to set a maximum for number of delivery attempts. Once that is reached however it is not clear what to do with the message. If the message set is limit based retention, the message will still be there for an admin to create an observable and take a look.
+### DLQ (Dead Letter Queue)
+Do we need or desire these? JetStream separates message sets (producing, retaining and ordering) from the Observables (consumption). We do indicate the amount of times a message has been delivered and at least it may make sense when creating an Observable to set a maximum for number of delivery attempts. Once that is reached however it is not clear what to do with the message. If the Message Set is limit-based retention, the message will still be there for an admin to create an Observable and take a look.
 
 ### Purge or Truncate (not everything)
-We offer purge but that deletes all messages from a message set. Wondering of you may want to truncate. This is if no message or byte limits were set.
+We offer purge but that deletes all messages from a Message Set. Wondering of you may want to truncate. This is if no message or byte limits were set.
 
-### NAK w/ duration before redelivery
-Should we allow an time duration be optionally sent with a NAK to say "do not attempt a redelivery for delta time"
+### NAK w/ Duration Before Redelivery
+Should we allow a time duration to be optionally sent with a NAK to say "do not attempt a redelivery for delta time"
 
 ### MsgSet Immutable?
-Message sets are always hashed and each message is hashed with sequence number and timestamp. However we do allow the ability to securely delete messages. Should we also allow the creator of a message set to specify the set is strictly immutable? I had this programmed before where each message hash included the hash from the previous message, making the whole set tamper proof.
+Message Sets are always hashed and each message is hashed with sequence number and timestamp. However we do allow the ability to securely delete messages. Should we also allow the creator of a Message Set to specify the set is strictly immutable? I had this programmed before where each message hash included the hash from the previous message, making the whole set tamper proof.
 
 ### DR/Mirror
 We will add the ability to mirror a message set from one cluster to the next. Just need to think this through.
 
-### Account template to auto-create msgSets.
-As we start to directly instrument accounts with JetStream limits etc, should we also allow a subject space that is not directly assigned to a message set but creates a template for the system to auto-create message sets. Followup is should we auto-delete them as well like STAN does.
+### Account Template to Auto-create msgSets.
+As we start to directly instrument accounts with JetStream limits etc., should we also allow a subject space that is not directly assigned to a Message Set but creates a template for the system to auto-create Message Sets. Question is, should we auto-delete them as well, like STAN does?
