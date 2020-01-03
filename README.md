@@ -1084,9 +1084,3 @@ We will add the ability to mirror a message set from one cluster to the next. Ju
 
 ### Account template to auto-create msgSets.
 As we start to directly instrument accounts with JetStream limits etc, should we also allow a subject space that is not directly assigned to a message set but creates a template for the system to auto-create message sets. Followup is should we auto-delete them as well like STAN does.
-
-
-TODO: show message limits
-TODO: benchmarks
-TODO: ack models
-TODO: message rates
