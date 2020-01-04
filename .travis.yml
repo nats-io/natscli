@@ -12,7 +12,7 @@ before_script:
   - $(exit $(go fmt $GO_LIST | wc -l))
   - go vet $GO_LIST
   - find . -type f -name "*.go" | grep -v "/vendor/" | xargs misspell -error -locale US
-  - staticcheck $GO_LIST
+  - staticcheck -f stylish $GO_LIST
 script:
   - set -e
   - go test -v --failfast -p=1 ./...

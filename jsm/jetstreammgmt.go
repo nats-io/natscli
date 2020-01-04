@@ -205,7 +205,7 @@ func (j *JetStreamMgmt) ObservableInfo(setName string, obsName string) (info *ap
 func (j *JetStreamMgmt) ObservableNext(set string, observable string) (msg *nats.Msg, err error) {
 	s := fmt.Sprintf("%s.%s.%s", api.JetStreamRequestNextPre, set, observable)
 
-	msg, err = j.request(s, nil)
+	msg, err = j.request(s, []byte("1"))
 	if err != nil {
 		return nil, err
 	}

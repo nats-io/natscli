@@ -144,7 +144,7 @@ The rest of this document introduces the `jsm` utility, but for completeness and
 $ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream
 $ jsm obs add ORDERS NEW --subject ORDERS.received --ack explicit --pull --deliver all --sample 100
 $ jsm obs add ORDERS DISPATCH --subject ORDERS.processed --ack explicit --pull --deliver all --sample 100
-$ jsm obs add ORDERS MONITOR --ack none --target monitor.ORDERS --deliver last --replay instant
+$ jsm obs add ORDERS MONITOR --subject '' --ack none --target monitor.ORDERS --deliver last --replay instant
 ```
 
 ## Getting Started
@@ -454,12 +454,13 @@ We have no Observables, lets add the `NEW` one:
 I supply the `--sample` and `--subject` options on the CLI as this is not prompted for at present, everything else is prompted. The help in the CLI explains each:
 
 ```
-$ jsm obs add --sample 100 --subject ORDERS.received
+$ jsm obs add --sample 100
 ? Select a message set ORDERS
 ? Observable name NEW
 ? Delivery target
 ? Start policy (all, last, 1h, msg sequence) all
-Information for observable ORDERS#NEW
+? Subject to consume (blank for all) ORDERS.received
+Information for observable ORDERS > NEW
 
 Configuration:
 
@@ -503,7 +504,8 @@ $ jsm obs add
 ? Start policy (all, last, 1h, msg sequence) last
 ? Acknowledgement policy none
 ? Replay policy instant
-Information for observable ORDERS#MONITOR
+? Subject to consume (blank for all)
+Information for observable ORDERS > MONITOR
 
 Configuration:
 
@@ -525,7 +527,7 @@ State:
 Again you can do this with a single non interactive command:
 
 ```
-$ jsm obs add ORDERS MONITOR --ack none --target monitor.ORDERS --deliver last --replay instant
+$ jsm obs add ORDERS MONITOR --ack none --target monitor.ORDERS --deliver last --replay instant --subject ''
 ```
 
 #### Listing
