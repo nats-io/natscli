@@ -237,7 +237,7 @@ func TestCLIObsAdd(t *testing.T) {
 	srv, _, jsm := setupObsTest(t)
 	defer srv.Shutdown()
 
-	runJsmCli(t, fmt.Sprintf("--server='%s' obs add mem1 push1 --replay instant --deliver all --pull", srv.ClientURL()))
+	runJsmCli(t, fmt.Sprintf("--server='%s' obs add mem1 push1 --replay instant --deliver all --pull --subject ''", srv.ClientURL()))
 	push1ShouldExist(t, jsm, "mem1")
 }
 

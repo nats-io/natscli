@@ -42,12 +42,14 @@ type obsCmd struct {
 	ackPolicy   string
 	ackWait     time.Duration
 	samplePct   int
+	subject     string
 
 	cfg *api.ObservableConfig
 }
 
 func configureObsCommand(app *kingpin.Application) {
 	c := &obsCmd{
+		subject: "_unset_",
 		cfg: &api.ObservableConfig{
 			AckPolicy: api.AckExplicit,
 		},
@@ -73,7 +75,7 @@ func configureObsCommand(app *kingpin.Application) {
 	obsAdd.Arg("messageset", "Message set name").StringVar(&c.messageSet)
 	obsAdd.Arg("name", "Observable name").StringVar(&c.cfg.Durable)
 	obsAdd.Flag("target", "Push based delivery target subject").StringVar(&c.cfg.Delivery)
-	obsAdd.Flag("subject", "Message set topic").StringVar(&c.cfg.Subject)
+	obsAdd.Flag("subject", "Message set topic").StringVar(&c.subject)
 	obsAdd.Flag("replay", "Replay Policy (instant, original)").EnumVar(&c.replyPolicy, "instant", "original")
 	obsAdd.Flag("deliver", "Start policy (all, last, 1h, msg sequence)").StringVar(&c.startPolicy)
 	obsAdd.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
@@ -81,7 +83,7 @@ func configureObsCommand(app *kingpin.Application) {
 	obsAdd.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("0").IntVar(&c.samplePct)
 	obsAdd.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
 
-	obsNext := obs.Command("next", "Retrieves the next message from a push message set").Alias("sub").Action(c.nextAction)
+	obsNext := obs.Command("next", "Retrieves messages from Observables").Alias("sub").Action(c.nextAction)
 	obsNext.Arg("messageset", "Message set name").StringVar(&c.messageSet)
 	obsNext.Arg("obs", "Observable name").StringVar(&c.obs)
 	obsNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
@@ -333,6 +335,16 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	case "original":
 		c.cfg.ReplayPolicy = api.ReplayOriginal
 	}
+
+	if c.subject == "_unset_" {
+		err = survey.AskOne(&survey.Input{
+			Message: "Subject to consume (blank for all)",
+			Default: "",
+			Help:    "Message Sets can consume more than one topic - or a wildcard - this allows you to select out just a single subject from all the ones entering the Set for delivery to the Observable. Settable using --subject",
+		}, &c.subject)
+		kingpin.FatalIfError(err, "could not ask for partitioning subject")
+	}
+	c.cfg.Subject = c.subject
 
 	err = jsm.ObservableCreate(c.messageSet, c.cfg)
 	kingpin.FatalIfError(err, "observable creation failed: ")
