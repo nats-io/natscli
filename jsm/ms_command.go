@@ -180,9 +180,9 @@ func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
 func (c *msCmd) splitCLISubjects() []string {
 	new := []string{}
 
+	re := regexp.MustCompile(`,|\t|\s`)
 	for _, s := range c.subjects {
-		matched, _ := regexp.MatchString(`,|\t|\s`, s)
-		if matched {
+		if re.MatchString(s) {
 			new = append(new, splitString(s)...)
 		} else {
 			new = append(new, s)

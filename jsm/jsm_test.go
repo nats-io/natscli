@@ -258,3 +258,48 @@ func TestCLIObsNext(t *testing.T) {
 		t.Fatalf("did not receive 'hello', got: '%s'", string(out))
 	}
 }
+
+func TestCLIMSCopy(t *testing.T) {
+	srv, _, jsm := setupJSMTest(t)
+	defer srv.Shutdown()
+
+	err := jsm.MessageSetCreate(mem1MS())
+	checkErr(t, err, "could not create message set: %v", err)
+	mem1ShouldExist(t, jsm)
+
+	runJsmCli(t, fmt.Sprintf("--server='%s' ms cp mem1 file1 --storage file ", srv.ClientURL()))
+	msShouldExist(t, jsm, "file1")
+
+	info, err := jsm.MessageSetInfo("file1")
+	checkErr(t, err, "could not get message set: %v", err)
+	if info.Config.Storage != api.FileStorage {
+		t.Fatalf("Expected file storage got %s", info.Config.Storage.String())
+	}
+}
+
+func TestCLIObsCopy(t *testing.T) {
+	srv, _, jsm := setupObsTest(t)
+	defer srv.Shutdown()
+
+	err := jsm.ObservableCreate("mem1", push1Obs())
+	checkErr(t, err, "could not create observable: %v", err)
+	push1ShouldExist(t, jsm, "mem1")
+
+	runJsmCli(t, fmt.Sprintf("--server='%s' obs cp mem1 push1 pull1 --pull", srv.ClientURL()))
+	obsShouldExist(t, jsm, "mem1", "pull1")
+
+	info, err := jsm.ObservableInfo("mem1", "pull1")
+	checkErr(t, err, "could not get observable: %v", err)
+	obsShouldExist(t, jsm, "mem1", "pull1")
+
+	ols, err := jsm.Observables("mem1")
+	checkErr(t, err, "could not get observables: %v", err)
+
+	if len(ols) != 2 {
+		t.Fatalf("expected 2 observables, got %d", len(ols))
+	}
+
+	if info.Config.Durable != "pull1" || info.Config.Delivery != "" {
+		t.Fatalf("Expected pull1 to be pull-based, got %v", info.Config)
+	}
+}

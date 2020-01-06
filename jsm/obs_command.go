@@ -29,31 +29,27 @@ import (
 )
 
 type obsCmd struct {
-	obs        string
-	messageSet string
-	json       bool
-	force      bool
-	ack        bool
-	raw        bool
+	obs         string
+	messageSet  string
+	json        bool
+	force       bool
+	ack         bool
+	raw         bool
+	destination string
 
-	pull        bool
-	replyPolicy string
-	startPolicy string
-	ackPolicy   string
-	ackWait     time.Duration
-	samplePct   int
-	subject     string
-
-	cfg *api.ObservableConfig
+	pull         bool
+	replayPolicy string
+	startPolicy  string
+	ackPolicy    string
+	ackWait      time.Duration
+	samplePct    int
+	subject      string
+	delivery     string
+	ephemeral    bool
 }
 
 func configureObsCommand(app *kingpin.Application) {
-	c := &obsCmd{
-		subject: "_unset_",
-		cfg: &api.ObservableConfig{
-			AckPolicy: api.AckExplicit,
-		},
-	}
+	c := &obsCmd{}
 
 	obs := app.Command("observable", "Observable management").Alias("obs")
 
@@ -71,17 +67,28 @@ func configureObsCommand(app *kingpin.Application) {
 	obsRm.Arg("name", "Observable name").StringVar(&c.obs)
 	obsRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
+	addCreateFlags := func(f *kingpin.CmdClause) {
+		f.Flag("target", "Push based delivery target subject").StringVar(&c.delivery)
+		f.Flag("subject", "Message set topic").Default("_unset_").StringVar(&c.subject)
+		f.Flag("replay", "Replay Policy (instant, original)").EnumVar(&c.replayPolicy, "instant", "original")
+		f.Flag("deliver", "Start policy (all, last, 1h, msg sequence)").StringVar(&c.startPolicy)
+		f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
+		f.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
+		f.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
+		f.Flag("ephemeral", "Create an ephemeral observable").Default("false").BoolVar(&c.ephemeral)
+		f.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
+	}
+
 	obsAdd := obs.Command("add", "Creates a new observable").Alias("create").Alias("new").Action(c.createAction)
 	obsAdd.Arg("messageset", "Message set name").StringVar(&c.messageSet)
-	obsAdd.Arg("name", "Observable name").StringVar(&c.cfg.Durable)
-	obsAdd.Flag("target", "Push based delivery target subject").StringVar(&c.cfg.Delivery)
-	obsAdd.Flag("subject", "Message set topic").StringVar(&c.subject)
-	obsAdd.Flag("replay", "Replay Policy (instant, original)").EnumVar(&c.replyPolicy, "instant", "original")
-	obsAdd.Flag("deliver", "Start policy (all, last, 1h, msg sequence)").StringVar(&c.startPolicy)
-	obsAdd.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
-	obsAdd.Flag("wait", "Acknowledgement waiting time").Default("30s").DurationVar(&c.ackWait)
-	obsAdd.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("0").IntVar(&c.samplePct)
-	obsAdd.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
+	obsAdd.Arg("name", "Observable name").StringVar(&c.obs)
+	addCreateFlags(obsAdd)
+
+	obsCp := obs.Command("copy", "Copies an Observable from another with modifications").Alias("cp").Action(c.cpAction)
+	obsCp.Arg("messageset", "Message set name").Required().StringVar(&c.messageSet)
+	obsCp.Arg("source", "Source Observable name").Required().StringVar(&c.obs)
+	obsCp.Arg("destination", "Destination Observable name").Required().StringVar(&c.destination)
+	addCreateFlags(obsCp)
 
 	obsNext := obs.Command("next", "Retrieves messages from Observables").Alias("sub").Action(c.nextAction)
 	obsNext.Arg("messageset", "Message set name").StringVar(&c.messageSet)
@@ -235,30 +242,158 @@ func (c *obsCmd) infoAction(pc *kingpin.ParseContext) error {
 	return nil
 }
 
+func (c *obsCmd) replayPolicyFromString(p string) api.ReplayPolicy {
+	switch strings.ToLower(p) {
+	case "instant":
+		return api.ReplayInstant
+	case "original":
+		return api.ReplayOriginal
+	default:
+		kingpin.Fatalf("invalid replay policy '%s'", p)
+		return 0 // unreachable
+	}
+}
+
+func (c *obsCmd) ackPolicyFromString(p string) api.AckPolicy {
+	switch strings.ToLower(p) {
+	case "none":
+		return api.AckNone
+	case "all":
+		return api.AckAll
+	case "explicit":
+		return api.AckExplicit
+	default:
+		kingpin.Fatalf("invalid ack policy '%s'", p)
+		// unreachable
+		return 0
+	}
+}
+
+func (c *obsCmd) sampleFreqFromString(s int) string {
+	if s > 100 || s < 0 {
+		kingpin.Fatalf("sample percent is not between 0 and 100")
+	}
+
+	if s > 0 {
+		return strconv.Itoa(c.samplePct)
+	}
+
+	return ""
+}
+
+func (c *obsCmd) defaultObservable() *api.ObservableConfig {
+	return &api.ObservableConfig{
+		AckPolicy: api.AckExplicit,
+	}
+}
+
+func (c *obsCmd) setStartPolicy(cfg *api.ObservableConfig, policy string) {
+	if policy == "" {
+		return
+	}
+
+	if policy == "all" {
+		cfg.DeliverAll = true
+	} else if policy == "last" {
+		cfg.DeliverLast = true
+	} else if ok, _ := regexp.MatchString("^\\d+$", policy); ok {
+		seq, _ := strconv.Atoi(policy)
+		cfg.MsgSetSeq = uint64(seq)
+	} else {
+		d, err := parseDurationString(policy)
+		kingpin.FatalIfError(err, "could not parse starting delta")
+		cfg.StartTime = time.Now().Add(-d)
+	}
+}
+
+func (c *obsCmd) cpAction(pc *kingpin.ParseContext) (err error) {
+	jsm := c.connectAndSetup(true, false)
+
+	source, err := jsm.ObservableInfo(c.messageSet, c.obs)
+	kingpin.FatalIfError(err, "could not load source Observable")
+
+	cfg := source.Config
+
+	if c.ackWait > 0 {
+		cfg.AckWait = c.ackWait
+	}
+
+	if c.samplePct != -1 {
+		cfg.SampleFrequency = c.sampleFreqFromString(c.samplePct)
+	}
+
+	if c.startPolicy != "" {
+		c.setStartPolicy(&cfg, c.startPolicy)
+	}
+
+	if c.ephemeral {
+		cfg.Durable = ""
+	} else {
+		cfg.Durable = c.destination
+	}
+
+	if c.delivery != "" {
+		cfg.Delivery = c.delivery
+	}
+
+	if c.pull {
+		cfg.Delivery = ""
+		c.ackPolicy = "explicit"
+	}
+
+	if c.ackPolicy != "" {
+		cfg.AckPolicy = c.ackPolicyFromString(c.ackPolicy)
+	}
+
+	if c.subject != "_unset_" {
+		cfg.Subject = c.subject
+	}
+
+	if c.replayPolicy != "" {
+		cfg.ReplayPolicy = c.replayPolicyFromString(c.replayPolicy)
+	}
+
+	err = jsm.ObservableCreate(c.messageSet, &cfg)
+	kingpin.FatalIfError(err, "observable creation failed")
+
+	if cfg.Durable == "" {
+		return nil
+	}
+
+	c.obs = cfg.Durable
+	return c.infoAction(pc)
+}
+
 func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	jsm := c.connectAndSetup(true, false)
 
-	c.cfg.AckPolicy = api.AckExplicit
+	cfg := c.defaultObservable()
 
-	if c.cfg.Durable == "" {
+	if c.obs == "" && !c.ephemeral {
 		err = survey.AskOne(&survey.Input{
 			Message: "Observable name",
 			Help:    "This will be used for the name of the durable subscription to be used when referencing this observable later. Settable using 'name' CLI argument",
-		}, &c.cfg.Durable, survey.WithValidator(survey.Required))
+		}, &c.obs, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "could not request observable name")
-		c.obs = c.cfg.Durable
 	}
+	cfg.Durable = c.obs
 
-	if ok, _ := regexp.MatchString(`\.|\*|>`, c.cfg.Durable); ok {
+	if ok, _ := regexp.MatchString(`\.|\*|>`, cfg.Durable); ok {
 		kingpin.Fatalf("durable name can not contain '.', '*', '>'")
 	}
 
-	if !c.pull && c.cfg.Delivery == "" {
+	if !c.pull && cfg.Delivery == "" {
 		err = survey.AskOne(&survey.Input{
 			Message: "Delivery target",
 			Help:    "Observables can be in 'push' or 'pull' mode, in 'push' mode messages are dispatched in real time to a target NATS subject, this is that subject. Leaving this blank creates a 'pull' mode observable. Settable using --target and --pull",
-		}, &c.cfg.Delivery)
+		}, &c.delivery)
 		kingpin.FatalIfError(err, "could not request delivery target")
+	}
+	cfg.Delivery = c.delivery
+
+	// pull is always explicit
+	if c.delivery == "" {
+		c.ackPolicy = "explicit"
 	}
 
 	if c.startPolicy == "" {
@@ -269,22 +404,7 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		kingpin.FatalIfError(err, "could not request start policy")
 	}
 
-	if c.startPolicy == "all" {
-		c.cfg.DeliverAll = true
-	} else if c.startPolicy == "last" {
-		c.cfg.DeliverLast = true
-	} else if ok, _ := regexp.MatchString("^\\d+$", c.startPolicy); ok {
-		seq, _ := strconv.Atoi(c.startPolicy)
-		c.cfg.MsgSetSeq = uint64(seq)
-	} else {
-		d, err := parseDurationString(c.startPolicy)
-		kingpin.FatalIfError(err, "could not parse starting delta")
-		c.cfg.StartTime = time.Now().Add(-d)
-	}
-
-	if c.cfg.Delivery == "" {
-		c.ackPolicy = "explicit"
-	}
+	c.setStartPolicy(cfg, c.startPolicy)
 
 	if c.ackPolicy == "" {
 		err = survey.AskOne(&survey.Select{
@@ -296,27 +416,22 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		kingpin.FatalIfError(err, "could not ask acknowledgement policy")
 	}
 
-	switch c.ackPolicy {
-	case "none":
-		c.cfg.AckPolicy = api.AckNone
-	case "all":
-		c.cfg.AckPolicy = api.AckAll
-	case "explicit":
-		c.cfg.AckPolicy = api.AckExplicit
-	}
+	cfg.AckPolicy = c.ackPolicyFromString(c.ackPolicy)
 
-	c.cfg.AckWait = c.ackWait
-
-	if c.samplePct > 100 || c.samplePct < 0 {
-		kingpin.Fatalf("sample percent is not between 0 and 100")
+	if c.ackWait > 0 {
+		cfg.AckWait = c.ackWait
 	}
 
 	if c.samplePct > 0 {
-		c.cfg.SampleFrequency = strconv.Itoa(c.samplePct)
+		if c.samplePct > 100 {
+			kingpin.Fatalf("sample percent is not between 0 and 100")
+		}
+
+		cfg.SampleFrequency = strconv.Itoa(c.samplePct)
 	}
 
-	if c.cfg.Delivery != "" {
-		if c.replyPolicy == "" {
+	if cfg.Delivery != "" {
+		if c.replayPolicy == "" {
 			mode := ""
 			err = survey.AskOne(&survey.Select{
 				Message: "Replay policy",
@@ -325,15 +440,12 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 				Help:    "Replay policy is the time interval at which messages are delivered to interested parties. 'instant' means deliver all as soon as possible while 'original' will match the time intervals in which messages were received, useful for replaying production traffic in development. Settable using --replay",
 			}, &mode)
 			kingpin.FatalIfError(err, "could not ask replay policy")
-			c.replyPolicy = mode
+			c.replayPolicy = mode
 		}
 	}
 
-	switch c.replyPolicy {
-	case "instant":
-		c.cfg.ReplayPolicy = api.ReplayInstant
-	case "original":
-		c.cfg.ReplayPolicy = api.ReplayOriginal
+	if c.replayPolicy != "" {
+		cfg.ReplayPolicy = c.replayPolicyFromString(c.replayPolicy)
 	}
 
 	if c.subject == "_unset_" {
@@ -344,12 +456,16 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		}, &c.subject)
 		kingpin.FatalIfError(err, "could not ask for partitioning subject")
 	}
-	c.cfg.Subject = c.subject
+	cfg.Subject = c.subject
 
-	err = jsm.ObservableCreate(c.messageSet, c.cfg)
+	err = jsm.ObservableCreate(c.messageSet, cfg)
 	kingpin.FatalIfError(err, "observable creation failed: ")
 
-	c.obs = c.cfg.Durable
+	if c.ephemeral {
+		return nil
+	}
+
+	c.obs = cfg.Durable
 
 	return c.infoAction(pc)
 }
