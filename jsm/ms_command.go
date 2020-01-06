@@ -67,7 +67,7 @@ func configureMSCommand(app *kingpin.Application) {
 	msAdd.Arg("name", "Message Set name").StringVar(&c.set)
 	addCreateFlags(msAdd)
 
-	msCopy := ms.Command("copy", "Copies a Message Set to a new one with modifications").Alias("cp").Action(c.cpAction)
+	msCopy := ms.Command("copy", "Creates a new Message Set based on the configuration of another").Alias("cp").Action(c.cpAction)
 	msCopy.Arg("source", "Source Message Set to copy").Required().StringVar(&c.set)
 	msCopy.Arg("destination", "New Message Set to create").Required().StringVar(&c.destination)
 	addCreateFlags(msCopy)

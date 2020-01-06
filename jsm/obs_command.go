@@ -84,7 +84,7 @@ func configureObsCommand(app *kingpin.Application) {
 	obsAdd.Arg("name", "Observable name").StringVar(&c.obs)
 	addCreateFlags(obsAdd)
 
-	obsCp := obs.Command("copy", "Copies an Observable from another with modifications").Alias("cp").Action(c.cpAction)
+	obsCp := obs.Command("copy", "Creates a new Observable based on the configuration of another").Alias("cp").Action(c.cpAction)
 	obsCp.Arg("messageset", "Message set name").Required().StringVar(&c.messageSet)
 	obsCp.Arg("source", "Source Observable name").Required().StringVar(&c.obs)
 	obsCp.Arg("destination", "Destination Observable name").Required().StringVar(&c.destination)
