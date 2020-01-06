@@ -33,6 +33,7 @@ type msCmd struct {
 	msgID            int64
 	retentionPolicyS string
 
+	destination   string
 	subjects      []string
 	ack           bool
 	storage       string
@@ -45,46 +46,104 @@ type msCmd struct {
 func configureMSCommand(app *kingpin.Application) {
 	c := &msCmd{msgID: -1}
 
-	ms := app.Command("messageset", "Message set management").Alias("ms")
+	ms := app.Command("messageset", "Message Set management").Alias("ms")
 
-	msInfo := ms.Command("info", "Message set information").Alias("nfo").Action(c.infoAction)
-	msInfo.Arg("set", "Message set to retrieve information for").StringVar(&c.set)
+	msInfo := ms.Command("info", "Message Set information").Alias("nfo").Action(c.infoAction)
+	msInfo.Arg("set", "Message Set to retrieve information for").StringVar(&c.set)
 	msInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
-	msAdd := ms.Command("create", "Create a new message set").Alias("add").Alias("new").Action(c.addAction)
-	msAdd.Arg("name", "Message set name").StringVar(&c.set)
-	msAdd.Flag("subjects", "Subjets thats belong to the Message set").Default().StringsVar(&c.subjects)
-	msAdd.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
-	msAdd.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
-	msAdd.Flag("max-bytes", "Maximum bytes to keep").Default("0").Int64Var(&c.maxBytesLimit)
-	msAdd.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
-	msAdd.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
-	msAdd.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	msAdd.Flag("retention", "Defines a retention policy (stream, interest, workq)").EnumVar(&c.retentionPolicyS, "stream", "interest", "workq", "work")
+	addCreateFlags := func(f *kingpin.CmdClause) {
+		f.Flag("subjects", "Subjects that belong to the Message Set").Default().StringsVar(&c.subjects)
+		f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
+		f.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
+		f.Flag("max-bytes", "Maximum bytes to keep").Default("0").Int64Var(&c.maxBytesLimit)
+		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
+		f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
+		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+		f.Flag("retention", "Defines a retention policy (stream, interest, workq)").EnumVar(&c.retentionPolicyS, "stream", "interest", "workq", "work")
+	}
 
-	msRm := ms.Command("rm", "Removes a message set").Alias("delete").Alias("del").Action(c.rmAction)
-	msRm.Arg("name", "Message set name").StringVar(&c.set)
+	msAdd := ms.Command("create", "Create a new Message Set").Alias("add").Alias("new").Action(c.addAction)
+	msAdd.Arg("name", "Message Set name").StringVar(&c.set)
+	addCreateFlags(msAdd)
+
+	msCopy := ms.Command("copy", "Copies a Message Set to a new one with modifications").Alias("cp").Action(c.cpAction)
+	msCopy.Arg("source", "Source Message Set to copy").Required().StringVar(&c.set)
+	msCopy.Arg("destination", "New Message Set to create").Required().StringVar(&c.destination)
+	addCreateFlags(msCopy)
+
+	msRm := ms.Command("rm", "Removes a Message Set").Alias("delete").Alias("del").Action(c.rmAction)
+	msRm.Arg("name", "Message Set name").StringVar(&c.set)
 	msRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
-	msLs := ms.Command("ls", "List all known message sets").Alias("list").Alias("l").Action(c.lsAction)
+	msLs := ms.Command("ls", "List all known Message Sets").Alias("list").Alias("l").Action(c.lsAction)
 	msLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
-	msPurge := ms.Command("purge", "Purge a message set witout deleting it").Action(c.purgeAction)
-	msPurge.Arg("name", "Message set name").StringVar(&c.set)
+	msPurge := ms.Command("purge", "Purge a Message Set witout deleting it").Action(c.purgeAction)
+	msPurge.Arg("name", "Message Set name").StringVar(&c.set)
 	msPurge.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	msPurge.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
-	msGet := ms.Command("get", "Retrieves a specific message from a message set").Action(c.getAction)
-	msGet.Arg("name", "Message set name").StringVar(&c.set)
+	msGet := ms.Command("get", "Retrieves a specific message from a Message Set").Action(c.getAction)
+	msGet.Arg("name", "Message Set name").StringVar(&c.set)
 	msGet.Arg("id", "Message ID to retrieve").Int64Var(&c.msgID)
 	msGet.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+}
+
+func (c *msCmd) cpAction(pc *kingpin.ParseContext) error {
+	if c.set == c.destination {
+		kingpin.Fatalf("source and destination set names cannot be the same")
+	}
+
+	jsm := c.connectAndAskSet()
+
+	source, err := jsm.MessageSetInfo(c.set)
+	kingpin.FatalIfError(err, "could not request Message Set %s configuration", c.set)
+
+	cfg := source.Config
+	cfg.NoAck = !c.ack
+	cfg.Name = c.destination
+
+	if len(c.subjects) > 0 {
+		cfg.Subjects = c.splitCLISubjects()
+	}
+
+	if c.storage != "" {
+		cfg.Storage = c.storeTypeFromString(c.storage)
+	}
+
+	if c.retentionPolicyS != "" {
+		cfg.Retention = c.retentionPolicyFromString(strings.ToLower(c.storage))
+	}
+
+	if c.maxBytesLimit != 0 {
+		cfg.MaxBytes = c.maxBytesLimit
+	}
+
+	if c.maxMsgLimit != 0 {
+		cfg.MaxMsgs = c.maxMsgLimit
+	}
+
+	if c.maxAgeLimit != "" {
+		cfg.MaxAge, err = parseDurationString(c.maxAgeLimit)
+		kingpin.FatalIfError(err, "invalid maximum age limit format")
+	}
+
+	err = jsm.MessageSetCreate(&cfg)
+	kingpin.FatalIfError(err, "could not create Message Set")
+
+	fmt.Printf("Message Set %s was created\n\n", c.set)
+
+	c.set = c.destination
+	return c.infoAction(pc)
+
 }
 
 func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
 	jsm := c.connectAndAskSet()
 
 	mstats, err := jsm.MessageSetInfo(c.set)
-	kingpin.FatalIfError(err, "could not request message set info")
+	kingpin.FatalIfError(err, "could not request Message Set info")
 
 	if c.json {
 		err = printJSON(mstats)
@@ -92,7 +151,7 @@ func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	fmt.Printf("Information for message set %s\n", c.set)
+	fmt.Printf("Information for Message Set %s\n", c.set)
 	fmt.Println()
 	fmt.Println("Configuration:")
 	fmt.Println()
@@ -118,6 +177,47 @@ func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
+func (c *msCmd) splitCLISubjects() []string {
+	new := []string{}
+
+	for _, s := range c.subjects {
+		matched, _ := regexp.MatchString(`,|\t|\s`, s)
+		if matched {
+			new = append(new, splitString(s)...)
+		} else {
+			new = append(new, s)
+		}
+	}
+
+	return new
+}
+
+func (c *msCmd) storeTypeFromString(s string) api.StorageType {
+	switch s {
+	case "file", "f":
+		return api.FileStorage
+	case "memory", "m":
+		return api.MemoryStorage
+	default:
+		kingpin.Fatalf("invalid storage type %s", c.storage)
+		return 0 // unreachable
+	}
+}
+
+func (c *msCmd) retentionPolicyFromString(s string) api.RetentionPolicy {
+	switch strings.ToLower(c.retentionPolicyS) {
+	case "stream":
+		return api.StreamPolicy
+	case "interest":
+		return api.InterestPolicy
+	case "work queue", "workq", "work":
+		return api.WorkQueuePolicy
+	default:
+		kingpin.Fatalf("invalid retention policy %s", c.retentionPolicyS)
+		return 0 // unreachable
+	}
+}
+
 func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 	if c.set == "" {
 		err = survey.AskOne(&survey.Input{
@@ -130,18 +230,14 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		subjects := ""
 		err = survey.AskOne(&survey.Input{
 			Message: "Subjects to consume",
-			Help:    "Message sets consume messages from subjects, this is a space or comma separated list that can include wildcards. Settable using --subjects",
+			Help:    "Message Sets consume messages from subjects, this is a space or comma separated list that can include wildcards. Settable using --subjects",
 		}, &subjects, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "invalid input")
 
 		c.subjects = splitString(subjects)
 	}
 
-	// if cli gave a single string as a list we split it up, else they can pass --subject x --subject y for multiples
-	matched, _ := regexp.MatchString(`,|\t|\s`, c.subjects[0])
-	if len(c.subjects) == 1 && matched {
-		c.subjects = splitString(c.subjects[0])
-	}
+	c.subjects = c.splitCLISubjects()
 
 	if c.storage == "" {
 		err = survey.AskOne(&survey.Select{
@@ -152,15 +248,7 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
-	var storage api.StorageType
-	switch c.storage {
-	case "file", "f":
-		storage = api.FileStorage
-	case "memory", "m":
-		storage = api.MemoryStorage
-	default:
-		kingpin.Fatalf("invalid storage type %s", c.storage)
-	}
+	storage := c.storeTypeFromString(c.storage)
 
 	if c.retentionPolicyS == "" {
 		err = survey.AskOne(&survey.Select{
@@ -172,23 +260,16 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
-	switch strings.ToLower(c.retentionPolicyS) {
-	case "stream":
-		c.rPolicy = api.StreamPolicy
-	case "interest":
-		c.rPolicy = api.InterestPolicy
-	case "work queue", "workq", "work":
-		c.rPolicy = api.WorkQueuePolicy
-	}
+	c.rPolicy = c.retentionPolicyFromString(strings.ToLower(c.retentionPolicyS))
 
 	var maxAge time.Duration
 	if c.maxMsgLimit == 0 {
-		c.maxMsgLimit, err = askOneInt("Message count limit", "-1", "Defines the amount of messages to keep in the store for this message set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-msgs")
+		c.maxMsgLimit, err = askOneInt("Message count limit", "-1", "Defines the amount of messages to keep in the store for this Message Set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-msgs")
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
 	if c.maxBytesLimit == 0 {
-		c.maxBytesLimit, err = askOneInt("Message size limit", "-1", "Defines the combined size of all messages in a message set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
+		c.maxBytesLimit, err = askOneInt("Message size limit", "-1", "Defines the combined size of all messages in a Message Set, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
@@ -196,7 +277,7 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		err = survey.AskOne(&survey.Input{
 			Message: "Maximum message age limit",
 			Default: "-1",
-			Help:    "Defines the oldest messages that can be stored in the message set, any messages older than this period will be removed, -1 for unlimited. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Setable using --max-age",
+			Help:    "Defines the oldest messages that can be stored in the Message Set, any messages older than this period will be removed, -1 for unlimited. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Setable using --max-age",
 		}, &c.maxAgeLimit)
 		kingpin.FatalIfError(err, "invalid input")
 	}
@@ -221,9 +302,9 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		MaxObservables: -1,
 		Replicas:       0,
 	})
-	kingpin.FatalIfError(err, "could not create message set")
+	kingpin.FatalIfError(err, "could not create Message Set")
 
-	fmt.Printf("Message set %s was created\n\n", c.set)
+	fmt.Printf("Message Set %s was created\n\n", c.set)
 
 	return c.infoAction(pc)
 }
@@ -232,7 +313,7 @@ func (c *msCmd) rmAction(_ *kingpin.ParseContext) (err error) {
 	jsm := c.connectAndAskSet()
 
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Really delete message set %s", c.set), false)
+		ok, err := askConfirmation(fmt.Sprintf("Really delete Message Set %s", c.set), false)
 		kingpin.FatalIfError(err, "could not obtain confirmation")
 
 		if !ok {
@@ -241,7 +322,7 @@ func (c *msCmd) rmAction(_ *kingpin.ParseContext) (err error) {
 	}
 
 	err = jsm.MessageSetDelete(c.set)
-	kingpin.FatalIfError(err, "could not remove message set")
+	kingpin.FatalIfError(err, "could not remove Message Set")
 
 	return nil
 }
@@ -250,7 +331,7 @@ func (c *msCmd) purgeAction(pc *kingpin.ParseContext) (err error) {
 	jsm := c.connectAndAskSet()
 
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Really purge message set %s", c.set), false)
+		ok, err := askConfirmation(fmt.Sprintf("Really purge Message Set %s", c.set), false)
 		kingpin.FatalIfError(err, "could not obtain confirmation")
 
 		if !ok {
@@ -259,7 +340,7 @@ func (c *msCmd) purgeAction(pc *kingpin.ParseContext) (err error) {
 	}
 
 	err = jsm.MessageSetPurge(c.set)
-	kingpin.FatalIfError(err, "could not purge message set")
+	kingpin.FatalIfError(err, "could not purge Message Set")
 
 	return c.infoAction(pc)
 }
@@ -269,7 +350,7 @@ func (c *msCmd) lsAction(_ *kingpin.ParseContext) (err error) {
 	kingpin.FatalIfError(err, "setup failed")
 
 	sets, err := jsm.MessageSets()
-	kingpin.FatalIfError(err, "could not list message set")
+	kingpin.FatalIfError(err, "could not list Message Set")
 
 	if c.json {
 		err = printJSON(sets)
@@ -278,7 +359,7 @@ func (c *msCmd) lsAction(_ *kingpin.ParseContext) (err error) {
 	}
 
 	if len(sets) == 0 {
-		fmt.Println("No message sets defined")
+		fmt.Println("No Message Sets defined")
 		return nil
 	}
 
@@ -327,7 +408,7 @@ func (c *msCmd) connectAndAskSet() (jsm *JetStreamMgmt) {
 	kingpin.FatalIfError(err, "setup failed")
 
 	c.set, err = selectMessageSet(jsm, c.set)
-	kingpin.FatalIfError(err, "could not pick a message set")
+	kingpin.FatalIfError(err, "could not pick a Message Set")
 
 	return jsm
 }
