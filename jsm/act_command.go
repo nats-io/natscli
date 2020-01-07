@@ -45,8 +45,8 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 
 	fmt.Println("JetStream Account Information:")
 	fmt.Println()
-	fmt.Printf("      Memory: %s of %s\n", humanize.Bytes(info.Memory), humanize.Bytes(uint64(info.Limits.MaxMemory)))
-	fmt.Printf("     Storage: %s of %s\n", humanize.Bytes(info.Store), humanize.Bytes(uint64(info.Limits.MaxStore)))
+	fmt.Printf("      Memory: %s of %s\n", humanize.IBytes(info.Memory), humanize.IBytes(uint64(info.Limits.MaxMemory)))
+	fmt.Printf("     Storage: %s of %s\n", humanize.IBytes(info.Store), humanize.IBytes(uint64(info.Limits.MaxStore)))
 
 	if info.Limits.MaxMsgSets == -1 {
 		fmt.Printf("Message Sets: %d of Unlimited\n", info.MsgSets)
