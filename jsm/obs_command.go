@@ -366,7 +366,6 @@ func (c *obsCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 
 func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	jsm := c.connectAndSetup(true, false)
-
 	cfg := c.defaultObservable()
 
 	if c.obs == "" && !c.ephemeral {
@@ -389,6 +388,11 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		}, &c.delivery)
 		kingpin.FatalIfError(err, "could not request delivery target")
 	}
+
+	if c.ephemeral && c.delivery == "" {
+		kingpin.Fatalf("ephemeral Observables has to be push-based.")
+	}
+
 	cfg.Delivery = c.delivery
 
 	// pull is always explicit

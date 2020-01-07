@@ -867,7 +867,25 @@ Acknowledged message
 
 ### Ephemeral Observables
 
-TODO
+So far, all the Observables you have seen were Durable, meaning they exist even after you disconnect from JetStream. In our Orders scenario, though the `MONITOR` Observable could very well be a short-lived thing there just while an operator is debugging the system, there is no need to remember the last seen position if all you are doing is wanting to observe the real-time state.
+
+In this case, we can make an Ephemeral Observable by first subscribing to the delivery subject, then creating a durable and giving it no durable name.  An Ephemeral Observable exists as long as any subscription is active on its delivery subject. It is automatically be removed, after a short grace period to handle restarts, when there are no subscribers.
+
+Ephemeral Observables can only be push-based.
+
+Terminal 1:
+
+```
+$ nats-sub my.monitor
+```
+
+Terminal 2:
+
+```
+$ jsm obs add ORDERS --subject '' --ack none --target 'my.monitor' --deliver last --replay instant --ephemeral
+```
+
+The `--ephemeral` switch tells the system to make an Ephemeral Observable.
 
 ### Observable Message Rates
 
