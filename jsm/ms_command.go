@@ -167,7 +167,7 @@ func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
 	fmt.Println("Statistics:")
 	fmt.Println()
 	fmt.Printf("            Messages: %s\n", humanize.Comma(int64(mstats.Stats.Msgs)))
-	fmt.Printf("               Bytes: %s\n", humanize.Bytes(mstats.Stats.Bytes))
+	fmt.Printf("               Bytes: %s\n", humanize.IBytes(mstats.Stats.Bytes))
 	fmt.Printf("            FirstSeq: %s\n", humanize.Comma(int64(mstats.Stats.FirstSeq)))
 	fmt.Printf("             LastSeq: %s\n", humanize.Comma(int64(mstats.Stats.LastSeq)))
 	fmt.Printf("  Active Observables: %d\n", mstats.Stats.Observables)
