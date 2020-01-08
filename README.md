@@ -142,9 +142,9 @@ The rest of this document introduces the `jsm` utility, but for completeness and
 
 ```bash
 $ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream --max-msg-size=-1
-$ jsm obs add ORDERS NEW --subject ORDERS.received --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
-$ jsm obs add ORDERS DISPATCH --subject ORDERS.processed --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
-$ jsm obs add ORDERS MONITOR --subject '' --ack none --target monitor.ORDERS --deliver last --replay instant
+$ jsm obs add ORDERS NEW --filter ORDERS.received --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
+$ jsm obs add ORDERS DISPATCH --filter ORDERS.processed --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
+$ jsm obs add ORDERS MONITOR --filter '' --ack none --target monitor.ORDERS --deliver last --replay instant
 ```
 
 ## Getting Started
@@ -461,7 +461,7 @@ $ jsm obs add --sample 100
 ? Observable name NEW
 ? Delivery target
 ? Start policy (all, last, 1h, msg sequence) all
-? Subject to consume (blank for all) ORDERS.received
+? Filter Message Set by subject (blank for all) ORDERS.received
 ? Maximum Allowed Deliveries 20
 Information for observable ORDERS > NEW
 
@@ -495,7 +495,7 @@ A Maximum Delivery limit of 20 is set, this means if the message is not acknowle
 Again this can all be done in a single CLI call, lets make the `DISPATCH` Observable:
 
 ```
-$ jsm obs add ORDERS DISPATCH --subject ORDERS.processed --ack explicit --pull --deliver all --sample 100 --max-deliver 20
+$ jsm obs add ORDERS DISPATCH --filter ORDERS.processed --ack explicit --pull --deliver all --sample 100 --max-deliver 20
 ```
 
 #### Creating Push-Based Observables
@@ -510,7 +510,7 @@ $ jsm obs add
 ? Start policy (all, last, 1h, msg sequence) last
 ? Acknowledgement policy none
 ? Replay policy instant
-? Subject to consume (blank for all)
+? Filter Message Set by subject (blank for all)
 ? Maximum Allowed Deliveries -1
 Information for observable ORDERS > MONITOR
 
@@ -534,7 +534,7 @@ State:
 Again you can do this with a single non interactive command:
 
 ```
-$ jsm obs add ORDERS MONITOR --ack none --target monitor.ORDERS --deliver last --replay instant --subject ''
+$ jsm obs add ORDERS MONITOR --ack none --target monitor.ORDERS --deliver last --replay instant --filter ''
 ```
 
 #### Listing
@@ -822,7 +822,7 @@ Lets look at each of these, first we make a new Message Set `ORDERS` and add 100
 Now create a `DeliverAll` pull-based Observable:
 
 ```
-$ jsm obs add ORDERS ALL --pull --subject ORDERS.processed --ack none --replay instant --deliver all 
+$ jsm obs add ORDERS ALL --pull --filter ORDERS.processed --ack none --replay instant --deliver all 
 $ jsm obs next ORDERS ALL
 --- received on ORDERS.processed
 order 1
@@ -833,7 +833,7 @@ Acknowledged message
 Now create a `DeliverLast` pull-based Observable:
 
 ```
-$ jsm obs add ORDERS LAST --pull --subject ORDERS.processed --ack none --replay instant --deliver last
+$ jsm obs add ORDERS LAST --pull --filter ORDERS.processed --ack none --replay instant --deliver last
 $ jsm obs next ORDERS LAST
 --- received on ORDERS.processed
 order 100
@@ -844,7 +844,7 @@ Acknowledged message
 Now create a `MsgSetSeq` pull-based Observable:
 
 ```
-$ jsm obs add ORDERS TEN --pull --subject ORDERS.processed --ack none --replay instant --deliver 10
+$ jsm obs add ORDERS TEN --pull --filter ORDERS.processed --ack none --replay instant --deliver 10
 $ jsm obs next ORDERS TEN
 --- received on ORDERS.processed
 order 10
@@ -866,7 +866,7 @@ done
 Then create an Observable that starts 2 minutes ago:
 
 ```
-$ jsm obs add ORDERS 2MIN --pull --subject ORDERS.processed --ack none --replay instant --deliver 2m
+$ jsm obs add ORDERS 2MIN --pull --filter ORDERS.processed --ack none --replay instant --deliver 2m
 $ jsm obs next ORDERS 2MIN
 --- received on ORDERS.processed
 order 2
@@ -891,7 +891,7 @@ $ nats-sub my.monitor
 Terminal 2:
 
 ```
-$ jsm obs add ORDERS --subject '' --ack none --target 'my.monitor' --deliver last --replay instant --ephemeral
+$ jsm obs add ORDERS --filter '' --ack none --target 'my.monitor' --deliver last --replay instant --ephemeral
 ```
 
 The `--ephemeral` switch tells the system to make an Ephemeral Observable.
@@ -905,7 +905,7 @@ This is useful in load testing scenarios etc. This is called the `ReplayPolicy` 
 You can only set `ReplayPolicy` on push-based Observables.
 
 ```
-$ jsm obs add ORDERS REPLAY --target out.original --subject ORDERS.processed --ack none --deliver all --sample 100 --replay original
+$ jsm obs add ORDERS REPLAY --target out.original --filter ORDERS.processed --ack none --deliver all --sample 100 --replay original
 ...
      Replay Policy: original
 ...

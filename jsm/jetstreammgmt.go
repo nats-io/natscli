@@ -137,7 +137,7 @@ func (j *JetStreamMgmt) ObservableCreate(set string, cfg *api.ObservableConfig) 
 		Config: *cfg,
 	}
 
-	if cfg.Subject == "" {
+	if cfg.FilterSubject == "" {
 		cfg.AckPolicy = api.AckExplicit
 	}
 

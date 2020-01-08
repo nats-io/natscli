@@ -414,7 +414,7 @@ func (c *msCmd) getAction(_ *kingpin.ParseContext) (err error) {
 		return nil
 	}
 
-	fmt.Printf("Item: %s#%d received %v on subject %s\n\n", c.set, c.msgID, item.Time, item.Subject)
+	fmt.Printf("Item: %s#%d received %v on Subject %s\n\n", c.set, c.msgID, item.Time, item.Subject)
 	fmt.Println(string(item.Data))
 	fmt.Println()
 	return nil
