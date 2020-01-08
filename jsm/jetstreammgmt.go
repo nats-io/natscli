@@ -115,15 +115,6 @@ func (j *JetStreamMgmt) MessageSetGetItem(setName string, id int64) (msg *api.St
 
 // MessageSetInfo retrieves configuration and state of a message set
 func (j *JetStreamMgmt) MessageSetInfo(setName string) (info *api.MsgSetInfo, err error) {
-	known, err := j.IsMessageSetKnown(setName)
-	if err != nil {
-		return nil, err
-	}
-
-	if !known {
-		return nil, fmt.Errorf("message set %s is not known", setName)
-	}
-
 	info = &api.MsgSetInfo{}
 	err = j.requestAndUnMarshal(api.JetStreamMsgSetInfo, []byte(setName), info)
 
