@@ -37,16 +37,16 @@ type obsCmd struct {
 	raw         bool
 	destination string
 
-	maxDeliver   int
-	pull         bool
-	replayPolicy string
-	startPolicy  string
-	ackPolicy    string
-	ackWait      time.Duration
-	samplePct    int
-	subject      string
-	delivery     string
-	ephemeral    bool
+	maxDeliver    int
+	pull          bool
+	replayPolicy  string
+	startPolicy   string
+	ackPolicy     string
+	ackWait       time.Duration
+	samplePct     int
+	filterSubject string
+	delivery      string
+	ephemeral     bool
 }
 
 func configureObsCommand(app *kingpin.Application) {
@@ -70,7 +70,7 @@ func configureObsCommand(app *kingpin.Application) {
 
 	addCreateFlags := func(f *kingpin.CmdClause) {
 		f.Flag("target", "Push based delivery target subject").StringVar(&c.delivery)
-		f.Flag("subject", "Message set topic").Default("_unset_").StringVar(&c.subject)
+		f.Flag("filter", "Filter Message Set by subjects").Default("_unset_").StringVar(&c.filterSubject)
 		f.Flag("replay", "Replay Policy (instant, original)").EnumVar(&c.replayPolicy, "instant", "original")
 		f.Flag("deliver", "Start policy (all, last, 1h, msg sequence)").StringVar(&c.startPolicy)
 		f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
@@ -211,8 +211,8 @@ func (c *obsCmd) infoAction(pc *kingpin.ParseContext) error {
 	} else {
 		fmt.Printf("           Pull Mode: true\n")
 	}
-	if info.Config.Subject != "" {
-		fmt.Printf("             Subject: %s\n", info.Config.Subject)
+	if info.Config.FilterSubject != "" {
+		fmt.Printf("      Filter Subject: %s\n", info.Config.FilterSubject)
 	}
 	if info.Config.MsgSetSeq != 0 {
 		fmt.Printf("      Start Sequence: %d\n", info.Config.MsgSetSeq)
@@ -350,8 +350,8 @@ func (c *obsCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.AckPolicy = c.ackPolicyFromString(c.ackPolicy)
 	}
 
-	if c.subject != "_unset_" {
-		cfg.Subject = c.subject
+	if c.filterSubject != "_unset_" {
+		cfg.FilterSubject = c.filterSubject
 	}
 
 	if c.replayPolicy != "" {
@@ -464,15 +464,15 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		cfg.ReplayPolicy = c.replayPolicyFromString(c.replayPolicy)
 	}
 
-	if c.subject == "_unset_" {
+	if c.filterSubject == "_unset_" {
 		err = survey.AskOne(&survey.Input{
-			Message: "Subject to consume (blank for all)",
+			Message: "Filter Message Set by subject (blank for all)",
 			Default: "",
-			Help:    "Message Sets can consume more than one topic - or a wildcard - this allows you to select out just a single subject from all the ones entering the Set for delivery to the Observable. Settable using --subject",
-		}, &c.subject)
+			Help:    "Message Sets can consume more than one subject - or a wildcard - this allows you to filter out just a single Subject from all the ones entering the Set for delivery to the Observable. Settable using --filter",
+		}, &c.filterSubject)
 		kingpin.FatalIfError(err, "could not ask for filtering subject")
 	}
-	cfg.Subject = c.subject
+	cfg.FilterSubject = c.filterSubject
 
 	if c.maxDeliver == 0 && cfg.AckPolicy != api.AckNone {
 		err = survey.AskOne(&survey.Input{
