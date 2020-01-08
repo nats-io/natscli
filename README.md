@@ -142,8 +142,8 @@ The rest of this document introduces the `jsm` utility, but for completeness and
 
 ```bash
 $ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream
-$ jsm obs add ORDERS NEW --subject ORDERS.received --ack explicit --pull --deliver all --sample 100
-$ jsm obs add ORDERS DISPATCH --subject ORDERS.processed --ack explicit --pull --deliver all --sample 100
+$ jsm obs add ORDERS NEW --subject ORDERS.received --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
+$ jsm obs add ORDERS DISPATCH --subject ORDERS.processed --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
 $ jsm obs add ORDERS MONITOR --subject '' --ack none --target monitor.ORDERS --deliver last --replay instant
 ```
 
@@ -431,7 +431,7 @@ Finally for demonstration purposes, you can also delete the whole Message Set an
 
 ```
 $ jsm ms rm ORDERS -f
-$ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention streamMessage set derek was created
+$ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream
 ```
 
 ### Observables
@@ -451,7 +451,7 @@ No observables defined
 
 We have no Observables, lets add the `NEW` one:
 
-I supply the `--sample` and `--subject` options on the CLI as this is not prompted for at present, everything else is prompted. The help in the CLI explains each:
+I supply the `--sample` options on the CLI as this is not prompted for at present, everything else is prompted. The help in the CLI explains each:
 
 ```
 $ jsm obs add --sample 100
@@ -460,19 +460,21 @@ $ jsm obs add --sample 100
 ? Delivery target
 ? Start policy (all, last, 1h, msg sequence) all
 ? Subject to consume (blank for all) ORDERS.received
+? Maximum Allowed Deliveries 20
 Information for observable ORDERS > NEW
 
 Configuration:
 
-      Durable Name: NEW
-         Pull Mode: true
-           Subject: ORDERS.received
-       Deliver All: true
-      Deliver Last: false
-        Ack Policy: explicit
-          Ack Wait: 30s
-     Replay Policy: instant
-     Sampling Rate: 100
+        Durable Name: NEW
+           Pull Mode: true
+             Subject: ORDERS.received
+         Deliver All: true
+        Deliver Last: false
+          Ack Policy: explicit
+            Ack Wait: 30s
+       Replay Policy: instant
+  Maximum Deliveries: 20
+       Sampling Rate: 100
 
 State:
 
@@ -486,10 +488,12 @@ This is a pull-based Observable (empty Delivery Target), it gets messages from t
 
 It only received messages that originally entered the Message Set on `ORDERS.received`. Remember the Message Set subscribes to `ORDERS.*`, this lets us select a subset of messages from the Message Set.
  
+A Maximum Delivery limit of 20 is set, this means if the message is not acknowledged it will be retried but only up to this maximum total deliveries.
+
 Again this can all be done in a single CLI call, lets make the `DISPATCH` Observable:
 
 ```
-$ jsm obs add ORDERS DISPATCH --subject ORDERS.processed --ack explicit --pull --deliver all --sample 100
+$ jsm obs add ORDERS DISPATCH --subject ORDERS.processed --ack explicit --pull --deliver all --sample 100 --max-deliver 20
 ```
 
 #### Creating Push-Based Observables
@@ -505,6 +509,7 @@ $ jsm obs add
 ? Acknowledgement policy none
 ? Replay policy instant
 ? Subject to consume (blank for all)
+? Maximum Allowed Deliveries -1
 Information for observable ORDERS > MONITOR
 
 Configuration:
@@ -813,7 +818,7 @@ Lets look at each of these, first we make a new Message Set `ORDERS` and add 100
 Now create a `DeliverAll` pull-based Observable:
 
 ```
-$ jsm obs add ORDERS ALL --pull --subject ORDERS.processed --ack none --replay instant --deliver all
+$ jsm obs add ORDERS ALL --pull --subject ORDERS.processed --ack none --replay instant --deliver all 
 $ jsm obs next ORDERS ALL
 --- received on ORDERS.processed
 order 1

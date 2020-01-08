@@ -37,6 +37,7 @@ type obsCmd struct {
 	raw         bool
 	destination string
 
+	maxDeliver   int
 	pull         bool
 	replayPolicy string
 	startPolicy  string
@@ -77,6 +78,7 @@ func configureObsCommand(app *kingpin.Application) {
 		f.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
 		f.Flag("ephemeral", "Create an ephemeral observable").Default("false").BoolVar(&c.ephemeral)
 		f.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
+		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").IntVar(&c.maxDeliver)
 	}
 
 	obsAdd := obs.Command("add", "Creates a new observable").Alias("create").Alias("new").Action(c.createAction)
@@ -202,31 +204,34 @@ func (c *obsCmd) infoAction(pc *kingpin.ParseContext) error {
 	fmt.Println("Configuration:")
 	fmt.Println()
 	if info.Config.Durable != "" {
-		fmt.Printf("      Durable Name: %s\n", info.Config.Durable)
+		fmt.Printf("        Durable Name: %s\n", info.Config.Durable)
 	}
 	if info.Config.Delivery != "" {
-		fmt.Printf("  Delivery Subject: %s\n", info.Config.Delivery)
+		fmt.Printf("    Delivery Subject: %s\n", info.Config.Delivery)
 	} else {
-		fmt.Printf("         Pull Mode: true\n")
+		fmt.Printf("           Pull Mode: true\n")
 	}
 	if info.Config.Subject != "" {
-		fmt.Printf("           Subject: %s\n", info.Config.Subject)
+		fmt.Printf("             Subject: %s\n", info.Config.Subject)
 	}
 	if info.Config.MsgSetSeq != 0 {
-		fmt.Printf("    Start Sequence: %d\n", info.Config.MsgSetSeq)
+		fmt.Printf("      Start Sequence: %d\n", info.Config.MsgSetSeq)
 	}
 	if !info.Config.StartTime.IsZero() {
-		fmt.Printf("        Start Time: %v\n", info.Config.StartTime)
+		fmt.Printf("          Start Time: %v\n", info.Config.StartTime)
 	}
-	fmt.Printf("       Deliver All: %v\n", info.Config.DeliverAll)
-	fmt.Printf("      Deliver Last: %v\n", info.Config.DeliverLast)
-	fmt.Printf("        Ack Policy: %s\n", info.Config.AckPolicy.String())
+	fmt.Printf("         Deliver All: %v\n", info.Config.DeliverAll)
+	fmt.Printf("        Deliver Last: %v\n", info.Config.DeliverLast)
+	fmt.Printf("          Ack Policy: %s\n", info.Config.AckPolicy.String())
 	if info.Config.AckPolicy != api.AckNone {
-		fmt.Printf("          Ack Wait: %v\n", info.Config.AckWait)
+		fmt.Printf("            Ack Wait: %v\n", info.Config.AckWait)
 	}
-	fmt.Printf("     Replay Policy: %s\n", info.Config.ReplayPolicy.String())
+	fmt.Printf("       Replay Policy: %s\n", info.Config.ReplayPolicy.String())
+	if info.Config.MaxDeliver != -1 {
+		fmt.Printf("  Maximum Deliveries: %d\n", info.Config.MaxDeliver)
+	}
 	if info.Config.SampleFrequency != "" {
-		fmt.Printf("     Sampling Rate: %s\n", info.Config.SampleFrequency)
+		fmt.Printf("       Sampling Rate: %s\n", info.Config.SampleFrequency)
 	}
 
 	fmt.Println()
@@ -353,6 +358,10 @@ func (c *obsCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.ReplayPolicy = c.replayPolicyFromString(c.replayPolicy)
 	}
 
+	if c.maxDeliver != 0 {
+		cfg.MaxDeliver = c.maxDeliver
+	}
+
 	err = jsm.ObservableCreate(c.messageSet, &cfg)
 	kingpin.FatalIfError(err, "observable creation failed")
 
@@ -381,7 +390,7 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		kingpin.Fatalf("durable name can not contain '.', '*', '>'")
 	}
 
-	if !c.pull && cfg.Delivery == "" {
+	if !c.pull && c.delivery == "" {
 		err = survey.AskOne(&survey.Input{
 			Message: "Delivery target",
 			Help:    "Observables can be in 'push' or 'pull' mode, in 'push' mode messages are dispatched in real time to a target NATS subject, this is that subject. Leaving this blank creates a 'pull' mode observable. Settable using --target and --pull",
@@ -421,6 +430,9 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	}
 
 	cfg.AckPolicy = c.ackPolicyFromString(c.ackPolicy)
+	if cfg.AckPolicy == api.AckNone {
+		cfg.MaxDeliver = -1
+	}
 
 	if c.ackWait > 0 {
 		cfg.AckWait = c.ackWait
@@ -458,9 +470,22 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 			Default: "",
 			Help:    "Message Sets can consume more than one topic - or a wildcard - this allows you to select out just a single subject from all the ones entering the Set for delivery to the Observable. Settable using --subject",
 		}, &c.subject)
-		kingpin.FatalIfError(err, "could not ask for partitioning subject")
+		kingpin.FatalIfError(err, "could not ask for filtering subject")
 	}
 	cfg.Subject = c.subject
+
+	if c.maxDeliver == 0 && cfg.AckPolicy != api.AckNone {
+		err = survey.AskOne(&survey.Input{
+			Message: "Maximum Allowed Deliveries",
+			Default: "-1",
+			Help:    "When this is -1 unlimited attempts to deliver an un acknowledged message is made, when this is >0 it will be maximum amount of times a message is delivered after which it is ignored. Settable using --max-deliver.",
+		}, c.maxDeliver)
+		kingpin.FatalIfError(err, "could not ask for maximum allowed deliveries")
+	}
+
+	if c.maxDeliver != 0 && cfg.AckPolicy != api.AckNone {
+		cfg.MaxDeliver = c.maxDeliver
+	}
 
 	err = jsm.ObservableCreate(c.messageSet, cfg)
 	kingpin.FatalIfError(err, "observable creation failed: ")
