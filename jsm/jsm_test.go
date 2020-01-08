@@ -50,7 +50,7 @@ func TestCLIMSCreate(t *testing.T) {
 	srv, _, jsm := setupJSMTest(t)
 	defer srv.Shutdown()
 
-	runJsmCli(t, fmt.Sprintf("--server='%s' ms create mem1 --subjects 'js.mem.>,js.other' --storage m  --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention stream", srv.ClientURL()))
+	runJsmCli(t, fmt.Sprintf("--server='%s' ms create mem1 --subjects 'js.mem.>,js.other' --storage m  --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention stream --max-msg-size=1024", srv.ClientURL()))
 	mem1ShouldExist(t, jsm)
 	info, err := jsm.MessageSetInfo("mem1")
 	checkErr(t, err, "could not fetch message set: %v", err)
@@ -69,6 +69,10 @@ func TestCLIMSCreate(t *testing.T) {
 
 	if info.Config.Storage != api.MemoryStorage {
 		t.Fatalf("incorrect storage received, expected memory got %s", info.Config.Storage.String())
+	}
+
+	if info.Config.MaxMsgSize != 1024 {
+		t.Fatalf("incorrect max message size set, expected 1024 got %v", info.Config.MaxMsgSize)
 	}
 }
 

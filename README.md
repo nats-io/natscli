@@ -141,7 +141,7 @@ When defining Observables the items below make up the entire configuration of th
 The rest of this document introduces the `jsm` utility, but for completeness and reference this is how you'd create the ORDERS scenario.  We'll configure a 1 year retention for order related messages:
 
 ```bash
-$ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream
+$ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream --max-msg-size=-1
 $ jsm obs add ORDERS NEW --subject ORDERS.received --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
 $ jsm obs add ORDERS DISPATCH --subject ORDERS.processed --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
 $ jsm obs add ORDERS MONITOR --subject '' --ack none --target monitor.ORDERS --deliver last --replay instant
@@ -278,6 +278,7 @@ $ jsm ms add ORDERS
 ? Message count limit -1
 ? Message size limit -1
 ? Maximum message age limit 1y
+? Maximum individual message size [? for help] (-1) -1
 Message set ORDERS was created
 
 Information for message set ORDERS
@@ -291,6 +292,7 @@ Configuration:
      Maximum Messages: -1
         Maximum Bytes: -1
           Maximum Age: 8760h0m0s
+ Maximum Message Size: -1
   Maximum Observables: -1
 
 Statistics:
@@ -305,7 +307,7 @@ Statistics:
 You can get prompted interactively for missing information as above, or do it all on one command. Pressing `?` in the CLI will help you map prompts to CLI options:
 
 ```
-$ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream
+$ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream --max-msg-size=-1
 ```
 
 #### Listing
@@ -431,7 +433,7 @@ Finally for demonstration purposes, you can also delete the whole Message Set an
 
 ```
 $ jsm ms rm ORDERS -f
-$ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream
+$ jsm ms add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention stream --max-msg-size=-1
 ```
 
 ### Observables
@@ -651,7 +653,7 @@ The Orders example touched on a lot of features, but some like different Ack mod
 
 Message Sets store data on disk, but we cannot store all data forever so we need ways to control their size automatically.
 
-There are 2 features that come into play when Message Sets decide how long they store data.
+There are 3 features that come into play when Message Sets decide how long they store data.
 
 The `Retention Policy` describes based on what criteria a set will evict messages from its storage:
 
@@ -666,6 +668,8 @@ In all Retention Policies the basic limits apply as upper bounds, these are `Max
 One can then define additional ways a message may be removed from the Message Set earlier than these limits.  In `WorkQueuePolicy` the messages will be removed as soon as any Observable received an Acknowledgement. In `InterestPolicy` messages will be removed as soon as there are no more Observables.
 
 In both `WorkQueuePolicy` and `InterestPolicy` the age, size and count limits will still apply as upper bounds.
+
+A final control is the Maximum Size any single message may have. NATS have it's own limit for maximum size (1 MiB by default), but you can say a Message Set will only accept messages up to 1024 bytes using `MaxMsgSize`.
 
 ### Acknowledgement Models
 

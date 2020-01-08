@@ -40,6 +40,7 @@ type msCmd struct {
 	maxMsgLimit   int64
 	maxBytesLimit int64
 	maxAgeLimit   string
+	maxMsgSize    int32
 	rPolicy       api.RetentionPolicy
 }
 
@@ -61,6 +62,7 @@ func configureMSCommand(app *kingpin.Application) {
 		f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 		f.Flag("retention", "Defines a retention policy (stream, interest, workq)").EnumVar(&c.retentionPolicyS, "stream", "interest", "workq", "work")
+		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int32Var(&c.maxMsgSize)
 	}
 
 	msAdd := ms.Command("create", "Create a new Message Set").Alias("add").Alias("new").Action(c.addAction)
@@ -129,6 +131,10 @@ func (c *msCmd) cpAction(pc *kingpin.ParseContext) error {
 		kingpin.FatalIfError(err, "invalid maximum age limit format")
 	}
 
+	if c.maxMsgSize != 0 {
+		cfg.MaxMsgSize = c.maxMsgSize
+	}
+
 	err = jsm.MessageSetCreate(&cfg)
 	kingpin.FatalIfError(err, "could not create Message Set")
 
@@ -162,6 +168,7 @@ func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
 	fmt.Printf("     Maximum Messages: %d\n", mstats.Config.MaxMsgs)
 	fmt.Printf("        Maximum Bytes: %d\n", mstats.Config.MaxBytes)
 	fmt.Printf("          Maximum Age: %s\n", mstats.Config.MaxAge.String())
+	fmt.Printf(" Maximum Message Size: %d\n", mstats.Config.MaxMsgSize)
 	fmt.Printf("  Maximum Observables: %d\n", mstats.Config.MaxObservables)
 	fmt.Println()
 	fmt.Println("Statistics:")
@@ -277,7 +284,7 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		err = survey.AskOne(&survey.Input{
 			Message: "Maximum message age limit",
 			Default: "-1",
-			Help:    "Defines the oldest messages that can be stored in the Message Set, any messages older than this period will be removed, -1 for unlimited. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Setable using --max-age",
+			Help:    "Defines the oldest messages that can be stored in the Message Set, any messages older than this period will be removed, -1 for unlimited. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --max-age",
 		}, &c.maxAgeLimit)
 		kingpin.FatalIfError(err, "invalid input")
 	}
@@ -285,6 +292,15 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 	if c.maxAgeLimit != "-1" {
 		maxAge, err = parseDurationString(c.maxAgeLimit)
 		kingpin.FatalIfError(err, "invalid maximum age limit format")
+	}
+
+	if c.maxMsgSize == 0 {
+		err = survey.AskOne(&survey.Input{
+			Message: "Maximum individual message size",
+			Default: "-1",
+			Help:    "Defines the maximum size any single message may be to be accepted by the Message Set. Settable using --max-age",
+		}, &c.maxMsgSize)
+		kingpin.FatalIfError(err, "invalid input")
 	}
 
 	jsm, err := NewJSM(timeout, servers, natsOpts())
@@ -295,6 +311,7 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		Subjects:       c.subjects,
 		MaxMsgs:        c.maxMsgLimit,
 		MaxBytes:       c.maxBytesLimit,
+		MaxMsgSize:     c.maxMsgSize,
 		MaxAge:         maxAge,
 		Storage:        storage,
 		NoAck:          !c.ack,
