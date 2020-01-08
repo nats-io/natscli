@@ -95,16 +95,17 @@ When defining Message Sets the items below make up the entire configuration of t
 
 |Item|Description|
 |----|-----------|
-|Name|A name for the message set that may not have spaces, tabs or `.`|
-|Subjects|A list of subjects to consume, supports wildcards|
-|Retention|How message retention is considered, `StreamPolicy` (default), `InterestPolicy` or `WorkQueuePolicy`|
-|MaxObservables|How many Observables can be defined for a given message set, `-1` for unlimited|
-|MaxMsgs|When retention policy is `StreamPolicy` how many messages may be in a message set|
-|MaxBytes|When retention policy is `StreamPolicy` how big the message set may be|
 |MaxAge|When retention policy is `StreamPolicy` how old message in the set may be|
-|Storage|The type of storage backend, `file` and `memory` as of January 2020|
-|Replicas|How many replicas to keep for each message (not implemented as of January 2020)|
+|MaxBytes|When retention policy is `StreamPolicy` how big the message set may be|
+|MaxMsgSize|The largest message that will be accepted by the Message Set|
+|MaxMsgs|When retention policy is `StreamPolicy` how many messages may be in a message set|
+|MaxObservables|How many Observables can be defined for a given message set, `-1` for unlimited|
+|Name|A name for the message set that may not have spaces, tabs or `.`|
 |NoAck|Disables acknowledging messages that are received by the message set|
+|Replicas|How many replicas to keep for each message (not implemented as of January 2020)|
+|Retention|How message retention is considered, `StreamPolicy` (default), `InterestPolicy` or `WorkQueuePolicy`|
+|Storage|The type of storage backend, `file` and `memory` as of January 2020|
+|Subjects|A list of subjects to consume, supports wildcards|
 
 ### Observables
 
@@ -118,23 +119,26 @@ Observables track their progress, they know what messages were delivered, acknow
 
 Acknowledgements default to `AckExplicit` - the only supported mode for pull-based Observables - meaning every message requires distinct acknowledgement.  But for push-based Observables, you can set `AckNone` that does not require any acknowledgement, or `AckAll` which quite interestingly allows you to acknowledge a specific message, like message `100`, which will also acknowledge messages `1` through `99`. The `AckAll` mode can be a great performance boost.
 
+Some messages may cause your applications to crash and cause a never ending loop forever poisoning your system. The `MaxDeliver` setting allow you to set a upper bound to how many times a message may be delivered.
+
 To assist with creating monitoring applications, one can set a `SampleFrequency` which is a percentage of messages for which the system should sample and create events.  These events will include delivery counts and ack waits.
 
 When defining Observables the items below make up the entire configuration of the Observable:
 
 |Item|Description|
 |----|-----------|
-|Delivery|The subject to deliver observed messages, when not set, a pull-based Observable is created|
-|Durable|The name of the observable|
-|MsgSetSeq|When first consuming messages from the Message Set start at this particular message in the set|
-|StartTime|When first consuming messages from the Message Set start with messages on or after this time|
-|DeliverAll|When first consuming messages start from the first message and deliver every message in the set|
-|DeliverLast|When first consuming messages start with the latest received message in the set|
 |AckPolicy|How messages should be acknowledged, `AckNone`, `AckAll` or `AckExplicit`|
 |AckWait|How long to allow messages to remain unacked before attempting redelivery|
-|Subject|When consuming from a Message Set with many subjects, or wildcards, select only a specific incoming subject|
+|DeliverAll|When first consuming messages start from the first message and deliver every message in the set|
+|DeliverLast|When first consuming messages start with the latest received message in the set|
+|Delivery|The subject to deliver observed messages, when not set, a pull-based Observable is created|
+|Durable|The name of the observable|
+|FilterSubject|When consuming from a Message Set with many subjects, or wildcards, select only a specific incoming subject|
+|MaxDeliver|Maximum amount times a specific message will be delivered.  Use this to avoid poison pills crashing all your services forever|
+|MsgSetSeq|When first consuming messages from the Message Set start at this particular message in the set|
 |ReplayPolicy|How messages are sent `ReplayInstant` or `ReplayOriginal`|
 |SampleFrequency|What percentage of acknowledgements should be samples for observability, 0-100|
+|StartTime|When first consuming messages from the Message Set start with messages on or after this time|
 
 ### Configuration
 
