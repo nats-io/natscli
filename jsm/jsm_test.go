@@ -27,6 +27,7 @@ import (
 )
 
 func runJsmCli(t *testing.T, args ...string) (output []byte) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -237,7 +238,7 @@ func TestCLIObsAdd(t *testing.T) {
 	srv, _, jsm := setupObsTest(t)
 	defer srv.Shutdown()
 
-	runJsmCli(t, fmt.Sprintf("--server='%s' obs add mem1 push1 --replay instant --deliver all --pull --subject ''", srv.ClientURL()))
+	runJsmCli(t, fmt.Sprintf("--server='%s' obs add mem1 push1 --replay instant --deliver all --pull --subject '' --max-deliver 20", srv.ClientURL()))
 	push1ShouldExist(t, jsm, "mem1")
 }
 
