@@ -34,7 +34,6 @@ func main() {
 	jsm := kingpin.New("jsm", "JetStream Management Utility")
 	jsm.Author("NATS Authors <info@nats.io>")
 	jsm.Version(version)
-
 	jsm.HelpFlag.Short('h')
 
 	jsm.Flag("server", "NATS servers").Short('s').Default("localhost:4222").Envar("SERVERS").StringVar(&servers)

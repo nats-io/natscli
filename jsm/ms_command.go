@@ -14,8 +14,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +25,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
 	api "github.com/nats-io/nats-server/v2/server"
+	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -33,15 +36,19 @@ type msCmd struct {
 	msgID            int64
 	retentionPolicyS string
 
-	destination   string
-	subjects      []string
-	ack           bool
-	storage       string
-	maxMsgLimit   int64
-	maxBytesLimit int64
-	maxAgeLimit   string
-	maxMsgSize    int32
-	rPolicy       api.RetentionPolicy
+	destination    string
+	subjects       []string
+	ack            bool
+	storage        string
+	maxMsgLimit    int64
+	maxBytesLimit  int64
+	maxAgeLimit    string
+	maxMsgSize     int32
+	rPolicy        api.RetentionPolicy
+	reportSortObs  bool
+	reportSortMsgs bool
+	reportSortName bool
+	reportRaw      bool
 }
 
 func configureMSCommand(app *kingpin.Application) {
@@ -90,6 +97,75 @@ func configureMSCommand(app *kingpin.Application) {
 	msGet.Arg("name", "Message Set name").StringVar(&c.set)
 	msGet.Arg("id", "Message ID to retrieve").Int64Var(&c.msgID)
 	msGet.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+
+	msReport := ms.Command("report", "Reports on Message Set statistics").Action(c.reportAction)
+	msReport.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	msReport.Flag("observables", "Sort by number of Observables").Short('o').BoolVar(&c.reportSortObs)
+	msReport.Flag("messages", "Sort by number of Messages").Short('m').BoolVar(&c.reportSortMsgs)
+	msReport.Flag("name", "Sort by Message Set name").Short('n').BoolVar(&c.reportSortName)
+	msReport.Flag("raw", "Show unformatted numbers").Short('r').BoolVar(&c.reportRaw)
+}
+
+func (c *msCmd) reportAction(pc *kingpin.ParseContext) error {
+	jsm, err := NewJSM(timeout, servers, natsOpts())
+	kingpin.FatalIfError(err, "setup failed")
+
+	sets, err := jsm.MessageSets()
+	kingpin.FatalIfError(err, "could not retrieve known sets")
+
+	if len(sets) == 0 {
+		return nil
+	}
+
+	type stat struct {
+		Name        string
+		Observables int
+		Msgs        int64
+		Bytes       uint64
+	}
+
+	if !c.json {
+		fmt.Printf("Obtaining Message Set stats for %d sets\n\n", len(sets))
+	}
+
+	stats := make([]stat, len(sets))
+	for i, s := range sets {
+		info, err := jsm.MessageSetInfo(s)
+		kingpin.FatalIfError(err, "could not get set info for %s", s)
+		stats[i] = stat{info.Config.Name, info.Stats.Observables, int64(info.Stats.Msgs), info.Stats.Bytes}
+	}
+
+	if c.json {
+		j, err := json.MarshalIndent(stats, "", "  ")
+		kingpin.FatalIfError(err, "could not JSON marshal stats")
+		fmt.Println(string(j))
+		return nil
+	}
+
+	if c.reportSortObs {
+		sort.Slice(stats, func(i, j int) bool { return stats[i].Observables < stats[j].Observables })
+	} else if c.reportSortMsgs {
+		sort.Slice(stats, func(i, j int) bool { return stats[i].Msgs < stats[j].Msgs })
+	} else if c.reportSortName {
+		sort.Slice(stats, func(i, j int) bool { return stats[i].Name < stats[j].Name })
+	} else {
+		sort.Slice(stats, func(i, j int) bool { return stats[i].Bytes < stats[j].Bytes })
+	}
+
+	table := tablewriter.CreateTable()
+	table.AddHeaders("Message Set", "Observables", "Messages", "Bytes")
+
+	for _, s := range stats {
+		if c.reportRaw {
+			table.AddRow(s.Name, s.Observables, s.Msgs, s.Bytes)
+		} else {
+			table.AddRow(s.Name, s.Observables, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes))
+		}
+	}
+
+	fmt.Println(table.Render())
+
+	return nil
 }
 
 func (c *msCmd) cpAction(pc *kingpin.ParseContext) error {
