@@ -559,7 +559,7 @@ Observables for message set ORDERS:
 All details for an Observable can be queried, lets first look at a pull-based Observable:
 
 ```
-$ jsm obs ifo ORDERS DISPATCH
+$ jsm obs info ORDERS DISPATCH
 Information for observable ORDERS > DISPATCH
 
 Configuration:
@@ -593,6 +593,7 @@ First we ensure we have a message:
 ```
 $ nats-pub ORDERS.processed "order 1"
 $ nats-pub ORDERS.processed "order 2"
+$ nats-pub ORDERS.processed "order 3"
 ```
 
 We can now read them using `jsm`:
@@ -618,7 +619,7 @@ To do this from code you'd send a `Request()` to `$JS.RN.ORDERS.DISPATCH`:
 ```
 $ nats-req '$JS.RN.ORDERS.DISPATCH' ''
 Published [$JS.RN.ORDERS.DISPATCH] : ''
-Received  [ORDERS.processed] : 'order 4'
+Received  [ORDERS.processed] : 'order 3'
 ```
 
 Here `nats-req` cannot ack, but in your code you'd respond to the received message with a nil payload as an Ack to JetStream.
@@ -639,8 +640,6 @@ The Observable is publishing to that subject, so lets listen there:
 ```
 $ nats-sub monitor.ORDERS
 Listening on [monitor.ORDERS]
-[#1] Received on [ORDERS.processed]: 'order 1'
-[#2] Received on [ORDERS.processed]: 'order 2'
 [#3] Received on [ORDERS.processed]: 'order 3'
 [#4] Received on [ORDERS.processed]: 'order 4'
 ```
