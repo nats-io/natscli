@@ -254,7 +254,7 @@ func (j *JetStreamMgmt) request(t string, payload []byte) (msg *nats.Msg, err er
 		fmt.Printf("<<<\n%s\n---\n", string(resp.Data))
 	}
 
-	if strings.HasPrefix(string(resp.Data), "-ERR") {
+	if strings.HasPrefix(string(resp.Data), api.ErrPrefix) {
 		return nil, fmt.Errorf(strings.TrimPrefix(string(resp.Data), "-ERR "))
 	}
 
