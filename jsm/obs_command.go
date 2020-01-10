@@ -479,7 +479,7 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 			Message: "Maximum Allowed Deliveries",
 			Default: "-1",
 			Help:    "When this is -1 unlimited attempts to deliver an un acknowledged message is made, when this is >0 it will be maximum amount of times a message is delivered after which it is ignored. Settable using --max-deliver.",
-		}, c.maxDeliver)
+		}, &c.maxDeliver)
 		kingpin.FatalIfError(err, "could not ask for maximum allowed deliveries")
 	}
 

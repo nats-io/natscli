@@ -118,6 +118,14 @@ func parseDurationString(dstr string) (dur time.Duration, err error) {
 	unit := dstr[di:]
 
 	switch unit {
+	case "w", "W":
+		val, err := strconv.ParseFloat(dstr[:di], 32)
+		if err != nil {
+			return dur, err
+		}
+
+		dur = time.Duration(val*7*24) * time.Hour
+
 	case "d", "D":
 		val, err := strconv.ParseFloat(dstr[:di], 32)
 		if err != nil {
