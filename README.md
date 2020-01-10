@@ -168,7 +168,7 @@ $ docker run -ti --rm --entrypoint /nats-server --name js synadia/jsm:latest -js
 And in another log into the utilities:
 
 ```
-$ docker exec -ti js sh -l
+$ docker exec -ti -e NATS_URL=localhost js sh -l
 ```
 
 This shell has the `jsm` utility and all other NATS cli tools used in the rest of this guide.
