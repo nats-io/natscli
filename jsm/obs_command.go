@@ -220,8 +220,12 @@ func (c *obsCmd) infoAction(pc *kingpin.ParseContext) error {
 	if !info.Config.StartTime.IsZero() {
 		fmt.Printf("          Start Time: %v\n", info.Config.StartTime)
 	}
-	fmt.Printf("         Deliver All: %v\n", info.Config.DeliverAll)
-	fmt.Printf("        Deliver Last: %v\n", info.Config.DeliverLast)
+	if info.Config.DeliverAll {
+		fmt.Printf("         Deliver All: %v\n", info.Config.DeliverAll)
+	}
+	if info.Config.DeliverLast {
+		fmt.Printf("        Deliver Last: %v\n", info.Config.DeliverLast)
+	}
 	fmt.Printf("          Ack Policy: %s\n", info.Config.AckPolicy.String())
 	if info.Config.AckPolicy != api.AckNone {
 		fmt.Printf("            Ack Wait: %v\n", info.Config.AckWait)
