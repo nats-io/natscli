@@ -238,7 +238,7 @@ func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
 	fmt.Println("Configuration:")
 	fmt.Println()
 	fmt.Printf("             Subjects: %s\n", strings.Join(mstats.Config.Subjects, ", "))
-	fmt.Printf("  No Acknowledgements: %v\n", mstats.Config.NoAck)
+	fmt.Printf("     Acknowledgements: %v\n", !mstats.Config.NoAck)
 	fmt.Printf("            Retention: %s - %s\n", mstats.Config.Storage.String(), mstats.Config.Retention.String())
 	fmt.Printf("             Replicas: %d\n", mstats.Config.Replicas)
 	fmt.Printf("     Maximum Messages: %d\n", mstats.Config.MaxMsgs)
