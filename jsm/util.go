@@ -24,11 +24,13 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/nats-io/nats.go"
+
+	"github.com/nats-io/jetstream/jsch"
 )
 
-func selectObservable(jsm *JetStreamMgmt, set string, obs string) (string, error) {
+func selectObservable(set string, obs string) (string, error) {
 	if obs != "" {
-		known, err := jsm.IsObservableKnown(set, obs)
+		known, err := jsch.IsKnownConsumer(set, obs)
 		if err != nil {
 			return "", err
 		}
@@ -38,7 +40,7 @@ func selectObservable(jsm *JetStreamMgmt, set string, obs string) (string, error
 		}
 	}
 
-	observables, err := jsm.Observables(set)
+	observables, err := jsch.ConsumerNames(set)
 	if err != nil {
 		return "", err
 	}
@@ -61,9 +63,9 @@ func selectObservable(jsm *JetStreamMgmt, set string, obs string) (string, error
 	}
 }
 
-func selectMessageSet(jsm *JetStreamMgmt, set string) (string, error) {
+func selectMessageSet(set string) (string, error) {
 	if set != "" {
-		known, err := jsm.IsMessageSetKnown(set)
+		known, err := jsch.IsKnownStream(set)
 		if err != nil {
 			return "", err
 		}
@@ -73,7 +75,7 @@ func selectMessageSet(jsm *JetStreamMgmt, set string) (string, error) {
 		}
 	}
 
-	sets, err := jsm.MessageSets()
+	sets, err := jsch.StreamNames()
 	if err != nil {
 		return "", err
 	}
@@ -219,4 +221,23 @@ func natsOpts() []nats.Option {
 	}
 
 	return opts
+}
+
+func newNatsConn(servers string, opts ...nats.Option) (*nats.Conn, error) {
+	return nats.Connect(servers, opts...)
+}
+
+func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, error) {
+	nc, err := newNatsConn(servers, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	if timeout != 0 {
+		jsch.Timeout = timeout
+	}
+
+	jsch.SetConnection(nc)
+
+	return nc, err
 }

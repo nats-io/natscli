@@ -27,6 +27,8 @@ import (
 	api "github.com/nats-io/nats-server/v2/server"
 	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
+
+	"github.com/nats-io/jetstream/jsch"
 )
 
 type msCmd struct {
@@ -103,19 +105,12 @@ func configureMSCommand(app *kingpin.Application) {
 	msReport.Flag("observables", "Sort by number of Observables").Short('o').BoolVar(&c.reportSortObs)
 	msReport.Flag("messages", "Sort by number of Messages").Short('m').BoolVar(&c.reportSortMsgs)
 	msReport.Flag("name", "Sort by Message Set name").Short('n').BoolVar(&c.reportSortName)
-	msReport.Flag("raw", "Show unformatted numbers").Short('r').BoolVar(&c.reportRaw)
+	msReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.reportRaw)
 }
 
 func (c *msCmd) reportAction(pc *kingpin.ParseContext) error {
-	jsm, err := NewJSM(timeout, servers, natsOpts())
+	_, err := prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
-
-	sets, err := jsm.MessageSets()
-	kingpin.FatalIfError(err, "could not retrieve known sets")
-
-	if len(sets) == 0 {
-		return nil
-	}
 
 	type stat struct {
 		Name        string
@@ -125,14 +120,21 @@ func (c *msCmd) reportAction(pc *kingpin.ParseContext) error {
 	}
 
 	if !c.json {
-		fmt.Printf("Obtaining Message Set stats for %d sets\n\n", len(sets))
+		fmt.Print("Obtaining Message Set stats\n\n")
 	}
 
-	stats := make([]stat, len(sets))
-	for i, s := range sets {
-		info, err := jsm.MessageSetInfo(s)
-		kingpin.FatalIfError(err, "could not get set info for %s", s)
-		stats[i] = stat{info.Config.Name, info.Stats.Observables, int64(info.Stats.Msgs), info.Stats.Bytes}
+	stats := []stat{}
+	jsch.EachStream(func(stream *jsch.Stream) {
+		info, err := stream.Information()
+		kingpin.FatalIfError(err, "could not get set info for %s", stream.Name())
+		stats = append(stats, stat{info.Config.Name, info.Stats.Observables, int64(info.Stats.Msgs), info.Stats.Bytes})
+	})
+
+	if len(stats) == 0 {
+		if !c.json {
+			fmt.Println("No sets defined")
+		}
+		return nil
 	}
 
 	if c.json {
@@ -173,9 +175,12 @@ func (c *msCmd) cpAction(pc *kingpin.ParseContext) error {
 		kingpin.Fatalf("source and destination set names cannot be the same")
 	}
 
-	jsm := c.connectAndAskSet()
+	c.connectAndAskSet()
 
-	source, err := jsm.MessageSetInfo(c.set)
+	sourceStream, err := jsch.LoadStream(c.set)
+	kingpin.FatalIfError(err, "could not request Message Set %s configuration", c.set)
+
+	source, err := sourceStream.Information()
 	kingpin.FatalIfError(err, "could not request Message Set %s configuration", c.set)
 
 	cfg := source.Config
@@ -211,20 +216,21 @@ func (c *msCmd) cpAction(pc *kingpin.ParseContext) error {
 		cfg.MaxMsgSize = c.maxMsgSize
 	}
 
-	err = jsm.MessageSetCreate(&cfg)
+	_, err = jsch.NewStreamFromTemplate(cfg.Name, cfg)
 	kingpin.FatalIfError(err, "could not create Message Set")
 
 	fmt.Printf("Message Set %s was created\n\n", c.set)
 
 	c.set = c.destination
 	return c.infoAction(pc)
-
 }
 
 func (c *msCmd) infoAction(_ *kingpin.ParseContext) error {
-	jsm := c.connectAndAskSet()
+	c.connectAndAskSet()
 
-	mstats, err := jsm.MessageSetInfo(c.set)
+	stream, err := jsch.LoadStream(c.set)
+	kingpin.FatalIfError(err, "could not request Message Set info")
+	mstats, err := stream.Information()
 	kingpin.FatalIfError(err, "could not request Message Set info")
 
 	if c.json {
@@ -379,10 +385,10 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
-	jsm, err := NewJSM(timeout, servers, natsOpts())
-	kingpin.FatalIfError(err, "setup failed")
+	_, err = prepareHelper(servers, natsOpts()...)
+	kingpin.FatalIfError(err, "could not create Message Set")
 
-	err = jsm.MessageSetCreate(&api.MsgSetConfig{
+	_, err = jsch.NewStreamFromTemplate(c.set, api.MsgSetConfig{
 		Name:           c.set,
 		Subjects:       c.subjects,
 		MaxMsgs:        c.maxMsgLimit,
@@ -403,7 +409,7 @@ func (c *msCmd) addAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *msCmd) rmAction(_ *kingpin.ParseContext) (err error) {
-	jsm := c.connectAndAskSet()
+	c.connectAndAskSet()
 
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really delete Message Set %s", c.set), false)
@@ -414,14 +420,17 @@ func (c *msCmd) rmAction(_ *kingpin.ParseContext) (err error) {
 		}
 	}
 
-	err = jsm.MessageSetDelete(c.set)
+	stream, err := jsch.LoadStream(c.set)
+	kingpin.FatalIfError(err, "could not remove Message Set")
+
+	err = stream.Delete()
 	kingpin.FatalIfError(err, "could not remove Message Set")
 
 	return nil
 }
 
 func (c *msCmd) purgeAction(pc *kingpin.ParseContext) (err error) {
-	jsm := c.connectAndAskSet()
+	c.connectAndAskSet()
 
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really purge Message Set %s", c.set), false)
@@ -432,17 +441,20 @@ func (c *msCmd) purgeAction(pc *kingpin.ParseContext) (err error) {
 		}
 	}
 
-	err = jsm.MessageSetPurge(c.set)
+	stream, err := jsch.LoadStream(c.set)
+	kingpin.FatalIfError(err, "could not purge Message Set")
+
+	err = stream.Purge()
 	kingpin.FatalIfError(err, "could not purge Message Set")
 
 	return c.infoAction(pc)
 }
 
 func (c *msCmd) lsAction(_ *kingpin.ParseContext) (err error) {
-	jsm, err := NewJSM(timeout, servers, natsOpts())
+	prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	sets, err := jsm.MessageSets()
+	sets, err := jsch.StreamNames()
 	kingpin.FatalIfError(err, "could not list Message Set")
 
 	if c.json {
@@ -467,7 +479,7 @@ func (c *msCmd) lsAction(_ *kingpin.ParseContext) (err error) {
 }
 
 func (c *msCmd) getAction(_ *kingpin.ParseContext) (err error) {
-	jsm := c.connectAndAskSet()
+	prepareHelper(servers, natsOpts()...)
 
 	if c.msgID == -1 {
 		id := ""
@@ -482,7 +494,10 @@ func (c *msCmd) getAction(_ *kingpin.ParseContext) (err error) {
 		c.msgID = int64(idint)
 	}
 
-	item, err := jsm.MessageSetGetItem(c.set, c.msgID)
+	stream, err := jsch.LoadStream(c.set)
+	kingpin.FatalIfError(err, "could not load stream %s", c.set)
+
+	item, err := stream.LoadMessage(int(c.msgID))
 	kingpin.FatalIfError(err, "could not retrieve %s#%d", c.set, c.msgID)
 
 	if c.json {
@@ -496,12 +511,11 @@ func (c *msCmd) getAction(_ *kingpin.ParseContext) (err error) {
 	return nil
 }
 
-func (c *msCmd) connectAndAskSet() (jsm *JetStreamMgmt) {
-	jsm, err := NewJSM(timeout, servers, natsOpts())
+func (c *msCmd) connectAndAskSet() {
+	nc, err := newNatsConn(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
+	jsch.SetConnection(nc)
 
-	c.set, err = selectMessageSet(jsm, c.set)
+	c.set, err = selectMessageSet(c.set)
 	kingpin.FatalIfError(err, "could not pick a Message Set")
-
-	return jsm
 }
