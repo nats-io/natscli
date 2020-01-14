@@ -1,0 +1,286 @@
+// Copyright 2020 The NATS Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package jsch_test
+
+import (
+	"context"
+	"fmt"
+	"io/ioutil"
+	"testing"
+	"time"
+
+	natsd "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
+
+	"github.com/nats-io/jetstream/jsch"
+)
+
+func startJSServer(t *testing.T) (*natsd.Server, *nats.Conn) {
+	t.Helper()
+
+	d, err := ioutil.TempDir("", "jstest")
+	if err != nil {
+		t.Fatalf("temp dir could not be made: %s", err)
+	}
+
+	opts := &natsd.Options{
+		JetStream: true,
+		StoreDir:  d,
+		Port:      -1,
+		Host:      "localhost",
+	}
+
+	s, err := natsd.NewServer(opts)
+	if err != nil {
+		t.Fatal("server start failed: ", err)
+	}
+
+	go s.Start()
+	if !s.ReadyForConnections(10 * time.Second) {
+		t.Error("nats server did not start")
+	}
+
+	nc, err := nats.Connect(s.ClientURL())
+	if err != nil {
+		t.Fatalf("client start failed: %s", err)
+	}
+
+	jsch.SetConnection(nc)
+
+	return s, nc
+}
+
+func checkErr(t *testing.T, err error, m string) {
+	t.Helper()
+	if err == nil {
+		return
+	}
+	t.Fatal(m + ": " + err.Error())
+}
+
+func TestJetStreamEnabled(t *testing.T) {
+	srv, nc := startJSServer(t)
+	defer srv.Shutdown()
+	defer nc.Flush()
+
+	if !jsch.IsJetStreamEnabled() {
+		t.Fatalf("expected JS to be enabled")
+	}
+}
+
+func TestIsErrorResponse(t *testing.T) {
+	if jsch.IsErrorResponse(&nats.Msg{Data: []byte("+OK")}) {
+		t.Fatalf("OK is Error")
+	}
+
+	if !jsch.IsErrorResponse(&nats.Msg{Data: []byte("-ERR error")}) {
+		t.Fatalf("ERR is not Error")
+	}
+}
+
+func TestIsOKResponse(t *testing.T) {
+	if !jsch.IsOKResponse(&nats.Msg{Data: []byte("+OK")}) {
+		t.Fatalf("OK is Error")
+	}
+
+	if jsch.IsOKResponse(&nats.Msg{Data: []byte("-ERR error")}) {
+		t.Fatalf("ERR is not Error")
+	}
+}
+
+func TestIsKnownStream(t *testing.T) {
+	srv, nc := startJSServer(t)
+	defer srv.Shutdown()
+	defer nc.Flush()
+
+	known, err := jsch.IsKnownStream("ORDERS")
+	checkErr(t, err, "known lookup failed")
+	if known {
+		t.Fatalf("ORDERS should not be known")
+	}
+
+	stream, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	checkErr(t, err, "create failed")
+
+	known, err = jsch.IsKnownStream("ORDERS")
+	checkErr(t, err, "known lookup failed")
+	if !known {
+		t.Fatalf("ORDERS should be known")
+	}
+
+	stream.Reset()
+	if stream.Storage() != natsd.MemoryStorage {
+		t.Fatalf("ORDERS is not memory storage")
+	}
+}
+
+func TestIsKnownConsumer(t *testing.T) {
+	srv, nc := startJSServer(t)
+	defer srv.Shutdown()
+	defer nc.Flush()
+
+	stream, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	checkErr(t, err, "create failed")
+
+	known, err := jsch.IsKnownConsumer("ORDERS", "NEW")
+	checkErr(t, err, "known lookup failed")
+	if known {
+		t.Fatalf("NEW should not exist")
+	}
+
+	_, err = stream.NewConsumerFromTemplate("NEW", jsch.DefaultConsumer, jsch.DurableName("NEW"))
+	checkErr(t, err, "create failed")
+
+	known, err = jsch.IsKnownConsumer("ORDERS", "NEW")
+	checkErr(t, err, "known lookup failed")
+
+	if !known {
+		t.Fatalf("NEW does not exist")
+	}
+}
+
+func TestJetStreamAccountInfo(t *testing.T) {
+	srv, nc := startJSServer(t)
+	defer srv.Shutdown()
+	defer nc.Flush()
+
+	_, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	checkErr(t, err, "create failed")
+
+	info, err := jsch.JetStreamAccountInfo()
+	checkErr(t, err, "info fetch failed")
+
+	if info.MsgSets != 1 {
+		t.Fatalf("received %d message sets expected 1", info.MsgSets)
+	}
+}
+
+func TestStreamNames(t *testing.T) {
+	srv, nc := startJSServer(t)
+	defer srv.Shutdown()
+	defer nc.Flush()
+
+	names, err := jsch.StreamNames()
+	checkErr(t, err, "lookup failed")
+
+	if len(names) > 0 {
+		t.Fatalf("expected 0 streams got: %v", names)
+	}
+
+	_, err = jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	checkErr(t, err, "create failed")
+
+	names, err = jsch.StreamNames()
+	checkErr(t, err, "lookup failed")
+
+	if len(names) != 1 || names[0] != "ORDERS" {
+		t.Fatalf("expected [ORDERS] got %v", names)
+	}
+}
+
+func TestConsumerNames(t *testing.T) {
+	srv, nc := startJSServer(t)
+	defer srv.Shutdown()
+	defer nc.Flush()
+
+	_, err := jsch.ConsumerNames("ORDERS")
+	if err == nil {
+		t.Fatalf("expected err")
+	}
+
+	stream, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	checkErr(t, err, "create failed")
+
+	_, err = jsch.ConsumerNames("ORDERS")
+	checkErr(t, err, "lookup failed")
+
+	_, err = stream.NewConsumerFromTemplate("NEW", jsch.DefaultConsumer, jsch.DurableName("NEW"))
+	checkErr(t, err, "create failed")
+
+	names, err := jsch.ConsumerNames("ORDERS")
+	checkErr(t, err, "lookup failed")
+
+	if len(names) != 1 || names[0] != "NEW" {
+		t.Fatalf("expected [NEW] got %v", names)
+	}
+}
+
+func TestEachStream(t *testing.T) {
+	srv, nc := startJSServer(t)
+	defer srv.Shutdown()
+	defer nc.Flush()
+
+	orders, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	checkErr(t, err, "create failed")
+
+	_, err = jsch.NewStreamFromTemplate("ARCHIVE", orders.Configuration())
+	checkErr(t, err, "create failed")
+
+	seen := []string{}
+	jsch.EachStream(func(s *jsch.Stream) {
+		seen = append(seen, s.Name())
+	})
+
+	if len(seen) != 2 {
+		t.Fatalf("expected 2 got %d", len(seen))
+	}
+
+	if seen[0] != "ARCHIVE" || seen[1] != "ORDERS" {
+		t.Fatalf("incorrect streams or order, expected [ARCHIVE, ORDERS] got %v", seen)
+	}
+}
+
+func TestSubscribeAndCreate(t *testing.T) {
+	srv, nc := startJSServer(t)
+	defer srv.Shutdown()
+	defer nc.Flush()
+
+	s, err := jsch.LoadOrNewStream("ORDERS", jsch.Subjects("ORDERS.*"), jsch.MaxAge(24*365*time.Hour), jsch.MemoryStorage())
+	checkErr(t, err, "ORDERS create failed")
+	s.Purge()
+
+	for i := 0; i < 10; i++ {
+		nc.Request("ORDERS.new", []byte(fmt.Sprintf("order %d", i)), 5*time.Second)
+	}
+
+	ctr := 0
+	done := make(chan struct{})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	h := func(m *nats.Msg) {
+		m.Respond(nil)
+
+		ctr++
+		if ctr == 10 {
+			done <- struct{}{}
+		}
+	}
+
+	_, err = jsch.Subscribe("ORDERS", "NEW", h, jsch.DefaultConsumer, jsch.DurableName("NEW"), jsch.DeliverySubject("out.new"), jsch.MaxDeliveryAttempts(5), jsch.FilterStreamBySubject("ORDERS.new"))
+	checkErr(t, err, "subscribe failed")
+
+	names, err := s.ConsumerNames()
+	checkErr(t, err, "could not get consumer names")
+
+	if len(names) != 1 || names[0] != "NEW" {
+		t.Fatalf("incorrect consumer created, expected [NEW] got %v", names)
+	}
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("timeout")
+	}
+}

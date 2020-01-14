@@ -18,6 +18,7 @@ import (
 )
 
 func checkErr(t *testing.T, err error, format string, a ...interface{}) {
+	t.Helper()
 	if err == nil {
 		return
 	}

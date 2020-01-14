@@ -26,6 +26,8 @@ import (
 	api "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
+
+	"github.com/nats-io/jetstream/jsch"
 )
 
 type obsCmd struct {
@@ -105,22 +107,20 @@ func configureObsCommand(app *kingpin.Application) {
 }
 
 func (c *obsCmd) sampleAction(_ *kingpin.ParseContext) error {
-	jsm := c.connectAndSetup(true, true)
+	c.connectAndSetup(true, true)
 
-	info, err := jsm.ObservableInfo(c.messageSet, c.obs)
+	consumer, err := jsch.LoadConsumer(c.messageSet, c.obs)
 	kingpin.FatalIfError(err, "could not load observable %s > %s", c.messageSet, c.obs)
 
-	if info.Config.SampleFrequency == "" {
+	if !consumer.IsSampled() {
 		kingpin.Fatalf("Sampling is not configured for observable %s > %s", c.messageSet, c.obs)
 	}
 
-	topic := api.JetStreamObservableAckSamplePre + "." + c.messageSet + "." + c.obs
-
 	if !c.json {
-		fmt.Printf("Listening for Ack Samples on %s with sampling frequency %s for %s > %s \n\n", topic, info.Config.SampleFrequency, c.messageSet, c.obs)
+		fmt.Printf("Listening for Ack Samples on %s with sampling frequency %s for %s > %s \n\n", consumer.SampleSubject(), consumer.SampleFrequency(), c.messageSet, c.obs)
 	}
 
-	jsm.Nats().Subscribe(topic, func(m *nats.Msg) {
+	jsch.NATSConn().Subscribe(consumer.SampleSubject(), func(m *nats.Msg) {
 		if c.json {
 			fmt.Println(string(m.Data))
 			return
@@ -147,7 +147,7 @@ func (c *obsCmd) sampleAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *obsCmd) rmAction(_ *kingpin.ParseContext) error {
-	jsm := c.connectAndSetup(true, true)
+	c.connectAndSetup(true, true)
 
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really delete observable %s > %s", c.messageSet, c.obs), false)
@@ -158,13 +158,19 @@ func (c *obsCmd) rmAction(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	return jsm.ObservableDelete(c.messageSet, c.obs)
+	consumer, err := jsch.LoadConsumer(c.messageSet, c.obs)
+	kingpin.FatalIfError(err, "could not load observable")
+
+	return consumer.Delete()
 }
 
 func (c *obsCmd) lsAction(pc *kingpin.ParseContext) error {
-	jsm := c.connectAndSetup(true, false)
+	c.connectAndSetup(true, false)
 
-	obs, err := jsm.Observables(c.messageSet)
+	stream, err := jsch.LoadStream(c.messageSet)
+	kingpin.FatalIfError(err, "could not load observables")
+
+	obs, err := stream.ConsumerNames()
 	kingpin.FatalIfError(err, "could not load observables")
 
 	if c.json {
@@ -189,13 +195,21 @@ func (c *obsCmd) lsAction(pc *kingpin.ParseContext) error {
 }
 
 func (c *obsCmd) infoAction(pc *kingpin.ParseContext) error {
-	jsm := c.connectAndSetup(true, true)
+	c.connectAndSetup(true, true)
 
-	info, err := jsm.ObservableInfo(c.messageSet, c.obs)
+	consumer, err := jsch.LoadConsumer(c.messageSet, c.obs)
+	kingpin.FatalIfError(err, "could not load observable %s > %s", c.messageSet, c.obs)
+
+	config := consumer.Configuration()
+	state, err := consumer.State()
 	kingpin.FatalIfError(err, "could not load observable %s > %s", c.messageSet, c.obs)
 
 	if c.json {
-		printJSON(info)
+		printJSON(api.ObservableInfo{
+			Name:   consumer.Name(),
+			Config: config,
+			State:  state,
+		})
 		return nil
 	}
 
@@ -203,49 +217,49 @@ func (c *obsCmd) infoAction(pc *kingpin.ParseContext) error {
 	fmt.Println()
 	fmt.Println("Configuration:")
 	fmt.Println()
-	if info.Config.Durable != "" {
-		fmt.Printf("        Durable Name: %s\n", info.Config.Durable)
+	if config.Durable != "" {
+		fmt.Printf("        Durable Name: %s\n", config.Durable)
 	}
-	if info.Config.Delivery != "" {
-		fmt.Printf("    Delivery Subject: %s\n", info.Config.Delivery)
+	if config.Delivery != "" {
+		fmt.Printf("    Delivery Subject: %s\n", config.Delivery)
 	} else {
 		fmt.Printf("           Pull Mode: true\n")
 	}
-	if info.Config.FilterSubject != "" {
-		fmt.Printf("      Filter Subject: %s\n", info.Config.FilterSubject)
+	if config.FilterSubject != "" {
+		fmt.Printf("      Filter Subject: %s\n", config.FilterSubject)
 	}
-	if info.Config.MsgSetSeq != 0 {
-		fmt.Printf("      Start Sequence: %d\n", info.Config.MsgSetSeq)
+	if config.MsgSetSeq != 0 {
+		fmt.Printf("      Start Sequence: %d\n", config.MsgSetSeq)
 	}
-	if !info.Config.StartTime.IsZero() {
-		fmt.Printf("          Start Time: %v\n", info.Config.StartTime)
+	if !config.StartTime.IsZero() {
+		fmt.Printf("          Start Time: %v\n", config.StartTime)
 	}
-	if info.Config.DeliverAll {
-		fmt.Printf("         Deliver All: %v\n", info.Config.DeliverAll)
+	if config.DeliverAll {
+		fmt.Printf("         Deliver All: %v\n", config.DeliverAll)
 	}
-	if info.Config.DeliverLast {
-		fmt.Printf("        Deliver Last: %v\n", info.Config.DeliverLast)
+	if config.DeliverLast {
+		fmt.Printf("        Deliver Last: %v\n", config.DeliverLast)
 	}
-	fmt.Printf("          Ack Policy: %s\n", info.Config.AckPolicy.String())
-	if info.Config.AckPolicy != api.AckNone {
-		fmt.Printf("            Ack Wait: %v\n", info.Config.AckWait)
+	fmt.Printf("          Ack Policy: %s\n", config.AckPolicy.String())
+	if config.AckPolicy != api.AckNone {
+		fmt.Printf("            Ack Wait: %v\n", config.AckWait)
 	}
-	fmt.Printf("       Replay Policy: %s\n", info.Config.ReplayPolicy.String())
-	if info.Config.MaxDeliver != -1 {
-		fmt.Printf("  Maximum Deliveries: %d\n", info.Config.MaxDeliver)
+	fmt.Printf("       Replay Policy: %s\n", config.ReplayPolicy.String())
+	if config.MaxDeliver != -1 {
+		fmt.Printf("  Maximum Deliveries: %d\n", config.MaxDeliver)
 	}
-	if info.Config.SampleFrequency != "" {
-		fmt.Printf("       Sampling Rate: %s\n", info.Config.SampleFrequency)
+	if config.SampleFrequency != "" {
+		fmt.Printf("       Sampling Rate: %s\n", config.SampleFrequency)
 	}
 
 	fmt.Println()
 
 	fmt.Println("State:")
 	fmt.Println()
-	fmt.Printf("  Last Delivered Message: Observable sequence: %d Message set sequence: %d\n", info.State.Delivered.ObsSeq, info.State.Delivered.SetSeq)
-	fmt.Printf("    Acknowledgment floor: Observable sequence: %d Message set sequence: %d\n", info.State.AckFloor.ObsSeq, info.State.AckFloor.SetSeq)
-	fmt.Printf("        Pending Messages: %d\n", len(info.State.Pending))
-	fmt.Printf("    Redelivered Messages: %d\n", len(info.State.Redelivery))
+	fmt.Printf("  Last Delivered Message: Observable sequence: %d Message set sequence: %d\n", state.Delivered.ObsSeq, state.Delivered.SetSeq)
+	fmt.Printf("    Acknowledgment floor: Observable sequence: %d Message set sequence: %d\n", state.AckFloor.ObsSeq, state.AckFloor.SetSeq)
+	fmt.Printf("        Pending Messages: %d\n", len(state.Pending))
+	fmt.Printf("    Redelivered Messages: %d\n", len(state.Redelivery))
 	fmt.Println()
 
 	return nil
@@ -316,12 +330,12 @@ func (c *obsCmd) setStartPolicy(cfg *api.ObservableConfig, policy string) {
 }
 
 func (c *obsCmd) cpAction(pc *kingpin.ParseContext) (err error) {
-	jsm := c.connectAndSetup(true, false)
+	c.connectAndSetup(true, false)
 
-	source, err := jsm.ObservableInfo(c.messageSet, c.obs)
+	source, err := jsch.LoadConsumer(c.messageSet, c.obs)
 	kingpin.FatalIfError(err, "could not load source Observable")
 
-	cfg := source.Config
+	cfg := source.Configuration()
 
 	if c.ackWait > 0 {
 		cfg.AckWait = c.ackWait
@@ -366,7 +380,7 @@ func (c *obsCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.MaxDeliver = c.maxDeliver
 	}
 
-	err = jsm.ObservableCreate(c.messageSet, &cfg)
+	_, err = jsch.NewConsumerFromTemplate(c.messageSet, cfg)
 	kingpin.FatalIfError(err, "observable creation failed")
 
 	if cfg.Durable == "" {
@@ -378,7 +392,7 @@ func (c *obsCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
-	jsm := c.connectAndSetup(true, false)
+	c.connectAndSetup(true, false)
 	cfg := c.defaultObservable()
 
 	if c.obs == "" && !c.ephemeral {
@@ -491,7 +505,7 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		cfg.MaxDeliver = c.maxDeliver
 	}
 
-	err = jsm.ObservableCreate(c.messageSet, cfg)
+	_, err = jsch.NewConsumerFromTemplate(c.messageSet, *cfg)
 	kingpin.FatalIfError(err, "observable creation failed: ")
 
 	if c.ephemeral {
@@ -503,8 +517,10 @@ func (c *obsCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	return c.infoAction(pc)
 }
 
-func (c *obsCmd) getNextMsg(jsm *JetStreamMgmt) error {
-	msg, err := jsm.ObservableNext(c.messageSet, c.obs)
+func (c *obsCmd) getNextMsg(consumer *jsch.Consumer) error {
+	c.connectAndSetup(true, false)
+
+	msg, err := consumer.NextMsg()
 	kingpin.FatalIfError(err, "could not load next message")
 
 	if !c.raw {
@@ -517,7 +533,7 @@ func (c *obsCmd) getNextMsg(jsm *JetStreamMgmt) error {
 	if c.ack {
 		err = msg.Respond(api.AckAck)
 		kingpin.FatalIfError(err, "could not Acknowledge message")
-		jsm.Flush()
+		jsch.Flush()
 		if !c.raw {
 			fmt.Println("\nAcknowledged message")
 		}
@@ -526,33 +542,31 @@ func (c *obsCmd) getNextMsg(jsm *JetStreamMgmt) error {
 	return nil
 }
 
-func (c *obsCmd) subscribeObs(jsm *JetStreamMgmt, info *api.ObservableInfo) (err error) {
-	if info.Config.Delivery == "" {
-		return fmt.Errorf("observable is not push based")
-	}
-
+func (c *obsCmd) subscribeObs(consumer *jsch.Consumer) (err error) {
 	if !c.raw {
-		fmt.Printf("Subscribing to topic %s auto acknowlegement: %v\n\n", info.Config.Delivery, c.ack)
+		fmt.Printf("Subscribing to topic %s auto acknowlegement: %v\n\n", consumer.DeliverySubject(), c.ack)
 		fmt.Println("Observable Info:")
-		fmt.Printf("  Ack Policy: %s\n", info.Config.AckPolicy.String())
-		if info.Config.AckPolicy != api.AckNone {
-			fmt.Printf("    Ack Wait: %v\n", info.Config.AckWait)
+		fmt.Printf("  Ack Policy: %s\n", consumer.AckPolicy().String())
+		if consumer.AckPolicy() != api.AckNone {
+			fmt.Printf("    Ack Wait: %v\n", consumer.AckWait())
 		}
 		fmt.Println()
 	}
 
-	_, err = jsm.Nats().Subscribe(info.Config.Delivery, func(m *nats.Msg) {
-		parts := []string{}
+	_, err = consumer.Subscribe(func(m *nats.Msg) {
+		var msginfo *jsch.MsgInfo
+		var err error
 		wantsAck := false
 
 		if strings.HasPrefix(m.Reply, api.JetStreamAckPre) {
 			wantsAck = true
-			parts = strings.Split(m.Reply, ".")
+			msginfo, err = jsch.ParseJSMsgMetadata(m)
+			kingpin.FatalIfError(err, "could not parse JetStream metadata")
 		}
 
 		if !c.raw {
-			if len(parts) > 0 {
-				fmt.Printf("[%s] topic: %s / delivered: %s / obs seq: %s / set seq: %s\n", time.Now().Format("15:04:05"), m.Subject, parts[4], parts[6], parts[5])
+			if msginfo != nil {
+				fmt.Printf("[%s] topic: %s / delivered: %d / obs seq: %d / set seq: %d\n", time.Now().Format("15:04:05"), m.Subject, msginfo.Delivered(), msginfo.ConsumerSequence(), msginfo.StreamSequence())
 			} else {
 				fmt.Printf("[%s] %s reply: %s\n", time.Now().Format("15:04:05"), m.Subject, m.Reply)
 			}
@@ -572,6 +586,7 @@ func (c *obsCmd) subscribeObs(jsm *JetStreamMgmt, info *api.ObservableInfo) (err
 			}
 		}
 	})
+	kingpin.FatalIfError(err, "could not subscribe")
 
 	<-context.Background().Done()
 
@@ -579,31 +594,32 @@ func (c *obsCmd) subscribeObs(jsm *JetStreamMgmt, info *api.ObservableInfo) (err
 }
 
 func (c *obsCmd) nextAction(pc *kingpin.ParseContext) error {
-	jsm := c.connectAndSetup(true, true)
+	c.connectAndSetup(true, true)
 
-	info, err := jsm.ObservableInfo(c.messageSet, c.obs)
+	consumer, err := jsch.LoadConsumer(c.messageSet, c.obs)
 	kingpin.FatalIfError(err, "could not get observable info")
 
-	if info.Config.Delivery == "" {
-		return c.getNextMsg(jsm)
+	switch {
+	case consumer.IsPullMode():
+		return c.getNextMsg(consumer)
+	case consumer.IsPushMode():
+		return c.subscribeObs(consumer)
+	default:
+		return fmt.Errorf("observable %s > %s is in an unknown state", c.messageSet, c.obs)
 	}
-
-	return c.subscribeObs(jsm, info)
 }
 
-func (c *obsCmd) connectAndSetup(askSet bool, askObs bool) (jsm *JetStreamMgmt) {
-	jsm, err := NewJSM(timeout, servers, natsOpts())
+func (c *obsCmd) connectAndSetup(askSet bool, askObs bool) {
+	_, err := prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	if askSet {
-		c.messageSet, err = selectMessageSet(jsm, c.messageSet)
+		c.messageSet, err = selectMessageSet(c.messageSet)
 		kingpin.FatalIfError(err, "could not select message set")
 
 		if askObs {
-			c.obs, err = selectObservable(jsm, c.messageSet, c.obs)
+			c.obs, err = selectObservable(c.messageSet, c.obs)
 			kingpin.FatalIfError(err, "could not select observable")
 		}
 	}
-
-	return jsm
 }
