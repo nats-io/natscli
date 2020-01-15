@@ -53,17 +53,14 @@ type Consumer struct {
 
 // NewConsumerFromTemplate creates a new consumer based on a template config that gets modified by opts
 func NewConsumerFromTemplate(stream string, template server.ObservableConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
-	cfg := &template
-	for _, o := range opts {
-		err = o(cfg)
-		if err != nil {
-			return nil, err
-		}
+	cfg, err := NewConsumerConfiguration(template, opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	req := server.CreateObservableRequest{
 		MsgSet: stream,
-		Config: *cfg,
+		Config: cfg,
 	}
 
 	jreq, err := json.Marshal(req)
@@ -120,6 +117,18 @@ func LoadConsumer(stream string, name string) (consumer *Consumer, err error) {
 	}
 
 	return consumer, nil
+}
+
+// NewConsmerConfiguration generates a new configuration based on template modified by opts
+func NewConsumerConfiguration(template server.ObservableConfig, opts ...ConsumerOption) (server.ObservableConfig, error) {
+	for _, o := range opts {
+		err := o(&template)
+		if err != nil {
+			return template, err
+		}
+	}
+
+	return template, nil
 }
 
 func loadConfigForConsumer(consumer *Consumer) (err error) {

@@ -61,12 +61,9 @@ type Stream struct {
 
 // NewStreamFromTemplate creates a new stream based on a supplied template and options
 func NewStreamFromTemplate(name string, template server.MsgSetConfig, opts ...StreamOption) (stream *Stream, err error) {
-	cfg := template
-	for _, o := range opts {
-		err = o(&cfg)
-		if err != nil {
-			return nil, err
-		}
+	cfg, err := NewStreamConfiguration(template, opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	cfg.Name = name
@@ -122,6 +119,18 @@ func LoadStream(name string) (stream *Stream, err error) {
 	}
 
 	return stream, nil
+}
+
+// NewStreamConfiguration generates a new configuration based on template modified by opts
+func NewStreamConfiguration(template server.MsgSetConfig, opts ...StreamOption) (server.MsgSetConfig, error) {
+	for _, o := range opts {
+		err := o(&template)
+		if err != nil {
+			return template, err
+		}
+	}
+
+	return template, nil
 }
 
 func loadConfigForStream(stream *Stream) (err error) {

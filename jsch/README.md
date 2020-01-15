@@ -1,8 +1,8 @@
 ## Overview
 
-This is a helper library for managing and interacting with JetStream we are exploring a few options for how such a library will look and determine what will go into core NATS clients and what will be left as an external library.
+This is a helper library for managing and interacting with JetStream we are exploring a few options for how such a library will look and to determine what will go into core NATS clients and what will be left as an external library.
 
-This this library is not an official blessed way for interacting with JetStream yet but as a set of examples of all the capabilities this is valuable and it's for us a starting point to learning what patterns work well
+This library is not an official blessed way for interacting with JetStream yet but as a set of examples of all the capabilities this is valuable and it's for us a starting point to learning what patterns work well
 
 ## Terminology
 
@@ -32,17 +32,7 @@ stream, err := jsch.NewStream("ORDERS", jsch.Subjects("ORDERS.*"), jsch.MaxAge(2
 This can get quite verbose so you might have a template configuration of your own chosing to create many similar Streams.
 
 ```go
-template := &server.MsgSetConfig{
-	Retention:      server.StreamPolicy,
-	MaxObservables: -1,
-	MaxMsgs:        -1,
-	MaxBytes:       -1,
-	MaxAge:         24 * 365 * time.Hour,
-	MaxMsgSize:     -1,
-	Replicas:       1,
-	NoAck:          false,
-    Storage:        server.FileStorage,
-}
+template, _ := jsch.NewStreamConfiguration(jsch.DefaultStream, jsch.MaxAge(24 * 365 * time.Hour), jsch.FileStorage())
 
 orders, _ := jsch.NewStreamFromTemplate("ORDERS", template, jsch.Subjects("ORDERS.*"))
 archive, _ := jsch.NewStreamFromTemplate("ARCHIVE", template, jsch.Subjects("ARCHIVE"), jsch.MaxAge(5*template.MaxAge))
@@ -50,7 +40,7 @@ archive, _ := jsch.NewStreamFromTemplate("ARCHIVE", template, jsch.Subjects("ARC
 
 The `jsch.NewStream` uses `jsch.DefaultStream` as starting template.  We also have `jsch.DefaultWorkQueue` to help you with a sane starting point.
 
-You can even copy Stream configurations this way (not content, just configuration):
+You can even copy Stream configurations this way (not content, just configuration), this creates `STAGING` using `ORDERS` config with a different set of subjects:
 
 ```go
 orders, err := jsch.NewStream("ORDERS", jsch.Subjects("ORDERS.*"), jsch.MaxAge(24*365*time.Hour), jsch.FileStorage())
