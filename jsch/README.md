@@ -29,7 +29,7 @@ Before anything you have to create a stream, the basic pattern is:
 stream, err := jsch.NewStream("ORDERS", jsch.Subjects("ORDERS.*"), jsch.MaxAge(24*365*time.Hour), jsch.FileStorage())
 ```
 
-This can get quite verbose so you might have a template configuration of your own chosing to create many similar sets.
+This can get quite verbose so you might have a template configuration of your own chosing to create many similar Streams.
 
 ```go
 template := &server.MsgSetConfig{
@@ -50,7 +50,7 @@ archive, _ := jsch.NewStreamFromTemplate("ARCHIVE", template, jsch.Subjects("ARC
 
 The `jsch.NewStream` uses `jsch.DefaultStream` as starting template.  We also have `jsch.DefaultWorkQueue` to help you with a sane starting point.
 
-You can even copy set configurations this way:
+You can even copy Stream configurations this way (not content, just configuration):
 
 ```go
 orders, err := jsch.NewStream("ORDERS", jsch.Subjects("ORDERS.*"), jsch.MaxAge(24*365*time.Hour), jsch.FileStorage())
@@ -75,7 +75,7 @@ This will create the Stream if it doesn't exist, else load the existing one - th
 
 ### Associated Consumers
 
-With a stream handle you can et lists of known Consumers using `stream.ConsumerNames()`, or create new Consumers within the stream using `stream.NewConsumer` and `stream.NewConsumerFromTemplate`. Consumers can also be loaded using `stream.LoadConsumer` and you can combine load and create using `stream.LoadOrNewConsumer` and `stream.LoadOrNewConsumerFromTemplate`.
+With a stream handle you can get lists of known Consumers using `stream.ConsumerNames()`, or create new Consumers within the stream using `stream.NewConsumer` and `stream.NewConsumerFromTemplate`. Consumers can also be loaded using `stream.LoadConsumer` and you can combine load and create using `stream.LoadOrNewConsumer` and `stream.LoadOrNewConsumerFromTemplate`.
 
 These methods just proxy to the Consumer specific ones which will be discussed below.
 
@@ -126,7 +126,7 @@ msg, _ := consumer.NextMsg()
 meta, _ := jsch.ParseJSMsgMetadata(msg)
 ```
 
-At this point you have access to `Stream`, `Consumer` for the names and `StreamSequence`, `ConsumerSequence` to determine which exact message and `Delivered` for how many times it was redelivered.
+At this point you have access to `meta.Stream`, `meta.Consumer` for the names and `meta.StreamSequence`, `meta.ConsumerSequence` to determine which exact message and `meta.Delivered` for how many times it was redelivered.
 
 ### Other Actions
 
