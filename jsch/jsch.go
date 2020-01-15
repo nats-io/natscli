@@ -14,10 +14,15 @@
 // Package jsch provides client helpers for interacting with NATS
 // JetStream
 //
-// This is just some code I had lying around, I did some cleanups and
-// pre-emptive rename of Message Set and Observable, if this is the direction
-// we wish to go we'd incorporate this into nats.go with some tweaks, such
-// as renaming Subscribe to StreamSubscribe or similar etc
+// This is a helper library for managing and interacting with JetStream
+// we are exploring a few options for how such a library will look and
+// determine what will go into core NATS clients and what will be left
+// as an external library.
+//
+// This this library is not an official blessed way for interacting with
+// JetStream yet but as a set of examples of all the capabilities this
+// is valuable and it's for us a starting point to learning what patterns
+// work well
 package jsch
 
 import (
