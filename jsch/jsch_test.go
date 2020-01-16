@@ -161,8 +161,8 @@ func TestJetStreamAccountInfo(t *testing.T) {
 	info, err := jsch.JetStreamAccountInfo()
 	checkErr(t, err, "info fetch failed")
 
-	if info.MsgSets != 1 {
-		t.Fatalf("received %d message sets expected 1", info.MsgSets)
+	if info.Streams != 1 {
+		t.Fatalf("received %d message sets expected 1", info.Streams)
 	}
 }
 
@@ -224,7 +224,7 @@ func TestEachStream(t *testing.T) {
 	orders, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
 	checkErr(t, err, "create failed")
 
-	_, err = jsch.NewStreamFromTemplate("ARCHIVE", orders.Configuration())
+	_, err = jsch.NewStreamFromTemplate("ARCHIVE", orders.Configuration(), jsch.Subjects("OTHER"))
 	checkErr(t, err, "create failed")
 
 	seen := []string{}

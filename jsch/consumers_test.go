@@ -161,7 +161,7 @@ func TestConsumer_NextSubject(t *testing.T) {
 	consumer, err := jsch.NewConsumer("ORDERS", jsch.DurableName("NEW"), jsch.FilterStreamBySubject("ORDERS.new"))
 	checkErr(t, err, "create failed")
 
-	if consumer.NextSubject() != "$JS.RN.ORDERS.NEW" {
+	if consumer.NextSubject() != "$JS.NEXT.ORDERS.NEW" {
 		t.Fatalf("expected next subject got %s", consumer.NextSubject())
 	}
 }
@@ -174,7 +174,7 @@ func TestConsumer_SampleSubject(t *testing.T) {
 	consumer, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"))
 	checkErr(t, err, "create failed")
 
-	if consumer.SampleSubject() != "$JS.OBSERVABLE.ACKSAMPLE.ORDERS.NEW" {
+	if consumer.SampleSubject() != "$JS.CONSUMER.ACKSAMPLE.ORDERS.NEW" {
 		t.Fatalf("expected next subject got %s", consumer.SampleSubject())
 	}
 
@@ -197,8 +197,8 @@ func TestConsumer_State(t *testing.T) {
 	state, err := durable.State()
 	checkErr(t, err, "state failed")
 
-	if state.Delivered.SetSeq != 0 {
-		t.Fatalf("expected set seq 0 got %d", state.Delivered.SetSeq)
+	if state.Delivered.StreamSeq != 0 {
+		t.Fatalf("expected set seq 0 got %d", state.Delivered.StreamSeq)
 	}
 
 	m, err := durable.NextMsg()
@@ -209,8 +209,8 @@ func TestConsumer_State(t *testing.T) {
 	state, err = durable.State()
 	checkErr(t, err, "state failed")
 
-	if state.Delivered.SetSeq != 1 {
-		t.Fatalf("expected set seq 1 got %d", state.Delivered.SetSeq)
+	if state.Delivered.StreamSeq != 1 {
+		t.Fatalf("expected set seq 1 got %d", state.Delivered.StreamSeq)
 	}
 
 }
@@ -337,7 +337,7 @@ func TestConsumer_IsSampled(t *testing.T) {
 }
 
 func TestAckWait(t *testing.T) {
-	cfg := server.ObservableConfig{AckWait: 0}
+	cfg := server.ConsumerConfig{AckWait: 0}
 	jsch.AckWait(time.Hour)(&cfg)
 	if cfg.AckWait != time.Hour {
 		t.Fatalf("expected 1 hour got %v", cfg.AckWait)
@@ -345,7 +345,7 @@ func TestAckWait(t *testing.T) {
 }
 
 func TestAcknowledgeAll(t *testing.T) {
-	cfg := server.ObservableConfig{AckPolicy: -1}
+	cfg := server.ConsumerConfig{AckPolicy: -1}
 	jsch.AcknowledgeAll()(&cfg)
 	if cfg.AckPolicy != server.AckAll {
 		t.Fatalf("expected AckAll got %s", cfg.AckPolicy.String())
@@ -353,7 +353,7 @@ func TestAcknowledgeAll(t *testing.T) {
 }
 
 func TestAcknowledgeExplicit(t *testing.T) {
-	cfg := server.ObservableConfig{AckPolicy: -1}
+	cfg := server.ConsumerConfig{AckPolicy: -1}
 	jsch.AcknowledgeExplicit()(&cfg)
 	if cfg.AckPolicy != server.AckExplicit {
 		t.Fatalf("expected AckExplicit got %s", cfg.AckPolicy.String())
@@ -361,7 +361,7 @@ func TestAcknowledgeExplicit(t *testing.T) {
 }
 
 func TestAcknowledgeNone(t *testing.T) {
-	cfg := server.ObservableConfig{AckPolicy: -1}
+	cfg := server.ConsumerConfig{AckPolicy: -1}
 	jsch.AcknowledgeNone()(&cfg)
 	if cfg.AckPolicy != server.AckNone {
 		t.Fatalf("expected AckNone got %s", cfg.AckPolicy.String())
@@ -369,7 +369,7 @@ func TestAcknowledgeNone(t *testing.T) {
 }
 
 func TestDeliverAllAvailable(t *testing.T) {
-	cfg := server.ObservableConfig{DeliverAll: false}
+	cfg := server.ConsumerConfig{DeliverAll: false}
 	jsch.DeliverAllAvailable()(&cfg)
 	if !cfg.DeliverAll {
 		t.Fatal("expected DeliverAll")
@@ -377,7 +377,7 @@ func TestDeliverAllAvailable(t *testing.T) {
 }
 
 func TestDeliverySubject(t *testing.T) {
-	cfg := server.ObservableConfig{Delivery: ""}
+	cfg := server.ConsumerConfig{Delivery: ""}
 	jsch.DeliverySubject("out")(&cfg)
 	if cfg.Delivery != "out" {
 		t.Fatalf("expected 'out' got %q", cfg.Delivery)
@@ -385,7 +385,7 @@ func TestDeliverySubject(t *testing.T) {
 }
 
 func TestDurableName(t *testing.T) {
-	cfg := server.ObservableConfig{Durable: ""}
+	cfg := server.ConsumerConfig{Durable: ""}
 	jsch.DurableName("test")(&cfg)
 	if cfg.Durable != "test" {
 		t.Fatalf("expected 'test' got %q", cfg.Durable)
@@ -393,7 +393,7 @@ func TestDurableName(t *testing.T) {
 }
 
 func TestFilterStreamBySubject(t *testing.T) {
-	cfg := server.ObservableConfig{FilterSubject: ""}
+	cfg := server.ConsumerConfig{FilterSubject: ""}
 	jsch.FilterStreamBySubject("test")(&cfg)
 	if cfg.FilterSubject != "test" {
 		t.Fatalf("expected 'test' got %q", cfg.FilterSubject)
@@ -401,7 +401,7 @@ func TestFilterStreamBySubject(t *testing.T) {
 }
 
 func TestMaxDeliveryAttempts(t *testing.T) {
-	cfg := server.ObservableConfig{MaxDeliver: -1}
+	cfg := server.ConsumerConfig{MaxDeliver: -1}
 	jsch.MaxDeliveryAttempts(10)(&cfg)
 	if cfg.MaxDeliver != 10 {
 		t.Fatalf("expected 10 got %q", cfg.MaxDeliver)
@@ -414,7 +414,7 @@ func TestMaxDeliveryAttempts(t *testing.T) {
 }
 
 func TestReplayAsReceived(t *testing.T) {
-	cfg := server.ObservableConfig{ReplayPolicy: -1}
+	cfg := server.ConsumerConfig{ReplayPolicy: -1}
 	jsch.ReplayAsReceived()(&cfg)
 	if cfg.ReplayPolicy != server.ReplayOriginal {
 		t.Fatalf("expected ReplayOriginal got %s", cfg.ReplayPolicy.String())
@@ -422,7 +422,7 @@ func TestReplayAsReceived(t *testing.T) {
 }
 
 func TestReplayInstantly(t *testing.T) {
-	cfg := server.ObservableConfig{ReplayPolicy: -1}
+	cfg := server.ConsumerConfig{ReplayPolicy: -1}
 	jsch.ReplayInstantly()(&cfg)
 	if cfg.ReplayPolicy != server.ReplayInstant {
 		t.Fatalf("expected ReplayInstant got %s", cfg.ReplayPolicy.String())
@@ -430,7 +430,7 @@ func TestReplayInstantly(t *testing.T) {
 }
 
 func TestSamplePercent(t *testing.T) {
-	cfg := server.ObservableConfig{SampleFrequency: ""}
+	cfg := server.ConsumerConfig{SampleFrequency: ""}
 	err := jsch.SamplePercent(200)(&cfg)
 	if err == nil {
 		t.Fatal("impossible percent didnt error")
@@ -455,15 +455,15 @@ func TestSamplePercent(t *testing.T) {
 }
 
 func TestStartAtSequence(t *testing.T) {
-	cfg := server.ObservableConfig{MsgSetSeq: 0}
+	cfg := server.ConsumerConfig{StreamSeq: 0}
 	jsch.StartAtSequence(1024)(&cfg)
-	if cfg.MsgSetSeq != 1024 {
+	if cfg.StreamSeq != 1024 {
 		t.Fatal("expected 1024")
 	}
 }
 
 func TestStartAtTime(t *testing.T) {
-	cfg := server.ObservableConfig{StartTime: time.Now()}
+	cfg := server.ConsumerConfig{StartTime: time.Now()}
 	s := time.Now().Add(-1 * time.Hour)
 	jsch.StartAtTime(s)(&cfg)
 	if cfg.StartTime.Unix() != s.Unix() {
@@ -472,7 +472,7 @@ func TestStartAtTime(t *testing.T) {
 }
 
 func TestStartAtTimeDelta(t *testing.T) {
-	cfg := server.ObservableConfig{StartTime: time.Now()}
+	cfg := server.ConsumerConfig{StartTime: time.Now()}
 	jsch.StartAtTimeDelta(time.Hour)(&cfg)
 	if cfg.StartTime.Unix() < time.Now().Add(-1*time.Hour-time.Second).Unix() || cfg.StartTime.Unix() > time.Now().Add(-1*time.Hour+time.Second).Unix() {
 		t.Fatal("expected ~ 1 hour delta")
@@ -480,7 +480,7 @@ func TestStartAtTimeDelta(t *testing.T) {
 }
 
 func TestStartWithLastReceived(t *testing.T) {
-	cfg := server.ObservableConfig{DeliverLast: false}
+	cfg := server.ConsumerConfig{DeliverLast: false}
 	jsch.StartWithLastReceived()(&cfg)
 	if !cfg.DeliverLast {
 		t.Fatal("expected DeliverLast")

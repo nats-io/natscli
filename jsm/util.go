@@ -28,73 +28,73 @@ import (
 	"github.com/nats-io/jetstream/jsch"
 )
 
-func selectObservable(set string, obs string) (string, error) {
-	if obs != "" {
-		known, err := jsch.IsKnownConsumer(set, obs)
+func selectConsumer(stream string, consumer string) (string, error) {
+	if consumer != "" {
+		known, err := jsch.IsKnownConsumer(stream, consumer)
 		if err != nil {
 			return "", err
 		}
 
 		if known {
-			return obs, nil
+			return consumer, nil
 		}
 	}
 
-	observables, err := jsch.ConsumerNames(set)
+	consumers, err := jsch.ConsumerNames(stream)
 	if err != nil {
 		return "", err
 	}
 
-	switch len(observables) {
+	switch len(consumers) {
 	case 0:
-		return "", fmt.Errorf("no observables are defined for message set %s", set)
+		return "", fmt.Errorf("no Consumers are defined for Stream %s", stream)
 	default:
-		observable := ""
+		c := ""
 
 		err = survey.AskOne(&survey.Select{
-			Message: "Select an observable",
-			Options: observables,
-		}, &observable)
+			Message: "Select a Consumer",
+			Options: consumers,
+		}, &c)
 		if err != nil {
 			return "", err
 		}
 
-		return observable, nil
+		return c, nil
 	}
 }
 
-func selectMessageSet(set string) (string, error) {
-	if set != "" {
-		known, err := jsch.IsKnownStream(set)
+func selectStream(stream string) (string, error) {
+	if stream != "" {
+		known, err := jsch.IsKnownStream(stream)
 		if err != nil {
 			return "", err
 		}
 
 		if known {
-			return set, nil
+			return stream, nil
 		}
 	}
 
-	sets, err := jsch.StreamNames()
+	streams, err := jsch.StreamNames()
 	if err != nil {
 		return "", err
 	}
 
-	switch len(sets) {
+	switch len(streams) {
 	case 0:
-		return "", errors.New("no message sets are defined")
+		return "", errors.New("no Streams are defined")
 	default:
-		set := ""
+		s := ""
 
 		err = survey.AskOne(&survey.Select{
-			Message: "Select a message set",
-			Options: sets,
-		}, &set)
+			Message: "Select a Stream",
+			Options: streams,
+		}, &s)
 		if err != nil {
 			return "", err
 		}
 
-		return set, nil
+		return s, nil
 	}
 }
 

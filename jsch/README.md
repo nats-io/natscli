@@ -4,10 +4,6 @@ This is a helper library for managing and interacting with JetStream we are expl
 
 This library is not an official blessed way for interacting with JetStream yet but as a set of examples of all the capabilities this is valuable and it's for us a starting point to learning what patterns work well
 
-## Terminology
-
-The best introduction to JetStream is the main [README](https://github.com/nats-io/jetstream#readme) but we are planning to rename `Message Sets` to `Streams` and `Observables` to `Consumers`.  This library already use these new terms
-
 ## Setup
 
 As some parts of this library will go into the core NATS client and others not we are not sure how it will get a NATS connection, for now we did a basic - but ugly - thing just to delay answering that.

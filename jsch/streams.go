@@ -25,42 +25,42 @@ import (
 )
 
 // DefaultStream is a template configuration with StreamPolicy retention and 1 years maximum age. No storage type or subjects are set
-var DefaultStream = server.MsgSetConfig{
-	Retention:      server.StreamPolicy,
-	MaxObservables: -1,
-	MaxMsgs:        -1,
-	MaxBytes:       -1,
-	MaxAge:         24 * 365 * time.Hour,
-	MaxMsgSize:     -1,
-	Replicas:       1,
-	NoAck:          false,
+var DefaultStream = server.StreamConfig{
+	Retention:    server.LimitsPolicy,
+	MaxConsumers: -1,
+	MaxMsgs:      -1,
+	MaxBytes:     -1,
+	MaxAge:       24 * 365 * time.Hour,
+	MaxMsgSize:   -1,
+	Replicas:     1,
+	NoAck:        false,
 }
 
 // DefaultWorkQueue is a template configuration with WorkQueuePolicy retention and 1 years maximum age. No storage type or subjects are set
-var DefaultWorkQueue = server.MsgSetConfig{
-	Retention:      server.WorkQueuePolicy,
-	MaxObservables: -1,
-	MaxMsgs:        -1,
-	MaxBytes:       -1,
-	MaxAge:         24 * 365 * time.Hour,
-	MaxMsgSize:     -1,
-	Replicas:       1,
-	NoAck:          false,
+var DefaultWorkQueue = server.StreamConfig{
+	Retention:    server.WorkQueuePolicy,
+	MaxConsumers: -1,
+	MaxMsgs:      -1,
+	MaxBytes:     -1,
+	MaxAge:       24 * 365 * time.Hour,
+	MaxMsgSize:   -1,
+	Replicas:     1,
+	NoAck:        false,
 }
 
 // DefaultStreamConfiguration is the configuration that will be used to create new Streams in NewStream
 var DefaultStreamConfiguration = DefaultStream
 
 // StreamOption configures a stream
-type StreamOption func(o *server.MsgSetConfig) error
+type StreamOption func(o *server.StreamConfig) error
 
 // Stream represents a JetStream Stream
 type Stream struct {
-	cfg server.MsgSetConfig
+	cfg server.StreamConfig
 }
 
 // NewStreamFromTemplate creates a new stream based on a supplied template and options
-func NewStreamFromTemplate(name string, template server.MsgSetConfig, opts ...StreamOption) (stream *Stream, err error) {
+func NewStreamFromTemplate(name string, template server.StreamConfig, opts ...StreamOption) (stream *Stream, err error) {
 	cfg, err := NewStreamConfiguration(template, opts...)
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func NewStreamFromTemplate(name string, template server.MsgSetConfig, opts ...St
 		return nil, err
 	}
 
-	response, err := nc.Request(server.JetStreamCreateMsgSet, jreq, Timeout)
+	response, err := nc.Request(server.JetStreamCreateStream, jreq, Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func NewStreamFromTemplate(name string, template server.MsgSetConfig, opts ...St
 }
 
 // LoadOrNewStreamFromTemplate loads an existing stream or creates a new one matching opts and template
-func LoadOrNewStreamFromTemplate(name string, template server.MsgSetConfig, opts ...StreamOption) (stream *Stream, err error) {
+func LoadOrNewStreamFromTemplate(name string, template server.StreamConfig, opts ...StreamOption) (stream *Stream, err error) {
 	s, err := LoadStream(name)
 	if s == nil || err != nil {
 		return NewStreamFromTemplate(name, template, opts...)
@@ -108,7 +108,7 @@ func LoadOrNewStream(name string, opts ...StreamOption) (stream *Stream, err err
 // LoadStream loads a stream by name
 func LoadStream(name string) (stream *Stream, err error) {
 	stream = &Stream{
-		cfg: server.MsgSetConfig{
+		cfg: server.StreamConfig{
 			Name: name,
 		},
 	}
@@ -122,7 +122,7 @@ func LoadStream(name string) (stream *Stream, err error) {
 }
 
 // NewStreamConfiguration generates a new configuration based on template modified by opts
-func NewStreamConfiguration(template server.MsgSetConfig, opts ...StreamOption) (server.MsgSetConfig, error) {
+func NewStreamConfiguration(template server.StreamConfig, opts ...StreamOption) (server.StreamConfig, error) {
 	for _, o := range opts {
 		err := o(&template)
 		if err != nil {
@@ -144,8 +144,8 @@ func loadConfigForStream(stream *Stream) (err error) {
 	return nil
 }
 
-func loadStreamInfo(stream string) (info *server.MsgSetInfo, err error) {
-	response, err := nc.Request(server.JetStreamMsgSetInfo, []byte(stream), Timeout)
+func loadStreamInfo(stream string) (info *server.StreamInfo, err error) {
+	response, err := nc.Request(server.JetStreamStreamInfo, []byte(stream), Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func loadStreamInfo(stream string) (info *server.MsgSetInfo, err error) {
 		return nil, fmt.Errorf("%s", string(response.Data))
 	}
 
-	info = &server.MsgSetInfo{}
+	info = &server.StreamInfo{}
 	err = json.Unmarshal(response.Data, info)
 	if err != nil {
 		return nil, err
@@ -164,91 +164,91 @@ func loadStreamInfo(stream string) (info *server.MsgSetInfo, err error) {
 }
 
 func Subjects(s ...string) StreamOption {
-	return func(o *server.MsgSetConfig) error {
+	return func(o *server.StreamConfig) error {
 		o.Subjects = s
 		return nil
 	}
 }
 
-func StreamRetention() StreamOption {
-	return func(o *server.MsgSetConfig) error {
-		o.Retention = server.StreamPolicy
+func LimitsRetention() StreamOption {
+	return func(o *server.StreamConfig) error {
+		o.Retention = server.LimitsPolicy
 		return nil
 	}
 }
 
 func InterestRetention() StreamOption {
-	return func(o *server.MsgSetConfig) error {
+	return func(o *server.StreamConfig) error {
 		o.Retention = server.InterestPolicy
 		return nil
 	}
 }
 
 func WorkQueueRetention() StreamOption {
-	return func(o *server.MsgSetConfig) error {
+	return func(o *server.StreamConfig) error {
 		o.Retention = server.WorkQueuePolicy
 		return nil
 	}
 }
 
-func MaxObservables(m int) StreamOption {
-	return func(o *server.MsgSetConfig) error {
-		o.MaxObservables = m
+func MaxConsumers(m int) StreamOption {
+	return func(o *server.StreamConfig) error {
+		o.MaxConsumers = m
 		return nil
 	}
 }
 
 func MaxMessages(m int64) StreamOption {
-	return func(o *server.MsgSetConfig) error {
+	return func(o *server.StreamConfig) error {
 		o.MaxMsgs = m
 		return nil
 	}
 }
 
 func MaxBytes(m int64) StreamOption {
-	return func(o *server.MsgSetConfig) error {
+	return func(o *server.StreamConfig) error {
 		o.MaxBytes = m
 		return nil
 	}
 }
 
 func MaxAge(m time.Duration) StreamOption {
-	return func(o *server.MsgSetConfig) error {
+	return func(o *server.StreamConfig) error {
 		o.MaxAge = m
 		return nil
 	}
 }
 
 func MaxMessageSize(m int32) StreamOption {
-	return func(o *server.MsgSetConfig) error {
+	return func(o *server.StreamConfig) error {
 		o.MaxMsgSize = m
 		return nil
 	}
 }
 
 func FileStorage() StreamOption {
-	return func(o *server.MsgSetConfig) error {
+	return func(o *server.StreamConfig) error {
 		o.Storage = server.FileStorage
 		return nil
 	}
 }
 
 func MemoryStorage() StreamOption {
-	return func(o *server.MsgSetConfig) error {
+	return func(o *server.StreamConfig) error {
 		o.Storage = server.MemoryStorage
 		return nil
 	}
 }
 
 func Replicas(r int) StreamOption {
-	return func(o *server.MsgSetConfig) error {
+	return func(o *server.StreamConfig) error {
 		o.Replicas = r
 		return nil
 	}
 }
 
 func NoAck() StreamOption {
-	return func(o *server.MsgSetConfig) error {
+	return func(o *server.StreamConfig) error {
 		o.NoAck = true
 		return nil
 	}
@@ -275,18 +275,18 @@ func (s *Stream) LoadOrNewConsumer(name string, opts ...ConsumerOption) (consume
 }
 
 // NewConsumerFromTemplate creates a new consumer in this Stream based on a supplied template config
-func (s *Stream) NewConsumerFromTemplate(name string, template server.ObservableConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
+func (s *Stream) NewConsumerFromTemplate(name string, template server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
 	return NewConsumerFromTemplate(s.Name(), template, opts...)
 }
 
 // LoadOrNewConsumer loads or creates a consumer based on these options that adjust supplied template
-func (s *Stream) LoadOrNewConsumerFromTemplate(name string, template server.ObservableConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
+func (s *Stream) LoadOrNewConsumerFromTemplate(name string, template server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
 	return LoadOrNewConsumerFromTemplate(s.Name(), name, template, opts...)
 }
 
 // ConsumerNames is a list of all known consumers for this Stream
 func (s *Stream) ConsumerNames() (names []string, err error) {
-	response, err := nc.Request(server.JetStreamObservables, []byte(s.cfg.Name), Timeout)
+	response, err := nc.Request(server.JetStreamConsumers, []byte(s.cfg.Name), Timeout)
 	if err != nil {
 		return names, err
 	}
@@ -305,23 +305,23 @@ func (s *Stream) ConsumerNames() (names []string, err error) {
 	return names, nil
 }
 
-func (s *Stream) Information() (info *server.MsgSetInfo, err error) {
+func (s *Stream) Information() (info *server.StreamInfo, err error) {
 	return loadStreamInfo(s.Name())
 }
 
-// Statistics retrieves the Stream Statistics
-func (s *Stream) Statistics() (stats server.MsgSetStats, err error) {
+// State retrieves the Stream State
+func (s *Stream) State() (stats server.StreamState, err error) {
 	info, err := loadStreamInfo(s.Name())
 	if err != nil {
 		return stats, err
 	}
 
-	return info.Stats, nil
+	return info.State, nil
 }
 
 // Delete deletes the Stream, after this the Stream object should be disposed
 func (s *Stream) Delete() error {
-	response, err := nc.Request(server.JetStreamDeleteMsgSet, []byte(s.Name()), Timeout)
+	response, err := nc.Request(server.JetStreamDeleteStream, []byte(s.Name()), Timeout)
 	if err != nil {
 		return err
 	}
@@ -335,7 +335,7 @@ func (s *Stream) Delete() error {
 
 // Purge deletes all messages from the Stream
 func (s *Stream) Purge() error {
-	response, err := nc.Request(server.JetStreamPurgeMsgSet, []byte(s.Name()), Timeout)
+	response, err := nc.Request(server.JetStreamPurgeStream, []byte(s.Name()), Timeout)
 	if err != nil {
 		return err
 	}
@@ -381,11 +381,11 @@ func (s *Stream) DeleteMessage(seq int) (err error) {
 	return nil
 }
 
-func (s *Stream) Configuration() server.MsgSetConfig { return s.cfg }
+func (s *Stream) Configuration() server.StreamConfig { return s.cfg }
 func (s *Stream) Name() string                       { return s.cfg.Name }
 func (s *Stream) Subjects() []string                 { return s.cfg.Subjects }
 func (s *Stream) Retention() server.RetentionPolicy  { return s.cfg.Retention }
-func (s *Stream) MaxObservables() int                { return s.cfg.MaxObservables }
+func (s *Stream) MaxConsumers() int                  { return s.cfg.MaxConsumers }
 func (s *Stream) MaxMsgs() int64                     { return s.cfg.MaxMsgs }
 func (s *Stream) MaxBytes() int64                    { return s.cfg.MaxBytes }
 func (s *Stream) MaxAge() time.Duration              { return s.cfg.MaxAge }

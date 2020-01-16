@@ -44,8 +44,8 @@ func main() {
 	jsm.Flag("timeout", "Time to wait on responses from JetStream").Default("2s").DurationVar(&timeout)
 
 	configureActCommand(jsm)
-	configureMSCommand(jsm)
-	configureObsCommand(jsm)
+	configureStreamCommand(jsm)
+	configureConsumerCommand(jsm)
 
 	kingpin.MustParse(jsm.Parse(os.Args[1:]))
 }

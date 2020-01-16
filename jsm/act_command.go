@@ -50,10 +50,10 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 	fmt.Printf("      Memory: %s of %s\n", humanize.IBytes(info.Memory), humanize.IBytes(uint64(info.Limits.MaxMemory)))
 	fmt.Printf("     Storage: %s of %s\n", humanize.IBytes(info.Store), humanize.IBytes(uint64(info.Limits.MaxStore)))
 
-	if info.Limits.MaxMsgSets == -1 {
-		fmt.Printf("Message Sets: %d of Unlimited\n", info.MsgSets)
+	if info.Limits.MaxStreams == -1 {
+		fmt.Printf("     Streams: %d of Unlimited\n", info.Streams)
 	} else {
-		fmt.Printf("Message Sets: %d of %d\n", info.MsgSets, info.Limits.MaxMsgSets)
+		fmt.Printf("Message Sets: %d of %d\n", info.Streams, info.Limits.MaxStreams)
 	}
 	fmt.Println()
 
