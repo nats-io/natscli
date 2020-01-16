@@ -25,7 +25,7 @@ import (
 )
 
 // DefaultConsumer is the configuration that will be used to create new Consumers in NewConsumer
-var DefaultConsumer = server.ObservableConfig{
+var DefaultConsumer = server.ConsumerConfig{
 	DeliverAll:   true,
 	AckPolicy:    server.AckExplicit,
 	AckWait:      30 * time.Second,
@@ -33,7 +33,7 @@ var DefaultConsumer = server.ObservableConfig{
 }
 
 // SampledDefaultConsumer is the configuration that will be used to create new Consumers in NewConsumer
-var SampledDefaultConsumer = server.ObservableConfig{
+var SampledDefaultConsumer = server.ConsumerConfig{
 	DeliverAll:      true,
 	AckPolicy:       server.AckExplicit,
 	AckWait:         30 * time.Second,
@@ -42,24 +42,24 @@ var SampledDefaultConsumer = server.ObservableConfig{
 }
 
 // ConsumerOptions configures consumers
-type ConsumerOption func(o *server.ObservableConfig) error
+type ConsumerOption func(o *server.ConsumerConfig) error
 
 // Consumer represents a JetStream consumer
 type Consumer struct {
 	name   string
 	stream string
-	cfg    server.ObservableConfig
+	cfg    server.ConsumerConfig
 }
 
 // NewConsumerFromTemplate creates a new consumer based on a template config that gets modified by opts
-func NewConsumerFromTemplate(stream string, template server.ObservableConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
+func NewConsumerFromTemplate(stream string, template server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
 	cfg, err := NewConsumerConfiguration(template, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	req := server.CreateObservableRequest{
-		MsgSet: stream,
+	req := server.CreateConsumerRequest{
+		Stream: stream,
 		Config: cfg,
 	}
 
@@ -68,7 +68,7 @@ func NewConsumerFromTemplate(stream string, template server.ObservableConfig, op
 		return nil, err
 	}
 
-	response, err := nc.Request(server.JetStreamCreateObservable, jreq, Timeout)
+	response, err := nc.Request(server.JetStreamCreateConsumer, jreq, Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func LoadOrNewConsumer(stream string, name string, opts ...ConsumerOption) (cons
 }
 
 // LoadOrNewConsumerFromTemplate loads a consumer by name if known else creates a new one with these properties based on template
-func LoadOrNewConsumerFromTemplate(stream string, name string, template server.ObservableConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
+func LoadOrNewConsumerFromTemplate(stream string, name string, template server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
 	c, err := LoadConsumer(stream, name)
 	if c == nil || err != nil {
 		return NewConsumerFromTemplate(stream, template, opts...)
@@ -120,7 +120,7 @@ func LoadConsumer(stream string, name string) (consumer *Consumer, err error) {
 }
 
 // NewConsmerConfiguration generates a new configuration based on template modified by opts
-func NewConsumerConfiguration(template server.ObservableConfig, opts ...ConsumerOption) (server.ObservableConfig, error) {
+func NewConsumerConfiguration(template server.ConsumerConfig, opts ...ConsumerOption) (server.ConsumerConfig, error) {
 	for _, o := range opts {
 		err := o(&template)
 		if err != nil {
@@ -142,8 +142,8 @@ func loadConfigForConsumer(consumer *Consumer) (err error) {
 	return nil
 }
 
-func loadConsumerInfo(s string, c string) (info server.ObservableInfo, err error) {
-	response, err := nc.Request(server.JetStreamObservableInfo, []byte(s+" "+c), Timeout)
+func loadConsumerInfo(s string, c string) (info server.ConsumerInfo, err error) {
+	response, err := nc.Request(server.JetStreamConsumerInfo, []byte(s+" "+c), Timeout)
 	if err != nil {
 		return info, err
 	}
@@ -152,7 +152,7 @@ func loadConsumerInfo(s string, c string) (info server.ObservableInfo, err error
 		return info, fmt.Errorf("%s", string(response.Data))
 	}
 
-	info = server.ObservableInfo{}
+	info = server.ConsumerInfo{}
 	err = json.Unmarshal(response.Data, &info)
 	if err != nil {
 		return info, err
@@ -162,84 +162,84 @@ func loadConsumerInfo(s string, c string) (info server.ObservableInfo, err error
 }
 
 func DeliverySubject(s string) ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.Delivery = s
 		return nil
 	}
 }
 
 func DurableName(s string) ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.Durable = s
 		return nil
 	}
 }
 
 func StartAtSequence(s uint64) ConsumerOption {
-	return func(o *server.ObservableConfig) error {
-		o.MsgSetSeq = s
+	return func(o *server.ConsumerConfig) error {
+		o.StreamSeq = s
 		return nil
 	}
 }
 
 func StartAtTime(t time.Time) ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.StartTime = t
 		return nil
 	}
 }
 
 func DeliverAllAvailable() ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.DeliverAll = true
 		return nil
 	}
 }
 
 func StartWithLastReceived() ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.DeliverLast = true
 		return nil
 	}
 }
 
 func StartAtTimeDelta(d time.Duration) ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.StartTime = time.Now().Add(-1 * d)
 		return nil
 	}
 }
 
 func AcknowledgeNone() ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.AckPolicy = server.AckNone
 		return nil
 	}
 }
 
 func AcknowledgeAll() ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.AckPolicy = server.AckAll
 		return nil
 	}
 }
 
 func AcknowledgeExplicit() ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.AckPolicy = server.AckExplicit
 		return nil
 	}
 }
 
 func AckWait(t time.Duration) ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.AckWait = t
 		return nil
 	}
 }
 
 func MaxDeliveryAttempts(n int) ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		if n == 0 {
 			return fmt.Errorf("configuration would prevent all deliveries")
 		}
@@ -249,28 +249,28 @@ func MaxDeliveryAttempts(n int) ConsumerOption {
 }
 
 func FilterStreamBySubject(s string) ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.FilterSubject = s
 		return nil
 	}
 }
 
 func ReplayInstantly() ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.ReplayPolicy = server.ReplayInstant
 		return nil
 	}
 }
 
 func ReplayAsReceived() ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		o.ReplayPolicy = server.ReplayOriginal
 		return nil
 	}
 }
 
 func SamplePercent(i int) ConsumerOption {
-	return func(o *server.ObservableConfig) error {
+	return func(o *server.ConsumerConfig) error {
 		if i < 0 || i > 100 {
 			return fmt.Errorf("sample percent must be 0-100")
 		}
@@ -305,7 +305,7 @@ func (c *Consumer) SampleSubject() string {
 		return ""
 	}
 
-	return server.JetStreamObservableAckSamplePre + "." + c.StreamName() + "." + c.name
+	return server.JetStreamConsumerAckSamplePre + "." + c.StreamName() + "." + c.name
 }
 
 // Subscribe see nats.Subscribe
@@ -386,23 +386,23 @@ func (c *Consumer) NextMsg() (m *nats.Msg, err error) {
 }
 
 // State returns the Consumer state
-func (c *Consumer) State() (stats server.ObservableState, err error) {
+func (c *Consumer) State() (stats server.ConsumerState, err error) {
 	info, err := loadConsumerInfo(c.stream, c.name)
 	if err != nil {
-		return server.ObservableState{}, err
+		return server.ConsumerState{}, err
 	}
 
 	return info.State, nil
 }
 
 // Configuration is the Consumer configuration
-func (c *Consumer) Configuration() (config server.ObservableConfig) {
+func (c *Consumer) Configuration() (config server.ConsumerConfig) {
 	return c.cfg
 }
 
 // Delete deletes the Consumer, after this the Consumer object should be disposed
 func (c *Consumer) Delete() (err error) {
-	response, err := nc.Request(server.JetStreamDeleteObservable, []byte(c.StreamName()+" "+c.Name()), Timeout)
+	response, err := nc.Request(server.JetStreamDeleteConsumer, []byte(c.StreamName()+" "+c.Name()), Timeout)
 	if err != nil {
 		return err
 	}
@@ -419,14 +419,14 @@ func (c *Consumer) Delete() (err error) {
 }
 
 func (c *Consumer) Name() string                      { return c.name }
-func (c *Consumer) IsSampled() bool                   { return c.SampleSubject() != "" }
+func (c *Consumer) IsSampled() bool                   { return c.SampleFrequency() != "" }
 func (c *Consumer) IsPullMode() bool                  { return c.cfg.Delivery == "" }
 func (c *Consumer) IsPushMode() bool                  { return !c.IsPullMode() }
 func (c *Consumer) IsDurable() bool                   { return c.cfg.Durable != "" }
 func (c *Consumer) StreamName() string                { return c.stream }
 func (c *Consumer) DeliverySubject() string           { return c.cfg.Delivery }
 func (c *Consumer) DurableName() string               { return c.cfg.Durable }
-func (c *Consumer) StreamSequence() uint64            { return c.cfg.MsgSetSeq }
+func (c *Consumer) StreamSequence() uint64            { return c.cfg.StreamSeq }
 func (c *Consumer) StartTime() time.Time              { return c.cfg.StartTime }
 func (c *Consumer) DeliverAll() bool                  { return c.cfg.DeliverAll }
 func (c *Consumer) DeliverLast() bool                 { return c.cfg.DeliverLast }

@@ -117,7 +117,7 @@ func JetStreamAccountInfo() (info server.JetStreamAccountStats, err error) {
 func StreamNames() (streams []string, err error) {
 	streams = []string{}
 
-	response, err := nc.Request(server.JetStreamMsgSets, nil, Timeout)
+	response, err := nc.Request(server.JetStreamStreams, nil, Timeout)
 	if err != nil {
 		return streams, err
 	}
@@ -140,7 +140,7 @@ func StreamNames() (streams []string, err error) {
 func ConsumerNames(stream string) (consumers []string, err error) {
 	consumers = []string{}
 
-	response, err := nc.Request(server.JetStreamObservables, []byte(stream), Timeout)
+	response, err := nc.Request(server.JetStreamConsumers, []byte(stream), Timeout)
 	if err != nil {
 		return consumers, err
 	}
@@ -181,7 +181,7 @@ func EachStream(cb func(*Stream)) (err error) {
 // Subscribe subscribes a consumer, creating it if not present from a template configuration modified by opts.  Stream should exist. See nats.Subscribe
 //
 // TODO: I dont really think this kind of thing is a good idea, but its awfully verbose without it so I suspect we will need to cater for this
-func Subscribe(stream string, consumer string, cb func(*nats.Msg), template server.ObservableConfig, opts ...ConsumerOption) (*nats.Subscription, error) {
+func Subscribe(stream string, consumer string, cb func(*nats.Msg), template server.ConsumerConfig, opts ...ConsumerOption) (*nats.Subscription, error) {
 	c, err := LoadOrNewConsumerFromTemplate(stream, consumer, template, opts...)
 	if err != nil {
 		return nil, err
