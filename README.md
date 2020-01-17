@@ -1060,6 +1060,42 @@ Subjects that and in `T` like `server.JetStreamCreateConsumerT` are formats and 
 |`server.JetStreamConsumerInfoT`|Information about an Consumer|empty payload, Stream and Consumer names in subject|`server.ConsumerInfo`|
 |`server.JetStreamDeleteConsumerT`|Deletes an Consumer|empty payload, Stream and Consumer names in subject|Standard OK/ERR|
 
+#### ACLs
+
+It's hard to notice here but there is a clear pattern in these subjects, lets look at a set of expanded subjects for our `ORDERS` Stream.
+
+General information
+
+```
+$JS.ENABLED
+$JS.INFO
+```
+
+Stream and Consumer Admin
+
+```
+$JS.STREAM.LIST
+$JS.STREAM.ORDERS.CREATE
+$JS.STREAM.ORDERS.INFO
+$JS.STREAM.ORDERS.DELETE
+$JS.STREAM.ORDERS.PURGE
+$JS.STREAM.ORDERS.CONSUMERS
+$JS.STREAM.ORDERS.MSG.DELETE
+$JS.STREAM.ORDERS.CONSUMER.CREATE
+$JS.STREAM.ORDERS.CONSUMER.NEW.INFO
+$JS.STREAM.ORDERS.CONSUMER.NEW.DELETE
+```
+
+Stream and Consumer Use
+
+```
+$JS.STREAM.ORDERS.CONSUMER.NEW.NEXT
+$JS.STREAM.ORDERS.MSG.BYSEQ
+$JS.A.ORDERS.NEW.x.x.x
+```
+
+This allow you to easily create ACL rules to limit users to a specific Stream or Consumer and to specific verbs for administration purposes. For ensuring only the receiver of a message can Ack it we have response permissions ensuring you can only Publish to Response subject for messages you received.
+
 ### Acknowledging Messages
 
 Messages that need acknowledgement will have a Reply subject set, something like `$JS.A.ORDERS.test.1.2.2`, this is the prefix defined in `server.JetStreamAckPre` followed by `<stream>.<consumer>.<delivered count>.<stream sequence>.<stream sequence>`.
@@ -1068,11 +1104,11 @@ In all the Synadia maintained API's you can simply do `msg.Respond(nil)` (or lan
 
 ### Fetching The Next Message From a Pull-based Consumer
 
-If you have a pull-based Consumer you can send a standard NATS Request to `$JS.NEXT.<stream>.<consumer>`, here the prefix is defined in `server.JetStreamRequestNextPre`.
+If you have a pull-based Consumer you can send a standard NATS Request to `$JS.STREAM.<stream>.CONSUMER.<consumer>.NEXT`, here the format is defined in `server.JetStreamRequestNextT` and requires populating using `fmt.Sprintf()`.
 
 ```nohighlight
-$ nats-req '$JS.NEXT.ORDERS.test' '1'
-Published [$JS.NEXT.ORDERS.test] : '1'
+$ nats-req '$JS.STREAM.ORDERS.CONSUMER.test.NEXT' '1'
+Published [$JS.STREAM.ORDERS.CONSUMER.test.NEXT] : '1'
 Received  [js.1] : 'message 1'
 ```
 
@@ -1080,11 +1116,11 @@ Here we ask for just 1 message - `nats-req` only shows 1 - but you can fetch a b
 
 ### Fetching From a Stream By Sequence
 
-If you know the Stream sequence of a message you can fetch it directly, this does not support acks.  Do a Request() to `$JS.BYSEQ.ORDERS` sending it the message sequence as payload.  Here the prefix is defined in `server.JetStreamMsgBySeqPre`.
+If you know the Stream sequence of a message you can fetch it directly, this does not support acks.  Do a Request() to `$JS.STREAM.ORDERS.MSG.BYSEQ` sending it the message sequence as payload.  Here the prefix is defined in `server.JetStreamMsgBySeqT` which also requires populating using `fmt.Sprintf()`.
 
 ```nohighlight
-$ nats-req '$JS.BYSEQ.ORDERS' '1'
-Published [$JS.BYSEQ.ORDERS] : '1'
+$ nats-req '$JS.STREAM.ORDERS.MSG.BYSEQ' '1'
+Published [$JS.STREAM.ORDERS.MSG.BYSEQ] : '1'
 Received  [_INBOX.cJrbzPJfZrq8NrFm1DsZuH.k91Gb4xM] : '{
   "Subject": "js.1",
   "Data": "MQ==",

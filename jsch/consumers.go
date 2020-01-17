@@ -296,7 +296,7 @@ func (c *Consumer) NextSubject() string {
 		return ""
 	}
 
-	return server.JetStreamRequestNextPre + "." + c.stream + "." + c.name
+	return fmt.Sprintf(server.JetStreamRequestNextT, c.stream, c.name)
 }
 
 // SampleSubject is the subject used to publish ack samples to

@@ -161,7 +161,7 @@ func TestConsumer_NextSubject(t *testing.T) {
 	consumer, err := jsch.NewConsumer("ORDERS", jsch.DurableName("NEW"), jsch.FilterStreamBySubject("ORDERS.new"))
 	checkErr(t, err, "create failed")
 
-	if consumer.NextSubject() != "$JS.NEXT.ORDERS.NEW" {
+	if consumer.NextSubject() != "$JS.STREAM.ORDERS.CONSUMER.NEW.NEXT" {
 		t.Fatalf("expected next subject got %s", consumer.NextSubject())
 	}
 }
