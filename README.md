@@ -1075,23 +1075,23 @@ Stream and Consumer Admin
 
 ```
 $JS.STREAM.LIST
-$JS.STREAM.ORDERS.CREATE
-$JS.STREAM.ORDERS.INFO
-$JS.STREAM.ORDERS.DELETE
-$JS.STREAM.ORDERS.PURGE
-$JS.STREAM.ORDERS.CONSUMERS
-$JS.STREAM.ORDERS.MSG.DELETE
-$JS.STREAM.ORDERS.CONSUMER.CREATE
-$JS.STREAM.ORDERS.CONSUMER.NEW.INFO
-$JS.STREAM.ORDERS.CONSUMER.NEW.DELETE
+$JS.STREAM.<stream>.CREATE
+$JS.STREAM.<stream>.INFO
+$JS.STREAM.<stream>.DELETE
+$JS.STREAM.<stream>.PURGE
+$JS.STREAM.<stream>.CONSUMERS
+$JS.STREAM.<stream>.MSG.DELETE
+$JS.STREAM.<stream>.CONSUMER.CREATE
+$JS.STREAM.<stream>.CONSUMER.<consumer>.INFO
+$JS.STREAM.<stream>.CONSUMER.<consumer>.DELETE
 ```
 
 Stream and Consumer Use
 
 ```
-$JS.STREAM.ORDERS.CONSUMER.NEW.NEXT
-$JS.STREAM.ORDERS.MSG.BYSEQ
-$JS.A.ORDERS.NEW.x.x.x
+$JS.STREAM.<stream>.CONSUMER.<consumer>.NEXT
+$JS.STREAM.<stream>.MSG.BYSEQ
+$JS.A.<stream>.<consumer>.x.x.x
 ```
 
 This allow you to easily create ACL rules to limit users to a specific Stream or Consumer and to specific verbs for administration purposes. For ensuring only the receiver of a message can Ack it we have response permissions ensuring you can only Publish to Response subject for messages you received.
