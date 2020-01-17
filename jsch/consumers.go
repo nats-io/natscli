@@ -68,7 +68,7 @@ func NewConsumerFromTemplate(stream string, template server.ConsumerConfig, opts
 		return nil, err
 	}
 
-	response, err := nc.Request(server.JetStreamCreateConsumer, jreq, Timeout)
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamCreateConsumerT, stream), jreq, Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +143,7 @@ func loadConfigForConsumer(consumer *Consumer) (err error) {
 }
 
 func loadConsumerInfo(s string, c string) (info server.ConsumerInfo, err error) {
-	response, err := nc.Request(server.JetStreamConsumerInfo, []byte(s+" "+c), Timeout)
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamConsumerInfoT, s, c), nil, Timeout)
 	if err != nil {
 		return info, err
 	}
@@ -402,7 +402,7 @@ func (c *Consumer) Configuration() (config server.ConsumerConfig) {
 
 // Delete deletes the Consumer, after this the Consumer object should be disposed
 func (c *Consumer) Delete() (err error) {
-	response, err := nc.Request(server.JetStreamDeleteConsumer, []byte(c.StreamName()+" "+c.Name()), Timeout)
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamDeleteConsumerT, c.StreamName(), c.Name()), nil, Timeout)
 	if err != nil {
 		return err
 	}

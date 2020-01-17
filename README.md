@@ -1031,6 +1031,8 @@ Received  [_INBOX.fwqdpoWtG8XFXHKfqhQDVA.vBecyWmF] : '{
 
 All the admin actions the `jsm` CLI can do falls in the sections below.
 
+Subjects that and in `T` like `server.JetStreamCreateConsumerT` are formats and would need to have the Stream Name and in some cases also the Consumer name interpolated into them. In this case `t := fmt.Sprintf(server.JetStreamCreateConsumerT, streamName)` to get the final subject.
+
 #### General Info
 
 |subject|Description|Request Payload|Response Payload|
@@ -1042,21 +1044,21 @@ All the admin actions the `jsm` CLI can do falls in the sections below.
 
 |subject|Description|Request Payload|Response Payload|
 |-----|-----------|---------------|----------------|
-|`server.JetStreamStreams`|List known Streams|empty payload|Array of names in JSON format|
+|`server.JetStreamListStreams`|List known Streams|empty payload|Array of names in JSON format|
 |`server.JetStreamCreateStream`|Creates a new Stream|`server.StreamConfig`|Standard OK/ERR|
-|`server.JetStreamStreamInfo`|Information about config and state of a Stream|name of the Stream|`server.StreamInfo`|
-|`server.JetStreamDeleteStream`|Deletes a Stream and all its data|name of the Stream|Standard OK/ERR|
-|`server.JetStreamPurgeStream`|Purges all of the data in a Stream, leaves the Stream|name of the Message sSet|Standard OK/ERR|
-|`server.JetStreamDeleteMsg`|Deletes a specific message in the Stream by sequence, useful for GDPR compliance|`stream_name stream_seq`|Standard OK/ERR|
+|`server.JetStreamStreamInfoT`|Information about config and state of a Stream|empty payload, Stream name in subject|`server.StreamInfo`|
+|`server.JetStreamDeleteStreamT`|Deletes a Stream and all its data|empty payload, Stream name in subject|Standard OK/ERR|
+|`server.JetStreamPurgeStreamT`|Purges all of the data in a Stream, leaves the Stream|empty payload, Stream name in subject|Standard OK/ERR|
+|`server.JetStreamDeleteMsgT`|Deletes a specific message in the Stream by sequence, useful for GDPR compliance|`stream_seq`, Stream name in subject|Standard OK/ERR|
 
 #### Consumers
 
 |subject|Description|Request Payload|Response Payload|
 |-----|-----------|---------------|----------------|
-|`server.JetStreamConsumers`|List known Consumers|name of the Stream|Array of names in JSON format|
-|`server.JetStreamCreateConsumer`|Create an Consumer|`server.ConsumerConfig`|Standard OK/ERR|
-|`server.JetStreamConsumerInfo`|Information about an Consumer|`stream_name consumer_name`|`server.ConsumerInfo`|
-|`server.JetStreamDeleteConsumer`|Deletes an Consumer|`stream_name consumer_name`|Standard OK/ERR|
+|`server.JetStreamConsumersT`|List known Consumers|empty payload, Stream name in subject|Array of names in JSON format|
+|`server.JetStreamCreateConsumerT`|Create an Consumer|`server.ConsumerConfig`, Stream name in subject|Standard OK/ERR|
+|`server.JetStreamConsumerInfoT`|Information about an Consumer|empty payload, Stream and Consumer names in subject|`server.ConsumerInfo`|
+|`server.JetStreamDeleteConsumerT`|Deletes an Consumer|empty payload, Stream and Consumer names in subject|Standard OK/ERR|
 
 ### Acknowledging Messages
 

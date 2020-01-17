@@ -145,7 +145,7 @@ func loadConfigForStream(stream *Stream) (err error) {
 }
 
 func loadStreamInfo(stream string) (info *server.StreamInfo, err error) {
-	response, err := nc.Request(server.JetStreamStreamInfo, []byte(stream), Timeout)
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamStreamInfoT, stream), nil, Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +286,7 @@ func (s *Stream) LoadOrNewConsumerFromTemplate(name string, template server.Cons
 
 // ConsumerNames is a list of all known consumers for this Stream
 func (s *Stream) ConsumerNames() (names []string, err error) {
-	response, err := nc.Request(server.JetStreamConsumers, []byte(s.cfg.Name), Timeout)
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamConsumersT, s.Name()), nil, Timeout)
 	if err != nil {
 		return names, err
 	}
@@ -321,7 +321,7 @@ func (s *Stream) State() (stats server.StreamState, err error) {
 
 // Delete deletes the Stream, after this the Stream object should be disposed
 func (s *Stream) Delete() error {
-	response, err := nc.Request(server.JetStreamDeleteStream, []byte(s.Name()), Timeout)
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamDeleteStreamT, s.Name()), nil, Timeout)
 	if err != nil {
 		return err
 	}
@@ -335,7 +335,7 @@ func (s *Stream) Delete() error {
 
 // Purge deletes all messages from the Stream
 func (s *Stream) Purge() error {
-	response, err := nc.Request(server.JetStreamPurgeStream, []byte(s.Name()), Timeout)
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamPurgeStreamT, s.Name()), nil, Timeout)
 	if err != nil {
 		return err
 	}
@@ -369,7 +369,7 @@ func (s *Stream) LoadMessage(seq int) (msg server.StoredMsg, err error) {
 
 // DeleteMessage deletes a specific message from the Stream
 func (s *Stream) DeleteMessage(seq int) (err error) {
-	response, err := nc.Request(server.JetStreamDeleteMsg, []byte(s.Name()+" "+strconv.Itoa(seq)), Timeout)
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamDeleteMsgT, s.Name()), []byte(strconv.Itoa(seq)), Timeout)
 	if err != nil {
 		return err
 	}
