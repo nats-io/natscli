@@ -73,7 +73,7 @@ func NewStreamFromTemplate(name string, template server.StreamConfig, opts ...St
 		return nil, err
 	}
 
-	response, err := nc.Request(server.JetStreamCreateStream, jreq, Timeout)
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamCreateStreamT, name), jreq, Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +349,7 @@ func (s *Stream) Purge() error {
 
 // LoadMessage loads a message from the message set by its sequence number
 func (s *Stream) LoadMessage(seq int) (msg server.StoredMsg, err error) {
-	response, err := nc.Request(server.JetStreamMsgBySeqPre+"."+s.Name(), []byte(strconv.Itoa(seq)), Timeout)
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamMsgBySeqT, s.Name()), []byte(strconv.Itoa(seq)), Timeout)
 	if err != nil {
 		return server.StoredMsg{}, err
 	}

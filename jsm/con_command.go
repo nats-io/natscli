@@ -556,13 +556,9 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsch.Consumer) (err error) {
 	_, err = consumer.Subscribe(func(m *nats.Msg) {
 		var msginfo *jsch.MsgInfo
 		var err error
-		wantsAck := false
 
-		if strings.HasPrefix(m.Reply, api.JetStreamAckPre) {
-			wantsAck = true
-			msginfo, err = jsch.ParseJSMsgMetadata(m)
-			kingpin.FatalIfError(err, "could not parse JetStream metadata")
-		}
+		msginfo, err = jsch.ParseJSMsgMetadata(m)
+		kingpin.FatalIfError(err, "could not parse JetStream metadata")
 
 		if !c.raw {
 			if msginfo != nil {
@@ -579,7 +575,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsch.Consumer) (err error) {
 			fmt.Println(string(m.Data))
 		}
 
-		if wantsAck && c.ack {
+		if c.ack {
 			err = m.Respond(nil)
 			if err != nil {
 				fmt.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)

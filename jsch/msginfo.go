@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
 
@@ -57,12 +56,13 @@ func ParseJSMsgMetadata(m *nats.Msg) (info *MsgInfo, err error) {
 		return nil, fmt.Errorf("reply subject is not an Ack")
 	}
 
-	if !strings.HasPrefix(m.Reply, server.JetStreamAckPre) {
-		return nil, fmt.Errorf("reply subject is not an Ack")
-	}
-
 	parts := strings.Split(m.Reply, ".")
 	c := len(parts)
+
+	if c != 7 || parts[0] != "$JS" || parts[1] != "ACK" {
+		return nil, fmt.Errorf("message metadata does not appear to be an ACK")
+	}
+
 	stream := parts[c-5]
 	consumer := parts[c-4]
 	delivered, _ := strconv.Atoi(parts[c-3])
