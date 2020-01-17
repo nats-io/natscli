@@ -51,6 +51,7 @@ func startJSServer(t *testing.T) (*natsd.Server, *nats.Conn) {
 		t.Error("nats server did not start")
 	}
 
+	// nc, err := nats.Connect("localhost")
 	nc, err := nats.Connect(s.ClientURL())
 	if err != nil {
 		t.Fatalf("client start failed: %s", err)

@@ -117,7 +117,7 @@ func JetStreamAccountInfo() (info server.JetStreamAccountStats, err error) {
 func StreamNames() (streams []string, err error) {
 	streams = []string{}
 
-	response, err := nc.Request(server.JetStreamStreams, nil, Timeout)
+	response, err := nc.Request(server.JetStreamListStreams, nil, Timeout)
 	if err != nil {
 		return streams, err
 	}
@@ -140,7 +140,7 @@ func StreamNames() (streams []string, err error) {
 func ConsumerNames(stream string) (consumers []string, err error) {
 	consumers = []string{}
 
-	response, err := nc.Request(server.JetStreamConsumers, []byte(stream), Timeout)
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamConsumersT, stream), nil, Timeout)
 	if err != nil {
 		return consumers, err
 	}
