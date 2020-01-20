@@ -36,8 +36,8 @@ func main() {
 	jsm.Version(version)
 	jsm.HelpFlag.Short('h')
 
-	jsm.Flag("server", "NATS servers").Short('s').Default("localhost:4222").Envar("SERVERS").StringVar(&servers)
-	jsm.Flag("creds", "User credentials").StringVar(&creds)
+	jsm.Flag("server", "NATS servers").Short('s').Default("localhost:4222").Envar("NATS_URL").StringVar(&servers)
+	jsm.Flag("creds", "User credentials").Envar("NATS_CREDS").StringVar(&creds)
 	jsm.Flag("tlscert", "TLS public certificate").ExistingFileVar(&tlsCert)
 	jsm.Flag("tlskey", "TLS private key").ExistingFileVar(&tlsCert)
 	jsm.Flag("tlsca", "TLS certificate authority chain").ExistingFileVar(&tlsCA)
