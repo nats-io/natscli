@@ -51,6 +51,8 @@ dockers:
       - "synadia/jsm:{{.Version}}"
     extra_files:
       - README.md
+      - ngs-server.conf
+      - entrypoint.sh
 
 checksum:
   name_template: "SHA256SUMS"

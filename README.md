@@ -161,18 +161,49 @@ The `synadia/jsm:latest` docker image contains both the JetStream enabled NATS S
 In one window start JetStream:
 
 ```
-$ docker run -ti --rm --entrypoint /nats-server --name js synadia/jsm:latest -js -D
+$ docker run -ti --name jetstream synadia/jsm:latest server
+[1] 2020/01/20 12:44:11.752465 [INF] Starting nats-server version 2.2.0-beta
+[1] 2020/01/20 12:44:11.752694 [INF] Git commit [19dc3eb]
+[1] 2020/01/20 12:44:11.752875 [INF] Starting JetStream
+[1] 2020/01/20 12:44:11.753692 [INF] ----------- JETSTREAM (Beta) -----------
+[1] 2020/01/20 12:44:11.753794 [INF]   Max Memory:      1.46 GB
+[1] 2020/01/20 12:44:11.753822 [INF]   Max Storage:     1.00 TB
+[1] 2020/01/20 12:44:11.753860 [INF]   Store Directory: "/tmp/jetstream"
+[1] 2020/01/20 12:44:11.753893 [INF] ----------------------------------------
+[1] 2020/01/20 12:44:11.753988 [INF] JetStream state for account "$G" recovered
+[1] 2020/01/20 12:44:11.754148 [INF] Listening for client connections on 0.0.0.0:4222
+[1] 2020/01/20 12:44:11.754279 [INF] Server id is NDYX5IMGF2YLX6RC4WLZA7T3JGHPZR2RNCCIFUQBT6C4TP27Z6ZIC73V
+[1] 2020/01/20 12:44:11.754308 [INF] Server is ready
 ```
 
 And in another log into the utilities:
 
 ```
-$ docker exec -ti -e NATS_URL=localhost js sh -l
+$ docker run -ti --link jetstream synadia/jsm:latest
 ```
 
 This shell has the `jsm` utility and all other NATS cli tools used in the rest of this guide.
 
 Now skip to the `Administer JetStream` section.
+
+### Using Docker with NGS
+
+You can join a JetStream instance to your [NGS](https://synadia.com/ngs/pricing) account, first we need a credential for testing JetStream:
+
+```
+$ nsc add user -a YourAccount --name leafnode --expiry 1M
+```
+
+You'll get a credential file somewhere like `~/.nkeys/creds/synadia/YourAccount/leafnode.creds`, mount this file into the docker container for JetStream using `-v ~/.nkeys/creds/synadia/YourAccount/leafnode.creds:/leafnode.creds`.
+
+```
+$ docker run -ti -v ~/.nkeys/creds/synadia/YourAccount/leafnode.creds:/leafnode.creds --name jetstream synadia/jsm:latest server
+[1] 2020/01/20 12:44:11.752465 [INF] Starting nats-server version 2.2.0-beta
+...
+[1] 2020/01/20 12:55:01.849033 [INF] Connected leafnode to "connect.ngs.global"
+```
+
+Your JSM shell will still connect locally, other connections in your NGS account can use JetStream at this point.
 
 ### Using Source
 
@@ -810,6 +841,17 @@ State:
 
 Having now Acked the message there are no more pending.
 
+Additionally there are a few types of acknowledgements:
+
+|Type|Bytes|Description|
+|----|-----|-----------|
+|`AckAck`|nil, `OK`|Acknowledges a message was completely handled|
+|`AckNak`|`-NAK`|Signals that the message will not be processed now and processing can move onto the next message, NAK'd message will be retried|
+|`AckProgress`|`+WPI`|When sent before the AckWait period indicates that work is ongoing and the period should be extended by another equal to `AckWait`|
+|`AckNext`|`+NXT`|Acknowledges the message was handled and requests delivery of the next message to the reply subject. Only applies to Pull-mode.|
+
+So far all the examples was the `AckAck` type of acknowledgement, by replying to the Ack with the body as indicated in `Bytes` you can pick what mode of acknowledgement you want.
+
 ### Consumer Starting Position
 
 When setting up an Consumer you can decide where to start, the system supports the following:
@@ -1062,7 +1104,7 @@ Subjects that and in `T` like `server.JetStreamCreateConsumerT` are formats and 
 
 #### ACLs
 
-It's hard to notice here but there is a clear pattern in these subjects, lets look at a set of expanded subjects for our `ORDERS` Stream.
+It's hard to notice here but there is a clear pattern in these subjects, lets look at the various JetStream related subjects:
 
 General information
 
@@ -1094,7 +1136,7 @@ $JS.STREAM.<stream>.MSG.BYSEQ
 $JS.A.<stream>.<consumer>.x.x.x
 ```
 
-This allow you to easily create ACL rules to limit users to a specific Stream or Consumer and to specific verbs for administration purposes. For ensuring only the receiver of a message can Ack it we have response permissions ensuring you can only Publish to Response subject for messages you received.
+This allow you to easily create ACL rules that limit users to a specific Stream or Consumer and to specific verbs for administration purposes. For ensuring only the receiver of a message can Ack it we have response permissions ensuring you can only Publish to Response subject for messages you received.
 
 ### Acknowledging Messages
 
