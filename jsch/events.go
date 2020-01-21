@@ -34,7 +34,8 @@ func SchemaForEvent(e []byte) (schema string, err error) {
 	return sd.Schema, nil
 }
 
-// ParseEvent parses event e and returns event as for example *server.ConsumerAckMetric
+// ParseEvent parses event e and returns event as for example *server.ConsumerAckMetric, all unknown
+// event schemas will be of type *UnknownEvent
 func ParseEvent(e []byte) (schema string, event interface{}, err error) {
 	schema, err = SchemaForEvent(e)
 	if err != nil {
@@ -43,7 +44,7 @@ func ParseEvent(e []byte) (schema string, event interface{}, err error) {
 
 	gf, ok := schemaTypes[schema]
 	if !ok {
-		gf = func() interface{} { return &UnknownEvent{} }
+		gf = schemaTypes["io.nats.unknown_event"]
 	}
 
 	event = gf()
