@@ -1022,7 +1022,7 @@ Listening for Metrics on $JS.EVENT.METRIC.*.ORDERS.NEW
 ```
 
 ```nohighlight
-$ jsm con sample ORDERS NEW --json
+$ jsm con events ORDERS NEW --json
 {
   "stream": "ORDERS",
   "consumer": "NEW",
