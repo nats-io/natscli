@@ -381,6 +381,16 @@ func (s *Stream) DeleteMessage(seq int) (err error) {
 	return nil
 }
 
+// AdvisorySubject is a wildcard subscription subject that subscribes to all advisories for this stream
+func (s *Stream) AdvisorySubject() string {
+	return server.JetStreamAdvisoryPrefix + "." + "*" + "." + s.Name() + ".*"
+}
+
+// MetricSubject is a wildcard subscription subject that subscribes to all advisories for this stream
+func (s *Stream) MetricSubject() string {
+	return server.JetStreamMetricPrefix + "." + "*" + "." + s.Name() + ".*"
+}
+
 func (s *Stream) Configuration() server.StreamConfig { return s.cfg }
 func (s *Stream) Name() string                       { return s.cfg.Name }
 func (s *Stream) Subjects() []string                 { return s.cfg.Subjects }

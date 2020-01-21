@@ -41,7 +41,7 @@ func TestNewConsumer(t *testing.T) {
 	}
 }
 
-func TestNewConsumerFromTemplate(t *testing.T) {
+func TestNewConsumerFromTemplateDurable(t *testing.T) {
 	srv, nc, _ := setupConsumerTest(t)
 	defer srv.Shutdown()
 	defer nc.Flush()
@@ -60,6 +60,32 @@ func TestNewConsumerFromTemplate(t *testing.T) {
 
 	if !consumer.IsSampled() {
 		t.Fatal("expected a sampled consumer")
+	}
+}
+
+func TestNewConsumerFromTemplateEphemeral(t *testing.T) {
+	srv, nc, _ := setupConsumerTest(t)
+	defer srv.Shutdown()
+	defer nc.Flush()
+
+	// interest is needed
+	nc.Subscribe("out", func(_ *nats.Msg) {})
+
+	consumer, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.SampledDefaultConsumer, jsch.DeliverySubject("out"), jsch.FilterStreamBySubject("ORDERS.new"))
+	checkErr(t, err, "create failed")
+
+	consumers, err := jsch.ConsumerNames("ORDERS")
+	checkErr(t, err, "consumer list failed")
+	if len(consumers) != 1 {
+		t.Fatalf("expected 1 consumer got %v", consumers)
+	}
+
+	if consumer.Name() != consumers[0] {
+		t.Fatalf("incorrect consumer name '%s' expected '%s'", consumer.Name(), consumers[0])
+	}
+
+	if consumer.IsDurable() {
+		t.Fatalf("expected ephemeral consumer got durable")
 	}
 }
 
@@ -174,15 +200,15 @@ func TestConsumer_SampleSubject(t *testing.T) {
 	consumer, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"))
 	checkErr(t, err, "create failed")
 
-	if consumer.SampleSubject() != "$JS.CONSUMER.ACKSAMPLE.ORDERS.NEW" {
-		t.Fatalf("expected next subject got %s", consumer.SampleSubject())
+	if consumer.AckSampleSubject() != "$JS.EVENT.METRIC.CONSUMER_ACK.ORDERS.NEW" {
+		t.Fatalf("expected next subject got %s", consumer.AckSampleSubject())
 	}
 
 	unsampled, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DurableName("UNSAMPLED"))
 	checkErr(t, err, "create failed")
 
-	if unsampled.SampleSubject() != "" {
-		t.Fatalf("expected empty next subject got %s", consumer.SampleSubject())
+	if unsampled.AckSampleSubject() != "" {
+		t.Fatalf("expected empty next subject got %s", consumer.AckSampleSubject())
 	}
 }
 

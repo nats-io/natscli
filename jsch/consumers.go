@@ -63,25 +63,64 @@ func NewConsumerFromTemplate(stream string, template server.ConsumerConfig, opts
 		Config: cfg,
 	}
 
-	jreq, err := json.Marshal(req)
+	var createdName string
+
+	switch req.Config.Durable {
+	case "":
+		createdName, err = createEphemeralConsumer(req)
+	default:
+		createdName, err = createDurableConsumer(req)
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	response, err := nc.Request(fmt.Sprintf(server.JetStreamCreateConsumerT, stream), jreq, Timeout)
+	if createdName == "" {
+		return nil, fmt.Errorf("expected a consumer name but non were generated")
+	}
+
+	return LoadConsumer(stream, createdName)
+}
+
+func createDurableConsumer(request server.CreateConsumerRequest) (name string, err error) {
+	jreq, err := json.Marshal(request)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	if !strings.HasPrefix(string(response.Data), server.OK) {
-		return nil, fmt.Errorf("%s", string(response.Data))
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamCreateConsumerT, request.Stream, request.Config.Durable), jreq, Timeout)
+	if err != nil {
+		return "", err
 	}
 
-	if cfg.Durable != "" {
-		return LoadConsumer(stream, cfg.Durable)
+	if IsErrorResponse(response) {
+		return "", fmt.Errorf("%s", string(response.Data))
 	}
 
-	return nil, nil
+	return request.Config.Durable, nil
+}
+
+func createEphemeralConsumer(request server.CreateConsumerRequest) (name string, err error) {
+	jreq, err := json.Marshal(request)
+	if err != nil {
+		return "", err
+	}
+
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamCreateEphemeralConsumerT, request.Stream), jreq, Timeout)
+	if err != nil {
+		return "", err
+	}
+
+	if IsErrorResponse(response) {
+		return "", fmt.Errorf("%s", string(response.Data))
+	}
+
+	parts := strings.Split(string(response.Data), " ")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid ephemeral OK response from server: %q", response.Data)
+	}
+
+	return parts[1], nil
 }
 
 // NewConsumer creates a consumer based on DefaultConsumer modified by opts
@@ -299,13 +338,23 @@ func (c *Consumer) NextSubject() string {
 	return fmt.Sprintf(server.JetStreamRequestNextT, c.stream, c.name)
 }
 
-// SampleSubject is the subject used to publish ack samples to
-func (c *Consumer) SampleSubject() string {
+// AckSampleSubject is the subject used to publish ack samples to
+func (c *Consumer) AckSampleSubject() string {
 	if c.SampleFrequency() == "" {
 		return ""
 	}
 
-	return server.JetStreamConsumerAckSamplePre + "." + c.StreamName() + "." + c.name
+	return server.JetStreamMetricConsumerAckPre + "." + c.StreamName() + "." + c.name
+}
+
+// AdvisorySubject is a wildcard subscription subject that subscribes to all advisories for this consumer
+func (c *Consumer) AdvisorySubject() string {
+	return server.JetStreamAdvisoryPrefix + "." + "*" + "." + c.StreamName() + "." + c.name
+}
+
+// MetricSubject is a wildcard subscription subject that subscribes to all metrics for this consumer
+func (c *Consumer) MetricSubject() string {
+	return server.JetStreamMetricPrefix + "." + "*" + "." + c.StreamName() + "." + c.name
 }
 
 // Subscribe see nats.Subscribe

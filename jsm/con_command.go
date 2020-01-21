@@ -15,7 +15,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -100,50 +99,90 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consNext.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
 
-	consSample := cons.Command("sample", "View samples for a Consumer").Action(c.sampleAction)
+	consSample := cons.Command("events", "View events for a Consumer").Action(c.eventsAction)
 	consSample.Arg("stream", "Stream name").StringVar(&c.stream)
 	consSample.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consSample.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 }
 
-func (c *consumerCmd) sampleAction(_ *kingpin.ParseContext) error {
+func (c *consumerCmd) eventsAction(_ *kingpin.ParseContext) error {
 	c.connectAndSetup(true, true)
 
 	consumer, err := jsch.LoadConsumer(c.stream, c.consumer)
 	kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
 
-	if !consumer.IsSampled() {
-		kingpin.Fatalf("Sampling is not configured for Consumer %s > %s", c.stream, c.consumer)
-	}
-
 	if !c.json {
-		fmt.Printf("Listening for Ack Samples on %s with sampling frequency %s for %s > %s \n\n", consumer.SampleSubject(), consumer.SampleFrequency(), c.stream, c.consumer)
+		fmt.Printf("Listening for Advisories on %s\n", consumer.AdvisorySubject())
+		fmt.Printf("Listening for Metrics on %s\n\n", consumer.MetricSubject())
 	}
 
-	jsch.NATSConn().Subscribe(consumer.SampleSubject(), func(m *nats.Msg) {
-		if c.json {
-			fmt.Println(string(m.Data))
-			return
-		}
+	jsch.NATSConn().Subscribe(consumer.MetricSubject(), func(m *nats.Msg) {
+		c.renderMetric(m)
+	})
 
-		sample := api.ConsumerAckEvent{}
-		err := json.Unmarshal(m.Data, &sample)
-		if err != nil {
-			fmt.Printf("Sample failed to parse: %s\n", err)
-			return
-		}
-
-		fmt.Printf("[%s] %s > %s\n", time.Now().Format("15:04:05"), sample.Stream, sample.Consumer)
-		fmt.Printf("       Stream Sequence: %d\n", sample.StreamSeq)
-		fmt.Printf("     Consumer Sequence: %d\n", sample.ConsumerSeq)
-		fmt.Printf("            Deliveries: %d\n", sample.Deliveries)
-		fmt.Printf("                 Delay: %v\n", time.Duration(sample.Delay))
-		fmt.Println()
+	jsch.NATSConn().Subscribe(consumer.AdvisorySubject(), func(m *nats.Msg) {
+		c.renderAdvisory(m)
 	})
 
 	<-context.Background().Done()
 
 	return nil
+}
+
+func (c *consumerCmd) renderAdvisory(m *nats.Msg) {
+	if c.json {
+		fmt.Println(string(m.Data))
+		return
+	}
+
+	_, event, err := jsch.ParseEvent(m.Data)
+	if err != nil {
+		fmt.Println(string(m.Data))
+		return
+	}
+
+	switch event := event.(type) {
+	case *api.ConsumerDeliveryExceededAdvisory:
+		fmt.Printf("[%s] [%s] Delivery Attempts Exceeded\n", time.Unix(0, event.Time).Format("15:04:05"), event.ID)
+		fmt.Printf("  Stream Sequence: %d\n", event.StreamSeq)
+		fmt.Printf("       Deliveries: %d\n", event.Deliveries)
+		fmt.Println()
+
+	case *jsch.UnknownEvent:
+		fmt.Println(string(m.Data))
+
+	default:
+		fmt.Println(string(m.Data))
+	}
+}
+
+func (c *consumerCmd) renderMetric(m *nats.Msg) {
+	if c.json {
+		fmt.Println(string(m.Data))
+		return
+	}
+
+	_, event, err := jsch.ParseEvent(m.Data)
+	if err != nil {
+		fmt.Println(string(m.Data))
+		return
+	}
+
+	switch event := event.(type) {
+	case *api.ConsumerAckMetric:
+		fmt.Printf("[%s] [%s] Acknowledgement Sample\n", time.Unix(0, event.Time).Format("15:04:05"), event.ID)
+		fmt.Printf("       Stream Sequence: %d\n", event.StreamSeq)
+		fmt.Printf("     Consumer Sequence: %d\n", event.ConsumerSeq)
+		fmt.Printf("            Deliveries: %d\n", event.Deliveries)
+		fmt.Printf("                 Delay: %v\n", time.Duration(event.Delay))
+		fmt.Println()
+
+	case *jsch.UnknownEvent:
+		fmt.Println(string(m.Data))
+
+	default:
+		fmt.Println(string(m.Data))
+	}
 }
 
 func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
@@ -505,14 +544,10 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		cfg.MaxDeliver = c.maxDeliver
 	}
 
-	_, err = jsch.NewConsumerFromTemplate(c.stream, *cfg)
+	created, err := jsch.NewConsumerFromTemplate(c.stream, *cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed: ")
 
-	if c.ephemeral {
-		return nil
-	}
-
-	c.consumer = cfg.Durable
+	c.consumer = created.Name()
 
 	return c.infoAction(pc)
 }
