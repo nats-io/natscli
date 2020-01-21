@@ -46,6 +46,7 @@ func main() {
 	configureActCommand(jsm)
 	configureStreamCommand(jsm)
 	configureConsumerCommand(jsm)
+	configureEventsCommand(jsm)
 
 	kingpin.MustParse(jsm.Parse(os.Args[1:]))
 }
