@@ -19,6 +19,7 @@ type schemaDetector struct {
 var schemaTypes = map[string]func() interface{}{
 	"io.nats.jetstream.metric.v1.consumer_ack":  func() interface{} { return &server.ConsumerAckMetric{} },
 	"io.nats.jetstream.advisory.v1.max_deliver": func() interface{} { return &server.ConsumerDeliveryExceededAdvisory{} },
+	"io.nats.jetstream.advisory.v1.api_audit":   func() interface{} { return &server.JetStreamAPIAudit{} },
 	"io.nats.unknown_event":                     func() interface{} { return &UnknownEvent{} },
 }
 
