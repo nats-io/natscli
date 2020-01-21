@@ -1006,19 +1006,19 @@ $ jsm con info ORDERS NEW
 
 #### Consuming
 
-Samples are published to `$JS.CONSUMER.ACKSAMPLE.<stream name>.<consumer name>` in JSON format containing `server.ConsumerAckEvent`. Use the `jsm con sample` command to view samples:
+Samples are published to `$JS.EVENT.METRIC.CONSUMER_ACK.<stream>.<consumer>` in JSON format containing `server.server.JetStreamMetricConsumerAckPre`. Use the `jsm con events` command to view samples:
 
 ```nohighlight
-$ jsm con sample
-? Select a Stream ORDERS
-? Select an Consumer NEW
-Listening for Ack Samples on $JS.CONSUMER.ACKSAMPLE.ORDERS.NEW with sampling frequency 100 for ORDERS > NEW 
+$ jsm con events ORDERS NEW
+Listening for Advisories on $JS.EVENT.ADVISORY.*.ORDERS.NEW
+Listening for Metrics on $JS.EVENT.METRIC.*.ORDERS.NEW
 
-[16:10:13] ORDERS > NEW
-  Stream Sequence: 142
-   Consumer Sequence: 154
-           Redelivered: 1
-                 Delay: 5.1684ms
+15:08:31] [Ph0fsiOKRg1TS0c2k0mMz2] Acknowledgement Sample
+             Consumer: ORDERS > NEW
+      Stream Sequence: 40
+    Consumer Sequence: 161
+           Deliveries: 1
+                Delay: 1.009ms
 ```
 
 ```nohighlight
@@ -1123,9 +1123,10 @@ $JS.STREAM.<stream>.DELETE
 $JS.STREAM.<stream>.PURGE
 $JS.STREAM.<stream>.CONSUMERS
 $JS.STREAM.<stream>.MSG.DELETE
-$JS.STREAM.<stream>.CONSUMER.CREATE
+$JS.STREAM.<stream>.CONSUMER.<consumer>.CREATE
 $JS.STREAM.<stream>.CONSUMER.<consumer>.INFO
 $JS.STREAM.<stream>.CONSUMER.<consumer>.DELETE
+$JS.STREAM.<stream>.EPHEMERAL.CONSUMER.CREATE
 ```
 
 Stream and Consumer Use
@@ -1134,6 +1135,13 @@ Stream and Consumer Use
 $JS.STREAM.<stream>.CONSUMER.<consumer>.NEXT
 $JS.STREAM.<stream>.MSG.BYSEQ
 $JS.A.<stream>.<consumer>.x.x.x
+```
+
+Events and Advisories:
+
+```
+$JS.EVENT.METRIC.CONSUMER_ACK.<stream>.<consumer>
+$JS.EVENT.ADVISORY.MAX_DELIVERIES.<stream>.<consumer>
 ```
 
 This allow you to easily create ACL rules that limit users to a specific Stream or Consumer and to specific verbs for administration purposes. For ensuring only the receiver of a message can Ack it we have response permissions ensuring you can only Publish to Response subject for messages you received.
@@ -1174,7 +1182,7 @@ The Subject shows where the message was received, Data is base64 encoded and Tim
 
 ### Consumer Samples
 
-Samples are published to a specific subject per Consumer, something like `$JS.CONSUMER.ACKSAMPLE.<stream>.<consumer name>` you can just subscribe to that and get `server.ConsumerAckEvent` messages in JSON format.  The prefix is defined in `server.JetStreamConsumerAckSamplePre`.
+Samples are published to a specific subject per Consumer, something like `$JS.EVENT.METRIC.CONSUMER_ACK.<stream>.<consumer>` you can just subscribe to that and get `server.ConsumerAckEvent` messages in JSON format.  The prefix is defined in `server.JetStreamMetricConsumerAckPre`.
 
 ## Next Steps
 

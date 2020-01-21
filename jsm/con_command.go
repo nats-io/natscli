@@ -144,12 +144,10 @@ func (c *consumerCmd) renderAdvisory(m *nats.Msg) {
 	switch event := event.(type) {
 	case *api.ConsumerDeliveryExceededAdvisory:
 		fmt.Printf("[%s] [%s] Delivery Attempts Exceeded\n", time.Unix(0, event.Time).Format("15:04:05"), event.ID)
+		fmt.Printf("         Consumer: %s > %s\n", event.Stream, event.Consumer)
 		fmt.Printf("  Stream Sequence: %d\n", event.StreamSeq)
 		fmt.Printf("       Deliveries: %d\n", event.Deliveries)
 		fmt.Println()
-
-	case *jsch.UnknownEvent:
-		fmt.Println(string(m.Data))
 
 	default:
 		fmt.Println(string(m.Data))
@@ -171,14 +169,12 @@ func (c *consumerCmd) renderMetric(m *nats.Msg) {
 	switch event := event.(type) {
 	case *api.ConsumerAckMetric:
 		fmt.Printf("[%s] [%s] Acknowledgement Sample\n", time.Unix(0, event.Time).Format("15:04:05"), event.ID)
+		fmt.Printf("              Consumer: %s > %s\n", event.Stream, event.Consumer)
 		fmt.Printf("       Stream Sequence: %d\n", event.StreamSeq)
 		fmt.Printf("     Consumer Sequence: %d\n", event.ConsumerSeq)
 		fmt.Printf("            Deliveries: %d\n", event.Deliveries)
 		fmt.Printf("                 Delay: %v\n", time.Duration(event.Delay))
 		fmt.Println()
-
-	case *jsch.UnknownEvent:
-		fmt.Println(string(m.Data))
 
 	default:
 		fmt.Println(string(m.Data))
@@ -559,7 +555,13 @@ func (c *consumerCmd) getNextMsg(consumer *jsch.Consumer) error {
 	kingpin.FatalIfError(err, "could not load next message")
 
 	if !c.raw {
-		fmt.Printf("--- received on %s\n", msg.Subject)
+		info, err := jsch.ParseJSMsgMetadata(msg)
+		if err != nil {
+			fmt.Printf("--- subject: %s\n", msg.Subject)
+		} else {
+			fmt.Printf("--- subject: %s / delivered: %d / stream seq: %d / consumer seq: %d\n", msg.Subject, info.Delivered(), info.StreamSequence(), info.ConsumerSequence())
+		}
+
 		fmt.Println(string(msg.Data))
 	} else {
 		fmt.Println(string(msg.Data))
@@ -597,7 +599,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsch.Consumer) (err error) {
 
 		if !c.raw {
 			if msginfo != nil {
-				fmt.Printf("[%s] topic: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", time.Now().Format("15:04:05"), m.Subject, msginfo.Delivered(), msginfo.ConsumerSequence(), msginfo.StreamSequence())
+				fmt.Printf("[%s] subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", time.Now().Format("15:04:05"), m.Subject, msginfo.Delivered(), msginfo.ConsumerSequence(), msginfo.StreamSequence())
 			} else {
 				fmt.Printf("[%s] %s reply: %s\n", time.Now().Format("15:04:05"), m.Subject, m.Reply)
 			}

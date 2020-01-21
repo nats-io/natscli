@@ -6,7 +6,7 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 )
 
-type schemeDetector struct {
+type schemaDetector struct {
 	Schema string `json:"schema"`
 }
 
@@ -21,7 +21,7 @@ type UnknownEvent = map[string]interface{}
 
 // SchemaForEvent retrieves the schema token from an event
 func SchemaForEvent(e []byte) (schema string, err error) {
-	sd := &schemeDetector{}
+	sd := &schemaDetector{}
 	err = json.Unmarshal(e, sd)
 	if err != nil {
 		return "", err
