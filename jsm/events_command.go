@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -96,13 +98,13 @@ func (c *eventsCmd) renderAdvisory(m *nats.Msg) {
 		} else {
 			fmt.Printf("            Account: %s\n", event.Client.Account)
 		}
-		fmt.Printf("               Host: %s:%d\n", event.Client.Host, event.Client.Port)
+		fmt.Printf("               Host: %s\n", net.JoinHostPort(event.Client.Host, strconv.Itoa(event.Client.Port)))
 		fmt.Printf("                 ID: %d\n", event.Client.CID)
 		if event.Client.Name != "" {
-			fmt.Printf("              Name: %s\n", event.Client.Name)
+			fmt.Printf("               Name: %s\n", event.Client.Name)
 		}
 		if event.Client.Language != "" && event.Client.Version != "" {
-			fmt.Printf("           Lanuage: %s %s\n", event.Client.Language, event.Client.Version)
+			fmt.Printf("            Lanuage: %s %s\n", event.Client.Language, event.Client.Version)
 		}
 		fmt.Println()
 

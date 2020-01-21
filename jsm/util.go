@@ -207,7 +207,7 @@ func splitString(s string) []string {
 }
 
 func natsOpts() []nats.Option {
-	opts := []nats.Option{nats.Name("JetStream Management CLI"), nats.NoReconnect()}
+	opts := []nats.Option{nats.Name("JetStream Management CLI"), nats.MaxReconnects(-1)}
 	if creds != "" {
 		opts = append(opts, nats.UserCredentials(creds))
 	}
