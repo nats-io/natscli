@@ -10,14 +10,14 @@ import (
 )
 
 func TestSchemaForEvent(t *testing.T) {
-	s, err := jsch.SchemaForEvent([]byte(`{"schema":"io.nats.jetstream.metric.v1.consumer_ack"}`))
+	s, err := jsch.SchemaTokenForEvent([]byte(`{"schema":"io.nats.jetstream.metric.v1.consumer_ack"}`))
 	checkErr(t, err, "schema extract failed")
 
 	if s != "io.nats.jetstream.metric.v1.consumer_ack" {
 		t.Fatalf("expected io.nats.jetstream.metric.v1.consumer_ack got %s", s)
 	}
 
-	s, err = jsch.SchemaForEvent([]byte(`{}`))
+	s, err = jsch.SchemaTokenForEvent([]byte(`{}`))
 	checkErr(t, err, "schema extract failed")
 
 	if s != "io.nats.unknown_event" {
@@ -36,5 +36,36 @@ func TestParseEvent(t *testing.T) {
 	_, ok := e.(*server.ConsumerAckMetric)
 	if !ok {
 		t.Fatalf("expected ConsumerAckMetric got %v", reflect.TypeOf(e))
+	}
+}
+
+func TestSchemaURLForToken(t *testing.T) {
+	a, u, err := jsch.SchemaURLForToken("io.nats.jetstream.metric.v1.consumer_ack")
+	checkErr(t, err, "parse failed")
+
+	if a != "https://nats.io/schemas/jetstream/metric/v1/consumer_ack.json" {
+		t.Fatalf("expected . got %q", a)
+	}
+
+	if u.Host != "nats.io" || u.Scheme != "https" || u.Path != "/schemas/jetstream/metric/v1/consumer_ack.json" {
+		t.Fatalf("invalid url: %v", u.String())
+	}
+
+	_, _, err = jsch.SchemaURLForToken("jetstream.metric.v1.consumer_ack")
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
+func TestSchemaURLForEvent(t *testing.T) {
+	a, u, err := jsch.SchemaURLForEvent([]byte(`{"schema":"io.nats.jetstream.metric.v1.consumer_ack"}`))
+	checkErr(t, err, "parse failed")
+
+	if a != "https://nats.io/schemas/jetstream/metric/v1/consumer_ack.json" {
+		t.Fatalf("expected . got %q", a)
+	}
+
+	if u.Host != "nats.io" || u.Scheme != "https" || u.Path != "/schemas/jetstream/metric/v1/consumer_ack.json" {
+		t.Fatalf("invalid url: %v", u.String())
 	}
 }
