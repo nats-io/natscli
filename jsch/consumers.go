@@ -89,6 +89,10 @@ func createDurableConsumer(request server.CreateConsumerRequest) (name string, e
 	}
 
 	response, err := nc.Request(fmt.Sprintf(server.JetStreamCreateConsumerT, request.Stream, request.Config.Durable), jreq, Timeout)
+	if err != nil {
+		return "", err
+	}
+
 	if IsErrorResponse(response) {
 		return "", fmt.Errorf("%s", string(response.Data))
 	}
@@ -103,6 +107,10 @@ func createEphemeralConsumer(request server.CreateConsumerRequest) (name string,
 	}
 
 	response, err := nc.Request(fmt.Sprintf(server.JetStreamCreateEphemeralConsumerT, request.Stream), jreq, Timeout)
+	if err != nil {
+		return "", err
+	}
+
 	if IsErrorResponse(response) {
 		return "", fmt.Errorf("%s", string(response.Data))
 	}

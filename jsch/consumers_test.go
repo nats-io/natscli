@@ -75,6 +75,7 @@ func TestNewConsumerFromTemplateEphemeral(t *testing.T) {
 	checkErr(t, err, "create failed")
 
 	consumers, err := jsch.ConsumerNames("ORDERS")
+	checkErr(t, err, "consumer list failed")
 	if len(consumers) != 1 {
 		t.Fatalf("expected 1 consumer got %v", consumers)
 	}

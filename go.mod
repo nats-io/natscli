@@ -10,5 +10,6 @@ require (
 	github.com/nats-io/nats-server/v2 v2.1.3-0.20200120183457-48df38c01bbd
 	github.com/nats-io/nats.go v1.9.1
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
+	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
