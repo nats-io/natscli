@@ -1075,6 +1075,8 @@ All the admin actions the `jsm` CLI can do falls in the sections below.
 
 Subjects that and in `T` like `server.JetStreamCreateConsumerT` are formats and would need to have the Stream Name and in some cases also the Consumer name interpolated into them. In this case `t := fmt.Sprintf(server.JetStreamCreateConsumerT, streamName)` to get the final subject.
 
+The command `jsm events` will show you an audit log of all API access events which includes the full content of each admin request, use this to view the structure of messages the `jsm` command sends.
+
 #### General Info
 
 |subject|Description|Request Payload|Response Payload|

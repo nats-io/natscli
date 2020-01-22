@@ -367,7 +367,7 @@ func (s *Stream) LoadMessage(seq int) (msg server.StoredMsg, err error) {
 	return msg, nil
 }
 
-// DeleteMessage deletes a specific message from the Stream
+// DeleteMessage deletes a specific message from the Stream by overwriting it with random data
 func (s *Stream) DeleteMessage(seq int) (err error) {
 	response, err := nc.Request(fmt.Sprintf(server.JetStreamDeleteMsgT, s.Name()), []byte(strconv.Itoa(seq)), Timeout)
 	if err != nil {
