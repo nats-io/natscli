@@ -334,7 +334,7 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.MaxDeliver = c.maxDeliver
 	}
 
-	_, err = jsch.NewConsumerFromTemplate(c.stream, cfg)
+	_, err = jsch.NewConsumerFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed")
 
 	if cfg.Durable == "" {
@@ -459,7 +459,7 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		cfg.MaxDeliver = c.maxDeliver
 	}
 
-	created, err := jsch.NewConsumerFromTemplate(c.stream, *cfg)
+	created, err := jsch.NewConsumerFromDefault(c.stream, *cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed: ")
 
 	c.consumer = created.Name()

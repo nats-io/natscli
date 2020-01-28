@@ -78,6 +78,22 @@ func IsKnownStream(stream string) (bool, error) {
 	return false, nil
 }
 
+// IsKnownStreamTemplate determines if a StreamTemplate is known
+func IsKnownStreamTemplate(template string) (bool, error) {
+	templates, err := StreamTemplateNames()
+	if err != nil {
+		return false, err
+	}
+
+	for _, s := range templates {
+		if s == template {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // IsKnownConsumer determines if a Consumer is known for a specific Stream
 func IsKnownConsumer(stream string, consumer string) (bool, error) {
 	consumers, err := ConsumerNames(stream)
@@ -136,6 +152,29 @@ func StreamNames() (streams []string, err error) {
 	return streams, nil
 }
 
+// StreamTemplateNames is a sorted list of all known StreamTemplates
+func StreamTemplateNames() (templates []string, err error) {
+	templates = []string{}
+
+	response, err := nc.Request(server.JetStreamListTemplates, nil, Timeout)
+	if err != nil {
+		return templates, err
+	}
+
+	if IsErrorResponse(response) {
+		return templates, fmt.Errorf("%s", string(response.Data))
+	}
+
+	err = json.Unmarshal(response.Data, &templates)
+	if err != nil {
+		return templates, err
+	}
+
+	sort.Strings(templates)
+
+	return templates, nil
+}
+
 // ConsumerNames is a sorted list of all known Consumers within a Stream
 func ConsumerNames(stream string) (consumers []string, err error) {
 	consumers = []string{}
@@ -182,7 +221,7 @@ func EachStream(cb func(*Stream)) (err error) {
 //
 // TODO: I dont really think this kind of thing is a good idea, but its awfully verbose without it so I suspect we will need to cater for this
 func Subscribe(stream string, consumer string, cb func(*nats.Msg), template server.ConsumerConfig, opts ...ConsumerOption) (*nats.Subscription, error) {
-	c, err := LoadOrNewConsumerFromTemplate(stream, consumer, template, opts...)
+	c, err := LoadOrNewConsumerFromDefault(stream, consumer, template, opts...)
 	if err != nil {
 		return nil, err
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 // SchemasRepo is the repository holding NATS Schemas
-var SchemasRepo = "https://nats.io/schemas"
+var SchemasRepo = "https://raw.githubusercontent.com/nats-io/jetstream/master/schemas"
 
 type schemaDetector struct {
 	Schema string `json:"schema"`

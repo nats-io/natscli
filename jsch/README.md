@@ -25,22 +25,22 @@ Before anything you have to create a stream, the basic pattern is:
 stream, err := jsch.NewStream("ORDERS", jsch.Subjects("ORDERS.*"), jsch.MaxAge(24*365*time.Hour), jsch.FileStorage())
 ```
 
-This can get quite verbose so you might have a template configuration of your own chosing to create many similar Streams.
+This can get quite verbose so you might have a template configuration of your own choosing to create many similar Streams.
 
 ```go
 template, _ := jsch.NewStreamConfiguration(jsch.DefaultStream, jsch.MaxAge(24 * 365 * time.Hour), jsch.FileStorage())
 
-orders, _ := jsch.NewStreamFromTemplate("ORDERS", template, jsch.Subjects("ORDERS.*"))
-archive, _ := jsch.NewStreamFromTemplate("ARCHIVE", template, jsch.Subjects("ARCHIVE"), jsch.MaxAge(5*template.MaxAge))
+orders, _ := jsch.NewStreamFromDefault("ORDERS", template, jsch.Subjects("ORDERS.*"))
+archive, _ := jsch.NewStreamFromDefault("ARCHIVE", template, jsch.Subjects("ARCHIVE"), jsch.MaxAge(5*template.MaxAge))
 ```
 
-The `jsch.NewStream` uses `jsch.DefaultStream` as starting template.  We also have `jsch.DefaultWorkQueue` to help you with a sane starting point.
+The `jsch.NewStream` uses `jsch.DefaultStream` as starting defaults.  We also have `jsch.DefaultWorkQueue` to help you with a sane starting point.
 
 You can even copy Stream configurations this way (not content, just configuration), this creates `STAGING` using `ORDERS` config with a different set of subjects:
 
 ```go
 orders, err := jsch.NewStream("ORDERS", jsch.Subjects("ORDERS.*"), jsch.MaxAge(24*365*time.Hour), jsch.FileStorage())
-staging, err := jsch.NewStreamFromTemplate("STAGING", orders.Configuration(), jsch.Subjects("STAGINGORDERS.*"))
+staging, err := jsch.NewStreamFromDefault("STAGING", orders.Configuration(), jsch.Subjects("STAGINGORDERS.*"))
 ```
 
 ### Loading references to existing streams
@@ -54,14 +54,14 @@ orders, err := jsch.LoadStream("ORDERS")
 This will fail if the stream does not exist, create and load can be combined:
 
 ```go
-orders, err := jsch.LoadOrNewFromTemplate("ORDERS", template, jsch.Subjects("ORDERS.*"))
+orders, err := jsch.LoadOrNewFromDefault("ORDERS", template, jsch.Subjects("ORDERS.*"))
 ```
 
 This will create the Stream if it doesn't exist, else load the existing one - though no effort is made to ensure the loaded one matches the desired configuration in that case.
 
 ### Associated Consumers
 
-With a stream handle you can get lists of known Consumers using `stream.ConsumerNames()`, or create new Consumers within the stream using `stream.NewConsumer` and `stream.NewConsumerFromTemplate`. Consumers can also be loaded using `stream.LoadConsumer` and you can combine load and create using `stream.LoadOrNewConsumer` and `stream.LoadOrNewConsumerFromTemplate`.
+With a stream handle you can get lists of known Consumers using `stream.ConsumerNames()`, or create new Consumers within the stream using `stream.NewConsumer` and `stream.NewConsumerFromDefault`. Consumers can also be loaded using `stream.LoadConsumer` and you can combine load and create using `stream.LoadOrNewConsumer` and `stream.LoadOrNewConsumerFromDefault`.
 
 These methods just proxy to the Consumer specific ones which will be discussed below.
 
@@ -79,7 +79,7 @@ Above you saw that once you have a handle to a stream you can create and load co
 consumer, err := jsch.NewConsumer("ORDERS", "NEW", jsch.FilterSubject("ORDERS.received"), jsch.SampleFrequency("100"))
 ```
 
-Like with Streams we have `NewConsumerFromTemplate`, `LoadOrNewConsumer` and `LoadOrNewConsumerFromTemplate` and we supply 2 default templates to help you `DefaultConsumer` and `SampledDefaultConsumer`.
+Like with Streams we have `NewConsumerFromDefault`, `LoadOrNewConsumer` and `LoadOrNewConsumerFromDefault` and we supply 2 default default configurations to help you `DefaultConsumer` and `SampledDefaultConsumer`.
 
 Many options exist to set starting points, durability and more - everything that you will find in the `jsm` utility, review the godoc for full details.
 

@@ -81,7 +81,7 @@ func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn) {
 func setupConsTest(t *testing.T) (srv *server.Server, nc *nats.Conn) {
 	srv, nc = setupJStreamTest(t)
 
-	_, err := jsch.NewStreamFromTemplate("mem1", mem1Stream())
+	_, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -174,7 +174,7 @@ func TestCLIStreamInfo(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewStreamFromTemplate("mem1", mem1Stream())
+	_, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -194,7 +194,7 @@ func TestCLIStreamDelete(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewStreamFromTemplate("mem1", mem1Stream())
+	_, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create message stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -206,7 +206,7 @@ func TestCLIStreamLs(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewStreamFromTemplate("mem1", mem1Stream())
+	_, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -229,7 +229,7 @@ func TestCLIStreamPurge(t *testing.T) {
 	srv, nc := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	stream, err := jsch.NewStreamFromTemplate("mem1", mem1Stream())
+	stream, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -254,7 +254,7 @@ func TestCLIStreamGet(t *testing.T) {
 	srv, nc := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	stream, err := jsch.NewStreamFromTemplate("mem1", mem1Stream())
+	stream, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -279,7 +279,7 @@ func TestCLIConsumerInfo(t *testing.T) {
 	srv, _ := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewConsumerFromTemplate("mem1", pull1Cons())
+	_, err := jsch.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, "mem1", "push1")
 
@@ -297,7 +297,7 @@ func TestCLIConsumerLs(t *testing.T) {
 	srv, _ := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewConsumerFromTemplate("mem1", pull1Cons())
+	_, err := jsch.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, "mem1", "push1")
 
@@ -319,7 +319,7 @@ func TestCLIConsumerDelete(t *testing.T) {
 	srv, _ := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewConsumerFromTemplate("mem1", pull1Cons())
+	_, err := jsch.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, "mem1", "push1")
 
@@ -344,7 +344,7 @@ func TestCLIConsumerNext(t *testing.T) {
 	srv, nc := setupConsTest(t)
 	defer srv.Shutdown()
 
-	push1, err := jsch.NewConsumerFromTemplate("mem1", pull1Cons())
+	push1, err := jsch.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, "mem1", "push1")
 
@@ -367,7 +367,7 @@ func TestCLIStreamCopy(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewStreamFromTemplate("mem1", mem1Stream())
+	_, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -387,7 +387,7 @@ func TestCLIConsumerCopy(t *testing.T) {
 	srv, _ := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewConsumerFromTemplate("mem1", pull1Cons())
+	_, err := jsch.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, "mem1", "push1")
 

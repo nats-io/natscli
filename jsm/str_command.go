@@ -216,7 +216,7 @@ func (c *streamCmd) cpAction(pc *kingpin.ParseContext) error {
 		cfg.MaxMsgSize = c.maxMsgSize
 	}
 
-	_, err = jsch.NewStreamFromTemplate(cfg.Name, cfg)
+	_, err = jsch.NewStreamFromDefault(cfg.Name, cfg)
 	kingpin.FatalIfError(err, "could not create Stream")
 
 	fmt.Printf("Stream %s was created\n\n", c.stream)
@@ -388,7 +388,7 @@ func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 	_, err = prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "could not create Stream")
 
-	_, err = jsch.NewStreamFromTemplate(c.stream, api.StreamConfig{
+	_, err = jsch.NewStreamFromDefault(c.stream, api.StreamConfig{
 		Name:         c.stream,
 		Subjects:     c.subjects,
 		MaxMsgs:      c.maxMsgLimit,

@@ -51,9 +51,9 @@ type Consumer struct {
 	cfg    server.ConsumerConfig
 }
 
-// NewConsumerFromTemplate creates a new consumer based on a template config that gets modified by opts
-func NewConsumerFromTemplate(stream string, template server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
-	cfg, err := NewConsumerConfiguration(template, opts...)
+// NewConsumerFromDefault creates a new consumer based on a template config that gets modified by opts
+func NewConsumerFromDefault(stream string, dflt server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
+	cfg, err := NewConsumerConfiguration(dflt, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -125,19 +125,19 @@ func createEphemeralConsumer(request server.CreateConsumerRequest) (name string,
 
 // NewConsumer creates a consumer based on DefaultConsumer modified by opts
 func NewConsumer(stream string, opts ...ConsumerOption) (consumer *Consumer, err error) {
-	return NewConsumerFromTemplate(stream, DefaultConsumer, opts...)
+	return NewConsumerFromDefault(stream, DefaultConsumer, opts...)
 }
 
 // LoadOrNewConsumer loads a consumer by name if known else creates a new one with these properties
 func LoadOrNewConsumer(stream string, name string, opts ...ConsumerOption) (consumer *Consumer, err error) {
-	return LoadOrNewConsumerFromTemplate(stream, name, DefaultConsumer, opts...)
+	return LoadOrNewConsumerFromDefault(stream, name, DefaultConsumer, opts...)
 }
 
-// LoadOrNewConsumerFromTemplate loads a consumer by name if known else creates a new one with these properties based on template
-func LoadOrNewConsumerFromTemplate(stream string, name string, template server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
+// LoadOrNewConsumerFromDefault loads a consumer by name if known else creates a new one with these properties based on template
+func LoadOrNewConsumerFromDefault(stream string, name string, template server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
 	c, err := LoadConsumer(stream, name)
 	if c == nil || err != nil {
-		return NewConsumerFromTemplate(stream, template, opts...)
+		return NewConsumerFromDefault(stream, template, opts...)
 	}
 
 	return c, err
@@ -159,15 +159,15 @@ func LoadConsumer(stream string, name string) (consumer *Consumer, err error) {
 }
 
 // NewConsmerConfiguration generates a new configuration based on template modified by opts
-func NewConsumerConfiguration(template server.ConsumerConfig, opts ...ConsumerOption) (server.ConsumerConfig, error) {
+func NewConsumerConfiguration(dflt server.ConsumerConfig, opts ...ConsumerOption) (server.ConsumerConfig, error) {
 	for _, o := range opts {
-		err := o(&template)
+		err := o(&dflt)
 		if err != nil {
-			return template, err
+			return dflt, err
 		}
 	}
 
-	return template, nil
+	return dflt, nil
 }
 
 func loadConfigForConsumer(consumer *Consumer) (err error) {
