@@ -112,7 +112,7 @@ func configureStreamCommand(app *kingpin.Application) {
 
 	strTAdd := strTemplate.Command("create", "Creates a new Stream Template").Alias("add").Alias("new").Action(c.streamTemplateAdd)
 	strTAdd.Arg("stream", "Template name").StringVar(&c.stream)
-	strTAdd.Arg("max-streams", "Maximum amount of streams that this template can generate").Default("-1").IntVar(&c.maxStreams)
+	strTAdd.Flag("max-streams", "Maximum amount of streams that this template can generate").Default("-1").IntVar(&c.maxStreams)
 	addCreateFlags(strTAdd)
 
 	strTLs := strTemplate.Command("ls", "List all known Stream Templates").Alias("list").Alias("l").Action(c.streamTemplateLs)
@@ -521,7 +521,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		err = survey.AskOne(&survey.Input{
 			Message: "Maximum individual message size",
 			Default: "-1",
-			Help:    "Defines the maximum size any single message may be to be accepted by the Stream. Settable using --max-age",
+			Help:    "Defines the maximum size any single message may be to be accepted by the Stream. Settable using --max-msg-size",
 		}, &c.maxMsgSize)
 		kingpin.FatalIfError(err, "invalid input")
 	}
