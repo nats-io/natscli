@@ -51,6 +51,7 @@ type streamCmd struct {
 	reportSortMsgs      bool
 	reportSortName      bool
 	reportRaw           bool
+	maxStreams          int
 }
 
 func configureStreamCommand(app *kingpin.Application) {
@@ -58,7 +59,7 @@ func configureStreamCommand(app *kingpin.Application) {
 
 	str := app.Command("stream", "Stream management").Alias("str").Alias("st").Alias("ms")
 
-	strInfo := str.Command("info", "Stream information").Alias("nfo").Action(c.infoAction)
+	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
 	strInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
@@ -106,6 +107,140 @@ func configureStreamCommand(app *kingpin.Application) {
 	strReport.Flag("messages", "Sort by number of Messages").Short('m').BoolVar(&c.reportSortMsgs)
 	strReport.Flag("name", "Sort by Stream name").Short('n').BoolVar(&c.reportSortName)
 	strReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.reportRaw)
+
+	strTemplate := str.Command("template", "Manages Stream Templates").Alias("templ").Alias("t")
+
+	strTAdd := strTemplate.Command("create", "Creates a new Stream Template").Alias("add").Alias("new").Action(c.streamTemplateAdd)
+	strTAdd.Arg("stream", "Template name").StringVar(&c.stream)
+	strTAdd.Arg("max-streams", "Maximum amount of streams that this template can generate").Default("-1").IntVar(&c.maxStreams)
+	addCreateFlags(strTAdd)
+
+	strTLs := strTemplate.Command("ls", "List all known Stream Templates").Alias("list").Alias("l").Action(c.streamTemplateLs)
+	strTLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+
+	strTRm := strTemplate.Command("rm", "Removes a Stream Template").Alias("delete").Alias("del").Action(c.streamTemplateRm)
+	strTRm.Arg("template", "Stream Template name").StringVar(&c.stream)
+	strTRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+
+	strTInfo := strTemplate.Command("info", "Stream Template information").Alias("nfo").Alias("i").Action(c.streamTemplateInfo)
+	strTInfo.Arg("template", "Stream Template to retrieve information for").StringVar(&c.stream)
+	strTInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+}
+
+func (c *streamCmd) streamTemplateRm(_ *kingpin.ParseContext) (err error) {
+	nc, err := newNatsConn(servers, natsOpts()...)
+	kingpin.FatalIfError(err, "setup failed")
+	jsch.SetConnection(nc)
+
+	c.stream, err = selectStreamTemplate(c.stream)
+	kingpin.FatalIfError(err, "could not pick a Stream Template to operate on")
+
+	stream, err := jsch.LoadStreamTemplate(c.stream)
+	kingpin.FatalIfError(err, "could not load Stream Template")
+
+	if !c.force {
+		ok, err := askConfirmation(fmt.Sprintf("Really delete Stream Template %q, this will remove all managed Streams this template created as well", c.stream), false)
+		kingpin.FatalIfError(err, "could not obtain confirmation")
+
+		if !ok {
+			return nil
+		}
+	}
+
+	err = stream.Delete()
+	kingpin.FatalIfError(err, "could not delete Stream Template")
+
+	return nil
+}
+
+func (c *streamCmd) streamTemplateAdd(pc *kingpin.ParseContext) (err error) {
+	cfg := c.prepareConfig()
+
+	if c.maxStreams == -1 {
+		err = survey.AskOne(&survey.Input{
+			Message: "Maximum Streams",
+		}, &c.maxStreams, survey.WithValidator(survey.Required))
+		kingpin.FatalIfError(err, "invalid input")
+	}
+
+	if c.maxStreams < 0 {
+		kingpin.Fatalf("Maximum Streams can not be negative")
+	}
+
+	cfg.Name = ""
+
+	_, err = jsch.NewStreamTemplate(c.stream, uint32(c.maxStreams), cfg)
+	kingpin.FatalIfError(err, "could not create Stream Template")
+
+	fmt.Printf("Stream Template %s was created\n\n", c.stream)
+
+	return c.streamTemplateInfo(pc)
+}
+
+func (c *streamCmd) streamTemplateInfo(_ *kingpin.ParseContext) error {
+	nc, err := newNatsConn(servers, natsOpts()...)
+	kingpin.FatalIfError(err, "setup failed")
+	jsch.SetConnection(nc)
+
+	c.stream, err = selectStreamTemplate(c.stream)
+	kingpin.FatalIfError(err, "could not pick a Stream Template to operate on")
+
+	info, err := jsch.LoadStreamTemplate(c.stream)
+	kingpin.FatalIfError(err, "could not load Stream Template %q", c.stream)
+
+	if c.json {
+		err = printJSON(info.Configuration())
+		kingpin.FatalIfError(err, "could not display info")
+		return nil
+	}
+
+	fmt.Printf("Information for Stream Template %s\n", c.stream)
+	fmt.Println()
+	c.showStreamConfig(info.StreamConfiguration())
+	fmt.Printf("      Maximum Streams: %d\n", info.MaxStreams())
+	fmt.Println()
+	fmt.Println("Managed Streams:")
+	fmt.Println()
+	if len(info.Streams()) == 0 {
+		fmt.Println("  No Streams have been defined by this template")
+	} else {
+		managed := info.Streams()
+		sort.Strings(managed)
+		for _, n := range managed {
+			fmt.Printf("    %s\n", n)
+		}
+	}
+	fmt.Println()
+
+	return nil
+}
+
+func (c *streamCmd) streamTemplateLs(_ *kingpin.ParseContext) error {
+	_, err := prepareHelper(servers, natsOpts()...)
+	kingpin.FatalIfError(err, "setup failed")
+
+	names, err := jsch.StreamTemplateNames()
+	kingpin.FatalIfError(err, "could not list Stream Templates")
+
+	if c.json {
+		err = printJSON(names)
+		kingpin.FatalIfError(err, "could not display Stream Templates")
+		return nil
+	}
+
+	if len(names) == 0 {
+		fmt.Println("No Streams Templates defined")
+		return nil
+	}
+
+	fmt.Println("Stream Templates:")
+	fmt.Println()
+	for _, t := range names {
+		fmt.Printf("\t%s\n", t)
+	}
+	fmt.Println()
+
+	return nil
 }
 
 func (c *streamCmd) reportAction(pc *kingpin.ParseContext) error {
@@ -225,6 +360,20 @@ func (c *streamCmd) cpAction(pc *kingpin.ParseContext) error {
 	return c.infoAction(pc)
 }
 
+func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
+	fmt.Println("Configuration:")
+	fmt.Println()
+	fmt.Printf("             Subjects: %s\n", strings.Join(cfg.Subjects, ", "))
+	fmt.Printf("     Acknowledgements: %v\n", !cfg.NoAck)
+	fmt.Printf("            Retention: %s - %s\n", cfg.Storage.String(), cfg.Retention.String())
+	fmt.Printf("             Replicas: %d\n", cfg.Replicas)
+	fmt.Printf("     Maximum Messages: %d\n", cfg.MaxMsgs)
+	fmt.Printf("        Maximum Bytes: %d\n", cfg.MaxBytes)
+	fmt.Printf("          Maximum Age: %s\n", cfg.MaxAge.String())
+	fmt.Printf(" Maximum Message Size: %d\n", cfg.MaxMsgSize)
+	fmt.Printf("    Maximum Consumers: %d\n", cfg.MaxConsumers)
+}
+
 func (c *streamCmd) infoAction(_ *kingpin.ParseContext) error {
 	c.connectAndAskStream()
 
@@ -241,17 +390,7 @@ func (c *streamCmd) infoAction(_ *kingpin.ParseContext) error {
 
 	fmt.Printf("Information for Stream %s\n", c.stream)
 	fmt.Println()
-	fmt.Println("Configuration:")
-	fmt.Println()
-	fmt.Printf("             Subjects: %s\n", strings.Join(mstats.Config.Subjects, ", "))
-	fmt.Printf("     Acknowledgements: %v\n", !mstats.Config.NoAck)
-	fmt.Printf("            Retention: %s - %s\n", mstats.Config.Storage.String(), mstats.Config.Retention.String())
-	fmt.Printf("             Replicas: %d\n", mstats.Config.Replicas)
-	fmt.Printf("     Maximum Messages: %d\n", mstats.Config.MaxMsgs)
-	fmt.Printf("        Maximum Bytes: %d\n", mstats.Config.MaxBytes)
-	fmt.Printf("          Maximum Age: %s\n", mstats.Config.MaxAge.String())
-	fmt.Printf(" Maximum Message Size: %d\n", mstats.Config.MaxMsgSize)
-	fmt.Printf("  Maximum Consumers: %d\n", mstats.Config.MaxConsumers)
+	c.showStreamConfig(mstats.Config)
 	fmt.Println()
 	fmt.Println("State:")
 	fmt.Println()
@@ -307,7 +446,9 @@ func (c *streamCmd) retentionPolicyFromString(s string) api.RetentionPolicy {
 	}
 }
 
-func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
+func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
+	var err error
+
 	if c.stream == "" {
 		err = survey.AskOne(&survey.Input{
 			Message: "Stream Name",
@@ -388,7 +529,7 @@ func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 	_, err = prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "could not create Stream")
 
-	_, err = jsch.NewStreamFromDefault(c.stream, api.StreamConfig{
+	cfg = api.StreamConfig{
 		Name:         c.stream,
 		Subjects:     c.subjects,
 		MaxMsgs:      c.maxMsgLimit,
@@ -400,7 +541,15 @@ func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		Retention:    c.rPolicy,
 		MaxConsumers: -1,
 		Replicas:     0,
-	})
+	}
+
+	return cfg
+}
+
+func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
+	cfg := c.prepareConfig()
+
+	_, err = jsch.NewStreamFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "could not create Stream")
 
 	fmt.Printf("Stream %s was created\n\n", c.stream)

@@ -95,3 +95,4 @@ func (t *StreamTemplate) Configuration() server.StreamTemplateConfig { return t.
 func (t *StreamTemplate) StreamConfiguration() server.StreamConfig   { return *t.cfg.Config }
 func (t *StreamTemplate) Name() string                               { return t.cfg.Name }
 func (t *StreamTemplate) MaxStreams() uint32                         { return t.cfg.MaxStreams }
+func (t *StreamTemplate) Streams() []string                          { return t.streams }

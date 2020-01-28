@@ -63,6 +63,41 @@ func selectConsumer(stream string, consumer string) (string, error) {
 	}
 }
 
+func selectStreamTemplate(template string) (string, error) {
+	if template != "" {
+		known, err := jsch.IsKnownStreamTemplate(template)
+		if err != nil {
+			return "", err
+		}
+
+		if known {
+			return template, nil
+		}
+	}
+
+	templates, err := jsch.StreamTemplateNames()
+	if err != nil {
+		return "", err
+	}
+
+	switch len(templates) {
+	case 0:
+		return "", errors.New("no Streams Templates are defined")
+	default:
+		s := ""
+
+		err = survey.AskOne(&survey.Select{
+			Message: "Select a Stream Template",
+			Options: templates,
+		}, &s)
+		if err != nil {
+			return "", err
+		}
+
+		return s, nil
+	}
+}
+
 func selectStream(stream string) (string, error) {
 	if stream != "" {
 		known, err := jsch.IsKnownStream(stream)
