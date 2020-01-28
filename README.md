@@ -2,8 +2,6 @@
 
 JetStream is the [NATS.io](https://nats.io) persistence engine that will support streaming as well as traditional message and worker queues for At-Least-Once delivery semantics.
 
-More information can be found [here](https://nats.io/blog/tech-preview-oct-2019/#jetstream).
-
 # Contents
 
 - [Concepts](#concepts)
@@ -12,6 +10,7 @@ More information can be found [here](https://nats.io/blog/tech-preview-oct-2019/
   * [Configuration](#configuration)
 - [Getting Started](#getting-started)
   * [Using Docker](#using-docker)
+  * [Using Docker with NGS](#using-docker-with-ngs)
   * [Using Source](#using-source)
 - [Administration and Usage from the CLI](#administration-and-usage-from-the-cli)
   * [Account Information](#account-information)
@@ -35,6 +34,7 @@ More information can be found [here](https://nats.io/blog/tech-preview-oct-2019/
   * [Consumer Starting Position](#consumer-starting-position)
   * [Ephemeral Consumers](#ephemeral-consumers)
   * [Consumer Message Rates](#consumer-message-rates)
+  * [Stream Templates](#stream-templates)
   * [Ack Sampling](#ack-sampling)
     + [Configuration](#configuration-1)
     + [Consuming](#consuming)
@@ -44,7 +44,9 @@ More information can be found [here](https://nats.io/blog/tech-preview-oct-2019/
   * [Admin API](#admin-api)
     + [General Info](#general-info)
     + [Streams](#streams-2)
+    + [Stream Templates](#stream-templates-1)
     + [Consumers](#consumers-2)
+    + [ACLs](#acls)
   * [Acknowledging Messages](#acknowledging-messages)
   * [Fetching The Next Message From a Pull-based Consumer](#fetching-the-next-message-from-a-pull-based-consumer)
   * [Fetching From a Stream By Sequence](#fetching-from-a-stream-by-sequence)
@@ -983,6 +985,51 @@ Listening on [out.original]
 ^C
 ```
 
+### Stream Templates
+
+When you have many similar streams it can be helpful to auto create them, lets say you have a service by client and they are on subjects `CLIENT.*`, you can construct a template that will auto generate streams for any matching traffic.
+
+```
+$ jsm str template add CLIENTS --subjects "CLIENT.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size 2048 --max-streams 1024
+Stream Template CLIENTS was created
+
+Information for Stream Template CLIENTS
+
+Configuration:
+
+             Subjects: CLIENT.*
+     Acknowledgements: true
+            Retention: File - Limits
+             Replicas: 1
+     Maximum Messages: -1
+        Maximum Bytes: -1
+          Maximum Age: 8760h0m0s
+ Maximum Message Size: 2048
+    Maximum Consumers: -1
+      Maximum Streams: 1024
+
+Managed Streams:
+
+  No Streams have been defined by this template
+```
+
+You can see now streams exist now for it, let's publish some data:
+
+```
+$ nats-pub CLIENT.acme hello
+```
+
+And we'll have 1 new Stream:
+
+```
+$ jsm str ls
+Streams:
+
+        CLIENTS_acme
+```
+
+When the template is deleted all the streams it created will be deleted too.
+
 ### Ack Sampling
 
 In the earlier sections we saw that samples are being sent to a monitoring system. Let's look at that in depth; how the monitoring system works and what it contains.
@@ -1079,7 +1126,7 @@ The command `jsm events` will show you an audit log of all API access events whi
 
 #### General Info
 
-|subject|Description|Request Payload|Response Payload|
+|Subject|Description|Request Payload|Response Payload|
 |-----|-----------|---------------|----------------|
 |`server.JetStreamEnabled`|Determines if JetStream is enabled for your account|empty payload|`+OK` else no response|
 |`server.JetStreamInfo`|Retrieves stats and limits about your account|empty payload|`server.JetStreamAccountStats`
@@ -1095,9 +1142,18 @@ The command `jsm events` will show you an audit log of all API access events whi
 |`server.JetStreamPurgeStreamT`|Purges all of the data in a Stream, leaves the Stream|empty payload, Stream name in subject|Standard OK/ERR|
 |`server.JetStreamDeleteMsgT`|Deletes a specific message in the Stream by sequence, useful for GDPR compliance|`stream_seq`, Stream name in subject|Standard OK/ERR|
 
+#### Stream Templates
+
+|Subject|Description|Request Payload|Response Payload|
+|-------|-----------|---------------|----------------|
+|`server.JetStreamCreateTemplateT`|Creates a Stream Template|`server.StreamTemplateConfig`|Standard OK/ERR|
+|`server.JetStreamListTemplates`|List all known templates|empty payload|Array of names in JSON format|
+|`server.JetStreamTemplateInfoT`|Information about the config and state of a Stream Template|empty payload, Template name in subject|`server.StreamTemplateInfo`|
+|`server.JetStreamDeleteTemplateT`|Delete a specific Stream Template **and all streams created by this template**|empty payload, Template name in subject|Standard OK/ERR|
+
 #### Consumers
 
-|subject|Description|Request Payload|Response Payload|
+|Subject|Description|Request Payload|Response Payload|
 |-----|-----------|---------------|----------------|
 |`server.JetStreamConsumersT`|List known Consumers|empty payload, Stream name in subject|Array of names in JSON format|
 |`server.JetStreamCreateConsumerT`|Create an Consumer|`server.ConsumerConfig`, Stream name in subject|Standard OK/ERR|
@@ -1129,6 +1185,10 @@ $JS.STREAM.<stream>.CONSUMER.<consumer>.CREATE
 $JS.STREAM.<stream>.CONSUMER.<consumer>.INFO
 $JS.STREAM.<stream>.CONSUMER.<consumer>.DELETE
 $JS.STREAM.<stream>.EPHEMERAL.CONSUMER.CREATE
+$JS.TEMPLATE.<template>.INFO
+$JS.TEMPLATE.<template>.DELETE
+$JS.TEMPLATE.<template>.CREATE
+$JS.TEMPLATES.LIST
 ```
 
 Stream and Consumer Use
