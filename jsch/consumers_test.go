@@ -13,7 +13,7 @@ import (
 func setupConsumerTest(t *testing.T) (*server.Server, *nats.Conn, *jsch.Stream) {
 	t.Helper()
 	srv, nc := startJSServer(t)
-	stream, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage(), jsch.MaxAge(time.Hour), jsch.Subjects("ORDERS.>"))
+	stream, err := jsch.NewStreamFromDefault("ORDERS", jsch.DefaultStream, jsch.MemoryStorage(), jsch.MaxAge(time.Hour), jsch.Subjects("ORDERS.>"))
 	checkErr(t, err, "create failed")
 
 	_, err = nc.Request("ORDERS.new", []byte("order 1"), time.Second)
@@ -46,7 +46,7 @@ func TestNewConsumerFromTemplateDurable(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	consumer, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"), jsch.FilterStreamBySubject("ORDERS.new"))
+	consumer, err := jsch.NewConsumerFromDefault("ORDERS", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"), jsch.FilterStreamBySubject("ORDERS.new"))
 	checkErr(t, err, "create failed")
 
 	consumer.Reset()
@@ -71,7 +71,7 @@ func TestNewConsumerFromTemplateEphemeral(t *testing.T) {
 	// interest is needed
 	nc.Subscribe("out", func(_ *nats.Msg) {})
 
-	consumer, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.SampledDefaultConsumer, jsch.DeliverySubject("out"), jsch.FilterStreamBySubject("ORDERS.new"))
+	consumer, err := jsch.NewConsumerFromDefault("ORDERS", jsch.SampledDefaultConsumer, jsch.DeliverySubject("out"), jsch.FilterStreamBySubject("ORDERS.new"))
 	checkErr(t, err, "create failed")
 
 	consumers, err := jsch.ConsumerNames("ORDERS")
@@ -94,7 +94,7 @@ func TestLoadConsumer(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	_, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"), jsch.FilterStreamBySubject("ORDERS.new"))
+	_, err := jsch.NewConsumerFromDefault("ORDERS", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"), jsch.FilterStreamBySubject("ORDERS.new"))
 	checkErr(t, err, "create failed")
 
 	consumer, err := jsch.LoadConsumer("ORDERS", "NEW")
@@ -138,10 +138,10 @@ func TestLoadOrNewConsumerFromTemplate(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	_, err := jsch.LoadOrNewConsumerFromTemplate("ORDERS", "NEW", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"), jsch.FilterStreamBySubject("ORDERS.new"))
+	_, err := jsch.LoadOrNewConsumerFromDefault("ORDERS", "NEW", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"), jsch.FilterStreamBySubject("ORDERS.new"))
 	checkErr(t, err, "create failed")
 
-	consumer, err := jsch.LoadOrNewConsumerFromTemplate("ORDERS", "NEW", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"), jsch.FilterStreamBySubject("ORDERS.new"))
+	consumer, err := jsch.LoadOrNewConsumerFromDefault("ORDERS", "NEW", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"), jsch.FilterStreamBySubject("ORDERS.new"))
 	checkErr(t, err, "load failed")
 
 	if consumer.AckPolicy() != server.AckExplicit {
@@ -197,14 +197,14 @@ func TestConsumer_SampleSubject(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	consumer, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"))
+	consumer, err := jsch.NewConsumerFromDefault("ORDERS", jsch.SampledDefaultConsumer, jsch.DurableName("NEW"))
 	checkErr(t, err, "create failed")
 
 	if consumer.AckSampleSubject() != "$JS.EVENT.METRIC.CONSUMER_ACK.ORDERS.NEW" {
 		t.Fatalf("expected next subject got %s", consumer.AckSampleSubject())
 	}
 
-	unsampled, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DurableName("UNSAMPLED"))
+	unsampled, err := jsch.NewConsumerFromDefault("ORDERS", jsch.DefaultConsumer, jsch.DurableName("UNSAMPLED"))
 	checkErr(t, err, "create failed")
 
 	if unsampled.AckSampleSubject() != "" {
@@ -217,7 +217,7 @@ func TestConsumer_State(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	durable, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DurableName("D"))
+	durable, err := jsch.NewConsumerFromDefault("ORDERS", jsch.DefaultConsumer, jsch.DurableName("D"))
 	checkErr(t, err, "create failed")
 
 	state, err := durable.State()
@@ -246,7 +246,7 @@ func TestConsumer_Configuration(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	durable, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DurableName("D"))
+	durable, err := jsch.NewConsumerFromDefault("ORDERS", jsch.DefaultConsumer, jsch.DurableName("D"))
 	checkErr(t, err, "create failed")
 
 	if durable.Configuration().Durable != "D" {
@@ -259,7 +259,7 @@ func TestConsumer_Delete(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	durable, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DurableName("D"))
+	durable, err := jsch.NewConsumerFromDefault("ORDERS", jsch.DefaultConsumer, jsch.DurableName("D"))
 	checkErr(t, err, "create failed")
 	if !durable.IsDurable() {
 		t.Fatalf("expected durable, got %s", durable.DurableName())
@@ -281,7 +281,7 @@ func TestConsumer_IsDurable(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	durable, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DurableName("D"))
+	durable, err := jsch.NewConsumerFromDefault("ORDERS", jsch.DefaultConsumer, jsch.DurableName("D"))
 	checkErr(t, err, "create failed")
 	if !durable.IsDurable() {
 		t.Fatalf("expected durable, got %s", durable.DurableName())
@@ -291,7 +291,7 @@ func TestConsumer_IsDurable(t *testing.T) {
 	// interest is needed before creating a ephemeral push
 	nc.Subscribe("out", func(_ *nats.Msg) {})
 
-	_, err = jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DeliverySubject("out"))
+	_, err = jsch.NewConsumerFromDefault("ORDERS", jsch.DefaultConsumer, jsch.DeliverySubject("out"))
 	checkErr(t, err, "create failed")
 
 	names, err := jsch.ConsumerNames("ORDERS")
@@ -313,13 +313,13 @@ func TestConsumer_IsPullMode(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	push, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DurableName("PUSH"), jsch.DeliverySubject("out"))
+	push, err := jsch.NewConsumerFromDefault("ORDERS", jsch.DefaultConsumer, jsch.DurableName("PUSH"), jsch.DeliverySubject("out"))
 	checkErr(t, err, "create failed")
 	if push.IsPullMode() {
 		t.Fatalf("expected push, got %s", push.DeliverySubject())
 	}
 
-	pull, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DurableName("PULL"))
+	pull, err := jsch.NewConsumerFromDefault("ORDERS", jsch.DefaultConsumer, jsch.DurableName("PULL"))
 	checkErr(t, err, "create failed")
 	if !pull.IsPullMode() {
 		t.Fatalf("expected pull, got %s", pull.DeliverySubject())
@@ -331,13 +331,13 @@ func TestConsumer_IsPushMode(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	push, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DurableName("PUSH"), jsch.DeliverySubject("out"))
+	push, err := jsch.NewConsumerFromDefault("ORDERS", jsch.DefaultConsumer, jsch.DurableName("PUSH"), jsch.DeliverySubject("out"))
 	checkErr(t, err, "create failed")
 	if !push.IsPushMode() {
 		t.Fatalf("expected push, got %s", push.DeliverySubject())
 	}
 
-	pull, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DurableName("PULL"))
+	pull, err := jsch.NewConsumerFromDefault("ORDERS", jsch.DefaultConsumer, jsch.DurableName("PULL"))
 	checkErr(t, err, "create failed")
 	if pull.IsPushMode() {
 		t.Fatalf("expected pull, got %s", pull.DeliverySubject())
@@ -349,13 +349,13 @@ func TestConsumer_IsSampled(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	sampled, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.SampledDefaultConsumer, jsch.DurableName("SAMPLED"))
+	sampled, err := jsch.NewConsumerFromDefault("ORDERS", jsch.SampledDefaultConsumer, jsch.DurableName("SAMPLED"))
 	checkErr(t, err, "create failed")
 	if !sampled.IsSampled() {
 		t.Fatalf("expected sampled, got %s", sampled.SampleFrequency())
 	}
 
-	unsampled, err := jsch.NewConsumerFromTemplate("ORDERS", jsch.DefaultConsumer, jsch.DurableName("UNSAMPLED"))
+	unsampled, err := jsch.NewConsumerFromDefault("ORDERS", jsch.DefaultConsumer, jsch.DurableName("UNSAMPLED"))
 	checkErr(t, err, "create failed")
 	if unsampled.IsSampled() {
 		t.Fatalf("expected un-sampled, got %s", unsampled.SampleFrequency())

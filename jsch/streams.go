@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/nats-io/nats-server/v2/server"
@@ -59,9 +58,9 @@ type Stream struct {
 	cfg server.StreamConfig
 }
 
-// NewStreamFromTemplate creates a new stream based on a supplied template and options
-func NewStreamFromTemplate(name string, template server.StreamConfig, opts ...StreamOption) (stream *Stream, err error) {
-	cfg, err := NewStreamConfiguration(template, opts...)
+// NewStreamFromDefault creates a new stream based on a supplied template and options
+func NewStreamFromDefault(name string, dflt server.StreamConfig, opts ...StreamOption) (stream *Stream, err error) {
+	cfg, err := NewStreamConfiguration(dflt, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -78,18 +77,18 @@ func NewStreamFromTemplate(name string, template server.StreamConfig, opts ...St
 		return nil, err
 	}
 
-	if !strings.HasPrefix(string(response.Data), server.OK) {
+	if IsErrorResponse(response) {
 		return nil, fmt.Errorf("%s", string(response.Data))
 	}
 
 	return LoadStream(name)
 }
 
-// LoadOrNewStreamFromTemplate loads an existing stream or creates a new one matching opts and template
-func LoadOrNewStreamFromTemplate(name string, template server.StreamConfig, opts ...StreamOption) (stream *Stream, err error) {
+// LoadOrNewStreamFromDefault loads an existing stream or creates a new one matching opts and template
+func LoadOrNewStreamFromDefault(name string, dflt server.StreamConfig, opts ...StreamOption) (stream *Stream, err error) {
 	s, err := LoadStream(name)
 	if s == nil || err != nil {
-		return NewStreamFromTemplate(name, template, opts...)
+		return NewStreamFromDefault(name, dflt, opts...)
 	}
 
 	return s, err
@@ -97,12 +96,12 @@ func LoadOrNewStreamFromTemplate(name string, template server.StreamConfig, opts
 
 // NewStream creates a new stream using DefaultStream as a starting template allowing adjustments to be made using options
 func NewStream(name string, opts ...StreamOption) (stream *Stream, err error) {
-	return NewStreamFromTemplate(name, DefaultStream, opts...)
+	return NewStreamFromDefault(name, DefaultStream, opts...)
 }
 
-// LoadOrNewStreamFromTemplate loads an existing stream or creates a new one matching opts
+// LoadOrNewStreamFromDefault loads an existing stream or creates a new one matching opts
 func LoadOrNewStream(name string, opts ...StreamOption) (stream *Stream, err error) {
-	return LoadOrNewStreamFromTemplate(name, DefaultStream, opts...)
+	return LoadOrNewStreamFromDefault(name, DefaultStream, opts...)
 }
 
 // LoadStream loads a stream by name
@@ -274,14 +273,14 @@ func (s *Stream) LoadOrNewConsumer(name string, opts ...ConsumerOption) (consume
 	return LoadOrNewConsumer(s.Name(), name, opts...)
 }
 
-// NewConsumerFromTemplate creates a new consumer in this Stream based on a supplied template config
+// NewConsumerFromDefault creates a new consumer in this Stream based on a supplied template config
 func (s *Stream) NewConsumerFromTemplate(name string, template server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
-	return NewConsumerFromTemplate(s.Name(), template, opts...)
+	return NewConsumerFromDefault(s.Name(), template, opts...)
 }
 
 // LoadOrNewConsumer loads or creates a consumer based on these options that adjust supplied template
 func (s *Stream) LoadOrNewConsumerFromTemplate(name string, template server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
-	return LoadOrNewConsumerFromTemplate(s.Name(), name, template, opts...)
+	return LoadOrNewConsumerFromDefault(s.Name(), name, template, opts...)
 }
 
 // ConsumerNames is a list of all known consumers for this Stream

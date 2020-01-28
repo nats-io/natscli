@@ -111,7 +111,7 @@ func TestIsKnownStream(t *testing.T) {
 		t.Fatalf("ORDERS should not be known")
 	}
 
-	stream, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	stream, err := jsch.NewStreamFromDefault("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
 	checkErr(t, err, "create failed")
 
 	known, err = jsch.IsKnownStream("ORDERS")
@@ -131,7 +131,7 @@ func TestIsKnownConsumer(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	stream, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	stream, err := jsch.NewStreamFromDefault("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
 	checkErr(t, err, "create failed")
 
 	known, err := jsch.IsKnownConsumer("ORDERS", "NEW")
@@ -156,7 +156,7 @@ func TestJetStreamAccountInfo(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	_, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	_, err := jsch.NewStreamFromDefault("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
 	checkErr(t, err, "create failed")
 
 	info, err := jsch.JetStreamAccountInfo()
@@ -179,7 +179,7 @@ func TestStreamNames(t *testing.T) {
 		t.Fatalf("expected 0 streams got: %v", names)
 	}
 
-	_, err = jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	_, err = jsch.NewStreamFromDefault("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
 	checkErr(t, err, "create failed")
 
 	names, err = jsch.StreamNames()
@@ -200,7 +200,7 @@ func TestConsumerNames(t *testing.T) {
 		t.Fatalf("expected err")
 	}
 
-	stream, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	stream, err := jsch.NewStreamFromDefault("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
 	checkErr(t, err, "create failed")
 
 	_, err = jsch.ConsumerNames("ORDERS")
@@ -222,10 +222,10 @@ func TestEachStream(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	orders, err := jsch.NewStreamFromTemplate("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
+	orders, err := jsch.NewStreamFromDefault("ORDERS", jsch.DefaultStream, jsch.MemoryStorage())
 	checkErr(t, err, "create failed")
 
-	_, err = jsch.NewStreamFromTemplate("ARCHIVE", orders.Configuration(), jsch.Subjects("OTHER"))
+	_, err = jsch.NewStreamFromDefault("ARCHIVE", orders.Configuration(), jsch.Subjects("OTHER"))
 	checkErr(t, err, "create failed")
 
 	seen := []string{}
@@ -283,5 +283,27 @@ func TestSubscribeAndCreate(t *testing.T) {
 	case <-done:
 	case <-ctx.Done():
 		t.Fatal("timeout")
+	}
+}
+
+func TestIsKnownStreamTemplate(t *testing.T) {
+	srv, _ := startJSServer(t)
+	defer srv.Shutdown()
+
+	exists, err := jsch.IsKnownStreamTemplate("orders_templ")
+	checkErr(t, err, "is known failed")
+
+	if exists {
+		t.Fatalf("found orders_templ when it shouldnt have")
+	}
+
+	_, err = jsch.NewStreamTemplate("orders_templ", 1, jsch.DefaultStream, jsch.Subjects("ORDERS.*"))
+	checkErr(t, err, "new stream template failed")
+
+	exists, err = jsch.IsKnownStreamTemplate("orders_templ")
+	checkErr(t, err, "is known failed")
+
+	if !exists {
+		t.Fatalf("did not find orders_templ when it should have")
 	}
 }

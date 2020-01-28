@@ -14,7 +14,7 @@ func TestNewStreamFromTemplate(t *testing.T) {
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	stream, err := jsch.NewStreamFromTemplate("q1", jsch.DefaultWorkQueue, jsch.MemoryStorage(), jsch.MaxAge(time.Hour))
+	stream, err := jsch.NewStreamFromDefault("q1", jsch.DefaultWorkQueue, jsch.MemoryStorage(), jsch.MaxAge(time.Hour))
 	checkErr(t, err, "create failed")
 
 	stream.Reset()
@@ -42,10 +42,10 @@ func TestLoadOrNewStreamFromTemplate(t *testing.T) {
 		t.Fatalf("expected no streams")
 	}
 
-	stream, err := jsch.LoadOrNewStreamFromTemplate("q1", jsch.DefaultWorkQueue, jsch.MemoryStorage(), jsch.MaxAge(time.Hour))
+	stream, err := jsch.LoadOrNewStreamFromDefault("q1", jsch.DefaultWorkQueue, jsch.MemoryStorage(), jsch.MaxAge(time.Hour))
 	checkErr(t, err, "create failed")
 
-	_, err = jsch.LoadOrNewStreamFromTemplate("q1", stream.Configuration())
+	_, err = jsch.LoadOrNewStreamFromDefault("q1", stream.Configuration())
 	checkErr(t, err, "load failed")
 
 	names, err = jsch.StreamNames()
