@@ -5,7 +5,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	"github.com/nats-io/jetstream/jsch"
+	"github.com/nats-io/jetstream/internal/jsch"
 )
 
 func TestParseJSMsgMetadata(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/nats-io/jetstream/jsch"
+	"github.com/nats-io/jetstream/internal/jsch"
 )
 
 type eventsCmd struct {

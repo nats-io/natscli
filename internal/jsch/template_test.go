@@ -3,7 +3,7 @@ package jsch_test
 import (
 	"testing"
 
-	"github.com/nats-io/jetstream/jsch"
+	"github.com/nats-io/jetstream/internal/jsch"
 )
 
 func TestNewStreamTemplate(t *testing.T) {

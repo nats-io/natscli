@@ -7,7 +7,7 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 
-	"github.com/nats-io/jetstream/jsch"
+	"github.com/nats-io/jetstream/internal/jsch"
 )
 
 func setupConsumerTest(t *testing.T) (*server.Server, *nats.Conn, *jsch.Stream) {
