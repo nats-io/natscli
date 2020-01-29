@@ -76,7 +76,7 @@ func NewConsumerFromDefault(stream string, dflt server.ConsumerConfig, opts ...C
 	}
 
 	if createdName == "" {
-		return nil, fmt.Errorf("expected a consumer name but non were generated")
+		return nil, fmt.Errorf("expected a consumer name but none were generated")
 	}
 
 	return LoadConsumer(stream, createdName)

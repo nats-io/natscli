@@ -135,7 +135,7 @@ func (c *streamCmd) streamTemplateRm(_ *kingpin.ParseContext) (err error) {
 	c.stream, err = selectStreamTemplate(c.stream)
 	kingpin.FatalIfError(err, "could not pick a Stream Template to operate on")
 
-	stream, err := jsch.LoadStreamTemplate(c.stream)
+	template, err := jsch.LoadStreamTemplate(c.stream)
 	kingpin.FatalIfError(err, "could not load Stream Template")
 
 	if !c.force {
@@ -147,7 +147,7 @@ func (c *streamCmd) streamTemplateRm(_ *kingpin.ParseContext) (err error) {
 		}
 	}
 
-	err = stream.Delete()
+	err = template.Delete()
 	kingpin.FatalIfError(err, "could not delete Stream Template")
 
 	return nil
