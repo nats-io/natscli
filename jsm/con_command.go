@@ -53,7 +53,7 @@ type consumerCmd struct {
 func configureConsumerCommand(app *kingpin.Application) {
 	c := &consumerCmd{}
 
-	cons := app.Command("consumer", "Consumer Management").Alias("con").Alias("obs")
+	cons := app.Command("consumer", "Consumer Management").Alias("con").Alias("obs").Alias("c")
 
 	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
 	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)

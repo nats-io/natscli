@@ -28,7 +28,7 @@ type actCmd struct {
 
 func configureActCommand(app *kingpin.Application) {
 	c := &actCmd{}
-	act := app.Command("account", "Account management").Alias("act")
+	act := app.Command("account", "Account management")
 	act.Command("info", "General account information").Alias("nfo").Action(c.infoAction)
 	act.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 }
