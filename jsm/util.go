@@ -25,7 +25,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/nats-io/nats.go"
 
-	"github.com/nats-io/jetstream/jsch"
+	"github.com/nats-io/jetstream/internal/jsch"
 )
 
 func selectConsumer(stream string, consumer string) (string, error) {

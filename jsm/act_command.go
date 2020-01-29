@@ -19,7 +19,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/nats-io/jetstream/jsch"
+	"github.com/nats-io/jetstream/internal/jsch"
 )
 
 type actCmd struct {
