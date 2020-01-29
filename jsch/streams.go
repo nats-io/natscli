@@ -274,13 +274,13 @@ func (s *Stream) LoadOrNewConsumer(name string, opts ...ConsumerOption) (consume
 }
 
 // NewConsumerFromDefault creates a new consumer in this Stream based on a supplied template config
-func (s *Stream) NewConsumerFromTemplate(name string, template server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
-	return NewConsumerFromDefault(s.Name(), template, opts...)
+func (s *Stream) NewConsumerFromDefault(dflt server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
+	return NewConsumerFromDefault(s.Name(), dflt, opts...)
 }
 
 // LoadOrNewConsumer loads or creates a consumer based on these options that adjust supplied template
-func (s *Stream) LoadOrNewConsumerFromTemplate(name string, template server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
-	return LoadOrNewConsumerFromDefault(s.Name(), name, template, opts...)
+func (s *Stream) LoadOrNewConsumerFromDefault(name string, deflt server.ConsumerConfig, opts ...ConsumerOption) (consumer *Consumer, err error) {
+	return LoadOrNewConsumerFromDefault(s.Name(), name, deflt, opts...)
 }
 
 // ConsumerNames is a list of all known consumers for this Stream

@@ -9,7 +9,7 @@ import (
 	"github.com/nats-io/jetstream/jsch"
 )
 
-func TestNewStreamFromTemplate(t *testing.T) {
+func TestNewStreamFromDefault(t *testing.T) {
 	srv, nc := startJSServer(t)
 	defer srv.Shutdown()
 	defer nc.Flush()
@@ -31,7 +31,7 @@ func TestNewStreamFromTemplate(t *testing.T) {
 	}
 }
 
-func TestLoadOrNewStreamFromTemplate(t *testing.T) {
+func TestLoadOrNewStreamFromDefault(t *testing.T) {
 	srv, nc := startJSServer(t)
 	defer srv.Shutdown()
 	defer nc.Flush()
@@ -187,7 +187,7 @@ func TestStream_LoadConsumer(t *testing.T) {
 	}
 }
 
-func TestStream_NewConsumerFromTemplate(t *testing.T) {
+func TestStream_NewConsumerFromDefault(t *testing.T) {
 	srv, nc := startJSServer(t)
 	defer srv.Shutdown()
 	defer nc.Flush()
@@ -195,7 +195,7 @@ func TestStream_NewConsumerFromTemplate(t *testing.T) {
 	stream, err := jsch.NewStream("q1", jsch.FileStorage())
 	checkErr(t, err, "create failed")
 
-	consumer, err := stream.NewConsumerFromTemplate("q1", jsch.SampledDefaultConsumer, jsch.DurableName("q1"))
+	consumer, err := stream.NewConsumerFromDefault(jsch.SampledDefaultConsumer, jsch.DurableName("q1"))
 	checkErr(t, err, "create failed")
 	consumer.Reset()
 	if !consumer.IsSampled() {
@@ -203,7 +203,7 @@ func TestStream_NewConsumerFromTemplate(t *testing.T) {
 	}
 }
 
-func TestStream_LoadOrNewConsumerFromTemplate(t *testing.T) {
+func TestStream_LoadOrNewConsumerFromDefault(t *testing.T) {
 	srv, nc := startJSServer(t)
 	defer srv.Shutdown()
 	defer nc.Flush()
@@ -211,10 +211,10 @@ func TestStream_LoadOrNewConsumerFromTemplate(t *testing.T) {
 	stream, err := jsch.NewStream("q1", jsch.FileStorage())
 	checkErr(t, err, "create failed")
 
-	_, err = stream.LoadOrNewConsumerFromTemplate("q1", jsch.SampledDefaultConsumer, jsch.DurableName("q1"))
+	_, err = stream.LoadOrNewConsumerFromDefault("q1", jsch.SampledDefaultConsumer, jsch.DurableName("q1"))
 	checkErr(t, err, "create failed")
 
-	consumer, err := stream.LoadOrNewConsumerFromTemplate("q1", jsch.SampledDefaultConsumer, jsch.DurableName("q1"))
+	consumer, err := stream.LoadOrNewConsumerFromDefault("q1", jsch.SampledDefaultConsumer, jsch.DurableName("q1"))
 	checkErr(t, err, "load failed")
 	if !consumer.IsSampled() {
 		t.Fatalf("expected a sampled consumer")

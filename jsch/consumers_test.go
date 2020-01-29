@@ -41,7 +41,7 @@ func TestNewConsumer(t *testing.T) {
 	}
 }
 
-func TestNewConsumerFromTemplateDurable(t *testing.T) {
+func TestNewConsumerFromDefaultDurable(t *testing.T) {
 	srv, nc, _ := setupConsumerTest(t)
 	defer srv.Shutdown()
 	defer nc.Flush()
@@ -63,7 +63,7 @@ func TestNewConsumerFromTemplateDurable(t *testing.T) {
 	}
 }
 
-func TestNewConsumerFromTemplateEphemeral(t *testing.T) {
+func TestNewConsumerFromDefaultEphemeral(t *testing.T) {
 	srv, nc, _ := setupConsumerTest(t)
 	defer srv.Shutdown()
 	defer nc.Flush()
@@ -133,7 +133,7 @@ func TestLoadOrNewConsumer(t *testing.T) {
 	}
 }
 
-func TestLoadOrNewConsumerFromTemplate(t *testing.T) {
+func TestLoadOrNewConsumerFromDefault(t *testing.T) {
 	srv, nc, _ := setupConsumerTest(t)
 	defer srv.Shutdown()
 	defer nc.Flush()

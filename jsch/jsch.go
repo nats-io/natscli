@@ -220,8 +220,8 @@ func EachStream(cb func(*Stream)) (err error) {
 // Subscribe subscribes a consumer, creating it if not present from a template configuration modified by opts.  Stream should exist. See nats.Subscribe
 //
 // TODO: I dont really think this kind of thing is a good idea, but its awfully verbose without it so I suspect we will need to cater for this
-func Subscribe(stream string, consumer string, cb func(*nats.Msg), template server.ConsumerConfig, opts ...ConsumerOption) (*nats.Subscription, error) {
-	c, err := LoadOrNewConsumerFromDefault(stream, consumer, template, opts...)
+func Subscribe(stream string, consumer string, cb func(*nats.Msg), deflt server.ConsumerConfig, opts ...ConsumerOption) (*nats.Subscription, error) {
+	c, err := LoadOrNewConsumerFromDefault(stream, consumer, deflt, opts...)
 	if err != nil {
 		return nil, err
 	}

@@ -140,7 +140,7 @@ func TestIsKnownConsumer(t *testing.T) {
 		t.Fatalf("NEW should not exist")
 	}
 
-	_, err = stream.NewConsumerFromTemplate("NEW", jsch.DefaultConsumer, jsch.DurableName("NEW"))
+	_, err = stream.NewConsumerFromDefault(jsch.DefaultConsumer, jsch.DurableName("NEW"))
 	checkErr(t, err, "create failed")
 
 	known, err = jsch.IsKnownConsumer("ORDERS", "NEW")
@@ -206,7 +206,7 @@ func TestConsumerNames(t *testing.T) {
 	_, err = jsch.ConsumerNames("ORDERS")
 	checkErr(t, err, "lookup failed")
 
-	_, err = stream.NewConsumerFromTemplate("NEW", jsch.DefaultConsumer, jsch.DurableName("NEW"))
+	_, err = stream.NewConsumerFromDefault(jsch.DefaultConsumer, jsch.DurableName("NEW"))
 	checkErr(t, err, "create failed")
 
 	names, err := jsch.ConsumerNames("ORDERS")
