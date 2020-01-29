@@ -54,27 +54,35 @@ func LoadOrNewStreamTemplate(name string, maxStreams uint32, config server.Strea
 
 // LoadStreamTemplate loads a given stream template from JetStream
 func LoadStreamTemplate(name string) (template *StreamTemplate, err error) {
-	response, err := nc.Request(fmt.Sprintf(server.JetStreamTemplateInfoT, name), nil, Timeout)
+	template = &StreamTemplate{cfg: server.StreamTemplateConfig{Name: name}}
+	err = loadConfigForStreamTemplate(template)
 	if err != nil {
 		return nil, err
 	}
 
+	return template, nil
+}
+
+func loadConfigForStreamTemplate(template *StreamTemplate) (err error) {
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamTemplateInfoT, template.Name()), nil, Timeout)
+	if err != nil {
+		return err
+	}
+
 	if IsErrorResponse(response) {
-		return nil, fmt.Errorf("%s", string(response.Data))
+		return fmt.Errorf("%s", string(response.Data))
 	}
 
 	info := server.StreamTemplateInfo{}
 	err = json.Unmarshal(response.Data, &info)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	template = &StreamTemplate{
-		cfg:     *info.Config,
-		streams: info.Streams,
-	}
+	template.cfg = *info.Config
+	template.streams = info.Streams
 
-	return template, nil
+	return nil
 }
 
 // Delete deletes the StreamTemplate, after this the StreamTemplate object should be disposed
@@ -89,6 +97,11 @@ func (t *StreamTemplate) Delete() error {
 	}
 
 	return nil
+}
+
+// Reset reloads the Stream Template configuration and state from the JetStream server
+func (t *StreamTemplate) Reset() error {
+	return loadConfigForStreamTemplate(t)
 }
 
 func (t *StreamTemplate) Configuration() server.StreamTemplateConfig { return t.cfg }

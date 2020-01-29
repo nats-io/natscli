@@ -54,10 +54,10 @@ orders, err := jsch.LoadStream("ORDERS")
 This will fail if the stream does not exist, create and load can be combined:
 
 ```go
-orders, err := jsch.LoadOrNewFromDefault("ORDERS", template, jsch.Subjects("ORDERS.*"))
+orders, err := jsch.LoadOrNewFromDefault("ORDERS", template, jsch.DurableName("ORDERS"), jsch.Subjects("ORDERS.*"))
 ```
 
-This will create the Stream if it doesn't exist, else load the existing one - though no effort is made to ensure the loaded one matches the desired configuration in that case.
+This will create the Stream if it doesn't exist, else load the existing one - though no effort is made to ensure the loaded one matches the desired configuration in that case. In these cases the DurableName() and the name being loaded has to match.
 
 ### Associated Consumers
 
