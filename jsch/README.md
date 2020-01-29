@@ -54,10 +54,10 @@ orders, err := jsch.LoadStream("ORDERS")
 This will fail if the stream does not exist, create and load can be combined:
 
 ```go
-orders, err := jsch.LoadOrNewFromDefault("ORDERS", template, jsch.DurableName("ORDERS"), jsch.Subjects("ORDERS.*"))
+orders, err := jsch.LoadOrNewFromDefault("ORDERS", template, jsch.Subjects("ORDERS.*"))
 ```
 
-This will create the Stream if it doesn't exist, else load the existing one - though no effort is made to ensure the loaded one matches the desired configuration in that case. In these cases the DurableName() and the name being loaded has to match.
+This will create the Stream if it doesn't exist, else load the existing one - though no effort is made to ensure the loaded one matches the desired configuration in that case.
 
 ### Associated Consumers
 
@@ -80,6 +80,8 @@ consumer, err := jsch.NewConsumer("ORDERS", "NEW", jsch.FilterSubject("ORDERS.re
 ```
 
 Like with Streams we have `NewConsumerFromDefault`, `LoadOrNewConsumer` and `LoadOrNewConsumerFromDefault` and we supply 2 default default configurations to help you `DefaultConsumer` and `SampledDefaultConsumer`.
+
+When using `LoadOrNewConsumer` and `LoadOrNewConsumerFromDefault` if a durable name is given then that has to match the name supplied.
 
 Many options exist to set starting points, durability and more - everything that you will find in the `jsm` utility, review the godoc for full details.
 
