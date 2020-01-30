@@ -631,7 +631,7 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
-	prepareHelper(servers, natsOpts()...)
+	c.connectAndAskStream()
 
 	if c.msgID == -1 {
 		id := ""

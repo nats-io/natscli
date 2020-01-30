@@ -436,10 +436,8 @@ func TestCLIBackupRestore(t *testing.T) {
 
 	runJsmCli(t, fmt.Sprintf("--server='%s' backup '%s'", srv.ClientURL(), target))
 
-	err = mem1.Delete()
-	checkErr(t, err, "mem1 delete failed")
-	err = t1.Delete()
-	checkErr(t, err, "t1 delete failed")
+	checkErr(t, mem1.Delete(), "mem1 delete failed")
+	checkErr(t, t1.Delete(), "t1 delete failed")
 
 	runJsmCli(t, fmt.Sprintf("--server='%s' restore '%s'", srv.ClientURL(), target))
 
