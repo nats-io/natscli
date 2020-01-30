@@ -472,6 +472,7 @@ func (c *Consumer) IsSampled() bool                   { return c.SampleFrequency
 func (c *Consumer) IsPullMode() bool                  { return c.cfg.Delivery == "" }
 func (c *Consumer) IsPushMode() bool                  { return !c.IsPullMode() }
 func (c *Consumer) IsDurable() bool                   { return c.cfg.Durable != "" }
+func (c *Consumer) IsEphemeral() bool                 { return !c.IsDurable() }
 func (c *Consumer) StreamName() string                { return c.stream }
 func (c *Consumer) DeliverySubject() string           { return c.cfg.Delivery }
 func (c *Consumer) DurableName() string               { return c.cfg.Durable }

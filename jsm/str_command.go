@@ -57,7 +57,7 @@ type streamCmd struct {
 func configureStreamCommand(app *kingpin.Application) {
 	c := &streamCmd{msgID: -1}
 
-	str := app.Command("stream", "Stream management").Alias("str").Alias("st").Alias("ms")
+	str := app.Command("stream", "Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
 
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
@@ -372,6 +372,9 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	fmt.Printf("          Maximum Age: %s\n", cfg.MaxAge.String())
 	fmt.Printf(" Maximum Message Size: %d\n", cfg.MaxMsgSize)
 	fmt.Printf("    Maximum Consumers: %d\n", cfg.MaxConsumers)
+	if cfg.Template != "" {
+		fmt.Printf("  Managed by Template: %s\n", cfg.Template)
+	}
 }
 
 func (c *streamCmd) infoAction(_ *kingpin.ParseContext) error {

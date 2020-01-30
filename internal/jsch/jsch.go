@@ -217,6 +217,25 @@ func EachStream(cb func(*Stream)) (err error) {
 	return nil
 }
 
+// EachStreamTemplate iterates over all known Stream Templates
+func EachStreamTemplate(cb func(*StreamTemplate)) (err error) {
+	names, err := StreamTemplateNames()
+	if err != nil {
+		return err
+	}
+
+	for _, t := range names {
+		template, err := LoadStreamTemplate(t)
+		if err != nil {
+			return err
+		}
+
+		cb(template)
+	}
+
+	return nil
+}
+
 // Subscribe subscribes a consumer, creating it if not present from a template configuration modified by opts.  Stream should exist. See nats.Subscribe
 //
 // TODO: I dont really think this kind of thing is a good idea, but its awfully verbose without it so I suspect we will need to cater for this

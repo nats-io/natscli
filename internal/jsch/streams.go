@@ -304,6 +304,25 @@ func (s *Stream) ConsumerNames() (names []string, err error) {
 	return names, nil
 }
 
+// EachConsumer calls cb with each known consumer for this stream, error on any error to load consumers
+func (s *Stream) EachConsumer(cb func(consumer *Consumer)) error {
+	names, err := s.ConsumerNames()
+	if err != nil {
+		return err
+	}
+
+	for _, name := range names {
+		c, err := s.LoadConsumer(name)
+		if err != nil {
+			return err
+		}
+
+		cb(c)
+	}
+
+	return nil
+}
+
 func (s *Stream) Information() (info *server.StreamInfo, err error) {
 	return loadStreamInfo(s.Name())
 }
@@ -390,6 +409,9 @@ func (s *Stream) MetricSubject() string {
 	return server.JetStreamMetricPrefix + "." + "*" + "." + s.Name() + ".*"
 }
 
+// IsTemplateManaged determines if this stream is managed by a template
+func (s *Stream) IsTemplateManaged() bool { return s.Template() != "" }
+
 func (s *Stream) Configuration() server.StreamConfig { return s.cfg }
 func (s *Stream) Name() string                       { return s.cfg.Name }
 func (s *Stream) Subjects() []string                 { return s.cfg.Subjects }
@@ -402,3 +424,4 @@ func (s *Stream) MaxMsgSize() int32                  { return s.cfg.MaxMsgSize }
 func (s *Stream) Storage() server.StorageType        { return s.cfg.Storage }
 func (s *Stream) Replicas() int                      { return s.cfg.Replicas }
 func (s *Stream) NoAck() bool                        { return s.cfg.NoAck }
+func (s *Stream) Template() string                   { return s.cfg.Template }
