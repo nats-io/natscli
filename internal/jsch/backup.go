@@ -217,7 +217,17 @@ func restoreConsumer(backup *BackupData) error {
 		return err
 	}
 
-	log.Printf("Restoring Consumer %s", cc.Name)
+	known, err := IsKnownStream(cc.Stream)
+	if err != nil {
+		return err
+	}
+
+	if !known {
+		log.Printf("Restoring Consumer %s > %s skipped - stream does not exist, possibly managed by a Stream Template", cc.Stream, cc.Name)
+		return nil
+	}
+
+	log.Printf("Restoring Consumer %s > %s", cc.Stream, cc.Name)
 	_, err = NewConsumerFromDefault(cc.Stream, cc.Config)
 	return err
 }
