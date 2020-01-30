@@ -257,6 +257,14 @@ $ ./nats-server -js -sd /tmp/test
 [16943] 2019/12/04 19:20:00.874877 [INF] Server is ready
 ```
 
+These options can also be set in your configuration file:
+
+```
+jetstream {
+    store_dir: "/data/nats-server"
+}
+```
+
 ## Administration and Usage from the CLI
 
 Once the server is running it's time to use the management tool. This can be downloaded from the [GitHub Release Page](https://github.com/nats-io/jetstream/releases/) or you can use the `synadia/jsm:latest` docker image.
