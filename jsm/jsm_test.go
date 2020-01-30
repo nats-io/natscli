@@ -20,10 +20,12 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 
@@ -407,5 +409,55 @@ func TestCLIConsumerCopy(t *testing.T) {
 
 	if !pull1.IsPullMode() {
 		t.Fatalf("Expected pull1 to be pull-based, got %v", pull1.Configuration())
+	}
+}
+
+func TestCLIBackupRestore(t *testing.T) {
+	srv, _ := setupConsTest(t)
+	defer srv.Shutdown()
+
+	dir, err := ioutil.TempDir("", "")
+	checkErr(t, err, "temp dir failed")
+	defer os.RemoveAll(dir)
+
+	target := filepath.Join(dir, "backup")
+
+	mem1, err := jsch.LoadStream("mem1")
+	checkErr(t, err, "fetch mem1 failed")
+	origMem1Config := mem1.Configuration()
+
+	c1, err := mem1.NewConsumerFromDefault(jsch.DefaultConsumer, jsch.DurableName("c1"))
+	checkErr(t, err, "consumer c1 failed")
+	origC1Config := c1.Configuration()
+
+	t1, err := jsch.NewStreamTemplate("t1", 1, jsch.DefaultStream)
+	checkErr(t, err, "TEST template create failed")
+	origT1Config := t1.Configuration()
+
+	runJsmCli(t, fmt.Sprintf("--server='%s' backup '%s'", srv.ClientURL(), target))
+
+	err = mem1.Delete()
+	checkErr(t, err, "mem1 delete failed")
+	err = t1.Delete()
+	checkErr(t, err, "t1 delete failed")
+
+	runJsmCli(t, fmt.Sprintf("--server='%s' restore '%s'", srv.ClientURL(), target))
+
+	mem1, err = jsch.LoadStream("mem1")
+	checkErr(t, err, "fetch mem1 failed")
+	if !cmp.Equal(mem1.Configuration(), origMem1Config) {
+		t.Fatalf("mem1 recreate failed")
+	}
+
+	c1, err = mem1.LoadConsumer("c1")
+	checkErr(t, err, "fetch c1 failed")
+	if !cmp.Equal(c1.Configuration(), origC1Config) {
+		t.Fatalf("mem1 recreate failed")
+	}
+
+	t1, err = jsch.LoadStreamTemplate("t1")
+	checkErr(t, err, "template load failed")
+	if !cmp.Equal(t1.Configuration(), origT1Config) {
+		t.Fatalf("mem1 recreate failed")
 	}
 }
