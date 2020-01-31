@@ -260,8 +260,16 @@ $ ./nats-server -js -sd /tmp/test
 These options can also be set in your configuration file:
 
 ```
+// enables jetstream, an empty block will enable and use defaults
 jetstream {
+    // jetstream data will be in /data/nats-server/jetstream
     store_dir: "/data/nats-server"
+
+    // 1GB
+    max_memory_store: 1073741824
+
+    // 10GB
+    max_file_store: 10737418240
 }
 ```
 
