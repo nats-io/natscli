@@ -466,7 +466,9 @@ Statistics:
 
 After putting some throw away data into the Stream, we can purge all the data out - while keeping the Stream active:
 
-#### Deleting Data
+#### Deleting All Data
+
+To delete all data in a stream use `purge`:
 
 ```nohighlight
 $ jsm str purge ORDERS -f
@@ -478,6 +480,14 @@ Statistics:
             FirstSeq: 1,000,001
              LastSeq: 1,000,000
     Active Consumers: 0
+```
+
+#### Deleting A Message
+
+A single message can be securely removed from the stream:
+
+```nohighlight
+$ jsm str rmm ORDERS 1 -f
 ```
 
 #### Deleting Sets
