@@ -459,3 +459,47 @@ func TestCLIBackupRestore(t *testing.T) {
 		t.Fatalf("mem1 recreate failed")
 	}
 }
+
+func TestCLIMessageRm(t *testing.T) {
+	srv, nc := setupConsTest(t)
+	defer srv.Shutdown()
+
+	checkErr(t, nc.Publish("js.mem.1", []byte("msg1")), "publish failed")
+	checkErr(t, nc.Publish("js.mem.1", []byte("msg2")), "publish failed")
+	checkErr(t, nc.Publish("js.mem.1", []byte("msg3")), "publish failed")
+
+	mem1, err := jsch.LoadStream("mem1")
+	checkErr(t, err, "load failed")
+
+	state, err := mem1.State()
+	checkErr(t, err, "state failed")
+
+	if state.Msgs != 3 {
+		t.Fatalf("no message added to stream")
+	}
+
+	runJsmCli(t, fmt.Sprintf("--server='%s' str rmm mem1 2 -f", srv.ClientURL()))
+	state, err = mem1.State()
+	checkErr(t, err, "state failed")
+
+	if state.Msgs != 2 {
+		t.Fatalf("message was not removed")
+	}
+
+	msg, err := mem1.LoadMessage(1)
+	checkErr(t, err, "load failed")
+	if cmp.Equal(msg.Data, []byte("msg1")) {
+		checkErr(t, err, "load failed")
+	}
+
+	msg, err = mem1.LoadMessage(3)
+	checkErr(t, err, "load failed")
+	if cmp.Equal(msg.Data, []byte("msg3")) {
+		checkErr(t, err, "load failed")
+	}
+
+	msg, err = mem1.LoadMessage(2)
+	if err == nil {
+		t.Fatalf("loading delete message did not fail")
+	}
+}

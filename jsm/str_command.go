@@ -96,6 +96,11 @@ func configureStreamCommand(app *kingpin.Application) {
 	strPurge.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	strPurge.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
+	strRmMsg := str.Command("rmm", "Securely removes an individual message from a Stream").Action(c.rmMsgAction)
+	strRmMsg.Arg("stream", "Stream name").StringVar(&c.stream)
+	strRmMsg.Arg("id", "Message ID to remove").Int64Var(&c.msgID)
+	strRmMsg.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+
 	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
 	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
 	strGet.Arg("id", "Message ID to retrieve").Int64Var(&c.msgID)
@@ -628,6 +633,37 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) (err error) {
 	fmt.Println()
 
 	return nil
+}
+
+func (c *streamCmd) rmMsgAction(_ *kingpin.ParseContext) (err error) {
+	c.connectAndAskStream()
+
+	if c.msgID == -1 {
+		id := ""
+		err = survey.AskOne(&survey.Input{
+			Message: "Message ID to remove",
+		}, &id, survey.WithValidator(survey.Required))
+		kingpin.FatalIfError(err, "invalid input")
+
+		idint, err := strconv.Atoi(id)
+		kingpin.FatalIfError(err, "invalid number")
+
+		c.msgID = int64(idint)
+	}
+
+	stream, err := jsch.LoadStream(c.stream)
+	kingpin.FatalIfError(err, "could not load Stream %s", c.stream)
+
+	if !c.force {
+		ok, err := askConfirmation(fmt.Sprintf("Really remove message %d from Stream %s", c.msgID, c.stream), false)
+		kingpin.FatalIfError(err, "could not obtain confirmation")
+
+		if !ok {
+			return nil
+		}
+	}
+
+	return stream.DeleteMessage(int(c.msgID))
 }
 
 func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
