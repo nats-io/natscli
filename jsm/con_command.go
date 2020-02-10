@@ -93,11 +93,17 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consCp.Arg("destination", "Destination Consumer name").Required().StringVar(&c.destination)
 	addCreateFlags(consCp)
 
-	consNext := cons.Command("next", "Retrieves messages from Consumers").Alias("sub").Action(c.nextAction)
+	consNext := cons.Command("next", "Retrieves messages from Pull Consumers without interactive prompts").Action(c.nextAction)
 	consNext.Arg("stream", "Stream name").StringVar(&c.stream)
 	consNext.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consNext.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
+
+	consSub := cons.Command("sub", "Retrieves messages from Consumers").Action(c.subAction)
+	consSub.Arg("stream", "Stream name").StringVar(&c.stream)
+	consSub.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	consSub.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
+	consSub.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
 }
 
 func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
@@ -467,10 +473,8 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	return c.infoAction(pc)
 }
 
-func (c *consumerCmd) getNextMsg(consumer *jsch.Consumer) error {
-	c.connectAndSetup(true, false)
-
-	msg, err := consumer.NextMsg()
+func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
+	msg, err := jsch.NextMsgs(stream, consumer, 1)
 	kingpin.FatalIfError(err, "could not load next message")
 
 	if !c.raw {
@@ -496,6 +500,10 @@ func (c *consumerCmd) getNextMsg(consumer *jsch.Consumer) error {
 	}
 
 	return nil
+}
+
+func (c *consumerCmd) getNextMsg(consumer *jsch.Consumer) error {
+	return c.getNextMsgDirect(consumer.StreamName(), consumer.Name())
 }
 
 func (c *consumerCmd) subscribeConsumer(consumer *jsch.Consumer) (err error) {
@@ -545,7 +553,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsch.Consumer) (err error) {
 	return nil
 }
 
-func (c *consumerCmd) nextAction(pc *kingpin.ParseContext) error {
+func (c *consumerCmd) subAction(_ *kingpin.ParseContext) error {
 	c.connectAndSetup(true, true)
 
 	consumer, err := jsch.LoadConsumer(c.stream, c.consumer)
@@ -559,6 +567,12 @@ func (c *consumerCmd) nextAction(pc *kingpin.ParseContext) error {
 	default:
 		return fmt.Errorf("consumer %s > %s is in an unknown state", c.stream, c.consumer)
 	}
+}
+
+func (c *consumerCmd) nextAction(_ *kingpin.ParseContext) error {
+	c.connectAndSetup(false, false)
+
+	return c.getNextMsgDirect(c.stream, c.consumer)
 }
 
 func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool) {
