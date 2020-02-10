@@ -335,7 +335,12 @@ func (c *Consumer) NextSubject() string {
 		return ""
 	}
 
-	return fmt.Sprintf(server.JetStreamRequestNextT, c.stream, c.name)
+	return NextSubject(c.stream, c.name)
+}
+
+// NextSubject returns the subject used to retrieve the next message for pull-based Consumers, empty when not a pull-base consumer
+func NextSubject(stream string, consumer string) string {
+	return fmt.Sprintf(server.JetStreamRequestNextT, stream, consumer)
 }
 
 // AckSampleSubject is the subject used to publish ack samples to
@@ -418,6 +423,11 @@ func (c *Consumer) QueueSubscribeSyncWithChan(queue string, ch chan *nats.Msg) (
 	}
 
 	return nc.QueueSubscribeSyncWithChan(c.DeliverySubject(), queue, ch)
+}
+
+// NextMsgs retrieves the next n messages
+func NextMsgs(stream string, consumer string, n int) (m *nats.Msg, err error) {
+	return nc.Request(NextSubject(stream, consumer), []byte(strconv.Itoa(n)), Timeout)
 }
 
 // NextMsgs retrieves the next n messages
