@@ -365,6 +365,29 @@ func TestCLIConsumerNext(t *testing.T) {
 	}
 }
 
+func TestCLIStreamEdit(t *testing.T) {
+	srv, _ := setupJStreamTest(t)
+	defer srv.Shutdown()
+
+	mem1, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
+	checkErr(t, err, "could not create stream: %v", err)
+	streamShouldExist(t, "mem1")
+
+	runJsmCli(t, fmt.Sprintf("--server='%s' str edit mem1 --subjects other", srv.ClientURL()))
+
+	err = mem1.Reset()
+	checkErr(t, err, "could not reset stream: %v", err)
+
+	if len(mem1.Subjects()) != 1 {
+		t.Fatalf("expected [other] got %v", mem1.Subjects())
+	}
+
+	if mem1.Subjects()[0] != "other" {
+		t.Fatalf("expected [other] got %v", mem1.Subjects())
+	}
+
+}
+
 func TestCLIStreamCopy(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()

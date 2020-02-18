@@ -94,7 +94,7 @@ func createDurableConsumer(request server.CreateConsumerRequest) (name string, e
 	}
 
 	if IsErrorResponse(response) {
-		return "", fmt.Errorf("%s", string(response.Data))
+		return "", fmt.Errorf(string(response.Data))
 	}
 
 	return request.Config.Durable, nil
@@ -112,7 +112,7 @@ func createEphemeralConsumer(request server.CreateConsumerRequest) (name string,
 	}
 
 	if IsErrorResponse(response) {
-		return "", fmt.Errorf("%s", string(response.Data))
+		return "", fmt.Errorf(string(response.Data))
 	}
 
 	parts := strings.Split(string(response.Data), " ")
@@ -188,7 +188,7 @@ func loadConsumerInfo(s string, c string) (info server.ConsumerInfo, err error) 
 	}
 
 	if IsErrorResponse(response) {
-		return info, fmt.Errorf("%s", string(response.Data))
+		return info, fmt.Errorf(string(response.Data))
 	}
 
 	info = server.ConsumerInfo{}
@@ -467,7 +467,7 @@ func (c *Consumer) Delete() (err error) {
 	}
 
 	if IsErrorResponse(response) {
-		return fmt.Errorf("%s", string(response.Data))
+		return fmt.Errorf(string(response.Data))
 	}
 
 	if IsOKResponse(response) {

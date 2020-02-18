@@ -18,6 +18,8 @@ JetStream is the [NATS.io](https://nats.io) persistence engine that will support
     + [Creating](#creating)
     + [Listing](#listing)
     + [Querying](#querying)
+    + [Copying](#copying)
+    + [Editing](#editing)
     + [Publishing Into a Stream](#publishing-into-a-stream)
     + [Deleting Data](#deleting-data)
     + [Deleting Sets](#deleting-sets)
@@ -430,6 +432,45 @@ $ jsm str info ORDERS -j
 ```
 
 This is the general pattern for the entire `jsm` utility - prompting for needed information but every action can be run non-interactively making it usable as a cli api. All information output like seen above can be turned into JSON using `-j`.
+
+#### Copying
+
+A stream can be copied into another, which also allows the configuration of the new one to be adjusted via CLI flags:
+
+```nohighlight
+$ jsm str cp ORDERS ARCHIVE --subjects "ORDERS_ARCVHIVE.*" --max-age 2y
+Stream ORDERS was created
+
+Information for Stream ARCHIVE
+
+Configuration:
+
+             Subjects: ORDERS_ARCVHIVE.*
+...
+          Maximum Age: 17520h0m0s
+...
+```
+
+#### Editing
+
+A stream configuration can be edited, which allows the configuration to be adjusted via CLI flags.  Here I have a incorrectly created ORDERS stream that I fix:
+
+```nohighlight
+$ jsm str info ORDERS -j | jq .config.subjects
+[
+  "ORDERS.new"
+]
+
+$ jsm str edit ORDERS --subjects "ORDERS.*"
+Stream ORDERS was updated
+
+Information for Stream ORDERS
+
+Configuration:
+
+             Subjects: ORDERS.*
+....
+```
 
 #### Publishing Into a Stream
 
@@ -1167,6 +1208,7 @@ The command `jsm events` will show you an audit log of all API access events whi
 |`server.JetStreamDeleteStreamT`|Deletes a Stream and all its data|empty payload, Stream name in subject|Standard OK/ERR|
 |`server.JetStreamPurgeStreamT`|Purges all of the data in a Stream, leaves the Stream|empty payload, Stream name in subject|Standard OK/ERR|
 |`server.JetStreamDeleteMsgT`|Deletes a specific message in the Stream by sequence, useful for GDPR compliance|`stream_seq`, Stream name in subject|Standard OK/ERR|
+|`server.JetStreamUpdateStreamT`|Updates the configuration of an existing stream|Stream name in subject|Standard OK/ERR|
 
 #### Stream Templates
 
@@ -1202,6 +1244,7 @@ Stream and Consumer Admin
 ```
 $JS.STREAM.LIST
 $JS.STREAM.<stream>.CREATE
+$JS.STREAM.<stream>.UPDATE
 $JS.STREAM.<stream>.INFO
 $JS.STREAM.<stream>.DELETE
 $JS.STREAM.<stream>.PURGE

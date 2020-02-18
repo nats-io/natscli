@@ -118,7 +118,7 @@ func JetStreamAccountInfo() (info server.JetStreamAccountStats, err error) {
 	}
 
 	if IsErrorResponse(response) {
-		return info, fmt.Errorf("%s", string(response.Data))
+		return info, fmt.Errorf(string(response.Data))
 	}
 
 	err = json.Unmarshal(response.Data, &info)
@@ -139,7 +139,7 @@ func StreamNames() (streams []string, err error) {
 	}
 
 	if IsErrorResponse(response) {
-		return streams, fmt.Errorf("%s", string(response.Data))
+		return streams, fmt.Errorf(string(response.Data))
 	}
 
 	err = json.Unmarshal(response.Data, &streams)
@@ -162,7 +162,7 @@ func StreamTemplateNames() (templates []string, err error) {
 	}
 
 	if IsErrorResponse(response) {
-		return templates, fmt.Errorf("%s", string(response.Data))
+		return templates, fmt.Errorf(string(response.Data))
 	}
 
 	err = json.Unmarshal(response.Data, &templates)
@@ -185,7 +185,7 @@ func ConsumerNames(stream string) (consumers []string, err error) {
 	}
 
 	if IsErrorResponse(response) {
-		return consumers, fmt.Errorf("%s", string(response.Data))
+		return consumers, fmt.Errorf(string(response.Data))
 	}
 
 	err = json.Unmarshal(response.Data, &consumers)

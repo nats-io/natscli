@@ -70,14 +70,18 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("max-bytes", "Maximum bytes to keep").Default("0").Int64Var(&c.maxBytesLimit)
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
 		f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
-		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
 		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int32Var(&c.maxMsgSize)
+		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	}
 
 	strAdd := str.Command("create", "Create a new Stream").Alias("add").Alias("new").Action(c.addAction)
 	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	addCreateFlags(strAdd)
+
+	strEdit := str.Command("edit", "Edits an existing stream").Action(c.editAction)
+	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
+	addCreateFlags(strEdit)
 
 	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another").Alias("cp").Action(c.cpAction)
 	strCopy.Arg("source", "Source Stream to copy").Required().StringVar(&c.stream)
@@ -310,22 +314,10 @@ func (c *streamCmd) reportAction(pc *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *streamCmd) cpAction(pc *kingpin.ParseContext) error {
-	if c.stream == c.destination {
-		kingpin.Fatalf("source and destination Stream names cannot be the same")
-	}
+func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, error) {
+	var err error
 
-	c.connectAndAskStream()
-
-	sourceStream, err := jsch.LoadStream(c.stream)
-	kingpin.FatalIfError(err, "could not request Stream %s configuration", c.stream)
-
-	source, err := sourceStream.Information()
-	kingpin.FatalIfError(err, "could not request Stream %s configuration", c.stream)
-
-	cfg := source.Config
 	cfg.NoAck = !c.ack
-	cfg.Name = c.destination
 
 	if len(c.subjects) > 0 {
 		cfg.Subjects = c.splitCLISubjects()
@@ -349,12 +341,49 @@ func (c *streamCmd) cpAction(pc *kingpin.ParseContext) error {
 
 	if c.maxAgeLimit != "" {
 		cfg.MaxAge, err = parseDurationString(c.maxAgeLimit)
-		kingpin.FatalIfError(err, "invalid maximum age limit format")
+		if err != nil {
+			return api.StreamConfig{}, fmt.Errorf("invalid maximum age limit format: %v", err)
+		}
 	}
 
 	if c.maxMsgSize != 0 {
 		cfg.MaxMsgSize = c.maxMsgSize
 	}
+
+	return cfg, nil
+}
+
+func (c *streamCmd) editAction(pc *kingpin.ParseContext) error {
+	c.connectAndAskStream()
+
+	sourceStream, err := jsch.LoadStream(c.stream)
+	kingpin.FatalIfError(err, "could not request Stream %s configuration", c.stream)
+
+	cfg, err := c.copyAndEditStream(sourceStream.Configuration())
+	kingpin.FatalIfError(err, "could not create new configuration for Stream %s", c.stream)
+
+	err = sourceStream.UpdateConfiguration(cfg)
+	kingpin.FatalIfError(err, "could not edit Stream %s", c.stream)
+
+	fmt.Printf("Stream %s was updated\n\n", c.stream)
+
+	return c.infoAction(pc)
+}
+
+func (c *streamCmd) cpAction(pc *kingpin.ParseContext) error {
+	if c.stream == c.destination {
+		kingpin.Fatalf("source and destination Stream names cannot be the same")
+	}
+
+	c.connectAndAskStream()
+
+	sourceStream, err := jsch.LoadStream(c.stream)
+	kingpin.FatalIfError(err, "could not request Stream %s configuration", c.stream)
+
+	cfg, err := c.copyAndEditStream(sourceStream.Configuration())
+	kingpin.FatalIfError(err, "could not copy Stream %s", c.stream)
+
+	cfg.Name = c.destination
 
 	_, err = jsch.NewStreamFromDefault(cfg.Name, cfg)
 	kingpin.FatalIfError(err, "could not create Stream")

@@ -78,7 +78,7 @@ func NewStreamFromDefault(name string, dflt server.StreamConfig, opts ...StreamO
 	}
 
 	if IsErrorResponse(response) {
-		return nil, fmt.Errorf("%s", string(response.Data))
+		return nil, fmt.Errorf(string(response.Data))
 	}
 
 	return LoadStream(name)
@@ -150,7 +150,7 @@ func loadStreamInfo(stream string) (info *server.StreamInfo, err error) {
 	}
 
 	if IsErrorResponse(response) {
-		return nil, fmt.Errorf("%s", string(response.Data))
+		return nil, fmt.Errorf(string(response.Data))
 	}
 
 	info = &server.StreamInfo{}
@@ -253,6 +253,30 @@ func NoAck() StreamOption {
 	}
 }
 
+// UpdateConfiguration updates the stream using cfg modified by opts, reloads configuration from the server post update
+func (s *Stream) UpdateConfiguration(cfg server.StreamConfig, opts ...StreamOption) error {
+	ncfg, err := NewStreamConfiguration(cfg, opts...)
+	if err != nil {
+		return err
+	}
+
+	jcfg, err := json.Marshal(ncfg)
+	if err != nil {
+		return err
+	}
+
+	response, err := nc.Request(fmt.Sprintf(server.JetStreamUpdateStreamT, s.Name()), jcfg, Timeout)
+	if err != nil {
+		return err
+	}
+
+	if IsErrorResponse(response) {
+		return fmt.Errorf(string(response.Data))
+	}
+
+	return s.Reset()
+}
+
 // Reset reloads the Stream configuration from the JetStream server
 func (s *Stream) Reset() error {
 	return loadConfigForStream(s)
@@ -291,7 +315,7 @@ func (s *Stream) ConsumerNames() (names []string, err error) {
 	}
 
 	if IsErrorResponse(response) {
-		return names, fmt.Errorf("%s", string(response.Data))
+		return names, fmt.Errorf(string(response.Data))
 	}
 
 	err = json.Unmarshal(response.Data, &names)
@@ -345,7 +369,7 @@ func (s *Stream) Delete() error {
 	}
 
 	if IsErrorResponse(response) {
-		return fmt.Errorf("%s", string(response.Data))
+		return fmt.Errorf(string(response.Data))
 	}
 
 	return nil
@@ -359,7 +383,7 @@ func (s *Stream) Purge() error {
 	}
 
 	if IsErrorResponse(response) {
-		return fmt.Errorf("%s", string(response.Data))
+		return fmt.Errorf(string(response.Data))
 	}
 
 	return nil
@@ -373,7 +397,7 @@ func (s *Stream) LoadMessage(seq int) (msg server.StoredMsg, err error) {
 	}
 
 	if IsErrorResponse(response) {
-		return server.StoredMsg{}, fmt.Errorf("%s", string(response.Data))
+		return server.StoredMsg{}, fmt.Errorf(string(response.Data))
 	}
 
 	msg = server.StoredMsg{}
@@ -393,7 +417,7 @@ func (s *Stream) DeleteMessage(seq int) (err error) {
 	}
 
 	if IsErrorResponse(response) {
-		return fmt.Errorf("%s", string(response.Data))
+		return fmt.Errorf(string(response.Data))
 	}
 
 	return nil
