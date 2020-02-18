@@ -36,7 +36,7 @@ func NewStreamTemplate(name string, maxStreams uint32, config server.StreamConfi
 	}
 
 	if IsErrorResponse(response) {
-		return nil, fmt.Errorf("%s", string(response.Data))
+		return nil, fmt.Errorf(string(response.Data))
 	}
 
 	return LoadStreamTemplate(name)
@@ -70,7 +70,7 @@ func loadConfigForStreamTemplate(template *StreamTemplate) (err error) {
 	}
 
 	if IsErrorResponse(response) {
-		return fmt.Errorf("%s", string(response.Data))
+		return fmt.Errorf(string(response.Data))
 	}
 
 	info := server.StreamTemplateInfo{}
@@ -93,7 +93,7 @@ func (t *StreamTemplate) Delete() error {
 	}
 
 	if IsErrorResponse(response) {
-		return fmt.Errorf("%s", string(response.Data))
+		return fmt.Errorf(string(response.Data))
 	}
 
 	return nil

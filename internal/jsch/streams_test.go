@@ -221,6 +221,44 @@ func TestStream_LoadOrNewConsumerFromDefault(t *testing.T) {
 	}
 }
 
+func TestStream_UpdateConfiguration(t *testing.T) {
+	srv, nc := startJSServer(t)
+	defer srv.Shutdown()
+	defer nc.Flush()
+
+	stream, err := jsch.NewStream("q1", jsch.FileStorage(), jsch.Subjects("ORDERS.new"))
+	checkErr(t, err, "create failed")
+
+	if stream.Configuration().Subjects[0] != "ORDERS.new" {
+		t.Fatalf("expected [ORDERS.new], got %v", stream.Configuration().Subjects)
+	}
+
+	cfg := stream.Configuration()
+	cfg.Subjects = []string{"ORDERS.*"}
+
+	err = stream.UpdateConfiguration(cfg)
+	checkErr(t, err, "update failed")
+
+	if len(stream.Configuration().Subjects) != 1 {
+		t.Fatalf("expected [ORDERS.*], got %v", stream.Configuration().Subjects)
+	}
+
+	if stream.Configuration().Subjects[0] != "ORDERS.*" {
+		t.Fatalf("expected [ORDERS.*], got %v", stream.Configuration().Subjects)
+	}
+
+	err = stream.UpdateConfiguration(stream.Configuration(), jsch.Subjects("ARCHIVE.*"))
+	checkErr(t, err, "update failed")
+
+	if len(stream.Configuration().Subjects) != 1 {
+		t.Fatalf("expected [ARCHIVE.*], got %v", stream.Configuration().Subjects)
+	}
+
+	if stream.Configuration().Subjects[0] != "ARCHIVE.*" {
+		t.Fatalf("expected [ARCHIVE.*], got %v", stream.Configuration().Subjects)
+	}
+}
+
 func TestStream_ConsumerNames(t *testing.T) {
 	srv, nc := startJSServer(t)
 	defer srv.Shutdown()
