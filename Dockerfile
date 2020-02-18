@@ -1,7 +1,9 @@
 FROM synadia/nats-server:2.2.0-JS-preview AS JS
+FROM stedolan/jq:latest AS JQ
 FROM synadia/nats-box:latest
 
 COPY --from=JS /nats-server /nats-server
+COPY --from=JQ /usr/local/bin/jq /usr/local/bin/jq
 
 # goreleaser does the build
 COPY jsm /usr/local/bin/
