@@ -365,7 +365,9 @@ func (c *streamCmd) editAction(pc *kingpin.ParseContext) error {
 	err = sourceStream.UpdateConfiguration(cfg)
 	kingpin.FatalIfError(err, "could not edit Stream %s", c.stream)
 
-	fmt.Printf("Stream %s was updated\n\n", c.stream)
+	if !c.json {
+		fmt.Printf("Stream %s was updated\n\n", c.stream)
+	}
 
 	return c.infoAction(pc)
 }
@@ -388,7 +390,9 @@ func (c *streamCmd) cpAction(pc *kingpin.ParseContext) error {
 	_, err = jsch.NewStreamFromDefault(cfg.Name, cfg)
 	kingpin.FatalIfError(err, "could not create Stream")
 
-	fmt.Printf("Stream %s was created\n\n", c.stream)
+	if !c.json {
+		fmt.Printf("Stream %s was created\n\n", c.stream)
+	}
 
 	c.stream = c.destination
 	return c.infoAction(pc)
