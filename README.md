@@ -338,7 +338,7 @@ Information for Stream ORDERS
 Configuration:
 
              Subjects: ORDERS.*
-  No Acknowledgements: false
+     Acknowledgements: true
             Retention: File - Limits
              Replicas: 1
      Maximum Messages: -1
