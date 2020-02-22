@@ -9,6 +9,7 @@ install:
 before_script:
   - GO_LIST=$(go list ./...)
   - cd jsm;go build;cd -
+  - cd nats;go build  ;cd -
   - $(exit $(go fmt $GO_LIST | wc -l))
   - go vet $GO_LIST
   - find . -type f -name "*.go" | grep -v "/vendor/" | xargs misspell -error -locale US

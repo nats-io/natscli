@@ -30,25 +30,46 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
 
-// Timeout used when performing JetStream requests
-var Timeout = 5 * time.Second
-
+var timeout = 5 * time.Second
 var nc *nats.Conn
+var mu sync.Mutex
+
+// Connect connects to NATS and configures it to use the connection in future interaction
+func Connect(servers string, opts ...nats.Option) (err error) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	nc, err = nats.Connect(servers, opts...)
+
+	return err
+}
+
+// SetTimeout sets the timeout for requests to JetStream
+func SetTimeout(t time.Duration) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	timeout = t
+}
 
 // SetConnection sets the connection used to perform requests
 func SetConnection(c *nats.Conn) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	nc = c
 }
 
 // IsJetStreamEnabled determines if JetStream is enabled for the current account
 func IsJetStreamEnabled() bool {
-	_, err := nc.Request(server.JetStreamEnabled, nil, Timeout)
+	_, err := nrequest(server.JetStreamEnabled, nil, timeout)
 	return err == nil
 }
 
@@ -112,7 +133,7 @@ func IsKnownConsumer(stream string, consumer string) (bool, error) {
 
 // JetStreamAccountInfo retrieves information about the current account limits and more
 func JetStreamAccountInfo() (info server.JetStreamAccountStats, err error) {
-	response, err := nc.Request(server.JetStreamInfo, nil, Timeout)
+	response, err := nrequest(server.JetStreamInfo, nil, timeout)
 	if err != nil {
 		return info, err
 	}
@@ -133,7 +154,7 @@ func JetStreamAccountInfo() (info server.JetStreamAccountStats, err error) {
 func StreamNames() (streams []string, err error) {
 	streams = []string{}
 
-	response, err := nc.Request(server.JetStreamListStreams, nil, Timeout)
+	response, err := nrequest(server.JetStreamListStreams, nil, timeout)
 	if err != nil {
 		return streams, err
 	}
@@ -156,7 +177,7 @@ func StreamNames() (streams []string, err error) {
 func StreamTemplateNames() (templates []string, err error) {
 	templates = []string{}
 
-	response, err := nc.Request(server.JetStreamListTemplates, nil, Timeout)
+	response, err := nrequest(server.JetStreamListTemplates, nil, timeout)
 	if err != nil {
 		return templates, err
 	}
@@ -179,7 +200,7 @@ func StreamTemplateNames() (templates []string, err error) {
 func ConsumerNames(stream string) (consumers []string, err error) {
 	consumers = []string{}
 
-	response, err := nc.Request(fmt.Sprintf(server.JetStreamConsumersT, stream), nil, Timeout)
+	response, err := nrequest(fmt.Sprintf(server.JetStreamConsumersT, stream), nil, timeout)
 	if err != nil {
 		return consumers, err
 	}
@@ -236,23 +257,29 @@ func EachStreamTemplate(cb func(*StreamTemplate)) (err error) {
 	return nil
 }
 
-// Subscribe subscribes a consumer, creating it if not present from a template configuration modified by opts.  Stream should exist. See nats.Subscribe
-//
-// TODO: I dont really think this kind of thing is a good idea, but its awfully verbose without it so I suspect we will need to cater for this
-func Subscribe(stream string, consumer string, cb func(*nats.Msg), deflt server.ConsumerConfig, opts ...ConsumerOption) (*nats.Subscription, error) {
-	c, err := LoadOrNewConsumerFromDefault(stream, consumer, deflt, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	return c.Subscribe(cb)
-}
-
 // Flush flushes the underlying NATS connection
 func Flush() error {
+	nc := nconn()
+
+	if nc == nil {
+		return fmt.Errorf("nats connection is not set, use SetConnection()")
+	}
+
 	return nc.Flush()
 }
 
-func NATSConn() *nats.Conn {
+func nconn() *nats.Conn {
+	mu.Lock()
+	defer mu.Unlock()
+
 	return nc
+}
+
+func nrequest(subj string, data []byte, timeout time.Duration) (*nats.Msg, error) {
+	nc := nconn()
+	if nc == nil {
+		return nil, fmt.Errorf("nats connection is not set, use SetConnection()")
+	}
+
+	return nc.Request(subj, data, timeout)
 }

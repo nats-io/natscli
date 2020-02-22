@@ -36,8 +36,8 @@ func (c *restoreCmd) restoreAction(_ *kingpin.ParseContext) error {
 	}
 
 	if c.backupDir != "" {
-		return jsch.RestoreJetStreamConfiguration(c.backupDir)
+		return jsch.RestoreJetStreamConfiguration(c.backupDir, false)
 	}
 
-	return jsch.RestoreJetStreamConfigurationFile(c.file)
+	return jsch.RestoreJetStreamConfigurationFile(c.file, false)
 }

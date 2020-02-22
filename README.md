@@ -145,13 +145,13 @@ When defining Consumers the items below make up the entire configuration of the 
 
 ### Configuration
 
-The rest of this document introduces the `jsm` utility, but for completeness and reference this is how you'd create the ORDERS scenario.  We'll configure a 1 year retention for order related messages:
+The rest of this document introduces the `nats` utility, but for completeness and reference this is how you'd create the ORDERS scenario.  We'll configure a 1 year retention for order related messages:
 
 ```bash
-$ jsm str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size=-1
-$ jsm con add ORDERS NEW --filter ORDERS.received --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
-$ jsm con add ORDERS DISPATCH --filter ORDERS.processed --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
-$ jsm con add ORDERS MONITOR --filter '' --ack none --target monitor.ORDERS --deliver last --replay instant
+$ nats str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size=-1
+$ nats con add ORDERS NEW --filter ORDERS.received --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
+$ nats con add ORDERS DISPATCH --filter ORDERS.processed --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
+$ nats con add ORDERS MONITOR --filter '' --ack none --target monitor.ORDERS --deliver last --replay instant
 ```
 
 ## Getting Started
@@ -160,7 +160,7 @@ This tech preview is limited to a single server and defaults to the global accou
 
 ### Using Docker
 
-The `synadia/jsm:latest` docker image contains both the JetStream enabled NATS Server and the `jsm` utility this guide covers.
+The `synadia/jsm:latest` docker image contains both the JetStream enabled NATS Server and the `nats` utility this guide covers.
 
 In one window start JetStream:
 
@@ -186,7 +186,7 @@ And in another log into the utilities:
 $ docker run -ti --link jetstream synadia/jsm:latest
 ```
 
-This shell has the `jsm` utility and all other NATS cli tools used in the rest of this guide.
+This shell has the `nats` utility and all other NATS cli tools used in the rest of this guide.
 
 Now skip to the `Administer JetStream` section.
 
@@ -280,9 +280,9 @@ jetstream {
 Once the server is running it's time to use the management tool. This can be downloaded from the [GitHub Release Page](https://github.com/nats-io/jetstream/releases/) or you can use the `synadia/jsm:latest` docker image.
 
 ```
-$ jsm --help
-usage: jsm [<flags>] <command> [<args> ...]
-JetStream Management Tool
+$ nats --help
+usage: nats [<flags>] <command> [<args> ...]
+NATS Management Utility
 
 Flags:
       --help                     Show context-sensitive help (also try --help-long and --help-man).
@@ -302,7 +302,7 @@ Commands:
 
 We'll walk through the above scenario and introduce features of the CLI and of JetStream as we recreate the setup above.
 
-Throughout this example, we'll show other commands like `nats-pub` and `nats-sub` to interact with the system. These are normal existing core NATS commands and JetStream is fully usable by only using core NATS.
+Throughout this example, we'll show other commands like `nats pub` and `nats sub` to interact with the system. These are normal existing core NATS commands and JetStream is fully usable by only using core NATS.
 
 We'll touch on some additional features but please review the section on the design model to understand all possible permutations.
 
@@ -311,7 +311,7 @@ We'll touch on some additional features but please review the section on the des
 JetStream is multi-tenant so you will need to check that your account is enabled for JetStream and is not limited. You can view your limits as follows:
 
 ```nohighlight
-$ jsm account info
+$ nats account info
 
       Memory: 0 B of 6.4 GB
      Storage: 0 B of 1.1 TB
@@ -325,7 +325,7 @@ The first step is to set up storage for our `ORDERS` related messages, these arr
 #### Creating
 
 ```nohighlight
-$ jsm str add ORDERS
+$ nats str add ORDERS
 ? Subjects to consume ORDERS.*
 ? Storage backend file
 ? Retention Policy Limits
@@ -361,7 +361,7 @@ Statistics:
 You can get prompted interactively for missing information as above, or do it all on one command. Pressing `?` in the CLI will help you map prompts to CLI options:
 
 ```
-$ jsm str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size=-1
+$ nats str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size=-1
 ```
 
 #### Listing
@@ -369,7 +369,7 @@ $ jsm str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --
 We can confirm our Stream was created:
 
 ```nohighlight
-$ jsm str ls
+$ nats str ls
 Streams:
 
 	ORDERS
@@ -380,7 +380,7 @@ Streams:
 Information about the configuration of the Stream can be seen, and if you did not specify the Stream like below, it will prompt you based on all known ones:
 
 ```nohighlight
-$ jsm str info ORDERS
+$ nats str info ORDERS
 Information for Stream ORDERS
 
 Configuration:
@@ -406,7 +406,7 @@ Statistics:
 Most commands that show data as above support `-j` to show the results as JSON:
 
 ```nohighlight
-$ jsm str info ORDERS -j
+$ nats str info ORDERS -j
 {
   "config": {
     "name": "ORDERS",
@@ -431,14 +431,14 @@ $ jsm str info ORDERS -j
 }
 ```
 
-This is the general pattern for the entire `jsm` utility - prompting for needed information but every action can be run non-interactively making it usable as a cli api. All information output like seen above can be turned into JSON using `-j`.
+This is the general pattern for the entire `nats` utility as it relates to JetStream - prompting for needed information but every action can be run non-interactively making it usable as a cli api. All information output like seen above can be turned into JSON using `-j`.
 
 #### Copying
 
 A stream can be copied into another, which also allows the configuration of the new one to be adjusted via CLI flags:
 
 ```nohighlight
-$ jsm str cp ORDERS ARCHIVE --subjects "ORDERS_ARCVHIVE.*" --max-age 2y
+$ nats str cp ORDERS ARCHIVE --subjects "ORDERS_ARCVHIVE.*" --max-age 2y
 Stream ORDERS was created
 
 Information for Stream ARCHIVE
@@ -456,12 +456,12 @@ Configuration:
 A stream configuration can be edited, which allows the configuration to be adjusted via CLI flags.  Here I have a incorrectly created ORDERS stream that I fix:
 
 ```nohighlight
-$ jsm str info ORDERS -j | jq .config.subjects
+$ nats str info ORDERS -j | jq .config.subjects
 [
   "ORDERS.new"
 ]
 
-$ jsm str edit ORDERS --subjects "ORDERS.*"
+$ nats str edit ORDERS --subjects "ORDERS.*"
 Stream ORDERS was updated
 
 Information for Stream ORDERS
@@ -474,26 +474,27 @@ Configuration:
 
 #### Publishing Into a Stream
 
-Now let's add in some messages to our Stream. You can use `nats-pub` or `nats-bench`. Or even `nats-req` to see the publish ack being returned (these are included in the `synadia/jsm:latest` docker image).
+Now let's add in some messages to our Stream. You can use `nats pub` to add messages, pass the `--wait` flag to see the publish ack being returned.
 
 You can publish without waiting for acknowledgement:
 
 ```nohighlight
-$ nats-pub ORDERS.scratch hello
+$ nats pub ORDERS.scratch hello
 Published [sub1] : 'hello'
 ```
 
 But if you want to be sure your messages got to JetStream and were persisted you can make a request:
 
 ```nohighlight
-$ nats-req ORDERS.scratch hello
-+OK
+$ nats req ORDERS.scratch hello
+13:45:03 Sending request on [ORDERS.scratch]
+13:45:03 Received on [_INBOX.M8drJkd8O5otORAo0sMNkg.scHnSafY]: '+OK'
 ```
 
 Keep checking the status of the Stream while doing this and you'll see it's stored messages increase.
 
 ```nohighlight
-$ jsm str info ORDERS
+$ nats str info ORDERS
 Information for Stream ORDERS
 ...
 Statistics:
@@ -512,7 +513,7 @@ After putting some throw away data into the Stream, we can purge all the data ou
 To delete all data in a stream use `purge`:
 
 ```nohighlight
-$ jsm str purge ORDERS -f
+$ nats str purge ORDERS -f
 ...
 Statistics:
 
@@ -528,7 +529,7 @@ Statistics:
 A single message can be securely removed from the stream:
 
 ```nohighlight
-$ jsm str rmm ORDERS 1 -f
+$ nats str rmm ORDERS 1 -f
 ```
 
 #### Deleting Sets
@@ -536,8 +537,8 @@ $ jsm str rmm ORDERS 1 -f
 Finally for demonstration purposes, you can also delete the whole Stream and recreate it so then we're ready for creating the Consumers:
 
 ```
-$ jsm str rm ORDERS -f
-$ jsm str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size=-1
+$ nats str rm ORDERS -f
+$ nats str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size=-1
 ```
 
 ### Consumers
@@ -551,7 +552,7 @@ The `NEW` and `DISPATCH` Consumers are pull-based, meaning the services consumin
 Pull-based Consumers are created the same as push-based Consumers, just don't specify a delivery target.
 
 ```
-$ jsm con ls ORDERS
+$ nats con ls ORDERS
 No Consumers defined
 ```
 
@@ -560,7 +561,7 @@ We have no Consumers, lets add the `NEW` one:
 I supply the `--sample` options on the CLI as this is not prompted for at present, everything else is prompted. The help in the CLI explains each:
 
 ```
-$ jsm con add --sample 100
+$ nats con add --sample 100
 ? Select a Stream ORDERS
 ? Consumer name NEW
 ? Delivery target
@@ -599,7 +600,7 @@ A Maximum Delivery limit of 20 is set, this means if the message is not acknowle
 Again this can all be done in a single CLI call, lets make the `DISPATCH` Consumer:
 
 ```
-$ jsm con add ORDERS DISPATCH --filter ORDERS.processed --ack explicit --pull --deliver all --sample 100 --max-deliver 20
+$ nats con add ORDERS DISPATCH --filter ORDERS.processed --ack explicit --pull --deliver all --sample 100 --max-deliver 20
 ```
 
 #### Creating Push-Based Consumers
@@ -607,7 +608,7 @@ $ jsm con add ORDERS DISPATCH --filter ORDERS.processed --ack explicit --pull --
 Our `MONITOR` Consumer is push-based, has no ack and will only get new messages and is not sampled:
 
 ```
-$ jsm con add
+$ nats con add
 ? Select a Stream ORDERS
 ? Consumer name MONITOR
 ? Delivery target monitor.ORDERS
@@ -638,7 +639,7 @@ State:
 Again you can do this with a single non interactive command:
 
 ```
-$ jsm con add ORDERS MONITOR --ack none --target monitor.ORDERS --deliver last --replay instant --filter ''
+$ nats con add ORDERS MONITOR --ack none --target monitor.ORDERS --deliver last --replay instant --filter ''
 ```
 
 #### Listing
@@ -646,7 +647,7 @@ $ jsm con add ORDERS MONITOR --ack none --target monitor.ORDERS --deliver last -
 You can get a quick list of all the Consumers for a specific Stream:
 
 ```
-$ jsm con ls ORDERS
+$ nats con ls ORDERS
 Consumers for Stream ORDERS:
 
         DISPATCH
@@ -659,7 +660,7 @@ Consumers for Stream ORDERS:
 All details for an Consumer can be queried, lets first look at a pull-based Consumer:
 
 ```
-$ jsm con info ORDERS DISPATCH
+$ nats con info ORDERS DISPATCH
 Information for Consumer ORDERS > DISPATCH
 
 Configuration:
@@ -691,21 +692,21 @@ Pull-based Consumers require you to specifically ask for messages and ack them, 
 First we ensure we have a message:
 
 ```
-$ nats-pub ORDERS.processed "order 1"
-$ nats-pub ORDERS.processed "order 2"
-$ nats-pub ORDERS.processed "order 3"
+$ nats pub ORDERS.processed "order 1"
+$ nats pub ORDERS.processed "order 2"
+$ nats pub ORDERS.processed "order 3"
 ```
 
-We can now read them using `jsm`:
+We can now read them using `nats`:
 
 ```
-$ jsm con next ORDERS DISPATCH
+$ nats con next ORDERS DISPATCH
 --- received on ORDERS.processed
 order 1
 
 Acknowledged message
 
-$ jsm con next ORDERS DISPATCH
+$ nats con next ORDERS DISPATCH
 --- received on ORDERS.processed
 order 2
 
@@ -717,19 +718,19 @@ You can prevent ACKs by supplying `--no-ack`.
 To do this from code you'd send a `Request()` to `$JS.NEXT.ORDERS.DISPATCH`:
 
 ```
-$ nats-req '$JS.NEXT.ORDERS.DISPATCH' ''
+$ nats req '$JS.NEXT.ORDERS.DISPATCH' ''
 Published [$JS.NEXT.ORDERS.DISPATCH] : ''
-Received  [ORDERS.processed] : 'order 3'
+Received [ORDERS.processed] : 'order 3'
 ```
 
-Here `nats-req` cannot ack, but in your code you'd respond to the received message with a nil payload as an Ack to JetStream.
+Here `nats req` cannot ack, but in your code you'd respond to the received message with a nil payload as an Ack to JetStream.
 
 #### Consuming Push-Based Consumers
 
 Push-based Consumers will publish messages to a subject and anyone who subscribes to the subject will get them, they support different Acknowledgement models covered later, but here on the `MONITOR` Consumer we have no Acknowledgement.
 
 ```
-$ jsm con info ORDERS MONITOR
+$ nats con info ORDERS MONITOR
 ...
   Delivery Subject: monitor.ORDERS
 ...
@@ -738,7 +739,7 @@ $ jsm con info ORDERS MONITOR
 The Consumer is publishing to that subject, so lets listen there:
 
 ```
-$ nats-sub monitor.ORDERS
+$ nats sub monitor.ORDERS
 Listening on [monitor.ORDERS]
 [#3] Received on [ORDERS.processed]: 'order 3'
 [#4] Received on [ORDERS.processed]: 'order 4'
@@ -789,7 +790,7 @@ Consumers have 3 acknowledgement modes:
 To understand how Consumers track messages we will start with a clean `ORDERS` Stream and `DISPATCH` Consumer.
 
 ```
-$ jsm str info ORDERS
+$ nats str info ORDERS
 ...
 Statistics:
 
@@ -803,7 +804,7 @@ Statistics:
 The Set is entirely empty
 
 ```
-$ jsm con info ORDERS DISPATCH
+$ nats con info ORDERS DISPATCH
 ...
 State:
 
@@ -818,9 +819,9 @@ The Consumer has no messages oustanding and has never had any (Consumer sequence
 We publish one message to the Stream and see that the Stream received it:
 
 ```
-$ nats-pub ORDERS.processed "order 4"
-Published [ORDERS.processed] : 'order 4'
-$ jsm str info ORDERS
+$ nats pub ORDERS.processed "order 4"
+Published 7 bytes to ORDERS.processed
+$ nats str info ORDERS
 ...
 Statistics:
 
@@ -834,13 +835,13 @@ Statistics:
 As the Consumer is pull-based, we can fetch the message, ack it, and check the Consumer state:
 
 ```
-$ jsm con next ORDERS DISPATCH
+$ nats con next ORDERS DISPATCH
 --- received on ORDERS.processed
 order 4
 
 Acknowledged message
 
-$ jsm con info ORDERS DISPATCH
+$ nats con info ORDERS DISPATCH
 ...
 State:
 
@@ -855,14 +856,14 @@ The message got delivered and acknowledged - `Acknowledgement floor` is `1` and 
 We'll publish another message, fetch it but not Ack it this time and see the status:
 
 ```
-$ nats-pub ORDERS.processed "order 5"
-Published [ORDERS.processed] : 'order 5'
+$ nats pub ORDERS.processed "order 5"
+Published 7 bytes to ORDERS.processed
 
-$ jsm con next ORDERS DISPATCH --no-ack
+$ nats con next ORDERS DISPATCH --no-ack
 --- received on ORDERS.processed
 order 5
 
-$ jsm con info ORDERS DISPATCH
+$ nats con info ORDERS DISPATCH
 State:
 
   Last Delivered Message: Consumer sequence: 3 Stream sequence: 3
@@ -876,11 +877,11 @@ Now we can see the Consumer have processed 2 messages (obs sequence is 3, next m
 If I fetch it again and again do not ack it:
 
 ```
-$ jsm con next ORDERS DISPATCH --no-ack
+$ nats con next ORDERS DISPATCH --no-ack
 --- received on ORDERS.processed
 order 5
 
-$ jsm con info ORDERS DISPATCH
+$ nats con info ORDERS DISPATCH
 State:
 
   Last Delivered Message: Consumer sequence: 4 Stream sequence: 3
@@ -894,12 +895,12 @@ The Consumer sequence increases - each delivery attempt increase the sequence - 
 Finally if I then fetch it again and ack it this time:
 
 ```
-$ jsm con next ORDERS DISPATCH 
+$ nats con next ORDERS DISPATCH 
 --- received on ORDERS.processed
 order 5
 
 Acknowledged message
-$ jsm con info ORDERS DISPATCH
+$ nats con info ORDERS DISPATCH
 State:
 
   Last Delivered Message: Consumer sequence: 5 Stream sequence: 3
@@ -939,8 +940,8 @@ Lets look at each of these, first we make a new Stream `ORDERS` and add 100 mess
 Now create a `DeliverAll` pull-based Consumer:
 
 ```
-$ jsm con add ORDERS ALL --pull --filter ORDERS.processed --ack none --replay instant --deliver all 
-$ jsm con next ORDERS ALL
+$ nats con add ORDERS ALL --pull --filter ORDERS.processed --ack none --replay instant --deliver all 
+$ nats con next ORDERS ALL
 --- received on ORDERS.processed
 order 1
 
@@ -950,8 +951,8 @@ Acknowledged message
 Now create a `DeliverLast` pull-based Consumer:
 
 ```
-$ jsm con add ORDERS LAST --pull --filter ORDERS.processed --ack none --replay instant --deliver last
-$ jsm con next ORDERS LAST
+$ nats con add ORDERS LAST --pull --filter ORDERS.processed --ack none --replay instant --deliver last
+$ nats con next ORDERS LAST
 --- received on ORDERS.processed
 order 100
 
@@ -961,8 +962,8 @@ Acknowledged message
 Now create a `MsgSetSeq` pull-based Consumer:
 
 ```
-$ jsm con add ORDERS TEN --pull --filter ORDERS.processed --ack none --replay instant --deliver 10
-$ jsm con next ORDERS TEN
+$ nats con add ORDERS TEN --pull --filter ORDERS.processed --ack none --replay instant --deliver 10
+$ nats con next ORDERS TEN
 --- received on ORDERS.processed
 order 10
 
@@ -972,10 +973,10 @@ Acknowledged message
 And finally a time-based Consumer. Let's add some messages a minute apart:
 
 ```
-$ jsm str purge ORDERS
+$ nats str purge ORDERS
 $ for i in 1 2 3
 do
-  nats-pub ORDERS.processed "order ${i}"
+  nats pub ORDERS.processed "order ${i}"
   sleep 60
 done
 ```
@@ -983,8 +984,8 @@ done
 Then create an Consumer that starts 2 minutes ago:
 
 ```
-$ jsm con add ORDERS 2MIN --pull --filter ORDERS.processed --ack none --replay instant --deliver 2m
-$ jsm con next ORDERS 2MIN
+$ nats con add ORDERS 2MIN --pull --filter ORDERS.processed --ack none --replay instant --deliver 2m
+$ nats con next ORDERS 2MIN
 --- received on ORDERS.processed
 order 2
 
@@ -1002,13 +1003,13 @@ Ephemeral Consumers can only be push-based.
 Terminal 1:
 
 ```
-$ nats-sub my.monitor
+$ nats sub my.monitor
 ```
 
 Terminal 2:
 
 ```
-$ jsm con add ORDERS --filter '' --ack none --target 'my.monitor' --deliver last --replay instant --ephemeral
+$ nats con add ORDERS --filter '' --ack none --target 'my.monitor' --deliver last --replay instant --ephemeral
 ```
 
 The `--ephemeral` switch tells the system to make an Ephemeral Consumer.
@@ -1022,7 +1023,7 @@ This is useful in load testing scenarios etc. This is called the `ReplayPolicy` 
 You can only set `ReplayPolicy` on push-based Consumers.
 
 ```
-$ jsm con add ORDERS REPLAY --target out.original --filter ORDERS.processed --ack none --deliver all --sample 100 --replay original
+$ nats con add ORDERS REPLAY --target out.original --filter ORDERS.processed --ack none --deliver all --sample 100 --replay original
 ...
      Replay Policy: original
 ...
@@ -1033,7 +1034,7 @@ Now lets publish messages into the Set 10 seconds apart:
 ```
 $ for i in 1 2 3                                                                                                                                                      <15:15:35
 do
-  nats-pub ORDERS.processed "order ${i}"
+  nats pub ORDERS.processed "order ${i}"
   sleep 10
 done
 Published [ORDERS.processed] : 'order 1'
@@ -1044,7 +1045,7 @@ Published [ORDERS.processed] : 'order 3'
 And when we consume them they will come to us 10 seconds apart:
 
 ```
-$ nats-sub -t out.original
+$ nats sub -t out.original
 Listening on [out.original]
 2020/01/03 15:17:26 [#1] Received on [ORDERS.processed]: 'order 1'
 2020/01/03 15:17:36 [#2] Received on [ORDERS.processed]: 'order 2'
@@ -1057,7 +1058,7 @@ Listening on [out.original]
 When you have many similar streams it can be helpful to auto create them, lets say you have a service by client and they are on subjects `CLIENT.*`, you can construct a template that will auto generate streams for any matching traffic.
 
 ```
-$ jsm str template add CLIENTS --subjects "CLIENT.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size 2048 --max-streams 1024
+$ nats str template add CLIENTS --subjects "CLIENT.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size 2048 --max-streams 1024
 Stream Template CLIENTS was created
 
 Information for Stream Template CLIENTS
@@ -1083,13 +1084,13 @@ Managed Streams:
 You can see now streams exist now for it, let's publish some data:
 
 ```
-$ nats-pub CLIENT.acme hello
+$ nats pub CLIENT.acme hello
 ```
 
 And we'll have 1 new Stream:
 
 ```
-$ jsm str ls
+$ nats str ls
 Streams:
 
         CLIENTS_acme
@@ -1107,12 +1108,12 @@ Consumers can sample Ack'ed messages for you and publish samples so your monitor
 
 #### Configuration
 
-You can configure an Consumer for sampling by passing the `--sample 80` option to `jsm obs add`, this tells the system to sample 80% of Acknowledgements.
+You can configure an Consumer for sampling by passing the `--sample 80` option to `nats consumer add`, this tells the system to sample 80% of Acknowledgements.
 
 When viewing info of an Consumer you can tell if it's sampled or not:
 
 ```
-$ jsm con info ORDERS NEW
+$ nats con info ORDERS NEW
 ...
      Sampling Rate: 100
 ...
@@ -1120,10 +1121,10 @@ $ jsm con info ORDERS NEW
 
 #### Consuming
 
-Samples are published to `$JS.EVENT.METRIC.CONSUMER_ACK.<stream>.<consumer>` in JSON format containing `server.server.JetStreamMetricConsumerAckPre`. Use the `jsm con events` command to view samples:
+Samples are published to `$JS.EVENT.METRIC.CONSUMER_ACK.<stream>.<consumer>` in JSON format containing `server.server.JetStreamMetricConsumerAckPre`. Use the `nats con events` command to view samples:
 
 ```nohighlight
-$ jsm con events ORDERS NEW
+$ nats con events ORDERS NEW
 Listening for Advisories on $JS.EVENT.ADVISORY.*.ORDERS.NEW
 Listening for Metrics on $JS.EVENT.METRIC.*.ORDERS.NEW
 
@@ -1136,7 +1137,7 @@ Listening for Metrics on $JS.EVENT.METRIC.*.ORDERS.NEW
 ```
 
 ```nohighlight
-$ jsm con events ORDERS NEW --json
+$ nats con events ORDERS NEW --json
 {
   "stream": "ORDERS",
   "consumer": "NEW",
@@ -1168,14 +1169,14 @@ All of these subjects are found as constants in the NATS Server source, so for e
 Many API calls that do not have specific structured data as response will reply with either `+OK` or `-ERR <reason>`, in the reference below this is what is known as `Standard OK/ERR`. Even those that reply with JSON structures can reply with `-ERR <reason>` instead of the expected JSON, so you need to check for that first before attempting to parse the result.
 
 ```nohighlight
-$ nats-req '$JS.STREAM.INFO' nonexisting
-Published [$JS.STREAM.INFO] : 'nonexisting'
+$ nats req '$JS.STREAM.INFO' nonexisting
+Published 11 bytes to $JS.STREAM.INFO
 Received  [_INBOX.lcWgjX2WgJLxqepU0K9pNf.mpBW9tHK] : '-ERR stream not found'
 ```
 
 ```nohighlight
-$ nats-req '$JS.STREAM.INFO' ORDERS
-Published [$JS.STREAM.INFO] : 'ORDERS'
+$ nats req '$JS.STREAM.INFO' ORDERS
+Published 6 bytes to $JS.STREAM.INFO
 Received  [_INBOX.fwqdpoWtG8XFXHKfqhQDVA.vBecyWmF] : '{
   "config": {
     "name": "ORDERS",
@@ -1185,11 +1186,11 @@ Received  [_INBOX.fwqdpoWtG8XFXHKfqhQDVA.vBecyWmF] : '{
 
 ### Admin API
 
-All the admin actions the `jsm` CLI can do falls in the sections below.
+All the admin actions the `nats` CLI can do falls in the sections below.
 
 Subjects that and in `T` like `server.JetStreamCreateConsumerT` are formats and would need to have the Stream Name and in some cases also the Consumer name interpolated into them. In this case `t := fmt.Sprintf(server.JetStreamCreateConsumerT, streamName)` to get the final subject.
 
-The command `jsm events` will show you an audit log of all API access events which includes the full content of each admin request, use this to view the structure of messages the `jsm` command sends.
+The command `nats events` will show you an audit log of all API access events which includes the full content of each admin request, use this to view the structure of messages the `nats` command sends.
 
 #### General Info
 
@@ -1288,8 +1289,8 @@ In all the Synadia maintained API's you can simply do `msg.Respond(nil)` (or lan
 If you have a pull-based Consumer you can send a standard NATS Request to `$JS.STREAM.<stream>.CONSUMER.<consumer>.NEXT`, here the format is defined in `server.JetStreamRequestNextT` and requires populating using `fmt.Sprintf()`.
 
 ```nohighlight
-$ nats-req '$JS.STREAM.ORDERS.CONSUMER.test.NEXT' '1'
-Published [$JS.STREAM.ORDERS.CONSUMER.test.NEXT] : '1'
+$ nats req '$JS.STREAM.ORDERS.CONSUMER.test.NEXT' '1'
+Published 1 bytes to $JS.STREAM.ORDERS.CONSUMER.test.NEXT
 Received  [js.1] : 'message 1'
 ```
 
@@ -1300,8 +1301,8 @@ Here we ask for just 1 message - `nats-req` only shows 1 - but you can fetch a b
 If you know the Stream sequence of a message you can fetch it directly, this does not support acks.  Do a Request() to `$JS.STREAM.ORDERS.MSG.BYSEQ` sending it the message sequence as payload.  Here the prefix is defined in `server.JetStreamMsgBySeqT` which also requires populating using `fmt.Sprintf()`.
 
 ```nohighlight
-$ nats-req '$JS.STREAM.ORDERS.MSG.BYSEQ' '1'
-Published [$JS.STREAM.ORDERS.MSG.BYSEQ] : '1'
+$ nats req '$JS.STREAM.ORDERS.MSG.BYSEQ' '1'
+Published 1 bytes to $JS.STREAM.ORDERS.MSG.BYSEQ
 Received  [_INBOX.cJrbzPJfZrq8NrFm1DsZuH.k91Gb4xM] : '{
   "Subject": "js.1",
   "Data": "MQ==",

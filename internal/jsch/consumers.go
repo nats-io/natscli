@@ -88,7 +88,7 @@ func createDurableConsumer(request server.CreateConsumerRequest) (name string, e
 		return "", err
 	}
 
-	response, err := nc.Request(fmt.Sprintf(server.JetStreamCreateConsumerT, request.Stream, request.Config.Durable), jreq, Timeout)
+	response, err := nrequest(fmt.Sprintf(server.JetStreamCreateConsumerT, request.Stream, request.Config.Durable), jreq, timeout)
 	if err != nil {
 		return "", err
 	}
@@ -106,7 +106,7 @@ func createEphemeralConsumer(request server.CreateConsumerRequest) (name string,
 		return "", err
 	}
 
-	response, err := nc.Request(fmt.Sprintf(server.JetStreamCreateEphemeralConsumerT, request.Stream), jreq, Timeout)
+	response, err := nrequest(fmt.Sprintf(server.JetStreamCreateEphemeralConsumerT, request.Stream), jreq, timeout)
 	if err != nil {
 		return "", err
 	}
@@ -182,7 +182,7 @@ func loadConfigForConsumer(consumer *Consumer) (err error) {
 }
 
 func loadConsumerInfo(s string, c string) (info server.ConsumerInfo, err error) {
-	response, err := nc.Request(fmt.Sprintf(server.JetStreamConsumerInfoT, s, c), nil, Timeout)
+	response, err := nrequest(fmt.Sprintf(server.JetStreamConsumerInfoT, s, c), nil, timeout)
 	if err != nil {
 		return info, err
 	}
@@ -368,6 +368,11 @@ func (c *Consumer) Subscribe(h func(*nats.Msg)) (sub *nats.Subscription, err err
 		return nil, fmt.Errorf("consumer %s > %s is not push-based", c.stream, c.name)
 	}
 
+	nc := nconn()
+	if nc == nil {
+		return nil, fmt.Errorf("nats connection is not set, use SetConnection()")
+	}
+
 	return nc.Subscribe(c.DeliverySubject(), h)
 }
 
@@ -375,6 +380,11 @@ func (c *Consumer) Subscribe(h func(*nats.Msg)) (sub *nats.Subscription, err err
 func (c *Consumer) ChanSubscribe(ch chan *nats.Msg) (sub *nats.Subscription, err error) {
 	if !c.IsPushMode() {
 		return nil, fmt.Errorf("consumer %s > %s is not push-based", c.stream, c.name)
+	}
+
+	nc := nconn()
+	if nc == nil {
+		return nil, fmt.Errorf("nats connection is not set, use SetConnection()")
 	}
 
 	return nc.ChanSubscribe(c.DeliverySubject(), ch)
@@ -386,6 +396,11 @@ func (c *Consumer) ChanQueueSubscribe(group string, ch chan *nats.Msg) (sub *nat
 		return nil, fmt.Errorf("consumer %s > %s is not push-based", c.stream, c.name)
 	}
 
+	nc := nconn()
+	if nc == nil {
+		return nil, fmt.Errorf("nats connection is not set, use SetConnection()")
+	}
+
 	return nc.ChanQueueSubscribe(c.DeliverySubject(), group, ch)
 }
 
@@ -393,6 +408,11 @@ func (c *Consumer) ChanQueueSubscribe(group string, ch chan *nats.Msg) (sub *nat
 func (c *Consumer) SubscribeSync() (sub *nats.Subscription, err error) {
 	if !c.IsPushMode() {
 		return nil, fmt.Errorf("consumer %s > %s is not push-based", c.stream, c.name)
+	}
+
+	nc := nconn()
+	if nc == nil {
+		return nil, fmt.Errorf("nats connection is not set, use SetConnection()")
 	}
 
 	return nc.SubscribeSync(c.DeliverySubject())
@@ -404,6 +424,11 @@ func (c *Consumer) QueueSubscribe(queue string, h func(*nats.Msg)) (sub *nats.Su
 		return nil, fmt.Errorf("consumer %s > %s is not push-based", c.stream, c.name)
 	}
 
+	nc := nconn()
+	if nc == nil {
+		return nil, fmt.Errorf("nats connection is not set, use SetConnection()")
+	}
+
 	return nc.QueueSubscribe(c.DeliverySubject(), queue, h)
 }
 
@@ -411,6 +436,11 @@ func (c *Consumer) QueueSubscribe(queue string, h func(*nats.Msg)) (sub *nats.Su
 func (c *Consumer) QueueSubscribeSync(queue string) (sub *nats.Subscription, err error) {
 	if !c.IsPushMode() {
 		return nil, fmt.Errorf("consumer %s > %s is not push-based", c.stream, c.name)
+	}
+
+	nc := nconn()
+	if nc == nil {
+		return nil, fmt.Errorf("nats connection is not set, use SetConnection()")
 	}
 
 	return nc.QueueSubscribeSync(c.DeliverySubject(), queue)
@@ -422,12 +452,17 @@ func (c *Consumer) QueueSubscribeSyncWithChan(queue string, ch chan *nats.Msg) (
 		return nil, fmt.Errorf("consumer %s > %s is not push-based", c.stream, c.name)
 	}
 
+	nc := nconn()
+	if nc == nil {
+		return nil, fmt.Errorf("nats connection is not set, use SetConnection()")
+	}
+
 	return nc.QueueSubscribeSyncWithChan(c.DeliverySubject(), queue, ch)
 }
 
 // NextMsgs retrieves the next n messages
 func NextMsgs(stream string, consumer string, n int) (m *nats.Msg, err error) {
-	return nc.Request(NextSubject(stream, consumer), []byte(strconv.Itoa(n)), Timeout)
+	return nrequest(NextSubject(stream, consumer), []byte(strconv.Itoa(n)), timeout)
 }
 
 // NextMsgs retrieves the next n messages
@@ -436,7 +471,7 @@ func (c *Consumer) NextMsgs(n int) (m *nats.Msg, err error) {
 		return nil, fmt.Errorf("consumer %s > %s is not pull-based", c.stream, c.name)
 	}
 
-	return nc.Request(c.NextSubject(), []byte(strconv.Itoa(n)), Timeout)
+	return nrequest(c.NextSubject(), []byte(strconv.Itoa(n)), timeout)
 }
 
 // NextMsg retrieves the next message
@@ -461,7 +496,7 @@ func (c *Consumer) Configuration() (config server.ConsumerConfig) {
 
 // Delete deletes the Consumer, after this the Consumer object should be disposed
 func (c *Consumer) Delete() (err error) {
-	response, err := nc.Request(fmt.Sprintf(server.JetStreamDeleteConsumerT, c.StreamName(), c.Name()), nil, Timeout)
+	response, err := nrequest(fmt.Sprintf(server.JetStreamDeleteConsumerT, c.StreamName(), c.Name()), nil, timeout)
 	if err != nil {
 		return err
 	}
