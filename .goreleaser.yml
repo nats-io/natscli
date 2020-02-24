@@ -11,7 +11,30 @@ changelog:
   skip: true
 
 builds:
+  - main: ./nats
+    id: nats
+    binary: nats
+    env:
+      - GO111MODULE=on
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm
+      - arm64
+      - 386
+    goarm:
+      - 6
+      - 7
+    ignore:
+      - goos: darwin
+        goarch: 386
+
   - main: ./jsm
+    id: jsm
     binary: jsm
     env:
       - GO111MODULE=on
@@ -46,6 +69,7 @@ dockers:
     skip_push: true
     binaries:
       - jsm
+      - nats
     image_templates:
       - "synadia/jsm:latest"
       - "synadia/jsm:{{.Version}}"

@@ -63,7 +63,7 @@ func BackupJetStreamConfiguration(backupDir string) error {
 }
 
 // RestoreJetStreamConfiguration restores the configuration from a backup made by BackupJetStreamConfiguration
-func RestoreJetStreamConfiguration(backupDir string) error {
+func RestoreJetStreamConfiguration(backupDir string, update bool) error {
 	backups := []*BackupData{}
 
 	// load all backups files since we have to do them in a specific order
@@ -117,7 +117,7 @@ func RestoreJetStreamConfiguration(backupDir string) error {
 		return nil
 	}
 
-	err = eachOfType("stream", restoreStream)
+	err = eachOfType("stream", func(d *BackupData) error { return restoreStream(d, update) })
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func RestoreJetStreamConfiguration(backupDir string) error {
 }
 
 // RestoreJetStreamConfigurationFile restores a single file from a backup made by BackupJetStreamConfiguration
-func RestoreJetStreamConfigurationFile(path string) error {
+func RestoreJetStreamConfigurationFile(path string, update bool) error {
 	log.Printf("Reading file %s", path)
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -155,7 +155,7 @@ func RestoreJetStreamConfigurationFile(path string) error {
 
 	switch bd.Type {
 	case "stream":
-		err = restoreStream(bd)
+		err = restoreStream(bd, update)
 	case "consumer":
 		err = restoreConsumer(bd)
 	case "stream_template":
@@ -167,7 +167,7 @@ func RestoreJetStreamConfigurationFile(path string) error {
 	return err
 }
 
-func restoreStream(backup *BackupData) error {
+func restoreStream(backup *BackupData, update bool) error {
 	if backup.Type != "stream" {
 		return fmt.Errorf("cannot restore backup of type %q as Stream", backup.Type)
 	}
@@ -183,8 +183,29 @@ func restoreStream(backup *BackupData) error {
 		return nil
 	}
 
-	log.Printf("Restoring Stream %s", sc.Name)
-	_, err = NewStreamFromDefault(sc.Name, sc)
+	known, err := IsKnownStream(sc.Name)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case known && !update:
+		err = fmt.Errorf("stream %s exists and update was not specified", sc.Name)
+	case known && update:
+		var stream *Stream
+		stream, err = LoadStream(sc.Name)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("Updating Stream %s configuration", sc.Name)
+		err = stream.UpdateConfiguration(sc)
+
+	default:
+		log.Printf("Restoring Stream %s", sc.Name)
+		_, err = NewStreamFromDefault(sc.Name, sc)
+	}
+
 	return err
 }
 

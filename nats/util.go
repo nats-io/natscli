@@ -1,4 +1,4 @@
-// Copyright 2019 The NATS Authors
+// Copyright 2020 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -242,7 +243,30 @@ func splitString(s string) []string {
 }
 
 func natsOpts() []nats.Option {
-	opts := []nats.Option{nats.Name("JetStream Management CLI"), nats.MaxReconnects(-1)}
+	totalWait := 10 * time.Minute
+	reconnectDelay := time.Second
+
+	opts := []nats.Option{
+		nats.Name("NATS CLI"),
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(reconnectDelay),
+		nats.MaxReconnects(int(totalWait / reconnectDelay)),
+		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
+			if err != nil {
+				log.Printf("Disconnected due to: %s, will attempt reconnects for %.0fm", err.Error(), totalWait.Minutes())
+			}
+		}),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			log.Printf("Reconnected [%s]", nc.ConnectedUrl())
+		}),
+		nats.ClosedHandler(func(nc *nats.Conn) {
+			err := nc.LastError()
+			if err != nil {
+				log.Fatalf("Exiting: %v", nc.LastError())
+			}
+		}),
+	}
+
 	if creds != "" {
 		opts = append(opts, nats.UserCredentials(creds))
 	}
@@ -275,4 +299,32 @@ func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, error) {
 	jsch.SetConnection(nc)
 
 	return nc, err
+}
+
+func humanizeTime(t time.Time) string {
+	d := time.Since(t)
+	// Just use total seconds for uptime, and display days / years
+	tsecs := d / time.Second
+	tmins := tsecs / 60
+	thrs := tmins / 60
+	tdays := thrs / 24
+	tyrs := tdays / 365
+
+	if tyrs > 0 {
+		return fmt.Sprintf("%dy%dd%dh%dm%ds", tyrs, tdays%365, thrs%24, tmins%60, tsecs%60)
+	}
+
+	if tdays > 0 {
+		return fmt.Sprintf("%dd%dh%dm%ds", tdays, thrs%24, tmins%60, tsecs%60)
+	}
+
+	if thrs > 0 {
+		return fmt.Sprintf("%dh%dm%ds", thrs, tmins%60, tsecs%60)
+	}
+
+	if tmins > 0 {
+		return fmt.Sprintf("%dm%ds", tmins, tsecs%60)
+	}
+
+	return fmt.Sprintf("%ds", tsecs)
 }

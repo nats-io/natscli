@@ -14,8 +14,6 @@
 package jsch_test
 
 import (
-	"context"
-	"fmt"
 	"io/ioutil"
 	"testing"
 	"time"
@@ -239,50 +237,6 @@ func TestEachStream(t *testing.T) {
 
 	if seen[0] != "ARCHIVE" || seen[1] != "ORDERS" {
 		t.Fatalf("incorrect streams or order, expected [ARCHIVE, ORDERS] got %v", seen)
-	}
-}
-
-func TestSubscribeAndCreate(t *testing.T) {
-	srv, nc := startJSServer(t)
-	defer srv.Shutdown()
-	defer nc.Flush()
-
-	s, err := jsch.LoadOrNewStream("ORDERS", jsch.Subjects("ORDERS.*"), jsch.MaxAge(24*365*time.Hour), jsch.MemoryStorage())
-	checkErr(t, err, "ORDERS create failed")
-	s.Purge()
-
-	for i := 0; i < 10; i++ {
-		nc.Request("ORDERS.new", []byte(fmt.Sprintf("order %d", i)), 5*time.Second)
-	}
-
-	ctr := 0
-	done := make(chan struct{})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	h := func(m *nats.Msg) {
-		m.Respond(nil)
-
-		ctr++
-		if ctr == 10 {
-			done <- struct{}{}
-		}
-	}
-
-	_, err = jsch.Subscribe("ORDERS", "NEW", h, jsch.DefaultConsumer, jsch.DurableName("NEW"), jsch.DeliverySubject("out.new"), jsch.MaxDeliveryAttempts(5), jsch.FilterStreamBySubject("ORDERS.new"))
-	checkErr(t, err, "subscribe failed")
-
-	names, err := s.ConsumerNames()
-	checkErr(t, err, "could not get consumer names")
-
-	if len(names) != 1 || names[0] != "NEW" {
-		t.Fatalf("incorrect consumer created, expected [NEW] got %v", names)
-	}
-
-	select {
-	case <-done:
-	case <-ctx.Done():
-		t.Fatal("timeout")
 	}
 }
 
