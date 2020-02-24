@@ -8,7 +8,6 @@ install:
   - go get -u github.com/client9/misspell/cmd/misspell
 before_script:
   - GO_LIST=$(go list ./...)
-  - cd jsm;go build;cd -
   - cd nats;go build  ;cd -
   - $(exit $(go fmt $GO_LIST | wc -l))
   - go vet $GO_LIST
