@@ -14,8 +14,8 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 
@@ -51,11 +51,12 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 	defer nc.Close()
 
 	if c.body == "" && terminal.IsTerminal(int(os.Stdout.Fd())) {
-		reader := bufio.NewReader(os.Stdin)
-		c.body, err = reader.ReadString('\n')
+		log.Println("Reading payload from STDIN")
+		body, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {
 			return err
 		}
+		c.body = string(body)
 	}
 
 	if c.body == "" {
