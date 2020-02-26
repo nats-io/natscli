@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/nats-io/nats.go"
@@ -24,6 +25,7 @@ import (
 type subCmd struct {
 	subject string
 	queue   string
+	raw     bool
 }
 
 func configureSubCommand(app *kingpin.Application) {
@@ -31,6 +33,7 @@ func configureSubCommand(app *kingpin.Application) {
 	act := app.Command("sub", "Generic subscription client").Action(c.subscribe)
 	act.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	act.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)
+	act.Flag("raw", "Show the raw data received").Short('r').BoolVar(&c.raw)
 }
 
 func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
@@ -44,6 +47,11 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 
 	handler := func(m *nats.Msg) {
 		i += 1
+		if c.raw {
+			fmt.Println(string(m.Data))
+			return
+		}
+
 		log.Printf("[#%d] Received on [%s]: '%s'", i, m.Subject, string(m.Data))
 	}
 
@@ -59,7 +67,9 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	log.Printf("Listening on [%s]", c.subject)
+	if !c.raw {
+		log.Printf("Listening on [%s]", c.subject)
+	}
 
 	<-context.Background().Done()
 
