@@ -83,8 +83,21 @@ func TestIsErrorResponse(t *testing.T) {
 		t.Fatalf("OK is Error")
 	}
 
-	if !jsch.IsErrorResponse(&nats.Msg{Data: []byte("-ERR error")}) {
+	if !jsch.IsErrorResponse(&nats.Msg{Data: []byte("-ERR 'error'")}) {
 		t.Fatalf("ERR is not Error")
+	}
+}
+
+func TestParseErrorResponse(t *testing.T) {
+	checkErr(t, jsch.ParseErrorResponse(&nats.Msg{Data: []byte("+OK")}), "expected nil got error")
+
+	err := jsch.ParseErrorResponse(&nats.Msg{Data: []byte("-ERR 'test error")})
+	if err == nil {
+		t.Fatalf("expected an error got nil")
+	}
+
+	if err.Error() != "test error" {
+		t.Fatalf("expected 'test error' got '%v'", err)
 	}
 }
 

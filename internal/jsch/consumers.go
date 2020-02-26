@@ -88,13 +88,9 @@ func createDurableConsumer(request server.CreateConsumerRequest) (name string, e
 		return "", err
 	}
 
-	response, err := nrequest(fmt.Sprintf(server.JetStreamCreateConsumerT, request.Stream, request.Config.Durable), jreq, timeout)
+	_, err = nrequest(fmt.Sprintf(server.JetStreamCreateConsumerT, request.Stream, request.Config.Durable), jreq, timeout)
 	if err != nil {
 		return "", err
-	}
-
-	if IsErrorResponse(response) {
-		return "", fmt.Errorf(string(response.Data))
 	}
 
 	return request.Config.Durable, nil
@@ -109,10 +105,6 @@ func createEphemeralConsumer(request server.CreateConsumerRequest) (name string,
 	response, err := nrequest(fmt.Sprintf(server.JetStreamCreateEphemeralConsumerT, request.Stream), jreq, timeout)
 	if err != nil {
 		return "", err
-	}
-
-	if IsErrorResponse(response) {
-		return "", fmt.Errorf(string(response.Data))
 	}
 
 	parts := strings.Split(string(response.Data), " ")
@@ -185,10 +177,6 @@ func loadConsumerInfo(s string, c string) (info server.ConsumerInfo, err error) 
 	response, err := nrequest(fmt.Sprintf(server.JetStreamConsumerInfoT, s, c), nil, timeout)
 	if err != nil {
 		return info, err
-	}
-
-	if IsErrorResponse(response) {
-		return info, fmt.Errorf(string(response.Data))
 	}
 
 	info = server.ConsumerInfo{}
@@ -499,10 +487,6 @@ func (c *Consumer) Delete() (err error) {
 	response, err := nrequest(fmt.Sprintf(server.JetStreamDeleteConsumerT, c.StreamName(), c.Name()), nil, timeout)
 	if err != nil {
 		return err
-	}
-
-	if IsErrorResponse(response) {
-		return fmt.Errorf(string(response.Data))
 	}
 
 	if IsOKResponse(response) {

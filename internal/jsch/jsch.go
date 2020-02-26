@@ -41,7 +41,7 @@ var timeout = 5 * time.Second
 var nc *nats.Conn
 var mu sync.Mutex
 
-// Connect connects to NATS and configures it to use the connection in future interaction
+// Connect connects to NATS and configures it to use the connection in future interactions with JetStream
 func Connect(servers string, opts ...nats.Option) (err error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -76,6 +76,15 @@ func IsJetStreamEnabled() bool {
 // IsErrorResponse checks if the message holds a standard JetStream error
 func IsErrorResponse(m *nats.Msg) bool {
 	return strings.HasPrefix(string(m.Data), server.ErrPrefix)
+}
+
+// ParseErrorResponse parses the JetStream response, if it's an error returns an error instance holding the message else nil
+func ParseErrorResponse(m *nats.Msg) error {
+	if !IsErrorResponse(m) {
+		return nil
+	}
+
+	return fmt.Errorf(strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(string(m.Data), server.ErrPrefix), " '"), "'"))
 }
 
 // IsOKResponse checks if the message holds a standard JetStream error
@@ -138,10 +147,6 @@ func JetStreamAccountInfo() (info server.JetStreamAccountStats, err error) {
 		return info, err
 	}
 
-	if IsErrorResponse(response) {
-		return info, fmt.Errorf(string(response.Data))
-	}
-
 	err = json.Unmarshal(response.Data, &info)
 	if err != nil {
 		return info, err
@@ -157,10 +162,6 @@ func StreamNames() (streams []string, err error) {
 	response, err := nrequest(server.JetStreamListStreams, nil, timeout)
 	if err != nil {
 		return streams, err
-	}
-
-	if IsErrorResponse(response) {
-		return streams, fmt.Errorf(string(response.Data))
 	}
 
 	err = json.Unmarshal(response.Data, &streams)
@@ -182,10 +183,6 @@ func StreamTemplateNames() (templates []string, err error) {
 		return templates, err
 	}
 
-	if IsErrorResponse(response) {
-		return templates, fmt.Errorf(string(response.Data))
-	}
-
 	err = json.Unmarshal(response.Data, &templates)
 	if err != nil {
 		return templates, err
@@ -203,10 +200,6 @@ func ConsumerNames(stream string) (consumers []string, err error) {
 	response, err := nrequest(fmt.Sprintf(server.JetStreamConsumersT, stream), nil, timeout)
 	if err != nil {
 		return consumers, err
-	}
-
-	if IsErrorResponse(response) {
-		return consumers, fmt.Errorf(string(response.Data))
 	}
 
 	err = json.Unmarshal(response.Data, &consumers)
@@ -268,6 +261,11 @@ func Flush() error {
 	return nc.Flush()
 }
 
+// Connection is the active NATS connection being used
+func Connection() *nats.Conn {
+	return nconn()
+}
+
 func nconn() *nats.Conn {
 	mu.Lock()
 	defer mu.Unlock()
@@ -281,5 +279,10 @@ func nrequest(subj string, data []byte, timeout time.Duration) (*nats.Msg, error
 		return nil, fmt.Errorf("nats connection is not set, use SetConnection()")
 	}
 
-	return nc.Request(subj, data, timeout)
+	res, err := nc.Request(subj, data, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, ParseErrorResponse(res)
 }
