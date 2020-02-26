@@ -1,20 +1,27 @@
 ## Overview
 
-This is a helper library for managing and interacting with JetStream we are exploring a few options for how such a library will look and to determine what will go into core NATS clients and what will be left as an external library.
+This is a helper library for managing and interacting with JetStream.
 
-This library is not an official blessed way for interacting with JetStream yet but as a set of examples of all the capabilities this is valuable and it's for us a starting point to learning what patterns work well
+This library provides API access to all the abilities of the `nats` CLI utility.
 
 ## Setup
 
 As some parts of this library will go into the core NATS client and others not we are not sure how it will get a NATS connection, for now we did a basic - but ugly - thing just to delay answering that.
 
 ```go
-nc, _ := nats.Connect("localhost")
-
+nc, _ := nats.Connect("localhost:4222", nats.UserCredentials("user.creds"))
 jsch.SetConnection(nc)
 ```
 
-This will then use the NATS Connection you supply for all future interaction with JetStream
+or
+
+```go
+err := jsch.Connect("localhost:4222", nats.UserCredentials("user.creds"))
+```
+
+This will then use the NATS Connection you supply for all future interaction with JetStream.
+
+If you want access to this connection you can use `jsch.Connection()`
 
 ## Streams
 ### Creating Streams

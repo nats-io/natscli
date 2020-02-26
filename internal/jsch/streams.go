@@ -72,13 +72,9 @@ func NewStreamFromDefault(name string, dflt server.StreamConfig, opts ...StreamO
 		return nil, err
 	}
 
-	response, err := nrequest(fmt.Sprintf(server.JetStreamCreateStreamT, name), jreq, timeout)
+	_, err = nrequest(fmt.Sprintf(server.JetStreamCreateStreamT, name), jreq, timeout)
 	if err != nil {
 		return nil, err
-	}
-
-	if IsErrorResponse(response) {
-		return nil, fmt.Errorf(string(response.Data))
 	}
 
 	return LoadStream(name)
@@ -147,10 +143,6 @@ func loadStreamInfo(stream string) (info *server.StreamInfo, err error) {
 	response, err := nrequest(fmt.Sprintf(server.JetStreamStreamInfoT, stream), nil, timeout)
 	if err != nil {
 		return nil, err
-	}
-
-	if IsErrorResponse(response) {
-		return nil, fmt.Errorf(string(response.Data))
 	}
 
 	info = &server.StreamInfo{}
@@ -265,13 +257,9 @@ func (s *Stream) UpdateConfiguration(cfg server.StreamConfig, opts ...StreamOpti
 		return err
 	}
 
-	response, err := nrequest(fmt.Sprintf(server.JetStreamUpdateStreamT, s.Name()), jcfg, timeout)
+	_, err = nrequest(fmt.Sprintf(server.JetStreamUpdateStreamT, s.Name()), jcfg, timeout)
 	if err != nil {
 		return err
-	}
-
-	if IsErrorResponse(response) {
-		return fmt.Errorf(string(response.Data))
 	}
 
 	return s.Reset()
@@ -312,10 +300,6 @@ func (s *Stream) ConsumerNames() (names []string, err error) {
 	response, err := nrequest(fmt.Sprintf(server.JetStreamConsumersT, s.Name()), nil, timeout)
 	if err != nil {
 		return names, err
-	}
-
-	if IsErrorResponse(response) {
-		return names, fmt.Errorf(string(response.Data))
 	}
 
 	err = json.Unmarshal(response.Data, &names)
@@ -363,13 +347,9 @@ func (s *Stream) State() (stats server.StreamState, err error) {
 
 // Delete deletes the Stream, after this the Stream object should be disposed
 func (s *Stream) Delete() error {
-	response, err := nrequest(fmt.Sprintf(server.JetStreamDeleteStreamT, s.Name()), nil, timeout)
+	_, err := nrequest(fmt.Sprintf(server.JetStreamDeleteStreamT, s.Name()), nil, timeout)
 	if err != nil {
 		return err
-	}
-
-	if IsErrorResponse(response) {
-		return fmt.Errorf(string(response.Data))
 	}
 
 	return nil
@@ -377,13 +357,9 @@ func (s *Stream) Delete() error {
 
 // Purge deletes all messages from the Stream
 func (s *Stream) Purge() error {
-	response, err := nrequest(fmt.Sprintf(server.JetStreamPurgeStreamT, s.Name()), nil, timeout)
+	_, err := nrequest(fmt.Sprintf(server.JetStreamPurgeStreamT, s.Name()), nil, timeout)
 	if err != nil {
 		return err
-	}
-
-	if IsErrorResponse(response) {
-		return fmt.Errorf(string(response.Data))
 	}
 
 	return nil
@@ -394,10 +370,6 @@ func (s *Stream) LoadMessage(seq int) (msg server.StoredMsg, err error) {
 	response, err := nrequest(fmt.Sprintf(server.JetStreamMsgBySeqT, s.Name()), []byte(strconv.Itoa(seq)), timeout)
 	if err != nil {
 		return server.StoredMsg{}, err
-	}
-
-	if IsErrorResponse(response) {
-		return server.StoredMsg{}, fmt.Errorf(string(response.Data))
 	}
 
 	msg = server.StoredMsg{}
@@ -411,13 +383,9 @@ func (s *Stream) LoadMessage(seq int) (msg server.StoredMsg, err error) {
 
 // DeleteMessage deletes a specific message from the Stream by overwriting it with random data
 func (s *Stream) DeleteMessage(seq int) (err error) {
-	response, err := nrequest(fmt.Sprintf(server.JetStreamDeleteMsgT, s.Name()), []byte(strconv.Itoa(seq)), timeout)
+	_, err = nrequest(fmt.Sprintf(server.JetStreamDeleteMsgT, s.Name()), []byte(strconv.Itoa(seq)), timeout)
 	if err != nil {
 		return err
-	}
-
-	if IsErrorResponse(response) {
-		return fmt.Errorf(string(response.Data))
 	}
 
 	return nil

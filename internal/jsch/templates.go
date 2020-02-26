@@ -30,13 +30,9 @@ func NewStreamTemplate(name string, maxStreams uint32, config server.StreamConfi
 		return nil, err
 	}
 
-	response, err := nrequest(fmt.Sprintf(server.JetStreamCreateTemplateT, name), jreq, timeout)
+	_, err = nrequest(fmt.Sprintf(server.JetStreamCreateTemplateT, name), jreq, timeout)
 	if err != nil {
 		return nil, err
-	}
-
-	if IsErrorResponse(response) {
-		return nil, fmt.Errorf(string(response.Data))
 	}
 
 	return LoadStreamTemplate(name)
@@ -69,10 +65,6 @@ func loadConfigForStreamTemplate(template *StreamTemplate) (err error) {
 		return err
 	}
 
-	if IsErrorResponse(response) {
-		return fmt.Errorf(string(response.Data))
-	}
-
 	info := server.StreamTemplateInfo{}
 	err = json.Unmarshal(response.Data, &info)
 	if err != nil {
@@ -87,13 +79,9 @@ func loadConfigForStreamTemplate(template *StreamTemplate) (err error) {
 
 // Delete deletes the StreamTemplate, after this the StreamTemplate object should be disposed
 func (t *StreamTemplate) Delete() error {
-	response, err := nrequest(fmt.Sprintf(server.JetStreamDeleteTemplateT, t.Name()), nil, timeout)
+	_, err := nrequest(fmt.Sprintf(server.JetStreamDeleteTemplateT, t.Name()), nil, timeout)
 	if err != nil {
 		return err
-	}
-
-	if IsErrorResponse(response) {
-		return fmt.Errorf(string(response.Data))
 	}
 
 	return nil
