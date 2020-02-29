@@ -179,6 +179,25 @@ func TestConsumer_Reset(t *testing.T) {
 	}
 }
 
+func TestNextSubject(t *testing.T) {
+	_, err := jsch.NextSubject("", "x")
+	if err == nil {
+		t.Fatalf("empty stream was accepted")
+	}
+
+	_, err = jsch.NextSubject("x", "")
+	if err == nil {
+		t.Fatalf("empty consumer was accepted")
+	}
+
+	s, err := jsch.NextSubject("str", "cons")
+	checkErr(t, err, "good subject params failed")
+
+	if s != "$JS.STREAM.str.CONSUMER.cons.NEXT" {
+		t.Fatalf("invalid next subject %q", s)
+	}
+}
+
 func TestConsumer_NextSubject(t *testing.T) {
 	srv, nc, _ := setupConsumerTest(t)
 	defer srv.Shutdown()
