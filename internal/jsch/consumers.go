@@ -323,12 +323,22 @@ func (c *Consumer) NextSubject() string {
 		return ""
 	}
 
-	return NextSubject(c.stream, c.name)
+	s, _ := NextSubject(c.stream, c.name)
+
+	return s
 }
 
 // NextSubject returns the subject used to retrieve the next message for pull-based Consumers, empty when not a pull-base consumer
-func NextSubject(stream string, consumer string) string {
-	return fmt.Sprintf(server.JetStreamRequestNextT, stream, consumer)
+func NextSubject(stream string, consumer string) (string, error) {
+	if stream == "" {
+		return "", fmt.Errorf("stream name can not be empty string")
+	}
+
+	if consumer == "" {
+		return "", fmt.Errorf("consumer name can not be empty string")
+	}
+
+	return fmt.Sprintf(server.JetStreamRequestNextT, stream, consumer), nil
 }
 
 // AckSampleSubject is the subject used to publish ack samples to
@@ -450,7 +460,12 @@ func (c *Consumer) QueueSubscribeSyncWithChan(queue string, ch chan *nats.Msg) (
 
 // NextMsgs retrieves the next n messages
 func NextMsgs(stream string, consumer string, n int) (m *nats.Msg, err error) {
-	return nrequest(NextSubject(stream, consumer), []byte(strconv.Itoa(n)), timeout)
+	s, err := NextSubject(stream, consumer)
+	if err != nil {
+		return nil, err
+	}
+
+	return nrequest(s, []byte(strconv.Itoa(n)), timeout)
 }
 
 // NextMsgs retrieves the next n messages

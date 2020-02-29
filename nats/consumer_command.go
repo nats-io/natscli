@@ -94,8 +94,8 @@ func configureConsumerCommand(app *kingpin.Application) {
 	addCreateFlags(consCp)
 
 	consNext := cons.Command("next", "Retrieves messages from Pull Consumers without interactive prompts").Action(c.nextAction)
-	consNext.Arg("stream", "Stream name").StringVar(&c.stream)
-	consNext.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
+	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consNext.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
 
