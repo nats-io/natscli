@@ -11,18 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package jsch provides client helpers for interacting with NATS
-// JetStream
-//
-// This is a helper library for managing and interacting with JetStream
-// we are exploring a few options for how such a library will look and
-// determine what will go into core NATS clients and what will be left
-// as an external library.
-//
-// This this library is not an official blessed way for interacting with
-// JetStream yet but as a set of examples of all the capabilities this
-// is valuable and it's for us a starting point to learning what patterns
-// work well
+// Package jsch provides client helpers for managing and interacting with NATS JetStreamcd .
 package jsch
 
 import (

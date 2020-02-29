@@ -9,7 +9,7 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/google/go-cmp v0.4.0
 	github.com/guptarohit/asciigraph v0.4.1
-	github.com/nats-io/nats-server/v2 v2.1.5-0.20200224190004-582c33995fa5
+	github.com/nats-io/nats-server/v2 v2.1.5-0.20200228231124-42fe104358e2
 	github.com/nats-io/nats.go v1.9.1
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
