@@ -15,7 +15,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/nats-io/jetstream/internal/jsch"
+	"github.com/nats-io/jsm.go"
 )
 
 type eventsCmd struct {
@@ -283,7 +283,7 @@ func (c *eventsCmd) renderAdvisory(m *nats.Msg) {
 		return
 	}
 
-	_, event, err := jsch.ParseEvent(m.Data)
+	_, event, err := jsm.ParseEvent(m.Data)
 	if err != nil {
 		fmt.Printf("Event parsing failed: %s\n\n", err)
 		fmt.Println(leftPad(string(m.Data), 10))
@@ -307,7 +307,7 @@ func (c *eventsCmd) renderMetric(m *nats.Msg) {
 		return
 	}
 
-	_, event, err := jsch.ParseEvent(m.Data)
+	_, event, err := jsm.ParseEvent(m.Data)
 	if err != nil {
 		fmt.Printf("Event parsing failed: %s\n\n", err)
 		fmt.Println(leftPad(string(m.Data), 10))

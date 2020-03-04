@@ -26,7 +26,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/nats-io/jetstream/internal/jsch"
+	"github.com/nats-io/jsm.go"
 )
 
 type consumerCmd struct {
@@ -118,7 +118,7 @@ func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	consumer, err := jsch.LoadConsumer(c.stream, c.consumer)
+	consumer, err := jsm.LoadConsumer(c.stream, c.consumer)
 	kingpin.FatalIfError(err, "could not load Consumer")
 
 	return consumer.Delete()
@@ -127,7 +127,7 @@ func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
 func (c *consumerCmd) lsAction(pc *kingpin.ParseContext) error {
 	c.connectAndSetup(true, false)
 
-	stream, err := jsch.LoadStream(c.stream)
+	stream, err := jsm.LoadStream(c.stream)
 	kingpin.FatalIfError(err, "could not load Consumers")
 
 	consumers, err := stream.ConsumerNames()
@@ -157,7 +157,7 @@ func (c *consumerCmd) lsAction(pc *kingpin.ParseContext) error {
 func (c *consumerCmd) infoAction(pc *kingpin.ParseContext) error {
 	c.connectAndSetup(true, true)
 
-	consumer, err := jsch.LoadConsumer(c.stream, c.consumer)
+	consumer, err := jsm.LoadConsumer(c.stream, c.consumer)
 	kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
 
 	config := consumer.Configuration()
@@ -292,7 +292,7 @@ func (c *consumerCmd) setStartPolicy(cfg *api.ConsumerConfig, policy string) {
 func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 	c.connectAndSetup(true, false)
 
-	source, err := jsch.LoadConsumer(c.stream, c.consumer)
+	source, err := jsm.LoadConsumer(c.stream, c.consumer)
 	kingpin.FatalIfError(err, "could not load source Consumer")
 
 	cfg := source.Configuration()
@@ -340,7 +340,7 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.MaxDeliver = c.maxDeliver
 	}
 
-	_, err = jsch.NewConsumerFromDefault(c.stream, cfg)
+	_, err = jsm.NewConsumerFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed")
 
 	if cfg.Durable == "" {
@@ -465,7 +465,7 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 		cfg.MaxDeliver = c.maxDeliver
 	}
 
-	created, err := jsch.NewConsumerFromDefault(c.stream, *cfg)
+	created, err := jsm.NewConsumerFromDefault(c.stream, *cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed: ")
 
 	c.consumer = created.Name()
@@ -474,11 +474,11 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
-	msg, err := jsch.NextMsgs(stream, consumer, 1)
+	msg, err := jsm.NextMsgs(stream, consumer, 1)
 	kingpin.FatalIfError(err, "could not load next message")
 
 	if !c.raw {
-		info, err := jsch.ParseJSMsgMetadata(msg)
+		info, err := jsm.ParseJSMsgMetadata(msg)
 		if err != nil {
 			fmt.Printf("--- subject: %s\n", msg.Subject)
 		} else {
@@ -493,7 +493,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	if c.ack {
 		err = msg.Respond(api.AckAck)
 		kingpin.FatalIfError(err, "could not Acknowledge message")
-		jsch.Flush()
+		jsm.Flush()
 		if !c.raw {
 			fmt.Println("\nAcknowledged message")
 		}
@@ -502,11 +502,11 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	return nil
 }
 
-func (c *consumerCmd) getNextMsg(consumer *jsch.Consumer) error {
+func (c *consumerCmd) getNextMsg(consumer *jsm.Consumer) error {
 	return c.getNextMsgDirect(consumer.StreamName(), consumer.Name())
 }
 
-func (c *consumerCmd) subscribeConsumer(consumer *jsch.Consumer) (err error) {
+func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 	if !c.raw {
 		fmt.Printf("Subscribing to topic %s auto acknowlegement: %v\n\n", consumer.DeliverySubject(), c.ack)
 		fmt.Println("Consumer Info:")
@@ -518,10 +518,10 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsch.Consumer) (err error) {
 	}
 
 	_, err = consumer.Subscribe(func(m *nats.Msg) {
-		var msginfo *jsch.MsgInfo
+		var msginfo *jsm.MsgInfo
 		var err error
 
-		msginfo, err = jsch.ParseJSMsgMetadata(m)
+		msginfo, err = jsm.ParseJSMsgMetadata(m)
 		kingpin.FatalIfError(err, "could not parse JetStream metadata")
 
 		if !c.raw {
@@ -556,7 +556,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsch.Consumer) (err error) {
 func (c *consumerCmd) subAction(_ *kingpin.ParseContext) error {
 	c.connectAndSetup(true, true)
 
-	consumer, err := jsch.LoadConsumer(c.stream, c.consumer)
+	consumer, err := jsm.LoadConsumer(c.stream, c.consumer)
 	kingpin.FatalIfError(err, "could not get Consumer info")
 
 	switch {

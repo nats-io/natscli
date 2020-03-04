@@ -29,7 +29,7 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 
-	"github.com/nats-io/jetstream/internal/jsch"
+	"github.com/nats-io/jsm.go"
 )
 
 func runNatsCli(t *testing.T, args ...string) (output []byte) {
@@ -71,7 +71,7 @@ func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn) {
 	nc, err = prepareHelper(srv.ClientURL())
 	checkErr(t, err, "could not connect client to server @ %s: %v", srv.ClientURL(), err)
 
-	streams, err := jsch.StreamNames()
+	streams, err := jsm.StreamNames()
 	checkErr(t, err, "could not load streams: %v", err)
 	if len(streams) != 0 {
 		t.Fatalf("found %v message streams but it should be empty", streams)
@@ -83,7 +83,7 @@ func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn) {
 func setupConsTest(t *testing.T) (srv *server.Server, nc *nats.Conn) {
 	srv, nc = setupJStreamTest(t)
 
-	_, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
+	_, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -92,7 +92,7 @@ func setupConsTest(t *testing.T) (srv *server.Server, nc *nats.Conn) {
 
 func streamShouldExist(t *testing.T, stream string) {
 	t.Helper()
-	known, err := jsch.IsKnownStream(stream)
+	known, err := jsm.IsKnownStream(stream)
 	checkErr(t, err, "stream lookup failed: %v", err)
 	if !known {
 		t.Fatalf("%s does not exist", stream)
@@ -101,7 +101,7 @@ func streamShouldExist(t *testing.T, stream string) {
 
 func streamShouldNotExist(t *testing.T, stream string) {
 	t.Helper()
-	known, err := jsch.IsKnownStream(stream)
+	known, err := jsm.IsKnownStream(stream)
 	checkErr(t, err, "stream lookup failed: %v", err)
 	if known {
 		t.Fatalf("unexpectedly found %s already existing", stream)
@@ -110,7 +110,7 @@ func streamShouldNotExist(t *testing.T, stream string) {
 
 func consumerShouldExist(t *testing.T, stream string, consumer string) {
 	t.Helper()
-	known, err := jsch.IsKnownConsumer(stream, consumer)
+	known, err := jsm.IsKnownConsumer(stream, consumer)
 	checkErr(t, err, "consumer lookup failed: %v", err)
 	if !known {
 		t.Fatalf("%s does not exist", consumer)
@@ -119,7 +119,7 @@ func consumerShouldExist(t *testing.T, stream string, consumer string) {
 
 func streamInfo(t *testing.T, stream string) *server.StreamInfo {
 	t.Helper()
-	str, err := jsch.LoadStream(stream)
+	str, err := jsm.LoadStream(stream)
 	checkErr(t, err, "could not load stream %s", stream)
 	info, err := str.Information()
 	checkErr(t, err, "could not load stream %s", stream)
@@ -176,7 +176,7 @@ func TestCLIStreamInfo(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
+	_, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -196,7 +196,7 @@ func TestCLIStreamDelete(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
+	_, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create message stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -208,7 +208,7 @@ func TestCLIStreamLs(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
+	_, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -231,7 +231,7 @@ func TestCLIStreamPurge(t *testing.T) {
 	srv, nc := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	stream, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
+	stream, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -256,7 +256,7 @@ func TestCLIStreamGet(t *testing.T) {
 	srv, nc := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	stream, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
+	stream, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -281,7 +281,7 @@ func TestCLIConsumerInfo(t *testing.T) {
 	srv, _ := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewConsumerFromDefault("mem1", pull1Cons())
+	_, err := jsm.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, "mem1", "push1")
 
@@ -299,7 +299,7 @@ func TestCLIConsumerLs(t *testing.T) {
 	srv, _ := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewConsumerFromDefault("mem1", pull1Cons())
+	_, err := jsm.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, "mem1", "push1")
 
@@ -321,13 +321,13 @@ func TestCLIConsumerDelete(t *testing.T) {
 	srv, _ := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewConsumerFromDefault("mem1", pull1Cons())
+	_, err := jsm.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, "mem1", "push1")
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' con rm mem1 push1 -f", srv.ClientURL()))
 
-	list, err := jsch.ConsumerNames("mem1")
+	list, err := jsm.ConsumerNames("mem1")
 	checkErr(t, err, "could not check cnsumer: %v", err)
 	if len(list) != 0 {
 		t.Fatalf("Expected no consumer, got %v", list)
@@ -346,7 +346,7 @@ func TestCLIConsumerNext(t *testing.T) {
 	srv, nc := setupConsTest(t)
 	defer srv.Shutdown()
 
-	push1, err := jsch.NewConsumerFromDefault("mem1", pull1Cons())
+	push1, err := jsm.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, "mem1", "push1")
 
@@ -369,7 +369,7 @@ func TestCLIStreamEdit(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	mem1, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
+	mem1, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
@@ -392,14 +392,14 @@ func TestCLIStreamCopy(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewStreamFromDefault("mem1", mem1Stream())
+	_, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' str cp mem1 file1 --storage file --subjects other", srv.ClientURL()))
 	streamShouldExist(t, "file1")
 
-	stream, err := jsch.LoadStream("file1")
+	stream, err := jsm.LoadStream("file1")
 	checkErr(t, err, "could not get stream: %v", err)
 	info, err := stream.Information()
 	checkErr(t, err, "could not get stream: %v", err)
@@ -412,18 +412,18 @@ func TestCLIConsumerCopy(t *testing.T) {
 	srv, _ := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsch.NewConsumerFromDefault("mem1", pull1Cons())
+	_, err := jsm.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, "mem1", "push1")
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' con cp mem1 push1 pull1 --pull", srv.ClientURL()))
 	consumerShouldExist(t, "mem1", "pull1")
 
-	pull1, err := jsch.LoadConsumer("mem1", "pull1")
+	pull1, err := jsm.LoadConsumer("mem1", "pull1")
 	checkErr(t, err, "could not get consumer: %v", err)
 	consumerShouldExist(t, "mem1", "pull1")
 
-	ols, err := jsch.ConsumerNames("mem1")
+	ols, err := jsm.ConsumerNames("mem1")
 	checkErr(t, err, "could not get consumer: %v", err)
 
 	if len(ols) != 2 {
@@ -445,15 +445,15 @@ func TestCLIBackupRestore(t *testing.T) {
 
 	target := filepath.Join(dir, "backup")
 
-	mem1, err := jsch.LoadStream("mem1")
+	mem1, err := jsm.LoadStream("mem1")
 	checkErr(t, err, "fetch mem1 failed")
 	origMem1Config := mem1.Configuration()
 
-	c1, err := mem1.NewConsumerFromDefault(jsch.DefaultConsumer, jsch.DurableName("c1"))
+	c1, err := mem1.NewConsumerFromDefault(jsm.DefaultConsumer, jsm.DurableName("c1"))
 	checkErr(t, err, "consumer c1 failed")
 	origC1Config := c1.Configuration()
 
-	t1, err := jsch.NewStreamTemplate("t1", 1, jsch.DefaultStream)
+	t1, err := jsm.NewStreamTemplate("t1", 1, jsm.DefaultStream)
 	checkErr(t, err, "TEST template create failed")
 	origT1Config := t1.Configuration()
 
@@ -464,7 +464,7 @@ func TestCLIBackupRestore(t *testing.T) {
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' restore '%s'", srv.ClientURL(), target))
 
-	mem1, err = jsch.LoadStream("mem1")
+	mem1, err = jsm.LoadStream("mem1")
 	checkErr(t, err, "fetch mem1 failed")
 	if !cmp.Equal(mem1.Configuration(), origMem1Config) {
 		t.Fatalf("mem1 recreate failed")
@@ -476,7 +476,7 @@ func TestCLIBackupRestore(t *testing.T) {
 		t.Fatalf("mem1 recreate failed")
 	}
 
-	t1, err = jsch.LoadStreamTemplate("t1")
+	t1, err = jsm.LoadStreamTemplate("t1")
 	checkErr(t, err, "template load failed")
 	if !cmp.Equal(t1.Configuration(), origT1Config) {
 		t.Fatalf("mem1 recreate failed")
@@ -493,7 +493,7 @@ func TestCLIBackupRestore_UpdateStream(t *testing.T) {
 
 	target := filepath.Join(dir, "backup")
 
-	mem1, err := jsch.LoadStream("mem1")
+	mem1, err := jsm.LoadStream("mem1")
 	checkErr(t, err, "fetch mem1 failed")
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' backup '%s'", srv.ClientURL(), target))
@@ -521,7 +521,7 @@ func TestCLIMessageRm(t *testing.T) {
 	checkErr(t, nc.Publish("js.mem.1", []byte("msg2")), "publish failed")
 	checkErr(t, nc.Publish("js.mem.1", []byte("msg3")), "publish failed")
 
-	mem1, err := jsch.LoadStream("mem1")
+	mem1, err := jsm.LoadStream("mem1")
 	checkErr(t, err, "load failed")
 
 	state, err := mem1.State()

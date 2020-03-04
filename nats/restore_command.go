@@ -18,7 +18,7 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/nats-io/jetstream/internal/jsch"
+	"github.com/nats-io/jsm.go"
 )
 
 type restoreCmd struct {
@@ -51,8 +51,8 @@ func (c *restoreCmd) restoreAction(_ *kingpin.ParseContext) error {
 	}
 
 	if c.backupDir != "" {
-		return jsch.RestoreJetStreamConfiguration(c.backupDir, c.updateStream)
+		return jsm.RestoreJetStreamConfiguration(c.backupDir, c.updateStream)
 	}
 
-	return jsch.RestoreJetStreamConfigurationFile(c.file, c.updateStream)
+	return jsm.RestoreJetStreamConfigurationFile(c.file, c.updateStream)
 }
