@@ -26,12 +26,12 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/nats-io/nats.go"
 
-	"github.com/nats-io/jetstream/internal/jsch"
+	"github.com/nats-io/jsm.go"
 )
 
 func selectConsumer(stream string, consumer string) (string, error) {
 	if consumer != "" {
-		known, err := jsch.IsKnownConsumer(stream, consumer)
+		known, err := jsm.IsKnownConsumer(stream, consumer)
 		if err != nil {
 			return "", err
 		}
@@ -41,7 +41,7 @@ func selectConsumer(stream string, consumer string) (string, error) {
 		}
 	}
 
-	consumers, err := jsch.ConsumerNames(stream)
+	consumers, err := jsm.ConsumerNames(stream)
 	if err != nil {
 		return "", err
 	}
@@ -66,7 +66,7 @@ func selectConsumer(stream string, consumer string) (string, error) {
 
 func selectStreamTemplate(template string) (string, error) {
 	if template != "" {
-		known, err := jsch.IsKnownStreamTemplate(template)
+		known, err := jsm.IsKnownStreamTemplate(template)
 		if err != nil {
 			return "", err
 		}
@@ -76,7 +76,7 @@ func selectStreamTemplate(template string) (string, error) {
 		}
 	}
 
-	templates, err := jsch.StreamTemplateNames()
+	templates, err := jsm.StreamTemplateNames()
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +101,7 @@ func selectStreamTemplate(template string) (string, error) {
 
 func selectStream(stream string) (string, error) {
 	if stream != "" {
-		known, err := jsch.IsKnownStream(stream)
+		known, err := jsm.IsKnownStream(stream)
 		if err != nil {
 			return "", err
 		}
@@ -111,7 +111,7 @@ func selectStream(stream string) (string, error) {
 		}
 	}
 
-	streams, err := jsch.StreamNames()
+	streams, err := jsm.StreamNames()
 	if err != nil {
 		return "", err
 	}
@@ -293,10 +293,10 @@ func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, error) {
 	}
 
 	if timeout != 0 {
-		jsch.SetTimeout(timeout)
+		jsm.SetTimeout(timeout)
 	}
 
-	jsch.SetConnection(nc)
+	jsm.SetConnection(nc)
 
 	return nc, err
 }

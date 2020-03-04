@@ -19,7 +19,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/nats-io/jetstream/internal/jsch"
+	"github.com/nats-io/jsm.go"
 )
 
 type actCmd struct {
@@ -37,7 +37,7 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 	_, err := prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	info, err := jsch.JetStreamAccountInfo()
+	info, err := jsm.JetStreamAccountInfo()
 	kingpin.FatalIfError(err, "could not request account info")
 
 	if c.json {

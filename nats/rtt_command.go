@@ -177,19 +177,10 @@ func (c *rttCmd) targets() (targets []*rttTarget, err error) {
 		// if we have many addresses we'll connect to each IP but we have to use the
 		// name of the original server address to do validate TLS, connect here, check it
 		// requires TLS and store the name to use when connecting to each IP
-		nc, err := newNatsConn(u.Hostname(), natsOpts()...)
-		if err != nil {
-			return targets, err
-		}
-
-		if nc.TLSRequired() {
-			target.tlsName = u.Hostname()
-		}
-
-		nc.Close()
+		target.tlsName = u.Hostname()
 
 		for _, a := range addrs {
-			target.Results = append(target.Results, &rttResult{Address: a})
+			target.Results = append(target.Results, &rttResult{Address: fmt.Sprintf("%s://%s", u.Scheme, net.JoinHostPort(a, u.Port()))})
 		}
 	}
 

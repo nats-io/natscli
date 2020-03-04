@@ -3,7 +3,7 @@ package main
 import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/nats-io/jetstream/internal/jsch"
+	"github.com/nats-io/jsm.go"
 )
 
 type backupCmd struct {
@@ -23,5 +23,5 @@ func (c *backupCmd) backupAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	return jsch.BackupJetStreamConfiguration(c.outDir)
+	return jsm.BackupJetStreamConfiguration(c.outDir)
 }
