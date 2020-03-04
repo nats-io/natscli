@@ -48,6 +48,7 @@ func main() {
 	configureConsumerCommand(ncli)
 	configureBackupCommand(ncli)
 	configureRestoreCommand(ncli)
+	configureRTTCommand(ncli)
 
 	kingpin.MustParse(ncli.Parse(os.Args[1:]))
 }
