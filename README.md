@@ -364,6 +364,12 @@ You can get prompted interactively for missing information as above, or do it al
 $ nats str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size=-1
 ```
 
+Additionally one can store the configuration in a JSON file, the format of this is the same as `$ nats str info ORDERS -j | jq .config`:
+
+```
+$ nats str add ORDERS --config orders.json
+```
+
 #### Listing
 
 We can confirm our Stream was created:
@@ -470,6 +476,12 @@ Configuration:
 
              Subjects: ORDERS.*
 ....
+```
+
+Additionally one can store the configuration in a JSON file, the format of this is the same as `$ nats str info ORDERS -j | jq .config`:
+
+```
+$ nats str edit ORDERS --config orders.json
 ```
 
 #### Publishing Into a Stream
@@ -603,6 +615,12 @@ Again this can all be done in a single CLI call, lets make the `DISPATCH` Consum
 $ nats con add ORDERS DISPATCH --filter ORDERS.processed --ack explicit --pull --deliver all --sample 100 --max-deliver 20
 ```
 
+Additionally one can store the configuration in a JSON file, the format of this is the same as `$ nats con info ORDERS DISPATCH -j | jq .config`:
+
+```
+$ nats con add ORDERS MONITOR --config monitor.json
+```
+
 #### Creating Push-Based Consumers
 
 Our `MONITOR` Consumer is push-based, has no ack and will only get new messages and is not sampled:
@@ -640,6 +658,12 @@ Again you can do this with a single non interactive command:
 
 ```
 $ nats con add ORDERS MONITOR --ack none --target monitor.ORDERS --deliver last --replay instant --filter ''
+```
+
+Additionally one can store the configuration in a JSON file, the format of this is the same as `$ nats con info ORDERS MONITOR -j | jq .config`:
+
+```
+$ nats con add ORDERS --config monitor.json
 ```
 
 #### Listing
