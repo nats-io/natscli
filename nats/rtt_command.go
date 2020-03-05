@@ -15,7 +15,6 @@ package main
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -64,12 +63,7 @@ func (c *rttCmd) rtt(_ *kingpin.ParseContext) error {
 	}
 
 	if c.json {
-		j, err := json.MarshalIndent(&targets, "", "  ")
-		if err != nil {
-			return err
-		}
-
-		fmt.Println(string(j))
+		printJSON(targets)
 
 		return nil
 	}

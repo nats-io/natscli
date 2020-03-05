@@ -289,9 +289,7 @@ func (c *streamCmd) reportAction(pc *kingpin.ParseContext) error {
 	}
 
 	if c.json {
-		j, err := json.MarshalIndent(stats, "", "  ")
-		kingpin.FatalIfError(err, "could not JSON marshal stats")
-		fmt.Println(string(j))
+		printJSON(stats)
 		return nil
 	}
 

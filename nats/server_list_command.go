@@ -15,7 +15,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -113,12 +112,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	sub.Drain()
 
 	if c.json {
-		j, err := json.Marshal(results)
-		if err != nil {
-			return err
-		}
-
-		fmt.Println(string(j))
+		printJSON(results)
 		return nil
 	}
 
