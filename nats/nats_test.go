@@ -170,6 +170,22 @@ func TestCLIStreamCreate(t *testing.T) {
 	if info.Config.MaxMsgSize != 1024 {
 		t.Fatalf("incorrect max message size stream, expected 1024 got %v", info.Config.MaxMsgSize)
 	}
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' str create ORDERS testdata/ORDERS_config.json", srv.ClientURL()))
+	streamShouldExist(t, "ORDERS")
+	info = streamInfo(t, "ORDERS")
+
+	if len(info.Config.Subjects) != 1 {
+		t.Fatalf("expected 1 subject in the message stream, got %v", info.Config.Subjects)
+	}
+
+	if info.Config.Subjects[0] != "ORDERS.*" {
+		t.Fatalf("expected [ORDERS.*], got %v", info.Config.Subjects)
+	}
+
+	if info.Config.Storage != server.FileStorage {
+		t.Fatalf("expected file storage got %q", info.Config.Storage)
+	}
 }
 
 func TestCLIStreamInfo(t *testing.T) {
@@ -340,6 +356,13 @@ func TestCLIConsumerAdd(t *testing.T) {
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --replay instant --deliver all --pull --filter '' --max-deliver 20", srv.ClientURL()))
 	consumerShouldExist(t, "mem1", "push1")
+
+	push1, err := jsm.LoadConsumer("mem1", "push1")
+	checkErr(t, err, "push1 could not be loaded")
+	push1.Delete()
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 pull1 testdata/mem1_pull1_consumer.json", srv.ClientURL()))
+	consumerShouldExist(t, "mem1", "pull1")
 }
 
 func TestCLIConsumerNext(t *testing.T) {
@@ -386,6 +409,18 @@ func TestCLIStreamEdit(t *testing.T) {
 		t.Fatalf("expected [other] got %v", mem1.Subjects())
 	}
 
+	runNatsCli(t, fmt.Sprintf("--server='%s' str edit mem1 testdata/mem1_config.json", srv.ClientURL()))
+
+	err = mem1.Reset()
+	checkErr(t, err, "could not reset stream: %v", err)
+
+	if len(mem1.Subjects()) != 1 {
+		t.Fatalf("expected [MEMORY.*] got %v", mem1.Subjects())
+	}
+
+	if mem1.Subjects()[0] != "MEMORY.*" {
+		t.Fatalf("expected [MEMORY.*] got %v", mem1.Subjects())
+	}
 }
 
 func TestCLIStreamCopy(t *testing.T) {

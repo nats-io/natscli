@@ -15,7 +15,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"regexp"
 	"strconv"
 	"strings"
@@ -37,6 +39,7 @@ type consumerCmd struct {
 	ack         bool
 	raw         bool
 	destination string
+	inputFile   string
 
 	maxDeliver    int
 	pull          bool
@@ -85,6 +88,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consAdd := cons.Command("add", "Creates a new Consumer").Alias("create").Alias("new").Action(c.createAction)
 	consAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	consAdd.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	consAdd.Arg("file", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	addCreateFlags(consAdd)
 
 	consCp := cons.Command("copy", "Creates a new Consumer based on the configuration of another").Alias("cp").Action(c.cpAction)
@@ -351,9 +355,24 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 	return c.infoAction(pc)
 }
 
-func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
-	c.connectAndSetup(true, false)
-	cfg := c.defaultConsumer()
+func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
+	if c.inputFile != "" {
+		f, err := ioutil.ReadFile(c.inputFile)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg = &api.ConsumerConfig{}
+		err = json.Unmarshal(f, cfg)
+
+		if cfg.Durable != "" && c.consumer != "" && cfg.Durable != c.consumer {
+			return cfg, fmt.Errorf("non durable consumer name in %s does not match CLI consumer name %s", c.inputFile, c.consumer)
+		}
+
+		return cfg, err
+	}
+
+	cfg = c.defaultConsumer()
 
 	if c.consumer == "" && !c.ephemeral {
 		err = survey.AskOne(&survey.Input{
@@ -463,6 +482,17 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 
 	if c.maxDeliver != 0 && cfg.AckPolicy != api.AckNone {
 		cfg.MaxDeliver = c.maxDeliver
+	}
+
+	return cfg, nil
+}
+
+func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
+	c.connectAndSetup(true, false)
+
+	cfg, err := c.prepareConfig()
+	if err != nil {
+		return err
 	}
 
 	created, err := jsm.NewConsumerFromDefault(c.stream, *cfg)
