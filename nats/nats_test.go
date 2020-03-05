@@ -171,7 +171,7 @@ func TestCLIStreamCreate(t *testing.T) {
 		t.Fatalf("incorrect max message size stream, expected 1024 got %v", info.Config.MaxMsgSize)
 	}
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str create ORDERS testdata/ORDERS_config.json", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str create ORDERS --config testdata/ORDERS_config.json", srv.ClientURL()))
 	streamShouldExist(t, "ORDERS")
 	info = streamInfo(t, "ORDERS")
 
@@ -361,7 +361,7 @@ func TestCLIConsumerAdd(t *testing.T) {
 	checkErr(t, err, "push1 could not be loaded")
 	push1.Delete()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 pull1 testdata/mem1_pull1_consumer.json", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 pull1 --config testdata/mem1_pull1_consumer.json", srv.ClientURL()))
 	consumerShouldExist(t, "mem1", "pull1")
 }
 
@@ -409,7 +409,7 @@ func TestCLIStreamEdit(t *testing.T) {
 		t.Fatalf("expected [other] got %v", mem1.Subjects())
 	}
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str edit mem1 testdata/mem1_config.json", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str edit mem1 --config testdata/mem1_config.json", srv.ClientURL()))
 
 	err = mem1.Reset()
 	checkErr(t, err, "could not reset stream: %v", err)

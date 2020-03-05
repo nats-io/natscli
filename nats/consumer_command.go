@@ -88,7 +88,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consAdd := cons.Command("add", "Creates a new Consumer").Alias("create").Alias("new").Action(c.createAction)
 	consAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	consAdd.Arg("consumer", "Consumer name").StringVar(&c.consumer)
-	consAdd.Arg("file", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
+	consAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	addCreateFlags(consAdd)
 
 	consCp := cons.Command("copy", "Creates a new Consumer based on the configuration of another").Alias("cp").Action(c.cpAction)

@@ -79,12 +79,12 @@ func configureStreamCommand(app *kingpin.Application) {
 
 	strAdd := str.Command("create", "Create a new Stream").Alias("add").Alias("new").Action(c.addAction)
 	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
-	strAdd.Arg("file", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
+	strAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	addCreateFlags(strAdd)
 
 	strEdit := str.Command("edit", "Edits an existing stream").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
-	strEdit.Arg("file", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
+	strEdit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	addCreateFlags(strEdit)
 
 	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another").Alias("cp").Action(c.cpAction)
@@ -529,6 +529,10 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 
 		if c.stream != "" {
 			cfg.Name = c.stream
+		}
+
+		if c.stream == "" {
+			c.stream = cfg.Name
 		}
 
 		if c.stream != cfg.Name {
