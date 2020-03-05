@@ -1,0 +1,14 @@
+{
+  "name": "mem1",
+  "subjects": [
+    "MEMORY.*"
+  ],
+  "retention": "limits",
+  "max_consumers": -1,
+  "max_msgs": -1,
+  "max_bytes": -1,
+  "max_age": 0,
+  "max_msg_size": -1,
+  "storage": "memory",
+  "num_replicas": 1
+}

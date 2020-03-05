@@ -16,6 +16,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"regexp"
 	"sort"
 	"strconv"
@@ -37,6 +38,7 @@ type streamCmd struct {
 	json             bool
 	msgID            int64
 	retentionPolicyS string
+	inputFile        string
 
 	destination         string
 	subjects            []string
@@ -77,10 +79,12 @@ func configureStreamCommand(app *kingpin.Application) {
 
 	strAdd := str.Command("create", "Create a new Stream").Alias("add").Alias("new").Action(c.addAction)
 	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
+	strAdd.Arg("file", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	addCreateFlags(strAdd)
 
 	strEdit := str.Command("edit", "Edits an existing stream").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
+	strEdit.Arg("file", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	addCreateFlags(strEdit)
 
 	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another").Alias("cp").Action(c.cpAction)
@@ -317,6 +321,25 @@ func (c *streamCmd) reportAction(pc *kingpin.ParseContext) error {
 func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, error) {
 	var err error
 
+	if c.inputFile != "" {
+		var cfg api.StreamConfig
+		f, err := ioutil.ReadFile(c.inputFile)
+		if err != nil {
+			return api.StreamConfig{}, err
+		}
+
+		err = json.Unmarshal(f, &cfg)
+		if err != nil {
+			return api.StreamConfig{}, err
+		}
+
+		if cfg.Name == "" {
+			cfg.Name = c.stream
+		}
+
+		return cfg, nil
+	}
+
 	cfg.NoAck = !c.ack
 
 	if len(c.subjects) > 0 {
@@ -490,6 +513,31 @@ func (c *streamCmd) retentionPolicyFromString(s string) api.RetentionPolicy {
 func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 	var err error
 
+	_, err = prepareHelper(servers, natsOpts()...)
+	kingpin.FatalIfError(err, "could not create Stream")
+
+	if c.inputFile != "" {
+		f, err := ioutil.ReadFile(c.inputFile)
+		kingpin.FatalIfError(err, "invalid input")
+
+		err = json.Unmarshal(f, &cfg)
+		kingpin.FatalIfError(err, "invalid input")
+
+		if cfg.Name == "" && c.stream == "" {
+			kingpin.Fatalf("stream name is not set in the JSON configuration file or as CLI argument")
+		}
+
+		if c.stream != "" {
+			cfg.Name = c.stream
+		}
+
+		if c.stream != cfg.Name {
+			kingpin.Fatalf("stream name from configuration does not match name supplied on the CLI")
+		}
+
+		return cfg
+	}
+
 	if c.stream == "" {
 		err = survey.AskOne(&survey.Input{
 			Message: "Stream Name",
@@ -566,9 +614,6 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		}, &c.maxMsgSize)
 		kingpin.FatalIfError(err, "invalid input")
 	}
-
-	_, err = prepareHelper(servers, natsOpts()...)
-	kingpin.FatalIfError(err, "could not create Stream")
 
 	cfg = api.StreamConfig{
 		Name:         c.stream,
