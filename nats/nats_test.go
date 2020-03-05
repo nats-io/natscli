@@ -396,7 +396,7 @@ func TestCLIStreamEdit(t *testing.T) {
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "mem1")
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str edit mem1 --subjects other", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str edit mem1 --subjects other -f", srv.ClientURL()))
 
 	err = mem1.Reset()
 	checkErr(t, err, "could not reset stream: %v", err)
@@ -409,7 +409,7 @@ func TestCLIStreamEdit(t *testing.T) {
 		t.Fatalf("expected [other] got %v", mem1.Subjects())
 	}
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str edit mem1 --config testdata/mem1_config.json", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str edit mem1 -f --config testdata/mem1_config.json", srv.ClientURL()))
 
 	err = mem1.Reset()
 	checkErr(t, err, "could not reset stream: %v", err)
@@ -533,7 +533,7 @@ func TestCLIBackupRestore_UpdateStream(t *testing.T) {
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' backup '%s'", srv.ClientURL(), target))
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' stream edit mem1 --subjects x", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' stream edit mem1 -f --subjects x", srv.ClientURL()))
 	checkErr(t, mem1.Reset(), "reset failed")
 	subs := mem1.Subjects()
 	if len(subs) != 1 || subs[0] != "x" {

@@ -25,6 +25,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/google/go-cmp/cmp"
 	api "github.com/nats-io/nats-server/v2/server"
 	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -85,6 +86,8 @@ func configureStreamCommand(app *kingpin.Application) {
 	strEdit := str.Command("edit", "Edits an existing stream").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
 	strEdit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
+	strEdit.Flag("force", "Force edit without prompting").Short('f').BoolVar(&c.force)
+
 	addCreateFlags(strEdit)
 
 	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another").Alias("cp").Action(c.cpAction)
@@ -384,6 +387,29 @@ func (c *streamCmd) editAction(pc *kingpin.ParseContext) error {
 
 	cfg, err := c.copyAndEditStream(sourceStream.Configuration())
 	kingpin.FatalIfError(err, "could not create new configuration for Stream %s", c.stream)
+
+	// sorts strings to subject lists that only differ in ordering is considered equal
+	sorter := cmp.Transformer("Sort", func(in []string) []string {
+		out := append([]string(nil), in...)
+		sort.Strings(out)
+		return out
+	})
+
+	diff := cmp.Diff(sourceStream.Configuration(), cfg, sorter)
+	if diff == "" {
+		fmt.Printf("No difference in configuration")
+		return nil
+	}
+
+	fmt.Printf("Differences (-old +new):\n%s", diff)
+	if !c.force {
+		ok, err := askConfirmation(fmt.Sprintf("Really edit Stream %s", c.stream), false)
+		kingpin.FatalIfError(err, "could not obtain confirmation")
+
+		if !ok {
+			return nil
+		}
+	}
 
 	err = sourceStream.UpdateConfiguration(cfg)
 	kingpin.FatalIfError(err, "could not edit Stream %s", c.stream)
