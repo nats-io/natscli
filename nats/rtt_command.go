@@ -180,7 +180,12 @@ func (c *rttCmd) targets() (targets []*rttTarget, err error) {
 		target.tlsName = u.Hostname()
 
 		for _, a := range addrs {
-			target.Results = append(target.Results, &rttResult{Address: fmt.Sprintf("%s://%s", u.Scheme, net.JoinHostPort(a, u.Port()))})
+			port := u.Port()
+			if port == "" {
+				port = "4222"
+			}
+
+			target.Results = append(target.Results, &rttResult{Address: fmt.Sprintf("%s://%s", u.Scheme, net.JoinHostPort(a, port))})
 		}
 	}
 
