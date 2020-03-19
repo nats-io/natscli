@@ -134,7 +134,7 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 
 	start := time.Now()
 
-	for i := 0; i < c.numMsg; i++ {
+	for i := 0; i < numMsg; i++ {
 		if progress != nil {
 			progress.Incr()
 		}
