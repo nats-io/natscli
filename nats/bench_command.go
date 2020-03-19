@@ -20,18 +20,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dustin/go-humanize"
+	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/bench"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type benchCmd struct {
-	subject string
-	numPubs int
-	numSubs int
-	numMsg  int
-	msgSize int
-	csvFile string
+	subject  string
+	numPubs  int
+	numSubs  int
+	numMsg   int
+	msgSize  int
+	csvFile  string
+	progress bool
 }
 
 func configureBenchCommand(app *kingpin.Application) {
@@ -43,11 +46,17 @@ func configureBenchCommand(app *kingpin.Application) {
 	bench.Flag("msgs", "Number of messages to publish").Default("100000").IntVar(&c.numMsg)
 	bench.Flag("size", "Size of the test messages").Default("128").IntVar(&c.msgSize)
 	bench.Flag("csv", "Save benchmark data to CSV file").StringVar(&c.csvFile)
+	bench.Flag("progress", "Enable progress bar while publishing").Default("true").BoolVar(&c.progress)
 }
 
 func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	if c.numMsg <= 0 {
 		return fmt.Errorf("number of messages should be greater than 0")
+	}
+
+	log.Printf("Starting benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d]\n", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs)
+	if c.progress {
+		log.Print("Connections will flush after publish completed\n\n")
 	}
 
 	bm := bench.NewBenchmark("NATS", c.numSubs, c.numPubs)
@@ -83,13 +92,20 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		go c.runPublisher(bm, nc, startwg, donewg, pubCounts[i])
 	}
 
-	log.Printf("Starting benchmark [msgs=%d, msgsize=%d, pubs=%d, subs=%d]\n", c.numMsg, c.msgSize, c.numPubs, c.numSubs)
+	if c.progress {
+		uiprogress.Start()
+	}
 
 	startwg.Wait()
 	donewg.Wait()
 
 	bm.Close()
 
+	if c.progress {
+		uiprogress.Stop()
+	}
+
+	fmt.Println()
 	fmt.Println(bm.Report())
 
 	if c.csvFile != "" {
@@ -104,6 +120,13 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int) {
 	startwg.Done()
 
+	var progress *uiprogress.Bar
+	if c.progress {
+		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
+	} else {
+		log.Printf("Starting publisher, publishing %s messages", humanize.Comma(int64(numMsg)))
+	}
+
 	var msg []byte
 	if c.msgSize > 0 {
 		msg = make([]byte, c.msgSize)
@@ -112,9 +135,15 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 	start := time.Now()
 
 	for i := 0; i < c.numMsg; i++ {
+		if progress != nil {
+			progress.Incr()
+		}
+
 		nc.Publish(c.subject, msg)
 	}
+
 	nc.Flush()
+
 	bm.AddPubSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
 
 	donewg.Done()

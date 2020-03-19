@@ -8,9 +8,11 @@ require (
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
 	github.com/dustin/go-humanize v1.0.0
 	github.com/google/go-cmp v0.4.0
+	github.com/gosuri/uilive v0.0.4 // indirect
+	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.4.1
 	github.com/nats-io/jsm.go v0.0.0-20200304134846-c02f52026763
-	github.com/nats-io/nats-server/v2 v2.1.5-0.20200228231124-42fe104358e2
+	github.com/nats-io/nats-server/v2 v2.1.5-0.20200319010826-68c29ee08d45
 	github.com/nats-io/nats.go v1.9.1
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
