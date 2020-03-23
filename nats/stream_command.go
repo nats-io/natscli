@@ -452,11 +452,31 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	fmt.Printf("     Acknowledgements: %v\n", !cfg.NoAck)
 	fmt.Printf("            Retention: %s - %s\n", cfg.Storage.String(), cfg.Retention.String())
 	fmt.Printf("             Replicas: %d\n", cfg.Replicas)
-	fmt.Printf("     Maximum Messages: %d\n", cfg.MaxMsgs)
-	fmt.Printf("        Maximum Bytes: %d\n", cfg.MaxBytes)
-	fmt.Printf("          Maximum Age: %s\n", cfg.MaxAge.String())
-	fmt.Printf(" Maximum Message Size: %d\n", cfg.MaxMsgSize)
-	fmt.Printf("    Maximum Consumers: %d\n", cfg.MaxConsumers)
+	if cfg.MaxMsgs == -1 {
+		fmt.Println("     Maximum Messages: unlimited")
+	} else {
+		fmt.Printf("     Maximum Messages: %s\n", humanize.Comma(cfg.MaxMsgs))
+	}
+	if cfg.MaxBytes == -1 {
+		fmt.Println("        Maximum Bytes: unlimited")
+	} else {
+		fmt.Printf("        Maximum Bytes: %s\n", humanize.IBytes(uint64(cfg.MaxBytes)))
+	}
+	if cfg.MaxAge == -1 {
+		fmt.Println("          Maximum Age: unlimited")
+	} else {
+		fmt.Printf("          Maximum Age: %s\n", cfg.MaxAge.String())
+	}
+	if cfg.MaxMsgSize == -1 {
+		fmt.Println(" Maximum Message Size: unlimited")
+	} else {
+		fmt.Printf(" Maximum Message Size: %s\n", humanize.IBytes(uint64(cfg.MaxMsgSize)))
+	}
+	if cfg.MaxConsumers == -1 {
+		fmt.Println("    Maximum Consumers: unlimited")
+	} else {
+		fmt.Printf("    Maximum Consumers: %d\n", cfg.MaxConsumers)
+	}
 	if cfg.Template != "" {
 		fmt.Printf("  Managed by Template: %s\n", cfg.Template)
 	}
@@ -616,7 +636,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 	}
 
 	if c.maxBytesLimit == 0 {
-		c.maxBytesLimit, err = askOneInt("Message size limit", "-1", "Defines the combined size of all messages in a Stream, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
+		c.maxBytesLimit, err = askOneBytes("Message size limit", "-1", "Defines the combined size of all messages in a Stream, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
