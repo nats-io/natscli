@@ -54,10 +54,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("number of messages should be greater than 0")
 	}
 
-	log.Printf("Starting benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d]\n", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs)
-	if c.progress {
-		log.Print("Connections will flush after publish completed\n\n")
-	}
+	log.Printf("Starting benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d]\n\n", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs)
 
 	bm := bench.NewBenchmark("NATS", c.numSubs, c.numPubs)
 

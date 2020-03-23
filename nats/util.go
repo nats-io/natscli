@@ -24,6 +24,7 @@ import (
 	"unicode"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats.go"
 
 	"github.com/nats-io/jsm.go"
@@ -209,13 +210,32 @@ func askConfirmation(prompt string, dflt bool) (bool, error) {
 	return ans, err
 }
 
+func askOneBytes(prompt string, dflt string, help string) (int64, error) {
+	val := ""
+	err := survey.AskOne(&survey.Input{
+		Message: prompt,
+		Default: dflt,
+		Help:    help,
+	}, &val, survey.WithValidator(survey.Required))
+	if err != nil {
+		return 0, err
+	}
+
+	i, err := humanize.ParseBytes(val)
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(i), nil
+}
+
 func askOneInt(prompt string, dflt string, help string) (int64, error) {
 	val := ""
 	err := survey.AskOne(&survey.Input{
 		Message: prompt,
 		Default: dflt,
 		Help:    help,
-	}, &val)
+	}, &val, survey.WithValidator(survey.Required))
 	if err != nil {
 		return 0, err
 	}
