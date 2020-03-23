@@ -279,10 +279,12 @@ func natsOpts() []nats.Option {
 		nats.ReconnectHandler(func(nc *nats.Conn) {
 			log.Printf("Reconnected [%s]", nc.ConnectedUrl())
 		}),
-		nats.ClosedHandler(func(nc *nats.Conn) {
-			err := nc.LastError()
-			if err != nil {
-				log.Fatalf("Exiting: %v", nc.LastError())
+		nats.ErrorHandler(func(nc *nats.Conn, _ *nats.Subscription, err error) {
+			url := nc.ConnectedUrl()
+			if url == "" {
+				log.Printf("Unexpected NATS error: %s", err)
+			} else {
+				log.Printf("Unexpected NATS error from server %s: %s", url, err)
 			}
 		}),
 	}
