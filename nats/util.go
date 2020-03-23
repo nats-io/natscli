@@ -321,9 +321,7 @@ func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, error) {
 	return nc, err
 }
 
-func humanizeTime(t time.Time) string {
-	d := time.Since(t)
-	// Just use total seconds for uptime, and display days / years
+func humanizeDuration(d time.Duration) string {
 	tsecs := d / time.Second
 	tmins := tsecs / 60
 	thrs := tmins / 60
@@ -347,4 +345,8 @@ func humanizeTime(t time.Time) string {
 	}
 
 	return fmt.Sprintf("%ds", tsecs)
+}
+
+func humanizeTime(t time.Time) string {
+	return humanizeDuration(time.Since(t))
 }

@@ -195,7 +195,7 @@ func (c *consumerCmd) infoAction(pc *kingpin.ParseContext) error {
 	if config.StreamSeq != 0 {
 		fmt.Printf("      Start Sequence: %d\n", config.StreamSeq)
 	}
-	if !config.StartTime.IsZero() {
+	if config.StartTime.Second() != 0 {
 		fmt.Printf("          Start Time: %v\n", config.StartTime)
 	}
 	if config.DeliverAll {
