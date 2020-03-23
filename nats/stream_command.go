@@ -465,7 +465,7 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	if cfg.MaxAge == -1 {
 		fmt.Println("          Maximum Age: unlimited")
 	} else {
-		fmt.Printf("          Maximum Age: %s\n", cfg.MaxAge.String())
+		fmt.Printf("          Maximum Age: %s\n", humanizeDuration(cfg.MaxAge))
 	}
 	if cfg.MaxMsgSize == -1 {
 		fmt.Println(" Maximum Message Size: unlimited")
