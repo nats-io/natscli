@@ -636,8 +636,12 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 	}
 
 	if c.maxBytesLimit == 0 {
-		c.maxBytesLimit, err = askOneBytes("Message size limit", "-1", "Defines the combined size of all messages in a Stream, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
+		c.maxBytesLimit, err = askOneBytes("Message size limit", "0", "Defines the combined size of all messages in a Stream, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
 		kingpin.FatalIfError(err, "invalid input")
+
+		if c.maxBytesLimit == 0 {
+			c.maxBytesLimit = -1
+		}
 	}
 
 	if c.maxAgeLimit == "" {
