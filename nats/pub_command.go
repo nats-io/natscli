@@ -27,20 +27,23 @@ type pubCmd struct {
 	subject string
 	body    string
 	req     bool
+	replyTo string
+	raw     bool
 }
 
 func configurePubCommand(app *kingpin.Application) {
 	c := &pubCmd{}
-	act := app.Command("pub", "Generic data publishing utility").Action(c.publish)
-	act.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
-	act.Arg("body", "Message body").StringVar(&c.body)
-	act.Flag("wait", "Wait for a reply from a service").Short('w').BoolVar(&c.req)
+	pub := app.Command("pub", "Generic data publishing utility").Action(c.publish)
+	pub.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
+	pub.Arg("body", "Message body").StringVar(&c.body)
+	pub.Flag("wait", "Wait for a reply from a service").Short('w').BoolVar(&c.req)
+	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
 
 	req := app.Command("request", "Generic data request utility").Alias("req").Action(c.publish)
 	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
-	req.Arg("body", "Message body").StringVar(&c.body)
+	req.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	req.Flag("wait", "Wait for a reply from a service").Short('w').Default("true").Hidden().BoolVar(&c.req)
-
+	req.Flag("raw", "Show just the output received").Short('r').Default("false").BoolVar(&c.raw)
 }
 
 func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
@@ -50,7 +53,7 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 	}
 	defer nc.Close()
 
-	if c.body == "" && terminal.IsTerminal(int(os.Stdout.Fd())) {
+	if c.body == "!nil!" && terminal.IsTerminal(int(os.Stdout.Fd())) {
 		log.Println("Reading payload from STDIN")
 		body, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {
@@ -59,21 +62,25 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 		c.body = string(body)
 	}
 
-	if c.body == "" {
-		return fmt.Errorf("please specify a body to publish either as command argument or on standard input")
-	}
-
 	if c.req {
-		log.Printf("Sending request on [%s]\n", c.subject)
+		if !c.raw {
+			log.Printf("Sending request on [%s]\n", c.subject)
+		}
+
 		m, err := nc.Request(c.subject, []byte(c.body), timeout)
 		if err != nil {
 			return err
 		}
 
-		log.Printf("Received on [%s]: '%s'", m.Subject, string(m.Data))
+		if c.raw {
+			fmt.Println(string(m.Data))
+		} else {
+			log.Printf("Received on [%s]: '%s'", m.Subject, string(m.Data))
+		}
+
 		return nil
 	} else {
-		nc.Publish(c.subject, []byte(c.body))
+		nc.PublishRequest(c.subject, c.replyTo, []byte(c.body))
 	}
 
 	nc.Flush()

@@ -269,6 +269,7 @@ func natsOpts() []nats.Option {
 	opts := []nats.Option{
 		nats.Name("NATS CLI"),
 		nats.MaxReconnects(-1),
+		nats.UseOldRequestStyle(),
 		nats.ReconnectWait(reconnectDelay),
 		nats.MaxReconnects(int(totalWait / reconnectDelay)),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {

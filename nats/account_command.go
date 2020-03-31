@@ -55,6 +55,13 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 	} else {
 		fmt.Printf("Message Sets: %d of %d\n", info.Streams, info.Limits.MaxStreams)
 	}
+
+	if info.Limits.MaxConsumers == -1 {
+		fmt.Printf("   Consumers: %d of Unlimited\n", info.Streams)
+	} else {
+		fmt.Printf("   Consumers: %d of %s\n", info.Streams, humanize.Comma(int64(info.Limits.MaxConsumers)))
+	}
+
 	fmt.Println()
 
 	return nil
