@@ -532,10 +532,6 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	return nil
 }
 
-func (c *consumerCmd) getNextMsg(consumer *jsm.Consumer) error {
-	return c.getNextMsgDirect(consumer.StreamName(), consumer.Name())
-}
-
 func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 	if !c.raw {
 		fmt.Printf("Subscribing to topic %s auto acknowlegement: %v\n\n", consumer.DeliverySubject(), c.ack)
@@ -589,9 +585,13 @@ func (c *consumerCmd) subAction(_ *kingpin.ParseContext) error {
 	consumer, err := jsm.LoadConsumer(c.stream, c.consumer)
 	kingpin.FatalIfError(err, "could not get Consumer info")
 
+	if consumer.AckPolicy() == api.AckNone {
+		c.ack = false
+	}
+
 	switch {
 	case consumer.IsPullMode():
-		return c.getNextMsg(consumer)
+		return c.getNextMsgDirect(consumer.StreamName(), consumer.Name())
 	case consumer.IsPushMode():
 		return c.subscribeConsumer(consumer)
 	default:
