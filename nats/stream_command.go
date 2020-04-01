@@ -53,6 +53,7 @@ type streamCmd struct {
 	reportSortConsumers bool
 	reportSortMsgs      bool
 	reportSortName      bool
+	reportSortStorage   bool
 	reportRaw           bool
 	maxStreams          int
 }
@@ -122,6 +123,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strReport.Flag("consumers", "Sort by number of Consumers").Short('o').BoolVar(&c.reportSortConsumers)
 	strReport.Flag("messages", "Sort by number of Messages").Short('m').BoolVar(&c.reportSortMsgs)
 	strReport.Flag("name", "Sort by Stream name").Short('n').BoolVar(&c.reportSortName)
+	strReport.Flag("storage", "Sort by Storage type").Short('t').BoolVar(&c.reportSortStorage)
 	strReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.reportRaw)
 
 	strTemplate := str.Command("template", "Manages Stream Templates").Alias("templ").Alias("t")
@@ -268,6 +270,8 @@ func (c *streamCmd) reportAction(pc *kingpin.ParseContext) error {
 		Consumers int
 		Msgs      int64
 		Bytes     uint64
+		Storage   string
+		Template  string
 	}
 
 	if !c.json {
@@ -278,7 +282,7 @@ func (c *streamCmd) reportAction(pc *kingpin.ParseContext) error {
 	jsm.EachStream(func(stream *jsm.Stream) {
 		info, err := stream.Information()
 		kingpin.FatalIfError(err, "could not get stream info for %s", stream.Name())
-		stats = append(stats, stat{info.Config.Name, info.State.Consumers, int64(info.State.Msgs), info.State.Bytes})
+		stats = append(stats, stat{info.Config.Name, info.State.Consumers, int64(info.State.Msgs), info.State.Bytes, info.Config.Storage.String(), info.Config.Template})
 	})
 
 	if len(stats) == 0 {
@@ -299,18 +303,20 @@ func (c *streamCmd) reportAction(pc *kingpin.ParseContext) error {
 		sort.Slice(stats, func(i, j int) bool { return stats[i].Msgs < stats[j].Msgs })
 	} else if c.reportSortName {
 		sort.Slice(stats, func(i, j int) bool { return stats[i].Name < stats[j].Name })
+	} else if c.reportSortStorage {
+		sort.Slice(stats, func(i, j int) bool { return stats[i].Storage < stats[j].Storage })
 	} else {
 		sort.Slice(stats, func(i, j int) bool { return stats[i].Bytes < stats[j].Bytes })
 	}
 
 	table := tablewriter.CreateTable()
-	table.AddHeaders("Stream", "Consumers", "Messages", "Bytes")
+	table.AddHeaders("Stream", "Consumers", "Messages", "Bytes", "Storage", "Template")
 
 	for _, s := range stats {
 		if c.reportRaw {
-			table.AddRow(s.Name, s.Consumers, s.Msgs, s.Bytes)
+			table.AddRow(s.Name, s.Consumers, s.Msgs, s.Bytes, s.Storage, s.Template)
 		} else {
-			table.AddRow(s.Name, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes))
+			table.AddRow(s.Name, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), s.Storage, s.Template)
 		}
 	}
 
