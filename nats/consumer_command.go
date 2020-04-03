@@ -170,6 +170,7 @@ func (c *consumerCmd) infoAction(pc *kingpin.ParseContext) error {
 
 	if c.json {
 		printJSON(api.ConsumerInfo{
+			Stream: c.stream,
 			Name:   consumer.Name(),
 			Config: config,
 			State:  state,
@@ -496,7 +497,7 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	}
 
 	created, err := jsm.NewConsumerFromDefault(c.stream, *cfg)
-	kingpin.FatalIfError(err, "Consumer creation failed: ")
+	kingpin.FatalIfError(err, "Consumer creation failed")
 
 	c.consumer = created.Name()
 

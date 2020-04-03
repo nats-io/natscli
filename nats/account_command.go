@@ -47,19 +47,19 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 
 	fmt.Println("JetStream Account Information:")
 	fmt.Println()
-	fmt.Printf("      Memory: %s of %s\n", humanize.IBytes(info.Memory), humanize.IBytes(uint64(info.Limits.MaxMemory)))
-	fmt.Printf("     Storage: %s of %s\n", humanize.IBytes(info.Store), humanize.IBytes(uint64(info.Limits.MaxStore)))
+	fmt.Printf("         Memory: %s of %s\n", humanize.IBytes(info.Memory), humanize.IBytes(uint64(info.Limits.MaxMemory)))
+	fmt.Printf("        Storage: %s of %s\n", humanize.IBytes(info.Store), humanize.IBytes(uint64(info.Limits.MaxStore)))
 
 	if info.Limits.MaxStreams == -1 {
-		fmt.Printf("     Streams: %d of Unlimited\n", info.Streams)
+		fmt.Printf("        Streams: %d of Unlimited\n", info.Streams)
 	} else {
-		fmt.Printf("Message Sets: %d of %d\n", info.Streams, info.Limits.MaxStreams)
+		fmt.Printf("        Streams: %d of %d\n", info.Streams, info.Limits.MaxStreams)
 	}
 
 	if info.Limits.MaxConsumers == -1 {
-		fmt.Printf("   Consumers: %d of Unlimited\n", info.Streams)
+		fmt.Println("  Max Consumers: unlimited")
 	} else {
-		fmt.Printf("   Consumers: %d of %s\n", info.Streams, humanize.Comma(int64(info.Limits.MaxConsumers)))
+		fmt.Printf("  Max Consumers: %d\n", info.Limits.MaxConsumers)
 	}
 
 	fmt.Println()
