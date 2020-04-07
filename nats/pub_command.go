@@ -35,7 +35,7 @@ func configurePubCommand(app *kingpin.Application) {
 	c := &pubCmd{}
 	pub := app.Command("pub", "Generic data publishing utility").Action(c.publish)
 	pub.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
-	pub.Arg("body", "Message body").StringVar(&c.body)
+	pub.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	pub.Flag("wait", "Wait for a reply from a service").Short('w').BoolVar(&c.req)
 	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
 

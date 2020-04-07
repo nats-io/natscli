@@ -221,6 +221,10 @@ func askOneBytes(prompt string, dflt string, help string) (int64, error) {
 		return 0, err
 	}
 
+	if val == "-1" {
+		val = "0"
+	}
+
 	i, err := humanize.ParseBytes(val)
 	if err != nil {
 		return 0, err

@@ -71,7 +71,7 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
 		f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
 		f.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
-		f.Flag("max-bytes", "Maximum bytes to keep").Default("0").Int64Var(&c.maxBytesLimit)
+		f.Flag("max-bytes", "Maximum bytes to keep").Int64Var(&c.maxBytesLimit)
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
 		f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
@@ -361,7 +361,7 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.Retention = c.retentionPolicyFromString(strings.ToLower(c.storage))
 	}
 
-	if c.maxBytesLimit != 0 {
+	if c.maxBytesLimit != -1 {
 		cfg.MaxBytes = c.maxBytesLimit
 	}
 
@@ -642,10 +642,10 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 	}
 
 	if c.maxBytesLimit == 0 {
-		c.maxBytesLimit, err = askOneBytes("Message size limit", "0", "Defines the combined size of all messages in a Stream, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
+		c.maxBytesLimit, err = askOneBytes("Message size limit", "-1", "Defines the combined size of all messages in a Stream, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
 		kingpin.FatalIfError(err, "invalid input")
 
-		if c.maxBytesLimit == 0 {
+		if c.maxBytesLimit <= 0 {
 			c.maxBytesLimit = -1
 		}
 	}
