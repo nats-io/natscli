@@ -40,6 +40,7 @@ type consumerCmd struct {
 	raw         bool
 	destination string
 	inputFile   string
+	nextCount   int
 
 	maxDeliver    int
 	pull          bool
@@ -100,6 +101,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consNext := cons.Command("next", "Retrieves messages from Pull Consumers without interactive prompts").Action(c.nextAction)
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
+	consNext.Arg("count", "How many messages to retrieve").Default("1").IntVar(&c.nextCount)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consNext.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
 
@@ -505,28 +507,34 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
-	msg, err := jsm.NextMsgs(stream, consumer, 1)
+	msgs, err := jsm.NextMsgsChan(stream, consumer, c.nextCount)
 	kingpin.FatalIfError(err, "could not load next message")
 
-	if !c.raw {
-		info, err := jsm.ParseJSMsgMetadata(msg)
-		if err != nil {
-			fmt.Printf("--- subject: %s\n", msg.Subject)
-		} else {
-			fmt.Printf("--- subject: %s / delivered: %d / stream seq: %d / consumer seq: %d\n", msg.Subject, info.Delivered(), info.StreamSequence(), info.ConsumerSequence())
-		}
-
-		fmt.Println(string(msg.Data))
-	} else {
-		fmt.Println(string(msg.Data))
+	if len(msgs) == 0 {
+		kingpin.Fatalf("could not load next message, no messages were found")
 	}
 
-	if c.ack {
-		err = msg.Respond(api.AckAck)
-		kingpin.FatalIfError(err, "could not Acknowledge message")
-		jsm.Flush()
+	for msg := range msgs {
 		if !c.raw {
-			fmt.Println("\nAcknowledged message")
+			info, err := jsm.ParseJSMsgMetadata(msg)
+			if err != nil {
+				fmt.Printf("--- subject: %s\n", msg.Subject)
+			} else {
+				fmt.Printf("--- subject: %s / delivered: %d / stream seq: %d / consumer seq: %d\n", msg.Subject, info.Delivered(), info.StreamSequence(), info.ConsumerSequence())
+			}
+
+			fmt.Println(string(msg.Data))
+		} else {
+			fmt.Println(string(msg.Data))
+		}
+
+		if c.ack {
+			err = msg.Respond(api.AckAck)
+			kingpin.FatalIfError(err, "could not Acknowledge message")
+			jsm.Flush()
+			if !c.raw {
+				fmt.Println("\nAcknowledged message")
+			}
 		}
 	}
 

@@ -102,10 +102,10 @@ When defining Streams the items below make up the entire configuration of the se
 
 |Item|Description|
 |----|-----------|
-|MaxAge|When retention policy is `StreamPolicy` how old message in the set may be|
-|MaxBytes|When retention policy is `StreamPolicy` how big the Stream may be|
+|MaxAge|When retention policy is `LimitsPolicy` how old message in the set may be|
+|MaxBytes|When retention policy is `LimitsPolicy` how big the Stream may be|
 |MaxMsgSize|The largest message that will be accepted by the Stream|
-|MaxMsgs|When retention policy is `StreamPolicy` how many messages may be in a Stream|
+|MaxMsgs|When retention policy is `LimitsPolicy` how many messages may be in a Stream|
 |MaxConsumers|How many Consumers can be defined for a given Stream, `-1` for unlimited|
 |Name|A name for the Stream that may not have spaces, tabs or `.`|
 |NoAck|Disables acknowledging messages that are received by the Stream|
@@ -894,7 +894,7 @@ The `Retention Policy` describes based on what criteria a set will evict message
 |`WorkQueuePolicy`|Messages are kept until they were consumed by any one single observer and then removed|
 |`InterestPolicy`|Messages are kept as long as there are Consumers active for them|
 
-In all Retention Policies the basic limits apply as upper bounds, these are `MaxMsgs` for how many messages are kept in total, `MaxBytes` for how big the set can be in total and `MaxAge` for what is the oldest message that will be kept. These are the only limits in play with `StreamPolicy` retention.
+In all Retention Policies the basic limits apply as upper bounds, these are `MaxMsgs` for how many messages are kept in total, `MaxBytes` for how big the set can be in total and `MaxAge` for what is the oldest message that will be kept. These are the only limits in play with `LimitsPolicy` retention.
 
 One can then define additional ways a message may be removed from the Stream earlier than these limits.  In `WorkQueuePolicy` the messages will be removed as soon as any Consumer received an Acknowledgement. In `InterestPolicy` messages will be removed as soon as there are no more Consumers.
 
