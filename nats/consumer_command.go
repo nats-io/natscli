@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
-	api "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -40,7 +40,6 @@ type consumerCmd struct {
 	raw         bool
 	destination string
 	inputFile   string
-	nextCount   int
 
 	maxDeliver    int
 	pull          bool
@@ -101,7 +100,6 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consNext := cons.Command("next", "Retrieves messages from Pull Consumers without interactive prompts").Action(c.nextAction)
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
-	consNext.Arg("count", "How many messages to retrieve").Default("1").IntVar(&c.nextCount)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consNext.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
 
@@ -240,7 +238,7 @@ func (c *consumerCmd) replayPolicyFromString(p string) api.ReplayPolicy {
 		return api.ReplayOriginal
 	default:
 		kingpin.Fatalf("invalid replay policy '%s'", p)
-		return 0 // unreachable
+		return ""
 	}
 }
 
@@ -255,7 +253,7 @@ func (c *consumerCmd) ackPolicyFromString(p string) api.AckPolicy {
 	default:
 		kingpin.Fatalf("invalid ack policy '%s'", p)
 		// unreachable
-		return 0
+		return ""
 	}
 }
 
@@ -359,6 +357,8 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
+	cfg = c.defaultConsumer()
+
 	if c.inputFile != "" {
 		f, err := ioutil.ReadFile(c.inputFile)
 		if err != nil {
@@ -374,8 +374,6 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 
 		return cfg, err
 	}
-
-	cfg = c.defaultConsumer()
 
 	if c.consumer == "" && !c.ephemeral {
 		err = survey.AskOne(&survey.Input{
@@ -507,34 +505,28 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
-	msgs, err := jsm.NextMsgsChan(stream, consumer, c.nextCount)
+	msg, err := jsm.NextMsg(stream, consumer)
 	kingpin.FatalIfError(err, "could not load next message")
 
-	if len(msgs) == 0 {
-		kingpin.Fatalf("could not load next message, no messages were found")
-	}
-
-	for msg := range msgs {
-		if !c.raw {
-			info, err := jsm.ParseJSMsgMetadata(msg)
-			if err != nil {
-				fmt.Printf("--- subject: %s\n", msg.Subject)
-			} else {
-				fmt.Printf("--- subject: %s / delivered: %d / stream seq: %d / consumer seq: %d\n", msg.Subject, info.Delivered(), info.StreamSequence(), info.ConsumerSequence())
-			}
-
-			fmt.Println(string(msg.Data))
+	if !c.raw {
+		info, err := jsm.ParseJSMsgMetadata(msg)
+		if err != nil {
+			fmt.Printf("--- subject: %s\n", msg.Subject)
 		} else {
-			fmt.Println(string(msg.Data))
+			fmt.Printf("--- subject: %s / delivered: %d / stream seq: %d / consumer seq: %d\n", msg.Subject, info.Delivered(), info.StreamSequence(), info.ConsumerSequence())
 		}
 
-		if c.ack {
-			err = msg.Respond(api.AckAck)
-			kingpin.FatalIfError(err, "could not Acknowledge message")
-			jsm.Flush()
-			if !c.raw {
-				fmt.Println("\nAcknowledged message")
-			}
+		fmt.Println(string(msg.Data))
+	} else {
+		fmt.Println(string(msg.Data))
+	}
+
+	if c.ack {
+		err = msg.Respond(api.AckAck)
+		kingpin.FatalIfError(err, "could not Acknowledge message")
+		jsm.Flush()
+		if !c.raw {
+			fmt.Println("\nAcknowledged message")
 		}
 	}
 

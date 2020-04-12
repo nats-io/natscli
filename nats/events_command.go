@@ -11,7 +11,8 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	api "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -125,7 +126,7 @@ func (c *eventsCmd) renderDisconnection(m *nats.Msg) {
 		return
 	}
 
-	event := api.DisconnectEventMsg{}
+	event := server.DisconnectEventMsg{}
 	err := json.Unmarshal(m.Data, &event)
 	if err != nil {
 		fmt.Printf("Event parsing failed: %s\n\n", err)
@@ -166,7 +167,7 @@ func (c *eventsCmd) renderConnection(m *nats.Msg) {
 		return
 	}
 
-	event := api.ConnectEventMsg{}
+	event := server.ConnectEventMsg{}
 	err := json.Unmarshal(m.Data, &event)
 	if err != nil {
 		fmt.Printf("Event parsing failed: %s\n\n", err)
