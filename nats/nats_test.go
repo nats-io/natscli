@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 
@@ -55,6 +56,8 @@ func runNatsCli(t *testing.T, args ...string) (output []byte) {
 }
 
 func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn) {
+	t.Helper()
+
 	dir, err := ioutil.TempDir("", "")
 	checkErr(t, err, "could not create temporary js store: %v", err)
 
@@ -119,7 +122,7 @@ func consumerShouldExist(t *testing.T, stream string, consumer string) {
 	}
 }
 
-func streamInfo(t *testing.T, stream string) *server.StreamInfo {
+func streamInfo(t *testing.T, stream string) *api.StreamInfo {
 	t.Helper()
 	str, err := jsm.LoadStream(stream)
 	checkErr(t, err, "could not load stream %s", stream)
@@ -129,19 +132,21 @@ func streamInfo(t *testing.T, stream string) *server.StreamInfo {
 	return info
 }
 
-func mem1Stream() server.StreamConfig {
-	return server.StreamConfig{
-		Name:     "mem1",
-		Subjects: []string{"js.mem.>"},
-		Storage:  server.MemoryStorage,
+func mem1Stream() api.StreamConfig {
+	return api.StreamConfig{
+		Name:      "mem1",
+		Subjects:  []string{"js.mem.>"},
+		Storage:   api.MemoryStorage,
+		Retention: api.LimitsPolicy,
 	}
 }
 
-func pull1Cons() server.ConsumerConfig {
-	return server.ConsumerConfig{
-		Durable:    "push1",
-		DeliverAll: true,
-		AckPolicy:  server.AckExplicit,
+func pull1Cons() api.ConsumerConfig {
+	return api.ConsumerConfig{
+		Durable:      "push1",
+		DeliverAll:   true,
+		AckPolicy:    api.AckExplicit,
+		ReplayPolicy: api.ReplayOriginal,
 	}
 }
 
@@ -161,12 +166,12 @@ func TestCLIStreamCreate(t *testing.T) {
 		t.Fatalf("expects [js.mem.>, js.other] got %v", info.Config.Subjects)
 	}
 
-	if info.Config.Retention != server.LimitsPolicy {
-		t.Fatalf("incorrect retention policy, expected limits got %s", info.Config.Retention.String())
+	if info.Config.Retention != api.LimitsPolicy {
+		t.Fatalf("incorrect retention policy, expected limits got %s", info.Config.Retention)
 	}
 
-	if info.Config.Storage != server.MemoryStorage {
-		t.Fatalf("incorrect storage received, expected memory got %s", info.Config.Storage.String())
+	if info.Config.Storage != api.MemoryStorage {
+		t.Fatalf("incorrect storage received, expected memory got %s", info.Config.Storage)
 	}
 
 	if info.Config.MaxMsgSize != 1024 {
@@ -185,7 +190,7 @@ func TestCLIStreamCreate(t *testing.T) {
 		t.Fatalf("expected [ORDERS.*], got %v", info.Config.Subjects)
 	}
 
-	if info.Config.Storage != server.FileStorage {
+	if info.Config.Storage != api.FileStorage {
 		t.Fatalf("expected file storage got %q", info.Config.Storage)
 	}
 }
@@ -383,7 +388,10 @@ func TestCLIConsumerNext(t *testing.T) {
 	_, err = nc.Request("js.mem.1", []byte("hello"), time.Second)
 	checkErr(t, err, "could not publish to mem1: %v", err)
 
-	out := runNatsCli(t, fmt.Sprintf("--server='%s' con next mem1 push1 --raw", srv.ClientURL()))
+	_, err = nc.Request("js.mem.1", []byte("hello"), time.Second)
+	checkErr(t, err, "could not publish to mem1: %v", err)
+
+	out := runNatsCli(t, fmt.Sprintf("--server='%s' con next mem1 push1 --raw", nc.ConnectedUrl()))
 
 	if strings.TrimSpace(string(out)) != "hello" {
 		t.Fatalf("did not receive 'hello', got: '%s'", string(out))
@@ -440,8 +448,8 @@ func TestCLIStreamCopy(t *testing.T) {
 	checkErr(t, err, "could not get stream: %v", err)
 	info, err := stream.Information()
 	checkErr(t, err, "could not get stream: %v", err)
-	if info.Config.Storage != server.FileStorage {
-		t.Fatalf("Expected file storage got %s", info.Config.Storage.String())
+	if info.Config.Storage != api.FileStorage {
+		t.Fatalf("Expected file storage got %s", info.Config.Storage)
 	}
 }
 
@@ -490,7 +498,7 @@ func TestCLIBackupRestore(t *testing.T) {
 	checkErr(t, err, "consumer c1 failed")
 	origC1Config := c1.Configuration()
 
-	t1, err := jsm.NewStreamTemplate("t1", 1, jsm.DefaultStream)
+	t1, err := jsm.NewStreamTemplate("t1", 1, jsm.DefaultStream, jsm.MemoryStorage())
 	checkErr(t, err, "TEST template create failed")
 	origT1Config := t1.Configuration()
 

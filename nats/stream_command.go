@@ -26,7 +26,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
-	api "github.com/nats-io/nats-server/v2/server"
+	api "github.com/nats-io/jsm.go/api"
 	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -542,7 +542,7 @@ func (c *streamCmd) storeTypeFromString(s string) api.StorageType {
 		return api.MemoryStorage
 	default:
 		kingpin.Fatalf("invalid storage type %s", c.storage)
-		return 0 // unreachable
+		return "" // unreachable
 	}
 }
 
@@ -556,7 +556,7 @@ func (c *streamCmd) retentionPolicyFromString(s string) api.RetentionPolicy {
 		return api.WorkQueuePolicy
 	default:
 		kingpin.Fatalf("invalid retention policy %s", c.retentionPolicyS)
-		return 0 // unreachable
+		return "" // unreachable
 	}
 }
 
