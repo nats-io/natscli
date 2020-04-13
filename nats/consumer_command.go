@@ -76,7 +76,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 		f.Flag("target", "Push based delivery target subject").StringVar(&c.delivery)
 		f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
 		f.Flag("replay", "Replay Policy (instant, original)").EnumVar(&c.replayPolicy, "instant", "original")
-		f.Flag("deliver", "Start policy (all, last, 1h, msg sequence)").StringVar(&c.startPolicy)
+		f.Flag("deliver", "Start policy (all, new, last, 1h, msg sequence)").StringVar(&c.startPolicy)
 		f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
 		f.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
 		f.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
@@ -185,25 +185,28 @@ func (c *consumerCmd) infoAction(pc *kingpin.ParseContext) error {
 	if config.Durable != "" {
 		fmt.Printf("        Durable Name: %s\n", config.Durable)
 	}
-	if config.Delivery != "" {
-		fmt.Printf("    Delivery Subject: %s\n", config.Delivery)
+	if config.DeliverSubject != "" {
+		fmt.Printf("    Delivery Subject: %s\n", config.DeliverSubject)
 	} else {
 		fmt.Printf("           Pull Mode: true\n")
 	}
 	if config.FilterSubject != "" {
 		fmt.Printf("      Filter Subject: %s\n", config.FilterSubject)
 	}
-	if config.StreamSeq != 0 {
-		fmt.Printf("      Start Sequence: %d\n", config.StreamSeq)
+	if config.OptStartSeq != 0 {
+		fmt.Printf("      Start Sequence: %d\n", config.OptStartSeq)
 	}
-	if config.StartTime.Second() != 0 {
-		fmt.Printf("          Start Time: %v\n", config.StartTime)
+	if config.OptStartTime != nil && config.OptStartTime.Second() != 0 {
+		fmt.Printf("          Start Time: %v\n", config.OptStartTime)
 	}
-	if config.DeliverAll {
-		fmt.Printf("         Deliver All: %v\n", config.DeliverAll)
+	if config.DeliverPolicy == api.DeliverAll {
+		fmt.Printf("         Deliver All: true\n")
 	}
-	if config.DeliverLast {
-		fmt.Printf("        Deliver Last: %v\n", config.DeliverLast)
+	if config.DeliverPolicy == api.DeliverLast {
+		fmt.Printf("        Deliver Last: true\n")
+	}
+	if config.DeliverPolicy == api.DeliverNew {
+		fmt.Printf("        Deliver Next: true\n")
 	}
 	fmt.Printf("          Ack Policy: %s\n", config.AckPolicy.String())
 	if config.AckPolicy != api.AckNone {
@@ -281,16 +284,21 @@ func (c *consumerCmd) setStartPolicy(cfg *api.ConsumerConfig, policy string) {
 	}
 
 	if policy == "all" {
-		cfg.DeliverAll = true
+		cfg.DeliverPolicy = api.DeliverAll
 	} else if policy == "last" {
-		cfg.DeliverLast = true
+		cfg.DeliverPolicy = api.DeliverLast
+	} else if policy == "new" || policy == "next" {
+		cfg.DeliverPolicy = api.DeliverNew
 	} else if ok, _ := regexp.MatchString("^\\d+$", policy); ok {
 		seq, _ := strconv.Atoi(policy)
-		cfg.StreamSeq = uint64(seq)
+		cfg.DeliverPolicy = api.DeliverByStartSequence
+		cfg.OptStartSeq = uint64(seq)
 	} else {
 		d, err := parseDurationString(policy)
 		kingpin.FatalIfError(err, "could not parse starting delta")
-		cfg.StartTime = time.Now().Add(-d)
+		t := time.Now().Add(-d)
+		cfg.DeliverPolicy = api.DeliverByStartTime
+		cfg.OptStartTime = &t
 	}
 }
 
@@ -321,11 +329,11 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 	}
 
 	if c.delivery != "" {
-		cfg.Delivery = c.delivery
+		cfg.DeliverSubject = c.delivery
 	}
 
 	if c.pull {
-		cfg.Delivery = ""
+		cfg.DeliverSubject = ""
 		c.ackPolicy = "explicit"
 	}
 
@@ -400,7 +408,7 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 		kingpin.Fatalf("ephemeral Consumers has to be push-based.")
 	}
 
-	cfg.Delivery = c.delivery
+	cfg.DeliverSubject = c.delivery
 
 	// pull is always explicit
 	if c.delivery == "" {
@@ -409,7 +417,7 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 
 	if c.startPolicy == "" {
 		err = survey.AskOne(&survey.Input{
-			Message: "Start policy (all, last, 1h, msg sequence)",
+			Message: "Start policy (all, new, last, 1h, msg sequence)",
 			Help:    "This controls how the Consumer starts out, does it make all messages available, only the latest, ones after a certain time or time sequence. Settable using --deliver",
 		}, &c.startPolicy, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "could not request start policy")
@@ -444,7 +452,7 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 		cfg.SampleFrequency = strconv.Itoa(c.samplePct)
 	}
 
-	if cfg.Delivery != "" {
+	if cfg.DeliverSubject != "" {
 		if c.replayPolicy == "" {
 			mode := ""
 			err = survey.AskOne(&survey.Select{

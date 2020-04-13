@@ -136,16 +136,15 @@ When defining Consumers the items below make up the entire configuration of the 
 |----|-----------|
 |AckPolicy|How messages should be acknowledged, `AckNone`, `AckAll` or `AckExplicit`|
 |AckWait|How long to allow messages to remain un-acknowledged before attempting redelivery|
-|DeliverAll|When first consuming messages start from the first message and deliver every message in the set|
-|DeliverLast|When first consuming messages start with the latest received message in the set|
-|Delivery|The subject to deliver observed messages, when not set, a pull-based Consumer is created|
+|DeliverPolicy|The initial starting mode of the consumer, `DeliverAll`, `DeliverLast`, `DeliverNew`, `DeliverByStartSequence` or `DeliverByStartTime`|
+|DeliverySubject|The subject to deliver observed messages, when not set, a pull-based Consumer is created|
 |Durable|The name of the Consumer|
 |FilterSubject|When consuming from a Stream with many subjects, or wildcards, select only a specific incoming subject|
 |MaxDeliver|Maximum amount times a specific message will be delivered.  Use this to avoid poison pills crashing all your services forever|
-|StreamSeq|When first consuming messages from the Stream start at this particular message in the set|
+|OptStartSeq|When first consuming messages from the Stream start at this particular message in the set|
 |ReplayPolicy|How messages are sent `ReplayInstant` or `ReplayOriginal`|
 |SampleFrequency|What percentage of acknowledgements should be samples for observability, 0-100|
-|StartTime|When first consuming messages from the Stream start with messages on or after this time|
+|OptStartTime|When first consuming messages from the Stream start with messages on or after this time|
 
 ### Configuration
 
@@ -1051,14 +1050,15 @@ So far all the examples was the `AckAck` type of acknowledgement, by replying to
 
 ### Consumer Starting Position
 
-When setting up an Consumer you can decide where to start, the system supports the following:
+When setting up an Consumer you can decide where to start, the system supports the following for the `DeliverPolicy`:
 
 |Policy|Description|
 |------|-----------|
-|`DeliverAll`|Delivers all messages that are available|
-|`DeliverLast`|Delivers the latest message, like a `tail -f`|
-|`MsgSetSeq`|Delivers from a specific message in a Stream and newer|
-|`StartTime`|Delivers from a specific time, where the time is a delta from now|
+|`all`|Delivers all messages that are available|
+|`last`|Delivers the latest message, like a `tail -n 1 -f`|
+|`new`|Delivers only new messages that arrive after subscribe time|
+|`by_start_time`|Delivers from a specific time onward.  Requires `OptStartTime` to be set|
+|`by_start_sequence`|Delivers from a specific stream sequence. Requires `OptStartSeq` to be set|
 
 Regardless of what mode you set, this is only the starting point. Once started it will always give you what you have not seen or acknowledged. So this is merely how it picks the very first message.
 
@@ -1248,7 +1248,7 @@ $ nats con info ORDERS NEW
 
 #### Consuming
 
-Samples are published to `$JS.EVENT.METRIC.CONSUMER_ACK.<stream>.<consumer>` in JSON format containing `server.server.JetStreamMetricConsumerAckPre`. Use the `nats con events` command to view samples:
+Samples are published to `$JS.EVENT.METRIC.CONSUMER_ACK.<stream>.<consumer>` in JSON format containing `api.ConsumerAckMetric`. Use the `nats con events` command to view samples:
 
 ```nohighlight
 $ nats con events ORDERS NEW
@@ -1289,7 +1289,7 @@ Thus far we saw a lot of CLI interactions. The CLI works by sending and receivin
 
 ### Reference
 
-All of these subjects are found as constants in the NATS Server source, so for example the `$JS.STREAMS` is a constant in the nats-server source `server.JetStreamStreams`. The tables below will reference these constants and likewise data structures in the server for payloads.
+All of these subjects are found as constants in the NATS Server source, so for example the `$JS.STREAMS.LIST` is a constant in the nats-server source `api.JetStreamListStreams` tables below will reference these constants and likewise data structures in the server for payloads.
 
 ### Error Handling
 
@@ -1313,9 +1313,9 @@ Received  [_INBOX.fwqdpoWtG8XFXHKfqhQDVA.vBecyWmF] : '{
 
 ### Admin API
 
-All the admin actions the `nats` CLI can do falls in the sections below.
+All the admin actions the `nats` CLI can do falls in the sections below. The API structures are maintained in the `api` package in the `jsm.go` repository. 
 
-Subjects that and in `T` like `server.JetStreamCreateConsumerT` are formats and would need to have the Stream Name and in some cases also the Consumer name interpolated into them. In this case `t := fmt.Sprintf(server.JetStreamCreateConsumerT, streamName)` to get the final subject.
+Subjects that and in `T` like `api.JetStreamCreateConsumerT` are formats and would need to have the Stream Name and in some cases also the Consumer name interpolated into them. In this case `t := fmt.Sprintf(api.JetStreamCreateConsumerT, streamName)` to get the final subject.
 
 The command `nats events` will show you an audit log of all API access events which includes the full content of each admin request, use this to view the structure of messages the `nats` command sends.
 
@@ -1323,38 +1323,38 @@ The command `nats events` will show you an audit log of all API access events wh
 
 |Subject|Description|Request Payload|Response Payload|
 |-----|-----------|---------------|----------------|
-|`server.JetStreamEnabled`|Determines if JetStream is enabled for your account|empty payload|`+OK` else no response|
-|`server.JetStreamInfo`|Retrieves stats and limits about your account|empty payload|`server.JetStreamAccountStats`
+|`api.JetStreamEnabled`|Determines if JetStream is enabled for your account|empty payload|`+OK` else no response|
+|`api.JetStreamInfo`|Retrieves stats and limits about your account|empty payload|`api.JetStreamAccountStats`
 
 #### Streams
 
 |subject|Description|Request Payload|Response Payload|
 |-----|-----------|---------------|----------------|
-|`server.JetStreamListStreams`|List known Streams|empty payload|Array of names in JSON format|
-|`server.JetStreamCreateStream`|Creates a new Stream|`server.StreamConfig`|Standard OK/ERR|
-|`server.JetStreamStreamInfoT`|Information about config and state of a Stream|empty payload, Stream name in subject|`server.StreamInfo`|
-|`server.JetStreamDeleteStreamT`|Deletes a Stream and all its data|empty payload, Stream name in subject|Standard OK/ERR|
-|`server.JetStreamPurgeStreamT`|Purges all of the data in a Stream, leaves the Stream|empty payload, Stream name in subject|Standard OK/ERR|
-|`server.JetStreamDeleteMsgT`|Deletes a specific message in the Stream by sequence, useful for GDPR compliance|`stream_seq`, Stream name in subject|Standard OK/ERR|
-|`server.JetStreamUpdateStreamT`|Updates the configuration of an existing stream|Stream name in subject|Standard OK/ERR|
+|`api.JetStreamListStreams`|List known Streams|empty payload|Array of names in JSON format|
+|`api.JetStreamCreateStream`|Creates a new Stream|`api.StreamConfig`|Standard OK/ERR|
+|`api.JetStreamStreamInfoT`|Information about config and state of a Stream|empty payload, Stream name in subject|`api.StreamInfo`|
+|`api.JetStreamDeleteStreamT`|Deletes a Stream and all its data|empty payload, Stream name in subject|Standard OK/ERR|
+|`api.JetStreamPurgeStreamT`|Purges all of the data in a Stream, leaves the Stream|empty payload, Stream name in subject|Standard OK/ERR|
+|`api.JetStreamDeleteMsgT`|Deletes a specific message in the Stream by sequence, useful for GDPR compliance|`stream_seq`, Stream name in subject|Standard OK/ERR|
+|`api.JetStreamUpdateStreamT`|Updates the configuration of an existing stream|Stream name in subject|Standard OK/ERR|
 
 #### Stream Templates
 
 |Subject|Description|Request Payload|Response Payload|
 |-------|-----------|---------------|----------------|
-|`server.JetStreamCreateTemplateT`|Creates a Stream Template|`server.StreamTemplateConfig`|Standard OK/ERR|
-|`server.JetStreamListTemplates`|List all known templates|empty payload|Array of names in JSON format|
-|`server.JetStreamTemplateInfoT`|Information about the config and state of a Stream Template|empty payload, Template name in subject|`server.StreamTemplateInfo`|
-|`server.JetStreamDeleteTemplateT`|Delete a specific Stream Template **and all streams created by this template**|empty payload, Template name in subject|Standard OK/ERR|
+|`api.JetStreamCreateTemplateT`|Creates a Stream Template|`api.StreamTemplateConfig`|Standard OK/ERR|
+|`api.JetStreamListTemplates`|List all known templates|empty payload|Array of names in JSON format|
+|`api.JetStreamTemplateInfoT`|Information about the config and state of a Stream Template|empty payload, Template name in subject|`api.StreamTemplateInfo`|
+|`api.JetStreamDeleteTemplateT`|Delete a specific Stream Template **and all streams created by this template**|empty payload, Template name in subject|Standard OK/ERR|
 
 #### Consumers
 
 |Subject|Description|Request Payload|Response Payload|
 |-----|-----------|---------------|----------------|
-|`server.JetStreamConsumersT`|List known Consumers|empty payload, Stream name in subject|Array of names in JSON format|
-|`server.JetStreamCreateConsumerT`|Create an Consumer|`server.ConsumerConfig`, Stream name in subject|Standard OK/ERR|
-|`server.JetStreamConsumerInfoT`|Information about an Consumer|empty payload, Stream and Consumer names in subject|`server.ConsumerInfo`|
-|`server.JetStreamDeleteConsumerT`|Deletes an Consumer|empty payload, Stream and Consumer names in subject|Standard OK/ERR|
+|`api.JetStreamConsumersT`|List known Consumers|empty payload, Stream name in subject|Array of names in JSON format|
+|`api.JetStreamCreateConsumerT`|Create an Consumer|`api.ConsumerConfig`, Stream name in subject|Standard OK/ERR|
+|`api.JetStreamConsumerInfoT`|Information about an Consumer|empty payload, Stream and Consumer names in subject|`api.ConsumerInfo`|
+|`api.JetStreamDeleteConsumerT`|Deletes an Consumer|empty payload, Stream and Consumer names in subject|Standard OK/ERR|
 
 #### ACLs
 
@@ -1407,13 +1407,13 @@ This allow you to easily create ACL rules that limit users to a specific Stream 
 
 ### Acknowledging Messages
 
-Messages that need acknowledgement will have a Reply subject set, something like `$JS.A.ORDERS.test.1.2.2`, this is the prefix defined in `server.JetStreamAckPre` followed by `<stream>.<consumer>.<delivered count>.<stream sequence>.<stream sequence>`.
+Messages that need acknowledgement will have a Reply subject set, something like `$JS.A.ORDERS.test.1.2.2`, this is the prefix defined in `api.JetStreamAckPre` followed by `<stream>.<consumer>.<delivered count>.<stream sequence>.<stream sequence>`.
 
 In all the Synadia maintained API's you can simply do `msg.Respond(nil)` (or language equivalent) which will send nil to the reply subject.
 
 ### Fetching The Next Message From a Pull-based Consumer
 
-If you have a pull-based Consumer you can send a standard NATS Request to `$JS.STREAM.<stream>.CONSUMER.<consumer>.NEXT`, here the format is defined in `server.JetStreamRequestNextT` and requires populating using `fmt.Sprintf()`.
+If you have a pull-based Consumer you can send a standard NATS Request to `$JS.STREAM.<stream>.CONSUMER.<consumer>.NEXT`, here the format is defined in `api.JetStreamRequestNextT` and requires populating using `fmt.Sprintf()`.
 
 ```nohighlight
 $ nats req '$JS.STREAM.ORDERS.CONSUMER.test.NEXT' '1'
@@ -1425,7 +1425,7 @@ Here we ask for just 1 message - `nats-req` only shows 1 - but you can fetch a b
 
 ### Fetching From a Stream By Sequence
 
-If you know the Stream sequence of a message you can fetch it directly, this does not support acks.  Do a Request() to `$JS.STREAM.ORDERS.MSG.BYSEQ` sending it the message sequence as payload.  Here the prefix is defined in `server.JetStreamMsgBySeqT` which also requires populating using `fmt.Sprintf()`.
+If you know the Stream sequence of a message you can fetch it directly, this does not support acks.  Do a Request() to `$JS.STREAM.ORDERS.MSG.BYSEQ` sending it the message sequence as payload.  Here the prefix is defined in `api.JetStreamMsgBySeqT` which also requires populating using `fmt.Sprintf()`.
 
 ```nohighlight
 $ nats req '$JS.STREAM.ORDERS.MSG.BYSEQ' '1'
@@ -1441,7 +1441,7 @@ The Subject shows where the message was received, Data is base64 encoded and Tim
 
 ### Consumer Samples
 
-Samples are published to a specific subject per Consumer, something like `$JS.EVENT.METRIC.CONSUMER_ACK.<stream>.<consumer>` you can just subscribe to that and get `server.ConsumerAckEvent` messages in JSON format.  The prefix is defined in `server.JetStreamMetricConsumerAckPre`.
+Samples are published to a specific subject per Consumer, something like `$JS.EVENT.METRIC.CONSUMER_ACK.<stream>.<consumer>` you can just subscribe to that and get `api.ConsumerAckMetric` messages in JSON format.  The prefix is defined in `api.JetStreamMetricConsumerAckPre`.
 
 ## Next Steps
 
