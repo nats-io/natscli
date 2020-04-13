@@ -9,13 +9,15 @@ import (
 )
 
 var (
-	servers string
-	creds   string
-	tlsCert string
-	tlsKey  string
-	tlsCA   string
-	timeout time.Duration
-	version string
+	servers  string
+	creds    string
+	tlsCert  string
+	tlsKey   string
+	tlsCA    string
+	timeout  time.Duration
+	version  string
+	username string
+	password string
 )
 
 func main() {
@@ -29,6 +31,8 @@ func main() {
 	ncli.HelpFlag.Short('h')
 
 	ncli.Flag("server", "NATS servers").Short('s').Default("localhost:4222").Envar("NATS_URL").StringVar(&servers)
+	ncli.Flag("user", "Username of Token").Envar("NATS_USER").StringVar(&username)
+	ncli.Flag("password", "Password").Envar("NATS_PASSWORD").StringVar(&password)
 	ncli.Flag("creds", "User credentials").Envar("NATS_CREDS").StringVar(&creds)
 	ncli.Flag("tlscert", "TLS public certificate").ExistingFileVar(&tlsCert)
 	ncli.Flag("tlskey", "TLS private key").ExistingFileVar(&tlsCert)
