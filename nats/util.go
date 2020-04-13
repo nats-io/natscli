@@ -294,6 +294,10 @@ func natsOpts() []nats.Option {
 		}),
 	}
 
+	if username != "" {
+		opts = append(opts, nats.UserInfo(username, password))
+	}
+
 	if creds != "" {
 		opts = append(opts, nats.UserCredentials(creds))
 	}
