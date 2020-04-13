@@ -143,10 +143,10 @@ func mem1Stream() api.StreamConfig {
 
 func pull1Cons() api.ConsumerConfig {
 	return api.ConsumerConfig{
-		Durable:      "push1",
-		DeliverAll:   true,
-		AckPolicy:    api.AckExplicit,
-		ReplayPolicy: api.ReplayOriginal,
+		Durable:       "push1",
+		DeliverPolicy: api.DeliverAll,
+		AckPolicy:     api.AckExplicit,
+		ReplayPolicy:  api.ReplayOriginal,
 	}
 }
 
