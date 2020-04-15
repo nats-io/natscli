@@ -17,7 +17,7 @@
   "properties": {
     "name": {
       "description": "A unique name for the Stream.",
-      "pattern": "^[^.*>]+$"
+      "pattern": "^[^.*>]*$"
     },
     "subjects": {
       "description": "A list of subjects to consume, supports wildcards.",
