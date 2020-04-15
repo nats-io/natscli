@@ -5,7 +5,6 @@
   "title": "io.nats.jetstream.api.v1.stream_configuration",
   "type":"object",
   "required":[
-    "name",
     "retention",
     "max_consumers",
     "max_msgs",
@@ -18,7 +17,6 @@
   "properties": {
     "name": {
       "description": "A unique name for the Stream.",
-      "minLength": 1,
       "pattern": "^[^.*>]+$"
     },
     "subjects": {
