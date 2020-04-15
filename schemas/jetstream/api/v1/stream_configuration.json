@@ -24,6 +24,7 @@
     "subjects": {
       "description": "A list of subjects to consume, supports wildcards.",
       "type": "array",
+      "minLength": 1,
       "items": {
         "type": "string",
         "minLength": 1
@@ -56,8 +57,8 @@
     "max_age": {
       "description": "Maximum age of any message in the stream, expressed in microseconds. -1 for unlimited.",
       "type": "integer",
-      "minimum": -1,
-      "default": -1
+      "minimum": 0,
+      "default": 0
     },
     "max_msg_size": {
       "description": "The largest message that will be accepted by the Stream. -1 for unlimited.",

@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/jetstream/api/v1/consumer_configuration.json",
+  "description": "The data structure that describe the configuration of a NATS JetStream Consumer",
+  "title": "io.nats.jetstream.api.v1.consumer_configuration",
+  "type":"object",
+  "definitions": {
+    "deliver_policy": {
+      "oneOf": [
+        {"$ref": "#/definitions/all_deliver_policy"},
+        {"$ref": "#/definitions/last_deliver_policy"},
+        {"$ref": "#/definitions/new_deliver_policy"},
+        {"$ref": "#/definitions/start_sequence_deliver_policy"},
+        {"$ref": "#/definitions/start_time_deliver_policy"}
+      ]
+    },
+    "all_deliver_policy": {
+      "required": ["deliver_policy"],
+      "properties": {
+        "deliver_policy": {
+          "type": "string",
+          "enum": ["all"]
+        }
+      }
+    },
+    "last_deliver_policy": {
+      "required": ["deliver_policy"],
+      "properties": {
+        "deliver_policy": {
+          "type": "string",
+          "enum": ["last"]
+        }
+      }
+    },
+    "new_deliver_policy": {
+      "required": ["deliver_policy"],
+      "properties": {
+        "deliver_policy": {
+          "type": "string",
+          "enum": ["new"]
+        }
+      }
+    },
+    "start_sequence_deliver_policy": {
+      "required": ["deliver_policy", "opt_start_seq"],
+      "properties": {
+        "deliver_policy": {
+          "type": "string",
+          "enum": ["by_start_sequence"]
+        },
+        "opt_start_seq": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "start_time_deliver_policy": {
+      "required": ["deliver_policy", "opt_start_time"],
+      "properties": {
+        "deliver_policy": {
+          "type": "string",
+          "enum": ["by_start_time"]
+        },
+        "opt_start_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  "required":[
+    "deliver_policy",
+    "ack_policy",
+    "replay_policy"
+  ],
+  "additionalItems": false,
+  "allOf": [{"$ref": "#/definitions/deliver_policy"}],
+  "properties": {
+    "durable_name": {
+      "type": "string",
+      "pattern": "^[^.*>]+$",
+      "minLength": 1
+    },
+    "deliver_subject": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ack_policy": {
+      "type": "string",
+      "enum": ["none", "all", "explicit"]
+    },
+    "ack_wait": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "max_deliver": {
+      "type": "integer",
+      "minimum": -1
+    },
+    "filter_subject": {
+      "type": "string"
+    },
+    "replay_policy": {
+      "type": "string",
+      "enum": ["instant", "original"]
+    },
+    "sample_freq": {
+      "type": "string"
+    }
+  }
+}
