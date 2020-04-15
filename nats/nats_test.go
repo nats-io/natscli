@@ -138,6 +138,7 @@ func mem1Stream() api.StreamConfig {
 		Subjects:  []string{"js.mem.>"},
 		Storage:   api.MemoryStorage,
 		Retention: api.LimitsPolicy,
+		Replicas:  1,
 	}
 }
 

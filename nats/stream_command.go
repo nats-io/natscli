@@ -684,7 +684,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		NoAck:        !c.ack,
 		Retention:    c.rPolicy,
 		MaxConsumers: -1,
-		Replicas:     0,
+		Replicas:     1,
 	}
 
 	return cfg
