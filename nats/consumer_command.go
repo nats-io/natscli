@@ -274,7 +274,8 @@ func (c *consumerCmd) sampleFreqFromString(s int) string {
 
 func (c *consumerCmd) defaultConsumer() *api.ConsumerConfig {
 	return &api.ConsumerConfig{
-		AckPolicy: api.AckExplicit,
+		AckPolicy:    api.AckExplicit,
+		ReplayPolicy: api.ReplayInstant,
 	}
 }
 
@@ -433,6 +434,16 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 			Help:    "Messages that are not acknowledged will be redelivered at a later time. 'none' means no acknowledgement is needed only 1 delivery ever, 'all' means acknowledging message 10 will also acknowledge 0-9 and 'explicit' means each has to be acknowledged specifically. Settable using --ack",
 		}, &c.ackPolicy)
 		kingpin.FatalIfError(err, "could not ask acknowledgement policy")
+	}
+
+	if c.replayPolicy == "" {
+		err = survey.AskOne(&survey.Select{
+			Message: "Replay policy",
+			Options: []string{"instant", "original"},
+			Default: "instant",
+			Help:    "Messages can be replayed at the rate they arrived in or as fast as possible. Settable using --replay",
+		}, &c.replayPolicy)
+		kingpin.FatalIfError(err, "could not ask replay policy")
 	}
 
 	cfg.AckPolicy = c.ackPolicyFromString(c.ackPolicy)
