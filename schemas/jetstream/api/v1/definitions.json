@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://nats.io/schemas/jetstream/api/v1/definitions.json",
+  "title": "io.nats.jetstream.api.v1.definitions",
   "description": "Shared definitions for the JetStream API",
   "type": "object",
   "definitions": {
@@ -125,8 +126,10 @@
       "additionalItems": false,
       "properties": {
         "name": {
-          "description": "A unique name for the Stream.",
-          "$ref": "#/definitions/basic_name"
+          "description": "A unique name for the Stream, empty for Stream Templates.",
+          "type": "string",
+          "pattern": "^[^.*>]*$",
+          "minLength": 0
         },
         "subjects": {
           "description": "A list of subjects to consume, supports wildcards.",
