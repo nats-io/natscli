@@ -564,10 +564,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 	}
 
 	_, err = consumer.Subscribe(func(m *nats.Msg) {
-		var msginfo *jsm.MsgInfo
-		var err error
-
-		msginfo, err = jsm.ParseJSMsgMetadata(m)
+		msginfo, err := jsm.ParseJSMsgMetadata(m)
 		kingpin.FatalIfError(err, "could not parse JetStream metadata")
 
 		if !c.raw {

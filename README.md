@@ -139,7 +139,7 @@ When defining Consumers the items below make up the entire configuration of the 
 |DeliverPolicy|The initial starting mode of the consumer, `DeliverAll`, `DeliverLast`, `DeliverNew`, `DeliverByStartSequence` or `DeliverByStartTime`|
 |DeliverySubject|The subject to deliver observed messages, when not set, a pull-based Consumer is created|
 |Durable|The name of the Consumer|
-|FilterSubject|When consuming from a Stream with many subjects, or wildcards, select only a specific incoming subject|
+|FilterSubject|When consuming from a Stream with many subjects, or wildcards, select only a specific incoming subjects, supports wildcards|
 |MaxDeliver|Maximum amount times a specific message will be delivered.  Use this to avoid poison pills crashing all your services forever|
 |OptStartSeq|When first consuming messages from the Stream start at this particular message in the set|
 |ReplayPolicy|How messages are sent `ReplayInstant` or `ReplayOriginal`|

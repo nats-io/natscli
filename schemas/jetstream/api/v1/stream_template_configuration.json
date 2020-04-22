@@ -13,8 +13,7 @@
   "properties": {
     "name": {
       "description": "A unique name for the Stream Template.",
-      "minLength": 1,
-      "pattern": "^[^.*>]+$"
+      "$ref": "definitions.json#/definitions/basic_name"
     },
     "max_streams": {
       "description": "The maximum number of Streams this Template can create, -1 for unlimited.",
@@ -23,7 +22,7 @@
       "default": -1
     },
     "config": {
-      "$ref": "stream_configuration.json"
+      "$ref": "definitions.json#/definitions/stream_configuration"
     }
   }
 }
