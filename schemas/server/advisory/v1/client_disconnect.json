@@ -1,0 +1,147 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/server/advisory/v1/client_connect.json",
+  "description": "Advisory published a client connects to the NATS Server",
+  "title": "io.nats.server.advisory.v1.client_connect",
+  "type":"object",
+  "definitions": {
+    "datastats": {
+      "type": "object",
+      "additionalItems": false,
+      "properties": {
+        "msgs": {
+          "type": "integer",
+          "description": "The number of messages handled by the client"
+        },
+        "bytes": {
+          "type": "integer",
+          "description": "The number of bytes handled by the client"
+        }
+      }
+    }
+  },
+  "required":[
+    "type",
+    "id",
+    "timestamp",
+    "server",
+    "client",
+    "sent",
+    "received",
+    "reason"
+  ],
+  "additionalItems": false,
+  "properties": {
+    "type": {
+      "type":"string",
+      "enum": [
+        "io.nats.server.advisory.v1.client_connect"
+      ]
+    },
+    "id": {
+      "type":"string",
+      "description": "Unique correlation ID for this event"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The time this event was created in RFC3339 format"
+    },
+    "server": {
+      "type": "object",
+      "additionalItems": false,
+      "description": "Details about the server the client connected to",
+      "required": ["name","host","id","ver","seq","jetstream","time"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The configured name for the server, matches ID when unconfigured",
+          "minLength": 1
+        },
+        "host": {
+          "type": "string",
+          "description": "The host this server runs on, typically a IP address"
+        },
+        "id": {
+          "type": "string",
+          "description": "The unique server ID for this node"
+        },
+        "cluster": {
+          "type": "string",
+          "description": "The cluster the server belongs to"
+        },
+        "ver": {
+          "type": "string",
+          "description": "The version NATS running on the server"
+        },
+        "seq": {
+          "type": "integer",
+          "description": "Internal server sequence ID"
+        },
+        "jetstream": {
+          "type": "boolean",
+          "description": "Indicates if this server has JetStream enabled"
+        },
+        "time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The local time of the server"
+        }
+      }
+    },
+    "client": {
+      "type": "object",
+      "additionalItems": false,
+      "description": "Details about the client that connected to the server",
+      "required": ["id", "acc"],
+      "properties": {
+        "start": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the client connected"
+        },
+        "stop": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the client disconnected"
+        },
+        "host": {
+          "type": "string",
+          "description": "The remote host the client is connected from"
+        },
+        "user": {
+          "type": "string",
+          "description": "The clients username"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name presented by the client during connection"
+        },
+        "lang": {
+          "type": "string",
+          "description": "The programming language library in use by the client"
+        },
+        "ver": {
+          "type": "string",
+          "description": "The version of the client library in use"
+        },
+        "rtt": {
+          "type": "string",
+          "description": "The last known latency between the NATS Server and the Client"
+        }
+      }
+    },
+    "sent": {
+      "description": "Data sent to the client",
+      "$ref": "#/definitions/datastats"
+    },
+    "received": {
+      "description": "Data received from the client",
+      "$ref": "#/definitions/datastats"
+    },
+    "reason": {
+      "type": "string",
+      "description": "The reason the client disconnected"
+    }
+  }
+}
