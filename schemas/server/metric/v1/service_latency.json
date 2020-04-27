@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/server/metric/v1/service_latency.json",
+  "description": "Metric published about sampled service requests showing request status and latencies",
+  "title": "io.nats.server.metric.v1.service_latency",
+  "type":"object",
+  "required":[
+    "type",
+    "id",
+    "timestamp",
+    "status",
+    "start",
+    "svc",
+    "nats",
+    "total"
+  ],
+  "additionalItems": false,
+  "properties": {
+    "type": {
+      "type":"string",
+      "const":"io.nats.server.metric.v1.service_latency"
+    },
+    "id": {
+      "type":"string",
+      "description": "Unique correlation ID for this event"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The time this event was created in RFC3339 format"
+    },
+    "status": {
+      "type": "integer",
+      "description": "The status of the request. 200 OK, 400 Bad Request, no reply subject. 408 Request Timeout, requester lost interest before request completed. 503 Service Unavailable. 504 Service Timeout.",
+      "enum": [200, 400, 408, 503, 504]
+    },
+    "error": {
+      "type": "string",
+      "description": "A description of the status code when not 200"
+    },
+    "app": {
+      "type": "string",
+      "description": "The name registered by the service when connecting to the NATS network"
+    },
+    "start": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The time the request started"
+    },
+    "svc": {
+      "type": "integer",
+      "description": "The time taken by the service to perform the request in nanoseconds"
+    },
+    "nats": {
+      "type": "object",
+      "description": "The time taken by the NATS networking layer to deliver the message in nanoseconds",
+      "additionalItems": false,
+      "properties": {
+        "req": {
+          "type": "integer",
+          "description": "Latency between the requester and the NATS server it is connected to in nanoseconds"
+        },
+        "resp": {
+          "type": "integer",
+          "description": "Latency between the service and the NATS server it is connected to in nanoseconds"
+        },
+        "sys": {
+          "type": "integer",
+          "description": "Time spend traversing the NATS network in nanoseconds"
+        }
+      }
+    },
+    "total": {
+      "type": "integer",
+      "description": "The overall request duration in nanoseconds"
+    }
+  }
+}
