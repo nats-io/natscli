@@ -61,7 +61,7 @@
           "description": "The IP address where the client connects from"
         },
         "port": {
-          "type": "string",
+          "type": "integer",
           "description": "The port number where the client connects from"
         },
         "cid": {
