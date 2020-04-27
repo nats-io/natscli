@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://nats.io/schemas/server/advisory/v1/client_connect.json",
-  "description": "Advisory published a client connects to the NATS Server",
-  "title": "io.nats.server.advisory.v1.client_connect",
+  "$id": "https://nats.io/schemas/server/advisory/v1/client_disconnect.json",
+  "description": "Advisory published a client disconnects to the NATS Server",
+  "title": "io.nats.server.advisory.v1.client_disconnect",
   "type":"object",
   "definitions": {
     "datastats": {
@@ -35,7 +35,7 @@
     "type": {
       "type":"string",
       "enum": [
-        "io.nats.server.advisory.v1.client_connect"
+        "io.nats.server.advisory.v1.client_disconnect"
       ]
     },
     "id": {
