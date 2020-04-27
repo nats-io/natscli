@@ -5,7 +5,7 @@
   "title": "io.nats.jetstream.advisory.v1.max_deliver",
   "type":"object",
   "required":[
-    "schema",
+    "type",
     "id",
     "timestamp",
     "stream",
@@ -15,7 +15,7 @@
   ],
   "additionalItems": false,
   "properties": {
-    "schema": {
+    "type": {
       "type": "string",
       "enum": [
         "io.nats.jetstream.advisory.v1.max_deliver"
