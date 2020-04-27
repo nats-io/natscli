@@ -93,6 +93,14 @@
           "type": "string",
           "description": "The remote host the client is connected from"
         },
+        "id": {
+          "type": "string",
+          "description": "The internally assigned client ID for this connection"
+        },
+        "acc": {
+          "type": "string",
+          "description": "The account this user logged in to"
+        },
         "user": {
           "type": "string",
           "description": "The clients username"
