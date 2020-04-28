@@ -17,9 +17,7 @@
   "properties": {
     "type": {
       "type": "string",
-      "enum": [
-        "io.nats.jetstream.advisory.v1.max_deliver"
-      ]
+      "const": "io.nats.jetstream.advisory.v1.max_deliver"
     },
     "id": {
       "type": "string",

@@ -34,9 +34,7 @@
   "properties": {
     "type": {
       "type":"string",
-      "enum": [
-        "io.nats.server.advisory.v1.client_disconnect"
-      ]
+      "const": "io.nats.server.advisory.v1.client_disconnect"
     },
     "id": {
       "type":"string",
