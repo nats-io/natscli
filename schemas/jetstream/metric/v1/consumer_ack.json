@@ -19,9 +19,7 @@
   "properties": {
     "type": {
       "type": "string",
-      "enum": [
-        "io.nats.jetstream.metric.v1.consumer_ack"
-      ]
+      "const": "io.nats.jetstream.metric.v1.consumer_ack"
     },
     "id": {
       "type": "string",

@@ -17,9 +17,7 @@
   "properties": {
     "type": {
       "type":"string",
-      "enum": [
-        "io.nats.jetstream.advisory.v1.api_audit"
-      ]
+      "const": "io.nats.jetstream.advisory.v1.api_audit"
     },
     "id": {
       "type":"string",
