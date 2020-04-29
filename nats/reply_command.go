@@ -15,8 +15,10 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -27,6 +29,7 @@ type replyCmd struct {
 	body    string
 	queue   string
 	echo    bool
+	sleep   time.Duration
 }
 
 func configureReplyCommand(app *kingpin.Application) {
@@ -36,6 +39,7 @@ func configureReplyCommand(app *kingpin.Application) {
 	act.Arg("body", "Reply body").StringVar(&c.body)
 	act.Flag("echo", "Echo back what is received").BoolVar(&c.echo)
 	act.Flag("queue", "Queue group name").Default("NATS-RPLY-22").Short('q').StringVar(&c.queue)
+	act.Flag("sleep", "Inject a random sleep delay between replies up to this duration max").PlaceHolder("MAX").DurationVar(&c.sleep)
 }
 
 func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
@@ -52,6 +56,11 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 	i := 0
 	nc.QueueSubscribe(c.subject, c.queue, func(m *nats.Msg) {
 		log.Printf("[#%d] Received on [%s]: '%s'\n", i, m.Subject, string(m.Data))
+
+		if c.sleep != 0 {
+			time.Sleep(time.Duration(rand.Intn(int(c.sleep))))
+		}
+
 		if c.echo {
 			m.Respond(m.Data)
 		} else {

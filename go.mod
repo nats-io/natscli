@@ -1,6 +1,6 @@
 module github.com/nats-io/jetstream
 
-go 1.12
+go 1.14
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.0.7
@@ -11,7 +11,7 @@ require (
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.4.1
-	github.com/nats-io/jsm.go v0.0.0-20200421110244-6d4426b19ae2
+	github.com/nats-io/jsm.go v0.0.0-20200429085926-19a5dfafa28b
 	github.com/nats-io/nats-server/v2 v2.1.7-0.20200420182537-915876db61ea
 	github.com/nats-io/nats.go v1.9.2
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190809123943-df4f5c81cb3b // indirect
