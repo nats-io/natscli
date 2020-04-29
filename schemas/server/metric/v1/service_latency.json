@@ -3,6 +3,39 @@
   "$id": "https://nats.io/schemas/server/metric/v1/service_latency.json",
   "description": "Metric published about sampled service requests showing request status and latencies",
   "title": "io.nats.server.metric.v1.service_latency",
+  "definitions": {
+    "latency_client": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["rtt", "ip", "cid", "server"],
+      "properties": {
+        "user": {
+          "type": "string",
+          "description": "The username of the connected client"
+        },
+        "name": {
+          "type": "string",
+          "description": "The connection name declared while connecting"
+        },
+        "rtt": {
+          "type": "integer",
+          "description": "The latency between the client and the server"
+        },
+        "ip": {
+          "type": "string",
+          "description": "The IP address the client is connecting from"
+        },
+        "cid": {
+          "type": "string",
+          "description": "The unique client ID assigned by the server"
+        },
+        "server": {
+          "type": "string",
+          "description": "The server name where the client is connected"
+        }
+      }
+    }
+  },
   "type":"object",
   "required":[
     "type",
@@ -10,8 +43,8 @@
     "timestamp",
     "status",
     "start",
-    "svc",
-    "nats",
+    "service",
+    "system",
     "total"
   ],
   "additionalItems": false,
@@ -38,37 +71,18 @@
       "type": "string",
       "description": "A description of the status code when not 200"
     },
-    "app": {
-      "type": "string",
-      "description": "The name registered by the service when connecting to the NATS network"
-    },
     "start": {
       "type": "string",
       "format": "date-time",
       "description": "The time the request started"
     },
-    "svc": {
+    "service": {
       "type": "integer",
       "description": "The time taken by the service to perform the request in nanoseconds"
     },
-    "nats": {
-      "type": "object",
-      "description": "The time taken by the NATS networking layer to deliver the message in nanoseconds",
-      "additionalItems": false,
-      "properties": {
-        "req": {
-          "type": "integer",
-          "description": "Latency between the requester and the NATS server it is connected to in nanoseconds"
-        },
-        "resp": {
-          "type": "integer",
-          "description": "Latency between the service and the NATS server it is connected to in nanoseconds"
-        },
-        "sys": {
-          "type": "integer",
-          "description": "Time spend traversing the NATS network in nanoseconds"
-        }
-      }
+    "system": {
+      "type": "integer",
+      "description": "Time spend traversing the NATS network in nanoseconds"
     },
     "total": {
       "type": "integer",
