@@ -169,12 +169,7 @@ func (c *consumerCmd) infoAction(pc *kingpin.ParseContext) error {
 	kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
 
 	if c.json {
-		printJSON(api.ConsumerInfo{
-			Stream: c.stream,
-			Name:   consumer.Name(),
-			Config: config,
-			State:  state,
-		})
+		printJSON(state)
 		return nil
 	}
 
@@ -226,8 +221,8 @@ func (c *consumerCmd) infoAction(pc *kingpin.ParseContext) error {
 	fmt.Println()
 	fmt.Printf("  Last Delivered Message: Consumer sequence: %d Stream sequence: %d\n", state.Delivered.ConsumerSeq, state.Delivered.StreamSeq)
 	fmt.Printf("    Acknowledgment floor: Consumer sequence: %d Stream sequence: %d\n", state.AckFloor.ConsumerSeq, state.AckFloor.StreamSeq)
-	fmt.Printf("        Pending Messages: %d\n", len(state.Pending))
-	fmt.Printf("    Redelivered Messages: %d\n", len(state.Redelivered))
+	fmt.Printf("        Pending Messages: %d\n", state.NumPending)
+	fmt.Printf("    Redelivered Messages: %d\n", state.NumRedelivered)
 	fmt.Println()
 
 	return nil
@@ -241,7 +236,7 @@ func (c *consumerCmd) replayPolicyFromString(p string) api.ReplayPolicy {
 		return api.ReplayOriginal
 	default:
 		kingpin.Fatalf("invalid replay policy '%s'", p)
-		return ""
+		return api.ReplayInstant
 	}
 }
 
@@ -256,7 +251,7 @@ func (c *consumerCmd) ackPolicyFromString(p string) api.AckPolicy {
 	default:
 		kingpin.Fatalf("invalid ack policy '%s'", p)
 		// unreachable
-		return ""
+		return api.AckExplicit
 	}
 }
 
