@@ -111,6 +111,7 @@ When defining Streams the items below make up the entire configuration of the se
 |NoAck|Disables acknowledging messages that are received by the Stream|
 |Replicas|How many replicas to keep for each message (not implemented as of January 2020)|
 |Retention|How message retention is considered, `LimitsPolicy` (default), `InterestPolicy` or `WorkQueuePolicy`|
+|Discard|When a Stream reached it's limits either, `DiscardNew` refuses new messages while `DiscardOld` (default) deletes old messages| 
 |Storage|The type of storage backend, `file` and `memory` as of January 2020|
 |Subjects|A list of subjects to consume, supports wildcards|
 
@@ -151,7 +152,7 @@ When defining Consumers the items below make up the entire configuration of the 
 The rest of this document introduces the `nats` utility, but for completeness and reference this is how you'd create the ORDERS scenario.  We'll configure a 1 year retention for order related messages:
 
 ```bash
-$ nats str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size=-1
+$ nats str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size=-1 --discard=old
 $ nats con add ORDERS NEW --filter ORDERS.received --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
 $ nats con add ORDERS DISPATCH --filter ORDERS.processed --ack explicit --pull --deliver all --max-deliver=-1 --sample 100
 $ nats con add ORDERS MONITOR --filter '' --ack none --target monitor.ORDERS --deliver last --replay instant
@@ -332,6 +333,7 @@ $ nats str add ORDERS
 ? Subjects to consume ORDERS.*
 ? Storage backend file
 ? Retention Policy Limits
+? Discard Policy Old
 ? Message count limit -1
 ? Message size limit -1
 ? Maximum message age limit 1y
@@ -364,7 +366,7 @@ Statistics:
 You can get prompted interactively for missing information as above, or do it all on one command. Pressing `?` in the CLI will help you map prompts to CLI options:
 
 ```
-$ nats str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size=-1
+$ nats str add ORDERS --subjects "ORDERS.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size=-1 --discard old
 ```
 
 Additionally one can store the configuration in a JSON file, the format of this is the same as `$ nats str info ORDERS -j | jq .config`:
@@ -879,7 +881,7 @@ output "ORDERS_SUBJECTS" {
 
 The Orders example touched on a lot of features, but some like different Ack models and message limits, need a bit more detail. This section will expand on the above and fill in some blanks.
 
-### Stream Limits and Retention Modes
+### Stream Limits, Retention Modes and Discard Policy
 
 Streams store data on disk, but we cannot store all data forever so we need ways to control their size automatically.
 
@@ -900,6 +902,8 @@ One can then define additional ways a message may be removed from the Stream ear
 In both `WorkQueuePolicy` and `InterestPolicy` the age, size and count limits will still apply as upper bounds.
 
 A final control is the Maximum Size any single message may have. NATS have it's own limit for maximum size (1 MiB by default), but you can say a Stream will only accept messages up to 1024 bytes using `MaxMsgSize`.
+
+The `Discard Policy` sets how messages are discard when limits set by `LimitsPolicy` are reached. The `DiscardOld` option removes old messages making space for new, while `DiscardNew` refuses any new messages.
 
 ### Acknowledgement Models
 
@@ -1185,7 +1189,7 @@ Listening on [out.original]
 When you have many similar streams it can be helpful to auto create them, lets say you have a service by client and they are on subjects `CLIENT.*`, you can construct a template that will auto generate streams for any matching traffic.
 
 ```
-$ nats str template add CLIENTS --subjects "CLIENT.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size 2048 --max-streams 1024
+$ nats str template add CLIENTS --subjects "CLIENT.*" --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage file --retention limits --max-msg-size 2048 --max-streams 1024 --discard old
 Stream Template CLIENTS was created
 
 Information for Stream Template CLIENTS

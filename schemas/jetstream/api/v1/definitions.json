@@ -179,7 +179,8 @@
         "storage": {
           "description": "The storage backend to use for the Stream.",
           "type": "string",
-          "enum": ["file", "memory"]
+          "enum": ["file", "memory"],
+          "default": "memory"
         },
         "num_replicas": {
           "description": "How many replicas to keep for each message.",

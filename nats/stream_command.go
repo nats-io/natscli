@@ -49,13 +49,13 @@ type streamCmd struct {
 	maxBytesLimit       int64
 	maxAgeLimit         string
 	maxMsgSize          int32
-	rPolicy             api.RetentionPolicy
 	reportSortConsumers bool
 	reportSortMsgs      bool
 	reportSortName      bool
 	reportSortStorage   bool
 	reportRaw           bool
 	maxStreams          int
+	discardPolicy       string
 }
 
 func configureStreamCommand(app *kingpin.Application) {
@@ -75,6 +75,7 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
 		f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
+		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
 		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int32Var(&c.maxMsgSize)
 		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	}
@@ -349,6 +350,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 
 	cfg.NoAck = !c.ack
 
+	if c.discardPolicy != "" {
+		cfg.Discard = c.discardPolicyFromString()
+	}
+
 	if len(c.subjects) > 0 {
 		cfg.Subjects = c.splitCLISubjects()
 	}
@@ -358,7 +363,7 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 	}
 
 	if c.retentionPolicyS != "" {
-		cfg.Retention = c.retentionPolicyFromString(strings.ToLower(c.storage))
+		cfg.Retention = c.retentionPolicyFromString()
 	}
 
 	if c.maxBytesLimit != -1 {
@@ -458,6 +463,7 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	fmt.Printf("     Acknowledgements: %v\n", !cfg.NoAck)
 	fmt.Printf("            Retention: %s - %s\n", cfg.Storage.String(), cfg.Retention.String())
 	fmt.Printf("             Replicas: %d\n", cfg.Replicas)
+	fmt.Printf("       Discard Policy: %s\n", cfg.Discard.String())
 	if cfg.MaxMsgs == -1 {
 		fmt.Println("     Maximum Messages: unlimited")
 	} else {
@@ -534,6 +540,18 @@ func (c *streamCmd) splitCLISubjects() []string {
 	return new
 }
 
+func (c *streamCmd) discardPolicyFromString() api.DiscardPolicy {
+	switch strings.ToLower(c.discardPolicy) {
+	case "new":
+		return api.DiscardNew
+	case "old":
+		return api.DiscardOld
+	default:
+		kingpin.Fatalf("invalid discard policy %s", c.discardPolicy)
+		return api.DiscardOld // unreachable
+	}
+}
+
 func (c *streamCmd) storeTypeFromString(s string) api.StorageType {
 	switch s {
 	case "file", "f":
@@ -542,11 +560,11 @@ func (c *streamCmd) storeTypeFromString(s string) api.StorageType {
 		return api.MemoryStorage
 	default:
 		kingpin.Fatalf("invalid storage type %s", c.storage)
-		return "" // unreachable
+		return api.FileStorage // unreachable
 	}
 }
 
-func (c *streamCmd) retentionPolicyFromString(s string) api.RetentionPolicy {
+func (c *streamCmd) retentionPolicyFromString() api.RetentionPolicy {
 	switch strings.ToLower(c.retentionPolicyS) {
 	case "limits":
 		return api.LimitsPolicy
@@ -556,7 +574,7 @@ func (c *streamCmd) retentionPolicyFromString(s string) api.RetentionPolicy {
 		return api.WorkQueuePolicy
 	default:
 		kingpin.Fatalf("invalid retention policy %s", c.retentionPolicyS)
-		return "" // unreachable
+		return api.LimitsPolicy // unreachable
 	}
 }
 
@@ -633,7 +651,15 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
-	c.rPolicy = c.retentionPolicyFromString(strings.ToLower(c.retentionPolicyS))
+	if c.discardPolicy == "" {
+		err = survey.AskOne(&survey.Select{
+			Message: "Discard Policy",
+			Options: []string{"New", "Old"},
+			Help:    "Once the Stream reach it's limits of size or messages the New policy will prevent further messages from being added while Old will delete old messages.",
+			Default: "Old",
+		}, &c.discardPolicy, survey.WithValidator(survey.Required))
+		kingpin.FatalIfError(err, "invalid input")
+	}
 
 	var maxAge time.Duration
 	if c.maxMsgLimit == 0 {
@@ -682,7 +708,8 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		MaxAge:       maxAge,
 		Storage:      storage,
 		NoAck:        !c.ack,
-		Retention:    c.rPolicy,
+		Retention:    c.retentionPolicyFromString(),
+		Discard:      c.discardPolicyFromString(),
 		MaxConsumers: -1,
 		Replicas:     1,
 	}
