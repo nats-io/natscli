@@ -155,7 +155,7 @@ func TestCLIStreamCreate(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m  --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m  --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new", srv.ClientURL()))
 	streamShouldExist(t, "mem1")
 	info := streamInfo(t, "mem1")
 
@@ -177,6 +177,10 @@ func TestCLIStreamCreate(t *testing.T) {
 
 	if info.Config.MaxMsgSize != 1024 {
 		t.Fatalf("incorrect max message size stream, expected 1024 got %v", info.Config.MaxMsgSize)
+	}
+
+	if info.Config.Discard != api.DiscardNew {
+		t.Fatalf("incorrect discard policy %q", info.Config.Discard)
 	}
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' str create ORDERS --config testdata/ORDERS_config.json", srv.ClientURL()))
