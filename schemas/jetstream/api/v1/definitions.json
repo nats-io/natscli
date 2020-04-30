@@ -195,6 +195,12 @@
         "template_owner": {
           "description": "When the Stream is managed by a Stream Template this identifies the template that manages the Stream.",
           "type": "string"
+        },
+        "discard": {
+          "description": "When a Stream reach it's limits either old messages are deleted or new ones are denied",
+          "type": "string",
+          "enum": ["old", "new"],
+          "default": "old"
         }
       }
     }
