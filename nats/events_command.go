@@ -16,12 +16,12 @@ import (
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
-
-	"github.com/nats-io/jsm.go"
 )
 
 type eventsCmd struct {
-	json bool
+	json  bool
+	ce    bool
+	short bool
 
 	bodyF      string
 	bodyFRe    *regexp.Regexp
@@ -34,28 +34,57 @@ type eventsCmd struct {
 	connsF      bool
 	latencySubj []string
 
-	templates map[string]*template.Template
+	ftemplate map[string]*template.Template
+	stemplate map[string]*template.Template
 
 	sync.Mutex
 }
 
 func configureEventsCommand(app *kingpin.Application) {
 	c := &eventsCmd{
-		templates: make(map[string]*template.Template),
+		ftemplate: make(map[string]*template.Template),
+		stemplate: make(map[string]*template.Template),
 	}
 
 	events := app.Command("events", "Show Advisories and Events").Alias("event").Alias("e").Action(c.eventsAction)
 	events.Flag("all", "Show all events").Default("false").Short('a').BoolVar(&c.allF)
 	events.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	events.Flag("cloudevent", "Produce CloudEvents v1.0 output").BoolVar(&c.ce)
+	events.Flag("short", "Short event format").BoolVar(&c.short)
 	events.Flag("subject", "Filter the messages by the subject using regular expressions").Default(".").StringVar(&c.subjectF)
 	events.Flag("filter", "Filter across the entire event using regular expressions").Default(".").StringVar(&c.bodyF)
-	events.Flag("metrics", "Shows metric events (false)").Default("false").BoolVar(&c.metricsF)
+	events.Flag("metrics", "Shows JetStream metric events (false)").Default("false").BoolVar(&c.metricsF)
 	events.Flag("advisories", "Shows advisory events (true)").Default("true").BoolVar(&c.advisoriesF)
 	events.Flag("connections", "Shows connections being opened and closed (false)").Default("false").BoolVar(&c.connsF)
 	events.Flag("latency", "Show service latency samples received on a specific subject").PlaceHolder("SUBJECT").Default("").StringsVar(&c.latencySubj)
 }
 
-func (c *eventsCmd) parseTemplates() (err error) {
+func (c *eventsCmd) parseShortTemplates() (err error) {
+	t := map[string]string{}
+	t["io.nats.jetstream.advisory.v1.max_deliver"] = `{{ .Time | ShortTime }} [JS Max Deliveries] {{ .Stream }} ({{ .StreamSeq }}) > {{ .Consumer }}: {{ .Deliveries }} deliveries`
+	t["io.nats.jetstream.advisory.v1.api_audit"] = `{{ .Time | ShortTime }} [JS API] {{ .Subject }}{{ if .Client.User }} {{ .Client.User}} @{{ end }}{{ if .Client.Account }} {{ .Client.Account }}{{ end }}`
+	t["io.nats.jetstream.metric.v1.consumer_ack"] = `{{ .Time | ShortTime }} [JS Ack] {{ .Stream }} ({{ .StreamSeq }}) > {{ .Consumer }} ({{ .ConsumerSeq}}): {{ .Deliveries }} deliveries in {{ .Delay }}`
+	t["io.nats.server.metric.v1.service_latency"] = `{{ .Time | ShortTime }} [Svc Latency] {{ if .Error }}{{ .Error }} {{ end }}requestor {{ .Requestor.RTT }} <-> system {{ .SystemLatency }} <- service rtt {{ .Responder.RTT }} -> service {{ .ServiceLatency }}`
+	t["io.nats.server.advisory.v1.client_connect"] = `{{ .Time | ShortTime }} [Connection] {{ if .Client.User }}user: {{ .Client.User }}{{ end }} cid: {{ .Client.ID }} in account {{ .Client.Account }}`
+	t["io.nats.server.advisory.v1.client_disconnect"] = `{{ .Time | ShortTime }} [Disconnection] {{ if .Client.User }}user: {{ .Client.User }}{{ end }} cid: {{ .Client.ID }} in account {{ .Client.Account }}: {{ .Reason }}`
+
+	for k, tmpl := range t {
+		c.stemplate[k], err = template.New(k).Funcs(map[string]interface{}{
+			"ShortTime": func(v time.Time) string { return v.Format("15:04:05") },
+			"NanoTime":  func(v time.Time) string { return v.Format("15:04:05.000") },
+			"IBytes":    func(v int64) string { return humanize.IBytes(uint64(v)) },
+			"HostPort":  func(h string, p int) string { return net.JoinHostPort(h, strconv.Itoa(p)) },
+			"LeftPad":   func(indent int, v string) string { return leftPad(v, indent) },
+		}).Parse(tmpl)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *eventsCmd) parseFullTemplates() (err error) {
 	t := map[string]string{}
 
 	t["io.nats.jetstream.advisory.v1.max_deliver"] = `
@@ -63,8 +92,7 @@ func (c *eventsCmd) parseTemplates() (err error) {
 
           Consumer: {{ .Stream }} > {{ .Consumer }}
    Stream Sequence: {{ .StreamSeq }}
-        Deliveries: {{ .Deliveries }}
-`
+        Deliveries: {{ .Deliveries }}`
 
 	t["io.nats.jetstream.advisory.v1.api_audit"] = `
 [{{ .Time | ShortTime }}] [{{ .ID }}] JetStream API Access
@@ -91,8 +119,7 @@ func (c *eventsCmd) parseTemplates() (err error) {
 
     Response:
 
-{{ .Response | LeftPad 10 }}
-`
+{{ .Response | LeftPad 10 }}`
 
 	t["io.nats.jetstream.metric.v1.consumer_ack"] = `
 [{{ .Time | ShortTime }}] [{{ .ID }}] Acknowledgment Sample
@@ -101,8 +128,7 @@ func (c *eventsCmd) parseTemplates() (err error) {
        Stream Sequence: {{ .StreamSeq }}
      Consumer Sequence: {{ .ConsumerSeq }}
             Deliveries: {{ .Deliveries }}
-                 Delay: {{ .Delay }}
-`
+                 Delay: {{ .Delay }}`
 
 	t["io.nats.server.metric.v1.service_latency"] = `
 {{- if .Error }}
@@ -151,11 +177,10 @@ func (c *eventsCmd) parseTemplates() (err error) {
          CID: {{ .CID }}
       Server: {{ .Server }}
          RTT: {{ .RTT }}
-{{- end }}
-`
+{{- end }}`
 
 	t["io.nats.server.advisory.v1.client_connect"] = `
-[{{ .Time | ShortTime }}] [{{ .ID }}] Client Disconnection
+[{{ .Time | ShortTime }}] [{{ .ID }}] Client Connection
 
 {{- if .Reason }}
    Reason: {{ .Reason }}
@@ -185,13 +210,12 @@ func (c *eventsCmd) parseTemplates() (err error) {
       Received: {{ .Received.Msgs }} messages ({{ .Received.Bytes | IBytes }})
      Published: {{ .Sent.Msgs }} messages ({{ .Sent.Bytes | IBytes }})
            RTT: {{ .Client.RTT }}
-{{- end }}
-`
+{{- end }}`
 
 	t["io.nats.server.advisory.v1.client_disconnect"] = t["io.nats.server.advisory.v1.client_connect"]
 
 	for k, tmpl := range t {
-		c.templates[k], err = template.New(k).Funcs(map[string]interface{}{
+		c.ftemplate[k], err = template.New(k).Funcs(map[string]interface{}{
 			"ShortTime": func(v time.Time) string { return v.Format("15:04:05") },
 			"NanoTime":  func(v time.Time) string { return v.Format("15:04:05.000") },
 			"IBytes":    func(v int64) string { return humanize.IBytes(uint64(v)) },
@@ -214,13 +238,13 @@ func (c *eventsCmd) handleNATSEvent(m *nats.Msg) {
 		return
 	}
 
-	if c.json {
+	if c.json && !c.ce {
 		fmt.Println(string(m.Data))
 		return
 	}
 
 	handle := func() error {
-		kind, event, err := jsm.ParseEvent(m.Data)
+		kind, event, err := api.ParseEvent(m.Data)
 		if err != nil {
 			return fmt.Errorf("parsing failed: %s", err)
 		}
@@ -229,7 +253,28 @@ func (c *eventsCmd) handleNATSEvent(m *nats.Msg) {
 			return fmt.Errorf("unknown event")
 		}
 
-		tmpl, ok := c.templates[kind]
+		if c.ce {
+			ne, ok := event.(api.Event)
+			if ok {
+				ce, err := api.ToCloudEventV1(ne)
+				if err != nil {
+					return fmt.Errorf("could not create CloudEvent: %s", err)
+				}
+
+				fmt.Println(string(ce))
+
+				return nil
+			}
+		}
+
+		var tmpl *template.Template
+		var ok bool
+
+		if c.short {
+			tmpl, ok = c.stemplate[kind]
+		} else {
+			tmpl, ok = c.ftemplate[kind]
+		}
 		if !ok {
 			return fmt.Errorf("unknown template for %s", kind)
 		}
@@ -238,6 +283,7 @@ func (c *eventsCmd) handleNATSEvent(m *nats.Msg) {
 		if err != nil {
 			return fmt.Errorf("display failed: %s", err)
 		}
+		fmt.Println()
 
 		return nil
 	}
@@ -256,9 +302,17 @@ func (c *eventsCmd) Printf(f string, arg ...interface{}) {
 }
 
 func (c *eventsCmd) eventsAction(_ *kingpin.ParseContext) error {
-	err := c.parseTemplates()
+	err := c.parseFullTemplates()
 	if err != nil {
 		kingpin.Fatalf(err.Error())
+	}
+	err = c.parseShortTemplates()
+	if err != nil {
+		kingpin.Fatalf(err.Error())
+	}
+
+	if c.ce {
+		c.json = true
 	}
 
 	nc, err := prepareHelper(servers, natsOpts()...)

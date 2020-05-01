@@ -560,7 +560,7 @@ func (c *streamCmd) storeTypeFromString(s string) api.StorageType {
 		return api.MemoryStorage
 	default:
 		kingpin.Fatalf("invalid storage type %s", c.storage)
-		return api.FileStorage // unreachable
+		return api.MemoryStorage // unreachable
 	}
 }
 
