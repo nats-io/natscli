@@ -35,12 +35,12 @@ github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b h1:j7+1HpAFS1zy5+Q4qx1f
 github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b/go.mod h1:01TrycV0kFyexm33Z7vhZRXopbI8J3TDReVlkTgMUxE=
 github.com/minio/highwayhash v1.0.0 h1:iMSDhgUILCr0TNm8LWlSjF8N0ZIj2qbO8WHp6Q/J2BA=
 github.com/minio/highwayhash v1.0.0/go.mod h1:xQboMTeM9nY9v/LlAOxFctujiv5+Aq2hR5dxBpaMbdc=
-github.com/nats-io/jsm.go v0.0.0-20200501125113-001a59b3e038 h1:r2uceKl1fxSmkC1glhgIHL9PFf8tvgheaYlac4cxUK8=
-github.com/nats-io/jsm.go v0.0.0-20200501125113-001a59b3e038/go.mod h1:5pf1RnFgSJKn5HfCJhi9UhE18mRl0dMe3SV2b1Errow=
+github.com/nats-io/jsm.go v0.0.0-20200501162958-d4ccc5d96297 h1:ufxWlyFAcE8OP/d5+lkB7yTGh6TZcZ++5DDf+2tyzUM=
+github.com/nats-io/jsm.go v0.0.0-20200501162958-d4ccc5d96297/go.mod h1:45cNqCcwbVVF7lKXe9mVkhx+o1BxHGkAUgoze2hs3Gg=
 github.com/nats-io/jwt v0.3.2 h1:+RB5hMpXUUA2dfxuhBTEkMOrYmM+gKIZYS1KjSostMI=
 github.com/nats-io/jwt v0.3.2/go.mod h1:/euKqTS1ZD+zzjYrY7pseZrTtWQSjujC7xjPc8wL6eU=
-github.com/nats-io/nats-server/v2 v2.1.7-0.20200430204921-43c01007048c h1:I4ezd96ET5KG1eJCU4OVnhHU1y7aPWk9M9/r7HbSFLU=
-github.com/nats-io/nats-server/v2 v2.1.7-0.20200430204921-43c01007048c/go.mod h1:XvxaI3tOtf8QAnaPwk4uHqFsJV85H4saugcWr3IO8Rk=
+github.com/nats-io/nats-server/v2 v2.1.7-0.20200501162246-b34b6279b0d1 h1:mctP3uUfctj7IdLuet43IEzkuwlYKecJ3w76vmIhDGc=
+github.com/nats-io/nats-server/v2 v2.1.7-0.20200501162246-b34b6279b0d1/go.mod h1:XvxaI3tOtf8QAnaPwk4uHqFsJV85H4saugcWr3IO8Rk=
 github.com/nats-io/nats.go v1.9.2 h1:oDeERm3NcZVrPpdR/JpGdWHMv3oJ8yY30YwxKq+DU2s=
 github.com/nats-io/nats.go v1.9.2/go.mod h1:AjGArbfyR50+afOUotNX2Xs5SYHf+CoOa5HH1eEl2HE=
 github.com/nats-io/nkeys v0.1.3/go.mod h1:xpnFELMwJABBLVhffcfd1MZx6VsNRFpEugbxziKVo7w=
