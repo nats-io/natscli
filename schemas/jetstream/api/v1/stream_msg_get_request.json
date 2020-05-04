@@ -4,7 +4,9 @@
   "description": "A request to the JetStream $JS.API.STREAM.MSG.GET API",
   "title": "io.nats.jetstream.api.v1.stream_msg_get_request",
   "type": "object",
-  "required": ["seq"],
+  "required": [
+    "seq"
+  ],
   "properties": {
     "seq": {
       "type": "integer",

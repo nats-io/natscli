@@ -4,13 +4,96 @@
   "description": "A response from the JetStream $JS.API.INFO API",
   "title": "io.nats.jetstream.api.v1.account_info_response",
   "type": "object",
-  "required": ["type"],
+  "required": [
+    "type"
+  ],
   "oneOf": [
     {
-      "$ref": "definitions.json#/definitions/account_stats"
+      "type": "object",
+      "additionalItems": false,
+      "required": [
+        "memory",
+        "storage",
+        "streams",
+        "limits"
+      ],
+      "properties": {
+        "memory": {
+          "description": "Memory Storage being used for Stream Message storage",
+          "type": "integer",
+          "minimum": 0
+        },
+        "storage": {
+          "description": "File Storage being used for Stream Message storage",
+          "type": "integer",
+          "minimum": 0
+        },
+        "streams": {
+          "description": "Number of active Streams",
+          "type": "integer",
+          "minimum": 0
+        },
+        "limits": {
+          "type": "object",
+          "additionalItems": false,
+          "required": [
+            "max_consumers",
+            "max_memory",
+            "max_storage",
+            "max_streams"
+          ],
+          "properties": {
+            "max_memory": {
+              "type": "integer",
+              "description": "The maximum amount of Memory storage Stream Messages may consume",
+              "minimum": -1
+            },
+            "max_storage": {
+              "type": "integer",
+              "description": "The maximum amount of File storage Stream Messages may consume",
+              "minimum": -1
+            },
+            "max_streams": {
+              "type": "integer",
+              "description": "The maximum number of Streams an account can create",
+              "minimum": -1
+            },
+            "max_consumers": {
+              "type": "integer",
+              "description": "The maximum number of Consumer an account can create",
+              "minimum": -1
+            }
+          }
+        }
+      }
     },
     {
-      "$ref": "definitions.json#/definitions/error_response"
+      "type": "object",
+      "additionalItems": false,
+      "required": [
+        "error"
+      ],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalItems": false,
+          "required": [
+            "code"
+          ],
+          "properties": {
+            "code": {
+              "type": "integer",
+              "description": "HTTP like error code in the 300 to 500 range",
+              "minimum": 300,
+              "maximum": 699
+            },
+            "description": {
+              "type": "string",
+              "description": "A human friendly description of the error"
+            }
+          }
+        }
+      }
     }
   ],
   "properties": {

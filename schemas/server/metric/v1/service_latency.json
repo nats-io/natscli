@@ -7,7 +7,12 @@
     "latency_client": {
       "type": "object",
       "additionalItems": false,
-      "required": ["rtt", "ip", "cid", "server"],
+      "required": [
+        "rtt",
+        "ip",
+        "cid",
+        "server"
+      ],
       "properties": {
         "user": {
           "type": "string",
@@ -36,8 +41,8 @@
       }
     }
   },
-  "type":"object",
-  "required":[
+  "type": "object",
+  "required": [
     "type",
     "id",
     "timestamp",
@@ -50,11 +55,11 @@
   "additionalItems": false,
   "properties": {
     "type": {
-      "type":"string",
+      "type": "string",
       "const": "io.nats.server.metric.v1.service_latency"
     },
     "id": {
-      "type":"string",
+      "type": "string",
       "description": "Unique correlation ID for this event"
     },
     "timestamp": {
@@ -65,7 +70,13 @@
     "status": {
       "type": "integer",
       "description": "The status of the request. 200 OK, 400 Bad Request, no reply subject. 408 Request Timeout, requester lost interest before request completed. 503 Service Unavailable. 504 Service Timeout.",
-      "enum": [200, 400, 408, 503, 504]
+      "enum": [
+        200,
+        400,
+        408,
+        503,
+        504
+      ]
     },
     "error": {
       "type": "string",

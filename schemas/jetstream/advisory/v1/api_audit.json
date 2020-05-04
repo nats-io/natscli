@@ -3,8 +3,8 @@
   "$id": "https://nats.io/schemas/jetstream/advisory/v1/api_audit.json",
   "description": "Advisory published when the JetStream API is accessed across the network",
   "title": "io.nats.jetstream.advisory.v1.api_audit",
-  "type":"object",
-  "required":[
+  "type": "object",
+  "required": [
     "type",
     "id",
     "timestamp",
@@ -16,11 +16,11 @@
   "additionalItems": false,
   "properties": {
     "type": {
-      "type":"string",
+      "type": "string",
       "const": "io.nats.jetstream.advisory.v1.api_audit"
     },
     "id": {
-      "type":"string",
+      "type": "string",
       "description": "Unique correlation ID for this event"
     },
     "timestamp": {
@@ -38,7 +38,7 @@
       "description": "The subject the admin API request was received on",
       "minLength": 1
     },
-    "response":{
+    "response": {
       "type": "string",
       "description": "The full unparsed body of the response sent to the caller"
     },

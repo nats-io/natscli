@@ -3,8 +3,8 @@
   "$id": "https://nats.io/schemas/jetstream/advisory/v1/max_deliver.json",
   "description": "Advisory published when a message have reached its maximum delivery attempts",
   "title": "io.nats.jetstream.advisory.v1.max_deliver",
-  "type":"object",
-  "required":[
+  "type": "object",
+  "required": [
     "type",
     "id",
     "timestamp",

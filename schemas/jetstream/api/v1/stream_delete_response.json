@@ -4,13 +4,42 @@
   "description": "A response from the JetStream $JS.API.STREAM.DELETE API",
   "title": "io.nats.jetstream.api.v1.stream_delete_response",
   "type": "object",
-  "required": ["type"],
+  "required": [
+    "type"
+  ],
   "oneOf": [
     {
-      "$ref": "definitions.json#/definitions/error_response"
+      "type": "object",
+      "additionalItems": false,
+      "required": [
+        "error"
+      ],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalItems": false,
+          "required": [
+            "code"
+          ],
+          "properties": {
+            "code": {
+              "type": "integer",
+              "description": "HTTP like error code in the 300 to 500 range",
+              "minimum": 300,
+              "maximum": 699
+            },
+            "description": {
+              "type": "string",
+              "description": "A human friendly description of the error"
+            }
+          }
+        }
+      }
     },
     {
-      "required": ["success"],
+      "required": [
+        "success"
+      ],
       "type": "object",
       "properties": {
         "success": {

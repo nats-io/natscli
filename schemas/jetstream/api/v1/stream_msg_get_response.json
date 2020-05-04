@@ -4,18 +4,76 @@
   "description": "A response from the JetStream $JS.API.STREAM.MSG.GET API",
   "title": "io.nats.jetstream.api.v1.stream_msg_get_response",
   "type": "object",
-  "required": ["type"],
+  "required": [
+    "type"
+  ],
   "oneOf": [
     {
-      "$ref": "definitions.json#/definitions/error_response"
+      "type": "object",
+      "additionalItems": false,
+      "required": [
+        "error"
+      ],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalItems": false,
+          "required": [
+            "code"
+          ],
+          "properties": {
+            "code": {
+              "type": "integer",
+              "description": "HTTP like error code in the 300 to 500 range",
+              "minimum": 300,
+              "maximum": 699
+            },
+            "description": {
+              "type": "string",
+              "description": "A human friendly description of the error"
+            }
+          }
+        }
+      }
     },
     {
       "type": "object",
       "additionalItems": false,
-      "required": ["message"],
+      "required": [
+        "message"
+      ],
       "properties": {
         "message": {
-          "$ref": "definitions.json#/definitions/stored_message"
+          "type": "object",
+          "additionalItems": false,
+          "required": [
+            "subject",
+            "seq",
+            "data",
+            "time"
+          ],
+          "properties": {
+            "subject": {
+              "type": "string",
+              "description": "The subject the message was originally received on",
+              "minLength": 1
+            },
+            "seq": {
+              "type": "integer",
+              "description": "The sequence number of the message in the Stream",
+              "minimum": 0
+            },
+            "data": {
+              "type": "string",
+              "description": "The base64 encoded payload of the message body",
+              "minLength": 0
+            },
+            "time": {
+              "type": "string",
+              "description": "The time the message was received",
+              "format": "date-time"
+            }
+          }
         }
       }
     }
