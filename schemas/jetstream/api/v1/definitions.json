@@ -5,6 +5,142 @@
   "description": "Shared definitions for the JetStream API",
   "type": "object",
   "definitions": {
+    "account_stats": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["memory", "storage", "streams", "limits"],
+      "properties": {
+        "memory": {
+          "description": "Memory Storage being used for Stream Message storage",
+          "type": "integer",
+          "minimum": 0
+        },
+        "storage": {
+          "description": "File Storage being used for Stream Message storage",
+          "type": "integer",
+          "minimum": 0
+        },
+        "streams": {
+          "description": "Number of active Streams",
+          "type": "integer",
+          "minimum": 0
+        },
+        "limits": {
+          "$ref": "#/definitions/account_limits"
+        }
+      }
+    },
+    "account_limits": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["max_consumers", "max_memory", "max_storage", "max_streams"],
+      "properties": {
+        "max_memory": {
+          "type": "integer",
+          "description": "The maximum amount of Memory storage Stream Messages may consume",
+          "minimum": -1
+        },
+        "max_storage": {
+          "type": "integer",
+          "description": "The maximum amount of File storage Stream Messages may consume",
+          "minimum": -1
+        },
+        "max_streams": {
+          "type": "integer",
+          "description": "The maximum number of Streams an account can create",
+          "minimum": -1
+        },
+        "max_consumers": {
+          "type": "integer",
+          "description": "The maximum number of Consumer an account can create",
+          "minimum": -1
+        }
+      }
+    },
+    "stored_message": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["subject", "seq", "data", "time"],
+      "properties": {
+        "subject": {
+          "type": "string",
+          "description": "The subject the message was originally received on",
+          "minLength": 1
+        },
+        "seq": {
+          "type": "integer",
+          "description": "The sequence number of the message in the Stream",
+          "minimum": 0
+        },
+        "data": {
+          "type": "string",
+          "description": "The base64 encoded payload of the message body",
+          "minLength": 0
+        },
+        "time": {
+          "type": "string",
+          "description": "The time the message was received",
+          "format": "date-time"
+        }
+      }
+    },
+    "iterable_request": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["offset"],
+      "properties": {
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "iterable_response": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["total", "offset", "limit"],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "error_response": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "$ref": "#/definitions/api_error"
+        }
+      }
+    },
+    "api_error": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["code"],
+      "properties": {
+        "code": {
+          "type": "integer",
+          "description": "HTTP like error code in the 300 to 500 range",
+          "minimum": 300,
+          "maximum": 699
+        },
+        "description": {
+          "type": "string",
+          "description": "A human friendly description of the error"
+        }
+      }
+    },
     "basic_name": {
       "type": "string",
       "pattern": "^[^.*>]+$",
@@ -72,6 +208,63 @@
         }
       }
     },
+    "sequence_pair": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["consumer_seq", "stream_seq"],
+      "properties": {
+        "consumer_seq": {
+          "type": "integer",
+          "description": "The sequence number of the Consumer",
+          "minimum": 0
+        },
+        "stream_seq": {
+          "type": "integer",
+          "description": "The sequence number of the Stream",
+          "minimum": 0
+        }
+      }
+    },
+    "consumer_info": {
+      "required": ["stream_name", "name", "config", "created", "delivered", "ack_floor", "num_pending", "num_redelivered"],
+      "type": "object",
+      "additionalItems": false,
+      "properties": {
+        "stream_name": {
+          "type": "string",
+          "description": "The Stream the consumer belongs to"
+        },
+        "name": {
+          "type": "string",
+          "description": "A unique name for the consumer, either machine generated or the durable name"
+        },
+        "config": {
+          "$ref": "#/definitions/consumer_configuration"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "delivered": {
+          "description": "The last message delivered from this Consumer",
+          "$ref": "#/definitions/sequence_pair"
+        },
+        "ack_floor": {
+          "description": "The highest contiguous acknowledged message",
+          "$ref": "#/definitions/sequence_pair"
+        },
+        "num_pending": {
+          "description": "The number of messages pending acknowledgement",
+          "type": "integer",
+          "minimum": 0
+        },
+        "num_redelivered": {
+          "description": "The number of redeliveries that have been performed",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
     "consumer_configuration": {
       "required":[
         "deliver_policy",
@@ -109,6 +302,59 @@
         },
         "sample_freq": {
           "type": "string"
+        }
+      }
+    },
+    "stream_info": {
+      "type": "object",
+      "required": ["config", "state"],
+      "additionalItems": false,
+      "properties": {
+        "config": {
+          "type": "object",
+          "description": "The active configuration for the Stream",
+          "allOf": [
+            {"$ref": "#/definitions/stream_configuration"}
+          ]
+        },
+        "state": {
+          "type": "object",
+          "description": "Detail about the current State of the Stream",
+          "allOf": [
+            {"$ref": "#/definitions/stream_state"}
+          ]
+        }
+      }
+    },
+    "stream_state": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["messages", "bytes", "first_seq", "last_seq", "consumer_count"],
+      "properties": {
+        "messages": {
+          "type": "integer",
+          "description": "Number of messages stored in the Stream",
+          "minimum": 0
+        },
+        "bytes": {
+          "type": "integer",
+          "description": "Combined size of all messages in the Stream",
+          "minimum": 0
+        },
+        "first_seq": {
+          "type": "integer",
+          "description": "Sequence number of the first message in the Stream",
+          "minimum": 0
+        },
+        "last_seq": {
+          "type": "integer",
+          "description": "Sequence number of the last message in the Stream",
+          "minimum": 0
+        },
+        "consumer_count": {
+          "type": "integer",
+          "description": "Number of Consumers attached to the Stream",
+          "minimum": 0
         }
       }
     },
@@ -202,6 +448,43 @@
           "type": "string",
           "enum": ["old", "new"],
           "default": "old"
+        }
+      }
+    },
+    "stream_template_info": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["config", "streams"],
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/stream_configuration"
+        },
+        "streams": {
+          "description": "List of Streams managed by this Template",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "stream_template_configuration": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["name", "config", "max_streams"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "A unique name for the Template"
+        },
+        "config": {
+          "description": "The template configuration to create Streams with",
+          "$ref": "#/definitions/stream_configuration"
+        },
+        "max_streams": {
+          "type": "integer",
+          "description": "The maximum number of streams to allow using this Template",
+          "minimum": -1
         }
       }
     }
