@@ -3,8 +3,8 @@
   "$id": "https://nats.io/schemas/server/advisory/v1/client_connect.json",
   "description": "Advisory published a client connects to the NATS Server",
   "title": "io.nats.server.advisory.v1.client_connect",
-  "type":"object",
-  "required":[
+  "type": "object",
+  "required": [
     "type",
     "id",
     "timestamp",
@@ -14,11 +14,11 @@
   "additionalItems": false,
   "properties": {
     "type": {
-      "type":"string",
+      "type": "string",
       "const": "io.nats.server.advisory.v1.client_connect"
     },
     "id": {
-      "type":"string",
+      "type": "string",
       "description": "Unique correlation ID for this event"
     },
     "timestamp": {
@@ -30,7 +30,15 @@
       "type": "object",
       "additionalItems": false,
       "description": "Details about the server the client connected to",
-      "required": ["name","host","id","ver","seq","jetstream","time"],
+      "required": [
+        "name",
+        "host",
+        "id",
+        "ver",
+        "seq",
+        "jetstream",
+        "time"
+      ],
       "properties": {
         "name": {
           "type": "string",

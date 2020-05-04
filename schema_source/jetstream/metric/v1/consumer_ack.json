@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/jetstream/metric/v1/consumer_ack.json",
+  "description": "Metric published when a message was acknowledged to a consumer with Ack Sampling enabled",
+  "title": "io.nats.jetstream.metric.v1.consumer_ack",
+  "type":"object",
+  "required":[
+    "type",
+    "id",
+    "timestamp",
+    "stream",
+    "consumer",
+    "stream_seq",
+    "consumer_seq",
+    "ack_time",
+    "deliveries"
+  ],
+  "additionalItems": false,
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "io.nats.jetstream.metric.v1.consumer_ack"
+    },
+    "id": {
+      "type": "string",
+      "description": "Unique correlation ID for this event"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The time this event was created in RFC3339 format"
+    },
+    "stream": {
+      "type": "string",
+      "description": "The name of the stream where the message is stored"
+    },
+    "consumer": {
+      "type": "string",
+      "description": "The name of the consumer where the message is held"
+    },
+    "stream_seq": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The sequence of the message in the stream that were acknowledged"
+    },
+    "consumer_seq": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The sequence of the message in the consumer that were acknowledged"
+    },
+    "ack_time": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The time it took on the final delivery for the message to be acknowledged in nanoseconds"
+    },
+    "deliveries": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The number of deliveries that were attempted before being acknowledged"
+    }
+  }
+}

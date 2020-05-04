@@ -6,7 +6,17 @@
   "type": "object",
   "allOf": [
     {
-      "$ref": "definitions.json#/definitions/iterable_request"
+      "type": "object",
+      "additionalItems": false,
+      "required": [
+        "offset"
+      ],
+      "properties": {
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     }
   ]
 }

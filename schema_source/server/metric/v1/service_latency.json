@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/server/metric/v1/service_latency.json",
+  "description": "Metric published about sampled service requests showing request status and latencies",
+  "title": "io.nats.server.metric.v1.service_latency",
+  "definitions": {
+    "latency_client": {
+      "type": "object",
+      "additionalItems": false,
+      "required": ["rtt", "ip", "cid", "server"],
+      "properties": {
+        "user": {
+          "type": "string",
+          "description": "The username of the connected client"
+        },
+        "name": {
+          "type": "string",
+          "description": "The connection name declared while connecting"
+        },
+        "rtt": {
+          "type": "integer",
+          "description": "The latency between the client and the server"
+        },
+        "ip": {
+          "type": "string",
+          "description": "The IP address the client is connecting from"
+        },
+        "cid": {
+          "type": "string",
+          "description": "The unique client ID assigned by the server"
+        },
+        "server": {
+          "type": "string",
+          "description": "The server name where the client is connected"
+        }
+      }
+    }
+  },
+  "type":"object",
+  "required":[
+    "type",
+    "id",
+    "timestamp",
+    "status",
+    "start",
+    "service",
+    "system",
+    "total"
+  ],
+  "additionalItems": false,
+  "properties": {
+    "type": {
+      "type":"string",
+      "const": "io.nats.server.metric.v1.service_latency"
+    },
+    "id": {
+      "type":"string",
+      "description": "Unique correlation ID for this event"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The time this event was created in RFC3339 format"
+    },
+    "status": {
+      "type": "integer",
+      "description": "The status of the request. 200 OK, 400 Bad Request, no reply subject. 408 Request Timeout, requester lost interest before request completed. 503 Service Unavailable. 504 Service Timeout.",
+      "enum": [200, 400, 408, 503, 504]
+    },
+    "error": {
+      "type": "string",
+      "description": "A description of the status code when not 200"
+    },
+    "start": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The time the request started"
+    },
+    "service": {
+      "type": "integer",
+      "description": "The time taken by the service to perform the request in nanoseconds"
+    },
+    "system": {
+      "type": "integer",
+      "description": "Time spend traversing the NATS network in nanoseconds"
+    },
+    "total": {
+      "type": "integer",
+      "description": "The overall request duration in nanoseconds"
+    }
+  }
+}
