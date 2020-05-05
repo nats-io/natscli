@@ -18,6 +18,7 @@ var (
 	version  string
 	username string
 	password string
+	trace    bool
 )
 
 func main() {
@@ -34,10 +35,11 @@ func main() {
 	ncli.Flag("user", "Username of Token").Envar("NATS_USER").StringVar(&username)
 	ncli.Flag("password", "Password").Envar("NATS_PASSWORD").StringVar(&password)
 	ncli.Flag("creds", "User credentials").Envar("NATS_CREDS").StringVar(&creds)
-	ncli.Flag("tlscert", "TLS public certificate").ExistingFileVar(&tlsCert)
-	ncli.Flag("tlskey", "TLS private key").ExistingFileVar(&tlsCert)
-	ncli.Flag("tlsca", "TLS certificate authority chain").ExistingFileVar(&tlsCA)
+	ncli.Flag("tlscert", "TLS public certificate").Envar("NATS_CERT").ExistingFileVar(&tlsCert)
+	ncli.Flag("tlskey", "TLS private key").Envar("NATS_KEY").ExistingFileVar(&tlsCert)
+	ncli.Flag("tlsca", "TLS certificate authority chain").Envar("NATS_CA").ExistingFileVar(&tlsCA)
 	ncli.Flag("timeout", "Time to wait on responses from NATS").Default("2s").Envar("NATS_TIMEOUT").DurationVar(&timeout)
+	ncli.Flag("trace", "Trace the JetStream JSON API interactions").BoolVar(&trace)
 
 	log.SetFlags(log.Ltime)
 

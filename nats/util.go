@@ -327,6 +327,10 @@ func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, error) {
 		jsm.SetTimeout(timeout)
 	}
 
+	if trace {
+		jsm.Trace()
+	}
+
 	jsm.SetConnection(nc)
 
 	return nc, err
