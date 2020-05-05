@@ -324,15 +324,15 @@ func (c *eventsCmd) eventsAction(_ *kingpin.ParseContext) error {
 	kingpin.FatalIfError(err, "invalid body regular expression")
 
 	if c.advisoriesF || c.allF {
-		c.Printf("Listening for Advisories on %s.>\n", api.JetStreamAdvisoryPrefix)
-		nc.Subscribe(fmt.Sprintf("%s.>", api.JetStreamAdvisoryPrefix), func(m *nats.Msg) {
+		c.Printf("Listening for Advisories on %s.>\n", api.JSAdvisoryPrefix)
+		nc.Subscribe(fmt.Sprintf("%s.>", api.JSAdvisoryPrefix), func(m *nats.Msg) {
 			c.handleNATSEvent(m)
 		})
 	}
 
 	if c.metricsF || c.allF {
-		c.Printf("Listening for Metrics on %s.>\n", api.JetStreamMetricPrefix)
-		nc.Subscribe(fmt.Sprintf("%s.>", api.JetStreamMetricPrefix), func(m *nats.Msg) {
+		c.Printf("Listening for Metrics on %s.>\n", api.JSMetricPrefix)
+		nc.Subscribe(fmt.Sprintf("%s.>", api.JSMetricPrefix), func(m *nats.Msg) {
 			c.handleNATSEvent(m)
 		})
 	}

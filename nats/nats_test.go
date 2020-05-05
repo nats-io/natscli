@@ -291,7 +291,7 @@ func TestCLIStreamGet(t *testing.T) {
 	_, err = nc.Request("js.mem.1", []byte("hello"), time.Second)
 	checkErr(t, err, "could not publish message: %v", err)
 
-	item, err := stream.LoadMessage(1)
+	item, err := stream.ReadMessage(1)
 	checkErr(t, err, "could not get message: %v", err)
 	if string(item.Data) != "hello" {
 		t.Fatalf("got incorrect data from message, expected 'hello' got: %v", string(item.Data))
@@ -589,19 +589,19 @@ func TestCLIMessageRm(t *testing.T) {
 		t.Fatalf("message was not removed")
 	}
 
-	msg, err := mem1.LoadMessage(1)
+	msg, err := mem1.ReadMessage(1)
 	checkErr(t, err, "load failed")
 	if cmp.Equal(msg.Data, []byte("msg1")) {
 		checkErr(t, err, "load failed")
 	}
 
-	msg, err = mem1.LoadMessage(3)
+	msg, err = mem1.ReadMessage(3)
 	checkErr(t, err, "load failed")
 	if cmp.Equal(msg.Data, []byte("msg3")) {
 		checkErr(t, err, "load failed")
 	}
 
-	msg, err = mem1.LoadMessage(2)
+	_, err = mem1.ReadMessage(2)
 	if err == nil {
 		t.Fatalf("loading delete message did not fail")
 	}

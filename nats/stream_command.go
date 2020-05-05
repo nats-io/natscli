@@ -848,7 +848,7 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 	stream, err := jsm.LoadStream(c.stream)
 	kingpin.FatalIfError(err, "could not load Stream %s", c.stream)
 
-	item, err := stream.LoadMessage(int(c.msgID))
+	item, err := stream.ReadMessage(int(c.msgID))
 	kingpin.FatalIfError(err, "could not retrieve %s#%d", c.stream, c.msgID)
 
 	if c.json {
