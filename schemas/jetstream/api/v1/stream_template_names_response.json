@@ -7,6 +7,31 @@
   "required": [
     "type"
   ],
+  "allOf": [
+    {
+      "type": "object",
+      "additionalItems": false,
+      "required": [
+        "total",
+        "offset",
+        "limit"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  ],
   "oneOf": [
     {
       "type": "object",

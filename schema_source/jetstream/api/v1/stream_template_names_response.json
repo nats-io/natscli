@@ -5,6 +5,11 @@
   "title": "io.nats.jetstream.api.v1.stream_template_names_response",
   "type": "object",
   "required": ["type"],
+  "allOf": [
+    {
+      "$ref": "definitions.json#/definitions/iterable_response"
+    }
+  ],
   "oneOf": [
     {
       "$ref": "definitions.json#/definitions/error_response"
