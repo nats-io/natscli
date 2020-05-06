@@ -1339,8 +1339,8 @@ The API uses JSON for inputs and outputs, all the responses are typed using a `t
 #### General Info
 
 |Subject|Constant|Description|Request Payload|Response Payload|
-|-----|-----------|---------------|----------------|
-|`$JS.API.INFO`|`api.JSApiAccountInfo`|Retrieves stats and limits about your account|empty payload|`api.JetStreamAccountStats`
+|-------|--------|-----------|---------------|----------------|
+|`$JS.API.INFO`|`api.JSApiAccountInfo`|Retrieves stats and limits about your account|empty payload|`api.JetStreamAccountStats`|
 
 #### Streams
 
