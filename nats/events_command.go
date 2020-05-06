@@ -244,12 +244,12 @@ func (c *eventsCmd) handleNATSEvent(m *nats.Msg) {
 	}
 
 	handle := func() error {
-		kind, event, err := api.ParseEvent(m.Data)
+		kind, event, err := api.ParseMessage(m.Data)
 		if err != nil {
 			return fmt.Errorf("parsing failed: %s", err)
 		}
 
-		if kind == "io.nats.unknown_event" {
+		if kind == "io.nats.unknown_message" {
 			return fmt.Errorf("unknown event")
 		}
 
