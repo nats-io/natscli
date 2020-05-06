@@ -457,7 +457,7 @@
       "required": ["config", "streams"],
       "properties": {
         "config": {
-          "$ref": "#/definitions/stream_configuration"
+          "$ref": "#/definitions/stream_template_configuration"
         },
         "streams": {
           "description": "List of Streams managed by this Template",
