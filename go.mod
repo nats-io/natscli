@@ -11,8 +11,8 @@ require (
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.4.1
-	github.com/nats-io/jsm.go v0.0.0-20200506114034-72f11a1da1f1
-	github.com/nats-io/nats-server/v2 v2.1.7-0.20200505163626-352c62e7ed11
+	github.com/nats-io/jsm.go v0.0.0-20200507084830-ef166d812a78
+	github.com/nats-io/nats-server/v2 v2.1.7-0.20200506142826-1069608a82f6
 	github.com/nats-io/nats.go v1.9.2
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190809123943-df4f5c81cb3b // indirect
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
