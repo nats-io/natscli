@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"regexp"
 	"sort"
 	"strconv"
@@ -714,12 +713,16 @@ func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 	cfg := c.prepareConfig()
 
 	if c.validateOnly {
+		j, err := json.MarshalIndent(cfg, "", "  ")
+		kingpin.FatalIfError(err, "Could not marshal configuration")
+		fmt.Println(string(j))
+		fmt.Println()
 		valid, errs := cfg.Validate()
 		if !valid {
 			kingpin.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
 		}
 
-		log.Println("Configuration is a valid Stream")
+		fmt.Println("Configuration is a valid Stream")
 		return nil
 	}
 
