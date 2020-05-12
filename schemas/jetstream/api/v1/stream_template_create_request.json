@@ -22,6 +22,7 @@
           "description": "The template configuration to create Streams with",
           "type": "object",
           "required": [
+            "subjects",
             "retention",
             "max_consumers",
             "max_msgs",

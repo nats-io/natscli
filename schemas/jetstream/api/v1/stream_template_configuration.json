@@ -26,6 +26,7 @@
     "config": {
       "type": "object",
       "required": [
+        "subjects",
         "retention",
         "max_consumers",
         "max_msgs",

@@ -5,6 +5,7 @@
   "title": "io.nats.jetstream.api.v1.stream_configuration",
   "type": "object",
   "required": [
+    "subjects",
     "retention",
     "max_consumers",
     "max_msgs",
