@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -51,6 +52,7 @@ type consumerCmd struct {
 	filterSubject string
 	delivery      string
 	ephemeral     bool
+	validateOnly  bool
 }
 
 func configureConsumerCommand(app *kingpin.Application) {
@@ -89,6 +91,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	consAdd.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
+	consAdd.Flag("validate", "Only validates the configuration against the official Schema").BoolVar(&c.validateOnly)
 	addCreateFlags(consAdd)
 
 	consCp := cons.Command("copy", "Creates a new Consumer based on the configuration of another").Alias("cp").Action(c.cpAction)
@@ -503,12 +506,22 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 }
 
 func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
-	c.connectAndSetup(true, false)
-
 	cfg, err := c.prepareConfig()
 	if err != nil {
 		return err
 	}
+
+	if c.validateOnly {
+		valid, errs := cfg.Validate()
+		if !valid {
+			kingpin.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
+		}
+
+		log.Println("Configuration is a valid Consumer")
+		return nil
+	}
+
+	c.connectAndSetup(true, false)
 
 	created, err := jsm.NewConsumerFromDefault(c.stream, *cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed")

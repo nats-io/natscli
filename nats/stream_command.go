@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"regexp"
 	"sort"
 	"strconv"
@@ -56,6 +57,7 @@ type streamCmd struct {
 	reportRaw           bool
 	maxStreams          int
 	discardPolicy       string
+	validateOnly        bool
 }
 
 func configureStreamCommand(app *kingpin.Application) {
@@ -83,6 +85,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strAdd := str.Command("create", "Create a new Stream").Alias("add").Alias("new").Action(c.addAction)
 	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	strAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
+	strAdd.Flag("validate", "Only validates the configuration against the official Schema").BoolVar(&c.validateOnly)
 	addCreateFlags(strAdd)
 
 	strEdit := str.Command("edit", "Edits an existing stream").Action(c.editAction)
@@ -186,6 +189,9 @@ func (c *streamCmd) streamTemplateAdd(pc *kingpin.ParseContext) (err error) {
 	}
 
 	cfg.Name = ""
+
+	_, err = prepareHelper(servers, natsOpts()...)
+	kingpin.FatalIfError(err, "could not create Stream")
 
 	_, err = jsm.NewStreamTemplate(c.stream, uint32(c.maxStreams), cfg)
 	kingpin.FatalIfError(err, "could not create Stream Template")
@@ -579,9 +585,6 @@ func (c *streamCmd) retentionPolicyFromString() api.RetentionPolicy {
 func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 	var err error
 
-	_, err = prepareHelper(servers, natsOpts()...)
-	kingpin.FatalIfError(err, "could not create Stream")
-
 	if c.inputFile != "" {
 		f, err := ioutil.ReadFile(c.inputFile)
 		kingpin.FatalIfError(err, "invalid input")
@@ -589,20 +592,12 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		err = json.Unmarshal(f, &cfg)
 		kingpin.FatalIfError(err, "invalid input")
 
-		if cfg.Name == "" && c.stream == "" {
-			kingpin.Fatalf("stream name is not set in the JSON configuration file or as CLI argument")
-		}
-
 		if c.stream != "" {
 			cfg.Name = c.stream
 		}
 
 		if c.stream == "" {
 			c.stream = cfg.Name
-		}
-
-		if c.stream != cfg.Name {
-			kingpin.Fatalf("stream name from configuration does not match name supplied on the CLI")
 		}
 
 		return cfg
@@ -717,6 +712,19 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 
 func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 	cfg := c.prepareConfig()
+
+	if c.validateOnly {
+		valid, errs := cfg.Validate()
+		if !valid {
+			kingpin.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
+		}
+
+		log.Println("Configuration is a valid Stream")
+		return nil
+	}
+
+	_, err = prepareHelper(servers, natsOpts()...)
+	kingpin.FatalIfError(err, "could not create Stream")
 
 	_, err = jsm.NewStreamFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "could not create Stream")

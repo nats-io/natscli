@@ -503,7 +503,7 @@ func TestCLIBackupRestore(t *testing.T) {
 	checkErr(t, err, "consumer c1 failed")
 	origC1Config := c1.Configuration()
 
-	t1, err := jsm.NewStreamTemplate("t1", 1, jsm.DefaultStream, jsm.MemoryStorage())
+	t1, err := jsm.NewStreamTemplate("t1", 1, jsm.DefaultStream, jsm.Subjects("t1"), jsm.MemoryStorage())
 	checkErr(t, err, "TEST template create failed")
 	origT1Config := t1.Configuration()
 
