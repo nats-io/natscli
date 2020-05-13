@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ "$1" = "server" ];
+if [ "$1" = "server" ] || [ "$JSM_MODE" = "server" ];
 then
   shift
 
