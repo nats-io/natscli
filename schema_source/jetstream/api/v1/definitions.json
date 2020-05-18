@@ -346,10 +346,20 @@
           "description": "Sequence number of the first message in the Stream",
           "minimum": 0
         },
+        "first_ts": {
+          "type": "string",
+          "description": "The timestamp of the first message in the Stream",
+          "format": "date-time"
+        },
         "last_seq": {
           "type": "integer",
           "description": "Sequence number of the last message in the Stream",
           "minimum": 0
+        },
+        "last_ts": {
+          "type": "string",
+          "description": "The timestamp of the last message in the Stream",
+          "format": "date-time"
         },
         "consumer_count": {
           "type": "integer",
