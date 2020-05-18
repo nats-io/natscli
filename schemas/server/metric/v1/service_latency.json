@@ -8,12 +8,23 @@
       "type": "object",
       "additionalItems": false,
       "required": [
-        "rtt",
-        "ip",
-        "cid",
-        "server"
+        "acc",
+        "rtt"
       ],
       "properties": {
+        "acc": {
+          "type": "string",
+          "description": "The account the client belongs to"
+        },
+        "rtt": {
+          "type": "integer",
+          "description": "The latency between the client and the server"
+        },
+        "start": {
+          "type": "string",
+          "description": "The time this client connected to the server",
+          "format": "date-time"
+        },
         "user": {
           "type": "string",
           "description": "The username of the connected client"
@@ -22,9 +33,13 @@
           "type": "string",
           "description": "The connection name declared while connecting"
         },
-        "rtt": {
-          "type": "integer",
-          "description": "The latency between the client and the server"
+        "lang": {
+          "type": "string",
+          "description": "The language the client is programmed in"
+        },
+        "ver": {
+          "type": "string",
+          "description": "The version of the client library"
         },
         "ip": {
           "type": "string",
