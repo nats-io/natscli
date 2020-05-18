@@ -56,7 +56,7 @@ func configureEventsCommand(app *kingpin.Application) {
 	events.Flag("metrics", "Shows JetStream metric events (false)").Default("false").BoolVar(&c.metricsF)
 	events.Flag("advisories", "Shows advisory events (true)").Default("true").BoolVar(&c.advisoriesF)
 	events.Flag("connections", "Shows connections being opened and closed (false)").Default("false").BoolVar(&c.connsF)
-	events.Flag("latency", "Show service latency samples received on a specific subject").PlaceHolder("SUBJECT").Default("").StringsVar(&c.latencySubj)
+	events.Flag("latency", "Show service latency samples received on a specific subject").PlaceHolder("SUBJECT").StringsVar(&c.latencySubj)
 }
 
 func (c *eventsCmd) parseShortTemplates() (err error) {
@@ -152,12 +152,23 @@ func (c *eventsCmd) parseFullTemplates() (err error) {
                Service: {{ .ServiceLatency }}
 {{ with .Requestor }}
    Requestor:
+     Account: {{ .Account }}
+{{ if .Start }}
+       Start: {{ .Start }}
+{{- end }}
 {{ if .User }}
         User: {{ .User }}
 {{- end }}
 {{- if .Name }}
         Name: {{ .Name }}
 {{- end }}
+{{- if .Lang }}
+    Language: {{ .Lang }}
+{{- end }}
+{{- if .Version }}
+     Version: {{ .Version }}
+{{- end }}
+
 {{- if .CID }}
           IP: {{ .IP }}
          CID: {{ .CID }}
@@ -167,15 +178,28 @@ func (c *eventsCmd) parseFullTemplates() (err error) {
 {{- end }}
 {{ with .Responder }}
    Responder:
+     Account: {{ .Account }}
+{{ if .Start }}
+       Start: {{ .Start }}
+{{- end }}
 {{ if .User }}
         User: {{ .User }}
 {{- end }}
 {{- if .Name }}
         Name: {{ .Name }}
 {{- end }}
+{{- if .Lang }}
+    Language: {{ .Lang }}
+{{- end }}
+{{- if .Version }}
+     Version: {{ .Version }}
+{{- end }}
+
+{{- if .CID }}
           IP: {{ .IP }}
          CID: {{ .CID }}
       Server: {{ .Server }}
+{{- end }}
          RTT: {{ .RTT }}
 {{- end }}`
 
