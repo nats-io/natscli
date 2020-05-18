@@ -519,8 +519,8 @@ func (c *streamCmd) infoAction(_ *kingpin.ParseContext) error {
 	fmt.Println()
 	fmt.Printf("            Messages: %s\n", humanize.Comma(int64(mstats.State.Msgs)))
 	fmt.Printf("               Bytes: %s\n", humanize.IBytes(mstats.State.Bytes))
-	fmt.Printf("            FirstSeq: %s\n", humanize.Comma(int64(mstats.State.FirstSeq)))
-	fmt.Printf("             LastSeq: %s\n", humanize.Comma(int64(mstats.State.LastSeq)))
+	fmt.Printf("            FirstSeq: %s @ %s UTC\n", humanize.Comma(int64(mstats.State.FirstSeq)), mstats.State.FirstTime.Format("2006-01-02T15:04:05"))
+	fmt.Printf("             LastSeq: %s @ %s UTC\n", humanize.Comma(int64(mstats.State.LastSeq)), mstats.State.LastTime.Format("2006-01-02T15:04:05"))
 	fmt.Printf("    Active Consumers: %d\n", mstats.State.Consumers)
 
 	fmt.Println()
