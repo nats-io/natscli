@@ -104,7 +104,12 @@ func (c *rttCmd) performTest(targets []*rttTarget) (err error) {
 		opts := natsOpts()
 		if target.tlsName != "" {
 			opts = append(opts, func(o *nats.Options) error {
-				o.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, ServerName: target.tlsName}
+				if o.TLSConfig == nil {
+					o.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, ServerName: target.tlsName}
+				} else {
+					o.TLSConfig.ServerName = target.tlsName
+				}
+
 				return nil
 			})
 		}
