@@ -210,7 +210,30 @@ func (c *eventsCmd) parseFullTemplates() (err error) {
 	t["io.nats.server.advisory.v1.client_connect"] = `
 [{{ .Time | ShortTime }}] [{{ .ID }}] Client Connection
 
-{{- if .Reason }}
+   Server: {{ .Server.Name }}
+{{- if .Server.Cluster }}
+  Cluster: {{ .Server.Cluster }}
+{{- end }}
+
+   Client:
+            ID: {{ .Client.ID }}
+{{- if .Client.User }}
+          User: {{ .Client.User }}
+{{- end }}
+{{- if .Client.Name }}
+          Name: {{ .Client.Name }}
+{{- end }}
+       Account: {{ .Client.Account }}
+{{- if .Client.Lang }}
+      Language: {{ .Client.Lang }} {{ .Client.Version }}
+{{- end }}
+{{- if .Client.Host }}
+          Host: {{ .Client.Host }}
+{{- end }}`
+
+	t["io.nats.server.advisory.v1.client_disconnect"] = `
+[{{ .Time | ShortTime }}] [{{ .ID }}] Client Disconnection
+{{ if .Reason }}
    Reason: {{ .Reason }}
 {{- end }}
    Server: {{ .Server.Name }}
@@ -233,14 +256,11 @@ func (c *eventsCmd) parseFullTemplates() (err error) {
 {{- if .Client.Host }}
           Host: {{ .Client.Host }}
 {{- end }}
-{{ if .Stats }}
+
    Stats:
       Received: {{ .Received.Msgs }} messages ({{ .Received.Bytes | IBytes }})
      Published: {{ .Sent.Msgs }} messages ({{ .Sent.Bytes | IBytes }})
-           RTT: {{ .Client.RTT }}
-{{- end }}`
-
-	t["io.nats.server.advisory.v1.client_disconnect"] = t["io.nats.server.advisory.v1.client_connect"]
+           RTT: {{ .Client.RTT }}`
 
 	t["io.nats.jetstream.advisory.v1.stream_action"] = `
 [{{ .Time | ShortTime }}] [{{ .ID }}] Stream {{ .Action | ActionTitle }} Action
