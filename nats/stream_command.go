@@ -430,7 +430,9 @@ func (c *streamCmd) editAction(pc *kingpin.ParseContext) error {
 		fmt.Printf("Stream %s was updated\n\n", c.stream)
 	}
 
-	return c.infoAction(pc)
+	c.showStream(sourceStream)
+
+	return nil
 }
 
 func (c *streamCmd) cpAction(pc *kingpin.ParseContext) error {
@@ -448,15 +450,16 @@ func (c *streamCmd) cpAction(pc *kingpin.ParseContext) error {
 
 	cfg.Name = c.destination
 
-	_, err = jsm.NewStreamFromDefault(cfg.Name, cfg)
+	new, err := jsm.NewStreamFromDefault(cfg.Name, cfg)
 	kingpin.FatalIfError(err, "could not create Stream")
 
 	if !c.json {
 		fmt.Printf("Stream %s was created\n\n", c.stream)
 	}
 
-	c.stream = c.destination
-	return c.infoAction(pc)
+	c.showStream(new)
+
+	return nil
 }
 
 func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
@@ -497,31 +500,44 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	}
 }
 
+func (c *streamCmd) showStream(stream *jsm.Stream) error {
+	info, err := stream.Information()
+	if err != nil {
+		return err
+	}
+
+	c.showStreamInfo(info)
+
+	return nil
+}
+
+func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
+	if c.json {
+		err := printJSON(info)
+		kingpin.FatalIfError(err, "could not display info")
+		return
+	}
+
+	fmt.Printf("Information for Stream %s\n", c.stream)
+	fmt.Println()
+	c.showStreamConfig(info.Config)
+	fmt.Println()
+	fmt.Println("State:")
+	fmt.Println()
+	fmt.Printf("            Messages: %s\n", humanize.Comma(int64(info.State.Msgs)))
+	fmt.Printf("               Bytes: %s\n", humanize.IBytes(info.State.Bytes))
+	fmt.Printf("            FirstSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.FirstSeq)), info.State.FirstTime.Format("2006-01-02T15:04:05"))
+	fmt.Printf("             LastSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.LastSeq)), info.State.LastTime.Format("2006-01-02T15:04:05"))
+	fmt.Printf("    Active Consumers: %d\n", info.State.Consumers)
+}
+
 func (c *streamCmd) infoAction(_ *kingpin.ParseContext) error {
 	c.connectAndAskStream()
 
 	stream, err := jsm.LoadStream(c.stream)
 	kingpin.FatalIfError(err, "could not request Stream info")
-	mstats, err := stream.Information()
-	kingpin.FatalIfError(err, "could not request Stream info")
-
-	if c.json {
-		err = printJSON(mstats)
-		kingpin.FatalIfError(err, "could not display info")
-		return nil
-	}
-
-	fmt.Printf("Information for Stream %s\n", c.stream)
-	fmt.Println()
-	c.showStreamConfig(mstats.Config)
-	fmt.Println()
-	fmt.Println("State:")
-	fmt.Println()
-	fmt.Printf("            Messages: %s\n", humanize.Comma(int64(mstats.State.Msgs)))
-	fmt.Printf("               Bytes: %s\n", humanize.IBytes(mstats.State.Bytes))
-	fmt.Printf("            FirstSeq: %s @ %s UTC\n", humanize.Comma(int64(mstats.State.FirstSeq)), mstats.State.FirstTime.Format("2006-01-02T15:04:05"))
-	fmt.Printf("             LastSeq: %s @ %s UTC\n", humanize.Comma(int64(mstats.State.LastSeq)), mstats.State.LastTime.Format("2006-01-02T15:04:05"))
-	fmt.Printf("    Active Consumers: %d\n", mstats.State.Consumers)
+	err = c.showStream(stream)
+	kingpin.FatalIfError(err, "could not show stream")
 
 	fmt.Println()
 
@@ -729,12 +745,14 @@ func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 	_, err = prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "could not create Stream")
 
-	_, err = jsm.NewStreamFromDefault(c.stream, cfg)
+	str, err := jsm.NewStreamFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "could not create Stream")
 
 	fmt.Printf("Stream %s was created\n\n", c.stream)
 
-	return c.infoAction(pc)
+	c.showStream(str)
+
+	return nil
 }
 
 func (c *streamCmd) rmAction(_ *kingpin.ParseContext) (err error) {
@@ -776,7 +794,9 @@ func (c *streamCmd) purgeAction(pc *kingpin.ParseContext) (err error) {
 	err = stream.Purge()
 	kingpin.FatalIfError(err, "could not purge Stream")
 
-	return c.infoAction(pc)
+	c.showStream(stream)
+
+	return nil
 }
 
 func (c *streamCmd) lsAction(_ *kingpin.ParseContext) (err error) {

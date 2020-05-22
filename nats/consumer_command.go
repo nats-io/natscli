@@ -160,22 +160,21 @@ func (c *consumerCmd) lsAction(pc *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *consumerCmd) infoAction(pc *kingpin.ParseContext) error {
-	c.connectAndSetup(true, true)
-
-	consumer, err := jsm.LoadConsumer(c.stream, c.consumer)
-	kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
-
+func (c *consumerCmd) showConsumer(consumer *jsm.Consumer) {
 	config := consumer.Configuration()
 	state, err := consumer.State()
 	kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
 
+	c.showInfo(config, state)
+}
+
+func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo) {
 	if c.json {
 		printJSON(state)
-		return nil
+		return
 	}
 
-	fmt.Printf("Information for Consumer %s > %s\n", c.stream, c.consumer)
+	fmt.Printf("Information for Consumer %s > %s\n", state.Stream, state.Name)
 	fmt.Println()
 	fmt.Println("Configuration:")
 	fmt.Println()
@@ -226,6 +225,15 @@ func (c *consumerCmd) infoAction(pc *kingpin.ParseContext) error {
 	fmt.Printf("        Pending Messages: %d\n", state.NumPending)
 	fmt.Printf("    Redelivered Messages: %d\n", state.NumRedelivered)
 	fmt.Println()
+}
+
+func (c *consumerCmd) infoAction(pc *kingpin.ParseContext) error {
+	c.connectAndSetup(true, true)
+
+	consumer, err := jsm.LoadConsumer(c.stream, c.consumer)
+	kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
+
+	c.showConsumer(consumer)
 
 	return nil
 }
@@ -351,7 +359,7 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.MaxDeliver = c.maxDeliver
 	}
 
-	_, err = jsm.NewConsumerFromDefault(c.stream, cfg)
+	consumer, err := jsm.NewConsumerFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed")
 
 	if cfg.Durable == "" {
@@ -359,7 +367,10 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 	}
 
 	c.consumer = cfg.Durable
-	return c.infoAction(pc)
+
+	c.showConsumer(consumer)
+
+	return nil
 }
 
 func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
@@ -531,7 +542,9 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 
 	c.consumer = created.Name()
 
-	return c.infoAction(pc)
+	c.showConsumer(created)
+
+	return nil
 }
 
 func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
