@@ -14,6 +14,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/api/jetstream/advisory"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -67,14 +68,17 @@ func (c *eventsCmd) parseShortTemplates() (err error) {
 	t["io.nats.server.metric.v1.service_latency"] = `{{ .Time | ShortTime }} [Svc Latency] {{ if .Error }}{{ .Error }} {{ end }}requestor {{ .Requestor.RTT }} <-> system {{ .SystemLatency }} <- service rtt {{ .Responder.RTT }} -> service {{ .ServiceLatency }}`
 	t["io.nats.server.advisory.v1.client_connect"] = `{{ .Time | ShortTime }} [Connection] {{ if .Client.User }}user: {{ .Client.User }}{{ end }} cid: {{ .Client.ID }} in account {{ .Client.Account }}`
 	t["io.nats.server.advisory.v1.client_disconnect"] = `{{ .Time | ShortTime }} [Disconnection] {{ if .Client.User }}user: {{ .Client.User }}{{ end }} cid: {{ .Client.ID }} in account {{ .Client.Account }}: {{ .Reason }}`
+	t["io.nats.jetstream.advisory.v1.stream_action"] = `{{ .Time | ShortTime }} [Stream {{ .Action | ActionTitle }}] {{ .Stream }}`
+	t["io.nats.jetstream.advisory.v1.consumer_action"] = `{{ .Time | ShortTime }} [Consumer {{ .Action | ActionTitle }}] {{ .Stream }} > {{ .Consumer }}`
 
 	for k, tmpl := range t {
 		c.stemplate[k], err = template.New(k).Funcs(map[string]interface{}{
-			"ShortTime": func(v time.Time) string { return v.Format("15:04:05") },
-			"NanoTime":  func(v time.Time) string { return v.Format("15:04:05.000") },
-			"IBytes":    func(v int64) string { return humanize.IBytes(uint64(v)) },
-			"HostPort":  func(h string, p int) string { return net.JoinHostPort(h, strconv.Itoa(p)) },
-			"LeftPad":   func(indent int, v string) string { return leftPad(v, indent) },
+			"ShortTime":   func(v time.Time) string { return v.Format("15:04:05") },
+			"NanoTime":    func(v time.Time) string { return v.Format("15:04:05.000") },
+			"IBytes":      func(v int64) string { return humanize.IBytes(uint64(v)) },
+			"HostPort":    func(h string, p int) string { return net.JoinHostPort(h, strconv.Itoa(p)) },
+			"LeftPad":     func(indent int, v string) string { return leftPad(v, indent) },
+			"ActionTitle": func(t advisory.ActionAdvisoryTypeV1) string { return strings.Title(string(t)) },
 		}).Parse(tmpl)
 		if err != nil {
 			return err
@@ -238,13 +242,28 @@ func (c *eventsCmd) parseFullTemplates() (err error) {
 
 	t["io.nats.server.advisory.v1.client_disconnect"] = t["io.nats.server.advisory.v1.client_connect"]
 
+	t["io.nats.jetstream.advisory.v1.stream_action"] = `
+[{{ .Time | ShortTime }}] [{{ .ID }}] Stream {{ .Action | ActionTitle }} Action
+
+        Stream: {{ .Stream }}
+{{- if .Template }}
+      Template: {{ .Template }}
+{{- end }}`
+
+	t["io.nats.jetstream.advisory.v1.consumer_action"] = `
+[{{ .Time | ShortTime }}] [{{ .ID }}] Consumer {{ .Action | ActionTitle }} Action
+
+        Stream: {{ .Stream }}
+      Consumer: {{ .Consumer }}`
+
 	for k, tmpl := range t {
 		c.ftemplate[k], err = template.New(k).Funcs(map[string]interface{}{
-			"ShortTime": func(v time.Time) string { return v.Format("15:04:05") },
-			"NanoTime":  func(v time.Time) string { return v.Format("15:04:05.000") },
-			"IBytes":    func(v int64) string { return humanize.IBytes(uint64(v)) },
-			"HostPort":  func(h string, p int) string { return net.JoinHostPort(h, strconv.Itoa(p)) },
-			"LeftPad":   func(indent int, v string) string { return leftPad(v, indent) },
+			"ShortTime":   func(v time.Time) string { return v.Format("15:04:05") },
+			"NanoTime":    func(v time.Time) string { return v.Format("15:04:05.000") },
+			"IBytes":      func(v int64) string { return humanize.IBytes(uint64(v)) },
+			"HostPort":    func(h string, p int) string { return net.JoinHostPort(h, strconv.Itoa(p)) },
+			"LeftPad":     func(indent int, v string) string { return leftPad(v, indent) },
+			"ActionTitle": func(t advisory.ActionAdvisoryTypeV1) string { return strings.Title(string(t)) },
 		}).Parse(tmpl)
 		if err != nil {
 			return err
