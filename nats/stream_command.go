@@ -526,8 +526,19 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	fmt.Println()
 	fmt.Printf("            Messages: %s\n", humanize.Comma(int64(info.State.Msgs)))
 	fmt.Printf("               Bytes: %s\n", humanize.IBytes(info.State.Bytes))
-	fmt.Printf("            FirstSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.FirstSeq)), info.State.FirstTime.Format("2006-01-02T15:04:05"))
-	fmt.Printf("             LastSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.LastSeq)), info.State.LastTime.Format("2006-01-02T15:04:05"))
+
+	if info.State.FirstTime.IsZero() {
+		fmt.Printf("            FirstSeq: %s\n", humanize.Comma(int64(info.State.FirstSeq)))
+	} else {
+		fmt.Printf("            FirstSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.FirstSeq)), info.State.FirstTime.Format("2006-01-02T15:04:05"))
+	}
+
+	if info.State.LastTime.IsZero() {
+		fmt.Printf("             LastSeq: %s\n", humanize.Comma(int64(info.State.LastSeq)))
+	} else {
+		fmt.Printf("             LastSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.LastSeq)), info.State.LastTime.Format("2006-01-02T15:04:05"))
+	}
+
 	fmt.Printf("    Active Consumers: %d\n", info.State.Consumers)
 }
 
