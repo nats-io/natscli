@@ -44,7 +44,7 @@ func runNatsCli(t *testing.T, args ...string) (output []byte) {
 	} else {
 		cmd = fmt.Sprintf("go run $(ls *.go | grep -v _test.go) %s", strings.Join(args, " "))
 	}
-	t.Logf("Running: %q", cmd)
+	// t.Logf("Running: %q", cmd)
 
 	execution := exec.CommandContext(ctx, "bash", "-c", cmd)
 	out, err := execution.CombinedOutput()
