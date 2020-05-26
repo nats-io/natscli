@@ -1,0 +1,48 @@
+name: NATS CLI Testing
+on: [push, pull_request]
+
+jobs:
+  test:
+    env:
+      GOPATH: /home/runner/work/jetstream
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+        with:
+          path: src/github.com/nats-io/nats-server
+
+      - name: Setup Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.14
+
+      - name: Install deps
+        shell: bash --noprofile --norc -x -eo pipefail {0}
+        run: |
+          go get -u honnef.co/go/tools/cmd/staticcheck
+          go get -u github.com/client9/misspell/cmd/misspell
+
+      - name: Build
+        shell: bash --noprofile --norc -x -eo pipefail {0}
+        run: |
+          cd nats
+          go build
+
+      - name: Lint
+        shell: bash --noprofile --norc -x -eo pipefail {0}
+        run: |
+          PATH=$PATH:$GOPATH/bin
+          GO_LIST=$(go list ./...)
+          $(exit $(go fmt $GO_LIST | wc -l))
+          go vet $GO_LIST
+          find . -type f -name "*.go" | xargs misspell -error -locale US
+          staticcheck -f stylish $GO_LIST
+
+      - name: Run tests
+        shell: bash --noprofile --norc -x -eo pipefail {0}
+        run: |
+          set -e
+          go test -v --failfast -p=1 ./...
+          set +e
