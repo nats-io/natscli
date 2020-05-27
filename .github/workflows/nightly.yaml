@@ -1,7 +1,7 @@
 name: JSM Nightly
 on:
   schedule:
-    - "0 4 * * *"
+    - cron: "0 4 * * *"
 
 jobs:
   nightly_release:
