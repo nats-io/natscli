@@ -58,6 +58,7 @@ JetStream is the [NATS.io](https://nats.io) persistence engine that will support
   * [Fetching The Next Message From a Pull-based Consumer](#fetching-the-next-message-from-a-pull-based-consumer)
   * [Fetching From a Stream By Sequence](#fetching-from-a-stream-by-sequence)
   * [Consumer Samples](#consumer-samples)
+- [Multi Tenancy and Resource Management](#multi-tenancy-and-resource-management)
 - [Next Steps](#next-steps)
 - [Discussion Items](#discussion-items)
   * [DLQ (Dead Letter Queue)](#dlq-dead-letter-queue)
@@ -1531,6 +1532,67 @@ The Subject shows where the message was received, Data is base64 encoded and Tim
 ### Consumer Samples
 
 Samples are published to a specific subject per Consumer, something like `$JS.EVENT.METRIC.CONSUMER_ACK.<stream>.<consumer>` you can just subscribe to that and get `api.ConsumerAckMetric` messages in JSON format.  The prefix is defined in `api.JetStreamMetricConsumerAckPre`.
+
+## Multi Tenancy and Resource Management
+
+JetStream is compatible with NATS 2.0 Multi Tenancy using Accounts. A JetStream enabled server supports creating fully isolated JetStream environments for different accounts.
+
+To enable JetStream in a server we have to configure it at the top level first:
+
+```
+jetstream: enabled
+```
+
+This will dynamically determine the available resources. It's recommended that you set specific limits though:
+
+```
+jetstream {
+    store_dir: /data/jetstream
+    max_memory_store: 1G
+    max_file_store: 100G
+}
+```
+
+At this point JetStream will be enabled and if you have a server that does not have accounts enabled all users in the server would have access to JetStream
+
+```
+jetstream {
+    store_dir: /data/jetstream
+    max_memory_store: 1G
+    max_file_store: 100G
+}
+
+accounts {
+    HR: {
+        jetstream: enabled
+    }
+}
+```
+
+Here the `HR` account would have access to all the resources configured on the server, we can restrict it:
+
+```
+jetstream {
+    store_dir: /data/jetstream
+    max_memory_store: 1G
+    max_file_store: 100G
+}
+
+accounts {
+    HR: {
+        jetstream {
+            max_mem: 512M
+            max_file: 1G
+            max_streams: 10
+            max_consumers: 100
+        }
+    }
+}
+```
+
+Now the `HR` account it limited in various dimensions.
+
+If you try to configure JetStream for an account without enabling it globally you'll get a warning and the account designated as System cannot have JetStream enabled.
 
 ## Next Steps
 
