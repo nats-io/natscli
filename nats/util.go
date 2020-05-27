@@ -26,6 +26,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats.go"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go"
 )
@@ -300,6 +301,13 @@ func natsOpts() []nats.Option {
 
 	if creds != "" {
 		opts = append(opts, nats.UserCredentials(creds))
+	}
+
+	if nkey != "" {
+		nko, err := nats.NkeyOptionFromSeed(nkey)
+		kingpin.FatalIfError(err, "nkey authentication error")
+
+		opts = append(opts, nko)
 	}
 
 	if tlsCert != "" && tlsKey != "" {
