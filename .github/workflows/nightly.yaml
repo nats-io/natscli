@@ -1,0 +1,26 @@
+name: JSM Nightly
+on:
+  schedule:
+    - "0 4 * * *"
+
+jobs:
+  nightly_release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - name: Setup Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.14
+
+      - name: goreleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          args: release --snapshot --config .goreleaser-nightly.yml
+
+      - name: images
+        run: |
+          docker images
