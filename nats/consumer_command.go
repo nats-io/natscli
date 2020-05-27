@@ -651,11 +651,11 @@ func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool) {
 	kingpin.FatalIfError(err, "setup failed")
 
 	if askStream {
-		c.stream, err = selectStream(c.stream)
+		c.stream, err = selectStream(c.stream, c.force)
 		kingpin.FatalIfError(err, "could not select Stream")
 
 		if askConsumer {
-			c.consumer, err = selectConsumer(c.stream, c.consumer)
+			c.consumer, err = selectConsumer(c.stream, c.consumer, c.force)
 			kingpin.FatalIfError(err, "could not select Consumer")
 		}
 	}
