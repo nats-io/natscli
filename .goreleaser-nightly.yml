@@ -49,4 +49,4 @@ checksum:
   algorithm: sha256
 
 snapshot:
-  name_template: 'nightly-{{ time "20060201" }}'
+  name_template: 'nightly-{{ time "20060102" }}'
