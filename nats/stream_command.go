@@ -811,7 +811,7 @@ func (c *streamCmd) purgeAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) lsAction(_ *kingpin.ParseContext) (err error) {
-	prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	streams, err := jsm.StreamNames()
