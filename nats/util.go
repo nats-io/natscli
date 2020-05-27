@@ -31,7 +31,7 @@ import (
 	"github.com/nats-io/jsm.go"
 )
 
-func selectConsumer(stream string, consumer string) (string, error) {
+func selectConsumer(stream string, consumer string, force bool) (string, error) {
 	if consumer != "" {
 		known, err := jsm.IsKnownConsumer(stream, consumer)
 		if err != nil {
@@ -41,6 +41,10 @@ func selectConsumer(stream string, consumer string) (string, error) {
 		if known {
 			return consumer, nil
 		}
+	}
+
+	if force {
+		return "", fmt.Errorf("unknown consumer %q > %q", stream, consumer)
 	}
 
 	consumers, err := jsm.ConsumerNames(stream)
@@ -66,7 +70,7 @@ func selectConsumer(stream string, consumer string) (string, error) {
 	}
 }
 
-func selectStreamTemplate(template string) (string, error) {
+func selectStreamTemplate(template string, force bool) (string, error) {
 	if template != "" {
 		known, err := jsm.IsKnownStreamTemplate(template)
 		if err != nil {
@@ -76,6 +80,10 @@ func selectStreamTemplate(template string) (string, error) {
 		if known {
 			return template, nil
 		}
+	}
+
+	if force {
+		return "", fmt.Errorf("unknown template %q", template)
 	}
 
 	templates, err := jsm.StreamTemplateNames()
@@ -101,7 +109,7 @@ func selectStreamTemplate(template string) (string, error) {
 	}
 }
 
-func selectStream(stream string) (string, error) {
+func selectStream(stream string, force bool) (string, error) {
 	if stream != "" {
 		known, err := jsm.IsKnownStream(stream)
 		if err != nil {
@@ -111,6 +119,10 @@ func selectStream(stream string) (string, error) {
 		if known {
 			return stream, nil
 		}
+	}
+
+	if force {
+		return "", fmt.Errorf("unknown stream %q", stream)
 	}
 
 	streams, err := jsm.StreamNames()

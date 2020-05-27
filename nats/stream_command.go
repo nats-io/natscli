@@ -152,7 +152,7 @@ func (c *streamCmd) streamTemplateRm(_ *kingpin.ParseContext) (err error) {
 	_, err = prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	c.stream, err = selectStreamTemplate(c.stream)
+	c.stream, err = selectStreamTemplate(c.stream, c.force)
 	kingpin.FatalIfError(err, "could not pick a Stream Template to operate on")
 
 	template, err := jsm.LoadStreamTemplate(c.stream)
@@ -204,7 +204,7 @@ func (c *streamCmd) streamTemplateInfo(_ *kingpin.ParseContext) error {
 	_, err := prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	c.stream, err = selectStreamTemplate(c.stream)
+	c.stream, err = selectStreamTemplate(c.stream, c.force)
 	kingpin.FatalIfError(err, "could not pick a Stream Template to operate on")
 
 	info, err := jsm.LoadStreamTemplate(c.stream)
@@ -906,6 +906,6 @@ func (c *streamCmd) connectAndAskStream() {
 	_, err := prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	c.stream, err = selectStream(c.stream)
+	c.stream, err = selectStream(c.stream, c.force)
 	kingpin.FatalIfError(err, "could not pick a Stream to operate on")
 }
