@@ -1548,8 +1548,8 @@ This will dynamically determine the available resources. It's recommended that y
 ```
 jetstream {
     store_dir: /data/jetstream
-    max_memory_store: 1G
-    max_file_store: 100G
+    max_mem: 1G
+    max_file: 100G
 }
 ```
 
@@ -1558,8 +1558,8 @@ At this point JetStream will be enabled and if you have a server that does not h
 ```
 jetstream {
     store_dir: /data/jetstream
-    max_memory_store: 1G
-    max_file_store: 100G
+    max_mem: 1G
+    max_file: 100G
 }
 
 accounts {
@@ -1574,8 +1574,8 @@ Here the `HR` account would have access to all the resources configured on the s
 ```
 jetstream {
     store_dir: /data/jetstream
-    max_memory_store: 1G
-    max_file_store: 100G
+    max_mem: 1G
+    max_file: 100G
 }
 
 accounts {
