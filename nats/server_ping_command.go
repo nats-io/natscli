@@ -43,10 +43,6 @@ func configureServerPingCommand(srv *kingpin.CmdClause) {
 }
 
 func (c *SrvPingCmd) ping(_ *kingpin.ParseContext) error {
-	if creds == "" {
-		return fmt.Errorf("listing servers requires credentials supplied with --creds")
-	}
-
 	nc, err := newNatsConn(servers, natsOpts()...)
 	if err != nil {
 		return err

@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"sort"
 	"sync"
 	"sync/atomic"
 
@@ -35,6 +36,13 @@ type SrvLsCmd struct {
 	filter string
 }
 
+type srvListCluster struct {
+	name  string
+	nodes []string
+	gwOut int
+	gwIn  int
+}
+
 func configureServerListCommand(srv *kingpin.CmdClause) {
 	c := &SrvLsCmd{}
 
@@ -45,10 +53,6 @@ func configureServerListCommand(srv *kingpin.CmdClause) {
 }
 
 func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
-	if creds == "" {
-		return fmt.Errorf("listing servers requires credentials supplied with --creds")
-	}
-
 	nc, err := newNatsConn(servers, natsOpts()...)
 	if err != nil {
 		return err
@@ -71,7 +75,16 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	var (
+		clusters          = make(map[string]*srvListCluster)
+		servers           = 0
+		connections       = 0
+		memory      int64 = 0
+		slow        int64 = 0
+	)
+
 	table := tablewriter.CreateTable()
+	table.AddTitle("Server Overview")
 	table.AddHeaders("Name", "Cluster", "IP", "Version", "Conns", "Routes", "GWs", "Mem", "CPU", "Slow", "Uptime")
 
 	sub, err := ec.Subscribe(nc.NewRespInbox(), func(ssm *server.ServerStatsMsg) {
@@ -81,11 +94,30 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 			return
 		}
 
+		servers++
+		connections += ssm.Stats.Connections
+		memory += ssm.Stats.Mem
+		slow += ssm.Stats.SlowConsumers
+
+		cluster := ssm.Server.Cluster
+		if cluster != "" {
+			_, ok := clusters[cluster]
+			if !ok {
+				clusters[cluster] = &srvListCluster{cluster, []string{}, 0, 0}
+			}
+
+			clusters[cluster].nodes = append(clusters[cluster].nodes, ssm.Server.Name)
+			clusters[cluster].gwOut += len(ssm.Stats.Gateways)
+			for _, g := range ssm.Stats.Gateways {
+				clusters[cluster].gwIn += g.NumInbound
+			}
+		}
+
 		mu.Lock()
 		results = append(results, ssm)
 		mu.Unlock()
 
-		table.AddRow(ssm.Server.Name, ssm.Server.Cluster, ssm.Server.Host, ssm.Server.Version, int(ssm.Stats.Connections), len(ssm.Stats.Routes), len(ssm.Stats.Gateways), humanize.IBytes(uint64(ssm.Stats.Mem)), fmt.Sprintf("%.1f", ssm.Stats.CPU), ssm.Stats.SlowConsumers, humanizeTime(ssm.Stats.Start))
+		table.AddRow(ssm.Server.Name, ssm.Server.Cluster, ssm.Server.Host, ssm.Server.Version, ssm.Stats.Connections, len(ssm.Stats.Routes), len(ssm.Stats.Gateways), humanize.IBytes(uint64(ssm.Stats.Mem)), fmt.Sprintf("%.1f", ssm.Stats.CPU), ssm.Stats.SlowConsumers, humanizeTime(ssm.Stats.Start))
 
 		if last == c.expect {
 			cancel()
@@ -116,11 +148,48 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
+	table.AddSeparator()
+	table.AddRow("", fmt.Sprintf("%d Clusters", len(clusters)), fmt.Sprintf("%d Servers", servers), "", connections, "", "", humanize.IBytes(uint64(memory)), "", slow, "")
 	fmt.Print(table.Render())
 
 	if c.expect != 0 && c.expect != seen {
 		fmt.Printf("\nMissing %d server(s)\n", c.expect-atomic.LoadUint32(&seen))
 	}
 
+	if len(clusters) > 0 {
+		c.showClusters(clusters)
+	}
+
 	return nil
+}
+
+func (c *SrvLsCmd) showClusters(cl map[string]*srvListCluster) {
+	fmt.Println()
+	table := tablewriter.CreateTable()
+	table.AddTitle("Cluster Overview")
+	table.AddHeaders("Cluster", "Node Count", "Outgoing Gateways", "Incoming Gateways")
+
+	var clusters []*srvListCluster
+	for c := range cl {
+		clusters = append(clusters, cl[c])
+	}
+
+	sort.Slice(clusters, func(i, j int) bool {
+		return len(clusters[i].nodes) > len(clusters[j].nodes)
+	})
+
+	in := 0
+	out := 0
+	nodes := 0
+
+	for _, c := range clusters {
+		in += c.gwIn
+		out += c.gwOut
+		nodes += len(c.nodes)
+		table.AddRow(c.name, len(c.nodes), c.gwOut, c.gwIn)
+	}
+	table.AddSeparator()
+	table.AddRow("", nodes, out, in)
+
+	fmt.Print(table.Render())
 }
