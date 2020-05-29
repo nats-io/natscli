@@ -14,6 +14,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -57,6 +58,7 @@ type streamCmd struct {
 	maxStreams          int
 	discardPolicy       string
 	validateOnly        bool
+	backupFile          string
 }
 
 func configureStreamCommand(app *kingpin.Application) {
@@ -129,6 +131,10 @@ func configureStreamCommand(app *kingpin.Application) {
 	strReport.Flag("storage", "Sort by Storage type").Short('t').BoolVar(&c.reportSortStorage)
 	strReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.reportRaw)
 
+	strBackup := str.Command("backup", "Backs up a Stream over the NATS network").Action(c.backupAction)
+	strBackup.Arg("stream", "Stream to backup").StringVar(&c.stream)
+	strBackup.Arg("target", "File to create the backup in").StringVar(&c.backupFile)
+
 	strTemplate := str.Command("template", "Manages Stream Templates").Alias("templ").Alias("t")
 
 	strTAdd := strTemplate.Command("create", "Creates a new Stream Template").Alias("add").Alias("new").Action(c.streamTemplateAdd)
@@ -146,6 +152,25 @@ func configureStreamCommand(app *kingpin.Application) {
 	strTInfo := strTemplate.Command("info", "Stream Template information").Alias("nfo").Alias("i").Action(c.streamTemplateInfo)
 	strTInfo.Arg("template", "Stream Template to retrieve information for").StringVar(&c.stream)
 	strTInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+}
+
+func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
+	_, err = prepareHelper(servers, natsOpts()...)
+	kingpin.FatalIfError(err, "setup failed")
+
+	stream, err := jsm.LoadStream(c.stream)
+	kingpin.FatalIfError(err, "could not load stream")
+
+	cb := func(p jsm.SnapshotProgress) {
+		fmt.Printf("%#v\n", p)
+	}
+
+	fp, err := stream.SnapshotToFile(context.Background(), c.backupFile, true, jsm.SnapshotNotify(cb))
+	kingpin.FatalIfError(err, "snapshot failed")
+
+	fmt.Printf("%#v\n", fp)
+
+	return nil
 }
 
 func (c *streamCmd) streamTemplateRm(_ *kingpin.ParseContext) (err error) {
