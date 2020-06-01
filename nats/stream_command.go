@@ -269,6 +269,7 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
 	fp, err := stream.SnapshotToFile(context.Background(), c.backupFile, true, opts...)
 	pmu.Lock()
 	if c.showProgress && inprogress {
+		progress.Set(fp.BlocksExpected() * fp.BlockSize())
 		uiprogress.Stop()
 		inprogress = false
 	}
