@@ -18,9 +18,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -137,6 +139,16 @@ func mem1Stream() api.StreamConfig {
 		Name:      "mem1",
 		Subjects:  []string{"js.mem.>"},
 		Storage:   api.MemoryStorage,
+		Retention: api.LimitsPolicy,
+		Replicas:  1,
+	}
+}
+
+func file1Stream() api.StreamConfig {
+	return api.StreamConfig{
+		Name:      "file1",
+		Subjects:  []string{"js.file.>"},
+		Storage:   api.FileStorage,
 		Retention: api.LimitsPolicy,
 		Replicas:  1,
 	}
@@ -303,6 +315,54 @@ func TestCLIStreamGet(t *testing.T) {
 	if string(item.Data) != "hello" {
 		t.Fatalf("got incorrect data from message, expected 'hello' got: %v", string(item.Data))
 	}
+}
+
+func TestCLIStreamBackupAndRestore(t *testing.T) {
+	srv, nc := setupJStreamTest(t)
+	defer srv.Shutdown()
+
+	stream, err := jsm.NewStreamFromDefault("file1", file1Stream())
+	checkErr(t, err, "could not create stream: %v", err)
+	streamShouldExist(t, "file1")
+
+	for i := 0; i < 3000; i++ {
+		nc.Publish("js.file.1", []byte(RandomString(5480)))
+	}
+
+	tf, err := ioutil.TempFile("", "")
+	checkErr(t, err, "temp file failed")
+	tf.Close()
+	os.Remove(tf.Name())
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' str backup file1 %s --no-progress", srv.ClientURL(), tf.Name()))
+
+	preState, err := stream.State()
+	checkErr(t, err, "state failed")
+	stream.Delete()
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' str restore file1 %s --no-progress", srv.ClientURL(), tf.Name()))
+	stream, err = jsm.NewStreamFromDefault("file1", file1Stream())
+	checkErr(t, err, "could not create stream: %v", err)
+
+	postState, err := stream.State()
+	checkErr(t, err, "state failed")
+	if !reflect.DeepEqual(preState, postState) {
+		t.Fatalf("restored state differed")
+	}
+
+	if postState.Msgs != 3000 {
+		t.Fatalf("Expected 3000 messages got %d", postState.Msgs)
+	}
+}
+
+func RandomString(n int) string {
+	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
 
 func TestCLIConsumerInfo(t *testing.T) {
