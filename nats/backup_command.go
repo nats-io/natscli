@@ -8,6 +8,7 @@ import (
 
 type backupCmd struct {
 	outDir string
+	data   bool
 }
 
 func configureBackupCommand(app *kingpin.Application) {
@@ -15,6 +16,7 @@ func configureBackupCommand(app *kingpin.Application) {
 
 	backup := app.Command("backup", "JetStream configuration backup utility").Action(c.backupAction)
 	backup.Arg("output", "Directory to write backup to").Required().StringVar(&c.outDir)
+	backup.Flag("data", "Include data in while performing backups").BoolVar(&c.data)
 }
 
 func (c *backupCmd) backupAction(_ *kingpin.ParseContext) error {
@@ -23,5 +25,5 @@ func (c *backupCmd) backupAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	return jsm.BackupJetStreamConfiguration(c.outDir)
+	return jsm.BackupJetStreamConfiguration(c.outDir, c.data)
 }
