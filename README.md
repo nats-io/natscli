@@ -1509,6 +1509,8 @@ The API uses JSON for inputs and outputs, all the responses are typed using a `t
 |`$JS.API.STREAM.PURGE.*`|`api.JSApiStreamPurgeT`|Purges all of the data in a Stream, leaves the Stream|empty payload, Stream name in subject|`api.JSApiStreamPurgeResponse`|
 |`$JS.API.STREAM.MSG.DELETE.*`|`api.JSApiMsgDeleteT`|Deletes a specific message in the Stream by sequence, useful for GDPR compliance|`api.JSApiMsgDeleteRequest`|`api.JSApiMsgDeleteResponse`|
 |`$JS.API.STREAM.MSG.GET.*`|`api.JSApiMsgGetT`|Retrieves a specific message from the stream|`api.JSApiMsgGetRequest`|`api.JSApiMsgGetResponse`|
+|`$JS.API.STREAM.SNAPSHOT.*`|`api.JSApiStreamSnapshotT`|Initiates a streaming backup of a streams data|`api.JSApiStreamSnapshotRequest`|`api.JSApiStreamSnapshotResponse`|
+|`$JS.API.STREAM.RESTORE.*`|`api.JSApiStreamRestoreT`|Initiates a streaming restore of a stream|`{}`|`api.JSApiStreamRestoreResponse`|
 
 #### Stream Templates
 
@@ -1552,6 +1554,8 @@ $JS.API.STREAM.LIST
 $JS.API.STREAM.NAMES
 $JS.API.STREAM.MSG.DELETE.<stream>
 $JS.API.STREAM.MSG.GET.<stream>
+$JS.API.STREAM.SNAPSHOT.<stream>
+$JS.API.STREAM.RESTORE.<stream>
 $JS.API.CONSUMER.CREATE.<stream>
 $JS.API.CONSUMER.DURABLE.CREATE.<stream>.<consumer>
 $JS.API.CONSUMER.DELETE.<stream>.<consumer>
@@ -1570,6 +1574,8 @@ Stream and Consumer Use
 ```
 $JS.API.CONSUMER.MSG.NEXT.<stream>.<consumer>
 $JS.ACK.<stream>.<consumer>.x.x.x
+$JS.SNAPSHOT.ACK.<stream>.<msg id>
+$JS.SNAPSHOT.RESTORE.<stream>.<msg id>
 ```
 
 Events and Advisories:
