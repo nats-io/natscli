@@ -80,11 +80,11 @@ func (c *eventsCmd) handleNATSEvent(m *nats.Msg) {
 		var format api.RenderFormat
 		switch {
 		case c.ce:
-			format = api.ApplicationCloudEventV1
+			format = api.ApplicationCloudEventV1Format
 		case c.short:
-			format = api.TextCompact
+			format = api.TextCompactFormat
 		default:
-			format = api.TextExtended
+			format = api.TextExtendedFormat
 		}
 
 		err = api.RenderEvent(os.Stdout, ne, format)

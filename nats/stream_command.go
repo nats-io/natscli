@@ -236,6 +236,11 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
 	cb := func(p jsm.SnapshotProgress) {
 		if first {
 			fmt.Printf("Starting backup of Stream %q with %d data blocks\n\n", c.stream, p.BlocksExpected())
+
+			if p.HealthCheck() {
+				fmt.Printf("Health Check was requested, this can take a long time without progress reports\n\n")
+			}
+
 			first = false
 		}
 
@@ -264,7 +269,9 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
 		}
 	}
 
-	var opts []jsm.SnapshotOption
+	opts := []jsm.SnapshotOption{
+		jsm.SnapshotConsumers(),
+	}
 
 	if c.showProgress {
 		uiprogress.Start()
@@ -273,7 +280,11 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
 		opts = append(opts, jsm.SnapshotDebug())
 	}
 
-	fp, err := stream.SnapshotToFile(context.Background(), c.backupFile, true, opts...)
+	if c.healthCheck {
+		opts = append(opts, jsm.SnapshotHealthCheck())
+	}
+
+	fp, err := stream.SnapshotToFile(context.Background(), c.backupFile, opts...)
 	pmu.Lock()
 	if c.showProgress && inprogress {
 		progress.Set(fp.BlocksExpected() * fp.BlockSize())
