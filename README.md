@@ -1204,6 +1204,7 @@ Additionally there are a few types of acknowledgements:
 |`AckNak`|`-NAK`|Signals that the message will not be processed now and processing can move onto the next message, NAK'd message will be retried|
 |`AckProgress`|`+WPI`|When sent before the AckWait period indicates that work is ongoing and the period should be extended by another equal to `AckWait`|
 |`AckNext`|`+NXT`|Acknowledges the message was handled and requests delivery of the next message to the reply subject. Only applies to Pull-mode.|
+|`AckTerm`|`+TERM`|Instructs the server to stop redelivery of a message without acknowledging it as successfully processed|
 
 So far all the examples was the `AckAck` type of acknowledgement, by replying to the Ack with the body as indicated in `Bytes` you can pick what mode of acknowledgement you want.
 
