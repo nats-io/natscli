@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
@@ -48,8 +49,12 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 	defer nc.Close()
 
 	i := 0
+	mu := sync.Mutex{}
 
 	handler := func(m *nats.Msg) {
+		mu.Lock()
+		defer mu.Unlock()
+
 		i += 1
 		if c.raw {
 			fmt.Println(string(m.Data))
@@ -61,24 +66,33 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 			info, _ = jsm.ParseJSMsgMetadata(m)
 		}
 
-		if info != nil {
-			log.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d / ack: %v\n\n", i, info.Stream(), info.Consumer(), m.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), c.jsAck)
-			fmt.Println(string(m.Data))
-			if !strings.HasSuffix(string(m.Data), "\n") {
-				fmt.Println()
-			}
+		if info == nil {
+			log.Printf("[#%d] Received on %q", i, m.Subject)
+		} else {
+			log.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d / ack: %v", i, info.Stream(), info.Consumer(), m.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), c.jsAck)
+		}
 
-			if c.jsAck {
-				err = m.Respond(nil)
-				if err != nil {
-					fmt.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
+		if len(m.Header) > 0 {
+			for h, vals := range m.Header {
+				for _, val := range vals {
+					log.Printf("%s: %s", h, val)
 				}
 			}
 
-			return
+			fmt.Println()
 		}
 
-		log.Printf("[#%d] Received on [%s]: '%s'", i, m.Subject, string(m.Data))
+		fmt.Println(string(m.Data))
+		if !strings.HasSuffix(string(m.Data), "\n") {
+			fmt.Println()
+		}
+
+		if c.jsAck && info != nil {
+			err = m.Respond(nil)
+			if err != nil {
+				fmt.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
+			}
+		}
 	}
 
 	if c.queue != "" {

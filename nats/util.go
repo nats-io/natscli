@@ -14,10 +14,14 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -384,4 +388,25 @@ func humanizeDuration(d time.Duration) string {
 
 func humanizeTime(t time.Time) string {
 	return humanizeDuration(time.Since(t))
+}
+
+const (
+	hdrLine   = "NATS/1.0\r\n"
+	crlf      = "\r\n"
+	hdrPreEnd = len(hdrLine) - len(crlf)
+)
+
+// decodeHeadersMsg will decode and headers.
+func decodeHeadersMsg(data []byte) (http.Header, error) {
+	tp := textproto.NewReader(bufio.NewReader(bytes.NewReader(data)))
+	if l, err := tp.ReadLine(); err != nil || l != hdrLine[:hdrPreEnd] {
+		return nil, fmt.Errorf("could not decode headers")
+	}
+
+	mh, err := tp.ReadMIMEHeader()
+	if err != nil {
+		return nil, fmt.Errorf("could not decode headers")
+	}
+
+	return http.Header(mh), nil
 }

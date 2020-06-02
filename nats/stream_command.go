@@ -29,7 +29,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gosuri/uiprogress"
-	api "github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -1049,6 +1049,20 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 	}
 
 	fmt.Printf("Item: %s#%d received %v on Subject %s\n\n", c.stream, c.msgID, item.Time, item.Subject)
+
+	if len(item.Header) > 0 {
+		fmt.Println("Headers:")
+		hdrs, err := decodeHeadersMsg(item.Header)
+		if err == nil {
+			for k, vals := range hdrs {
+				for _, val := range vals {
+					fmt.Printf("  %s: %s\n", k, val)
+				}
+			}
+		}
+		fmt.Println()
+	}
+
 	fmt.Println(string(item.Data))
 	fmt.Println()
 	return nil

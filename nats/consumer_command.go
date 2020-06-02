@@ -559,6 +559,22 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 			fmt.Printf("--- subject: %s / delivered: %d / stream seq: %d / consumer seq: %d\n", msg.Subject, info.Delivered(), info.StreamSequence(), info.ConsumerSequence())
 		}
 
+		if len(msg.Header) > 0 {
+			fmt.Println()
+			fmt.Println("Headers:")
+			fmt.Println()
+			for h, vals := range msg.Header {
+				for _, val := range vals {
+					fmt.Printf("  %s: %s\n", h, val)
+				}
+			}
+
+			fmt.Println()
+			fmt.Println("Data:")
+			fmt.Println()
+		}
+
+		fmt.Println()
 		fmt.Println(string(msg.Data))
 	} else {
 		fmt.Println(string(msg.Data))
@@ -592,10 +608,27 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 		kingpin.FatalIfError(err, "could not parse JetStream metadata")
 
 		if !c.raw {
+			now := time.Now().Format("15:04:05")
+
 			if msginfo != nil {
-				fmt.Printf("[%s] subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", time.Now().Format("15:04:05"), m.Subject, msginfo.Delivered(), msginfo.ConsumerSequence(), msginfo.StreamSequence())
+				fmt.Printf("[%s] subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", now, m.Subject, msginfo.Delivered(), msginfo.ConsumerSequence(), msginfo.StreamSequence())
 			} else {
-				fmt.Printf("[%s] %s reply: %s\n", time.Now().Format("15:04:05"), m.Subject, m.Reply)
+				fmt.Printf("[%s] %s reply: %s\n", now, m.Subject, m.Reply)
+			}
+
+			if len(m.Header) > 0 {
+				fmt.Println()
+				fmt.Println("Headers:")
+				fmt.Println()
+
+				for h, vals := range m.Header {
+					for _, val := range vals {
+						fmt.Printf("   %s: %s\n", h, val)
+					}
+				}
+
+				fmt.Println()
+				fmt.Println("Data:")
 			}
 
 			fmt.Printf("%s\n", string(m.Data))
