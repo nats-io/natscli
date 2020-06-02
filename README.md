@@ -228,7 +228,7 @@ You will need a copy of the nats-server source locally and will need to be in th
 ```
 $ git clone https://github.com/nats-io/nats-server.git
 $ cd nats-server
-$ git checkout jetstream
+$ git checkout master
 $ go build
 $ ls -l nats-server
 ```
