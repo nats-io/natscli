@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/jetstream/advisory/v1/restore_create.json",
+  "description": "An Advisory sent when a Stream restore is started",
+  "title": "io.nats.jetstream.advisory.v1.restore_create",
+  "type": "object",
+  "required": [
+    "type",
+    "id",
+    "timestamp",
+    "stream",
+    "client"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "io.nats.jetstream.advisory.v1.restore_create"
+    },
+    "id": {
+      "type": "string",
+      "description": "Unique correlation ID for this event"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The time this event was created in RFC3339 format"
+    },
+    "stream": {
+      "type": "string",
+      "description": "The Stream being restored"
+    },
+    "client": {
+      "$ref": "api_audit.json#/definitions/client_api_audit"
+    }
+  }
+}
