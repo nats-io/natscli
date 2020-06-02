@@ -210,7 +210,12 @@ func (c *streamCmd) restoreAction(pc *kingpin.ParseContext) (err error) {
 	fmt.Printf("Restored stream %q in %v\n", c.stream, fp.EndTime().Sub(fp.StartTime()))
 	fmt.Println()
 
-	return c.infoAction(pc)
+	stream, err := jsm.LoadStream(c.stream)
+	kingpin.FatalIfError(err, "could not request Stream info")
+	err = c.showStream(stream)
+	kingpin.FatalIfError(err, "could not show stream")
+
+	return nil
 }
 
 func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
