@@ -22,6 +22,11 @@
       "type": "integer",
       "description": "The size of data chunks to send to deliver_subject",
       "minimum": 1024
+    },
+    "jsck": {
+      "type": "boolean",
+      "description": "Check all message's checksums prior to snapshot",
+      "default": false
     }
   }
 }

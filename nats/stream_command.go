@@ -62,6 +62,7 @@ type streamCmd struct {
 	validateOnly        bool
 	backupFile          string
 	showProgress        bool
+	healthCheck         bool
 }
 
 func configureStreamCommand(app *kingpin.Application) {
@@ -138,6 +139,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
 	strBackup.Arg("target", "File to create the backup in").Required().StringVar(&c.backupFile)
 	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
+	strBackup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
 
 	strRestore := str.Command("restore", "Restore a Stream over the NATS network").Action(c.restoreAction)
 	strRestore.Arg("stream", "The name of the Stream to restore").Required().StringVar(&c.stream)
