@@ -18,7 +18,9 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
+	"github.com/nats-io/nats.go"
 	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -29,6 +31,7 @@ type pubCmd struct {
 	req     bool
 	replyTo string
 	raw     bool
+	hdrs    []string
 }
 
 func configurePubCommand(app *kingpin.Application) {
@@ -38,12 +41,30 @@ func configurePubCommand(app *kingpin.Application) {
 	pub.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	pub.Flag("wait", "Wait for a reply from a service").Short('w').BoolVar(&c.req)
 	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
+	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 
 	req := app.Command("request", "Generic data request utility").Alias("req").Action(c.publish)
 	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	req.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	req.Flag("wait", "Wait for a reply from a service").Short('w').Default("true").Hidden().BoolVar(&c.req)
 	req.Flag("raw", "Show just the output received").Short('r').Default("false").BoolVar(&c.raw)
+	req.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
+}
+
+func (c *pubCmd) prepareMsg() (*nats.Msg, error) {
+	msg := nats.NewMsg(c.subject)
+	msg.Reply = c.replyTo
+	msg.Data = []byte(c.body)
+
+	for _, hdr := range c.hdrs {
+		parts := strings.SplitN(hdr, ":", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid header %q", hdr)
+		}
+		msg.Header.Add(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+	}
+
+	return msg, nil
 }
 
 func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
@@ -63,6 +84,10 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 	}
 
 	if c.req {
+		if len(c.hdrs) > 0 {
+			return fmt.Errorf("requests with Headers are nor supported")
+		}
+
 		if !c.raw {
 			log.Printf("Sending request on [%s]\n", c.subject)
 		}
@@ -83,7 +108,12 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 		return nil
 	}
 
-	nc.PublishRequest(c.subject, c.replyTo, []byte(c.body))
+	msg, err := c.prepareMsg()
+	if err != nil {
+		return err
+	}
+
+	nc.PublishMsg(msg)
 	nc.Flush()
 
 	err = nc.LastError()
