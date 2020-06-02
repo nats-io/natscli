@@ -74,15 +74,16 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 
 		if c.raw {
 			fmt.Println(string(m.Data))
-		} else {
-			log.Printf("Received on [%s]: '%s'", m.Subject, string(m.Data))
+			
+			return nil
 		}
+		
+		log.Printf("Received on [%s]: %q", m.Subject, m.Data)
 
 		return nil
-	} else {
-		nc.PublishRequest(c.subject, c.replyTo, []byte(c.body))
 	}
-
+	
+	nc.PublishRequest(c.subject, c.replyTo, []byte(c.body))
 	nc.Flush()
 
 	err = nc.LastError()
