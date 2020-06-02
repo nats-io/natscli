@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/jetstream/advisory/v1/snapshot_create.json",
+  "description": "An Advisory sent when a Stream snapshot is created",
+  "title": "io.nats.jetstream.advisory.v1.snapshot_create",
+  "type": "object",
+  "required": [
+    "type",
+    "id",
+    "timestamp",
+    "stream",
+    "blocks",
+    "block_size",
+    "client"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "io.nats.jetstream.advisory.v1.snapshot_create"
+    },
+    "id": {
+      "type": "string",
+      "description": "Unique correlation ID for this event"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The time this event was created in RFC3339 format"
+    },
+    "stream": {
+      "type": "string",
+      "description": "The name of the Stream being snapshotted"
+    },
+    "blocks": {
+      "type": "integer",
+      "description": "Approximate number of blocks in the snapshot",
+      "minimum": 0
+    },
+    "block_size": {
+      "type": "integer",
+      "description": "The size, in bytes, of every block",
+      "minimum": 1
+    },
+    "client": {
+      "type": "object",
+      "required": [
+        "host",
+        "port",
+        "cid",
+        "account"
+      ],
+      "additionalItems": false,
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "The IP address where the client connects from"
+        },
+        "port": {
+          "type": "integer",
+          "description": "The port number where the client connects from"
+        },
+        "cid": {
+          "type": "integer",
+          "description": "The unique client ID the server assigned to the connection"
+        },
+        "account": {
+          "type": "string",
+          "description": "The account the user belongs to"
+        },
+        "user": {
+          "type": "string",
+          "description": "The username that was used during authentication, if any"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name the client assigned to the connection during connection negotiation"
+        },
+        "language": {
+          "type": "string",
+          "description": "The client library language used to create the connection"
+        },
+        "version": {
+          "type": "string",
+          "description": "The version client library used to create the connection"
+        }
+      }
+    }
+  }
+}
