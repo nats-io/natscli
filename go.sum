@@ -60,6 +60,10 @@ github.com/nats-io/jsm.go v0.0.0-20200602133902-8be516e1dd0d h1:/8ol2UJFucvPYm5T
 github.com/nats-io/jsm.go v0.0.0-20200602133902-8be516e1dd0d/go.mod h1:DNtCIFrp2SRhyAAQH8uswAfISuA5uBx+osQ6kBqsoW0=
 github.com/nats-io/jsm.go v0.0.0-20200602152429-5ad6e2c37a43 h1:m+2WGyLgbBmQE0jcmmhPKadXCzx44S+d9RGUuI0DDdQ=
 github.com/nats-io/jsm.go v0.0.0-20200602152429-5ad6e2c37a43/go.mod h1:DNtCIFrp2SRhyAAQH8uswAfISuA5uBx+osQ6kBqsoW0=
+github.com/nats-io/jsm.go v0.0.0-20200603110801-dd43ea194b24 h1:dhJwW/ddOCj0qDhfXHxFbWmDBUCbi7CQJdtrlklyxVs=
+github.com/nats-io/jsm.go v0.0.0-20200603110801-dd43ea194b24/go.mod h1:DNtCIFrp2SRhyAAQH8uswAfISuA5uBx+osQ6kBqsoW0=
+github.com/nats-io/jsm.go v0.0.0-20200603115053-51393a794ce2 h1:VkXmMdzhh1pv9cTfsqO4sK5OTjJb4f/kNmDFgfMOekQ=
+github.com/nats-io/jsm.go v0.0.0-20200603115053-51393a794ce2/go.mod h1:3L8+y7ocHV7ygLBO5b7Mk9Q9mPT44Nxvs60WaQzOeHU=
 github.com/nats-io/jwt v0.3.2 h1:+RB5hMpXUUA2dfxuhBTEkMOrYmM+gKIZYS1KjSostMI=
 github.com/nats-io/jwt v0.3.2/go.mod h1:/euKqTS1ZD+zzjYrY7pseZrTtWQSjujC7xjPc8wL6eU=
 github.com/nats-io/jwt v0.3.3-0.20200519195258-f2bf5ce574c7 h1:RnGotxlghqR5D2KDAu4TyuLqyjuylOsJiAFhXvMvQIc=
@@ -74,6 +78,8 @@ github.com/nats-io/nats.go v1.10.1-0.20200531124210-96f2130e4d55 h1:AaYp5amXO8fk
 github.com/nats-io/nats.go v1.10.1-0.20200531124210-96f2130e4d55/go.mod h1:ARiFsjW9DVxk48WJbO3OSZ2DG8fjkMi7ecLmXoY/n9I=
 github.com/nats-io/nats.go v1.10.1-0.20200601214746-e93e18d0ed6f h1:ILS2coqvxP2B/pptNWB5xLu626mIiflILpKwEvma9eQ=
 github.com/nats-io/nats.go v1.10.1-0.20200601214746-e93e18d0ed6f/go.mod h1:8eAIv96Mo9QW6Or40jUHejS7e4VwZ3VRYD6Sf0BTDp4=
+github.com/nats-io/nats.go v1.10.1-0.20200603112052-fdbf7d635b73 h1:9qO2QURt0BzHpkP8mofnkhpjEiOHELACaJw+S5rOleQ=
+github.com/nats-io/nats.go v1.10.1-0.20200603112052-fdbf7d635b73/go.mod h1:8eAIv96Mo9QW6Or40jUHejS7e4VwZ3VRYD6Sf0BTDp4=
 github.com/nats-io/nkeys v0.1.3/go.mod h1:xpnFELMwJABBLVhffcfd1MZx6VsNRFpEugbxziKVo7w=
 github.com/nats-io/nkeys v0.1.4 h1:aEsHIssIk6ETN5m2/MD8Y4B2X7FfXrBAUdkyRvbVYzA=
 github.com/nats-io/nkeys v0.1.4/go.mod h1:XdZpAbhgyyODYqjTawOnIOI7VlbKSarI9Gfy1tqEu/s=
