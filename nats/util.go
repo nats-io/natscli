@@ -114,22 +114,28 @@ func selectStreamTemplate(template string, force bool) (string, error) {
 }
 
 func selectStream(stream string, force bool) (string, error) {
-	if stream != "" {
-		known, err := jsm.IsKnownStream(stream)
-		if err != nil {
-			return "", err
-		}
+	streams, err := jsm.StreamNames()
+	if err != nil {
+		return "", err
+	}
 
-		if known {
-			return stream, nil
+	known := false
+	for _, s := range streams {
+		if s == stream {
+			known = true
+			break
 		}
+	}
+
+	if known {
+		return stream, nil
 	}
 
 	if force {
 		return "", fmt.Errorf("unknown stream %q", stream)
 	}
 
-	streams, err := jsm.StreamNames()
+	streams, err = jsm.StreamNames()
 	if err != nil {
 		return "", err
 	}
@@ -409,4 +415,16 @@ func decodeHeadersMsg(data []byte) (http.Header, error) {
 	}
 
 	return http.Header(mh), nil
+}
+
+func parseStringsToHeader(hdrs []string, msg *nats.Msg) error {
+	for _, hdr := range hdrs {
+		parts := strings.SplitN(hdr, ":", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid header %q", hdr)
+		}
+		msg.Header.Add(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+	}
+
+	return nil
 }

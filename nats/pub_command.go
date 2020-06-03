@@ -56,15 +56,7 @@ func (c *pubCmd) prepareMsg() (*nats.Msg, error) {
 	msg.Reply = c.replyTo
 	msg.Data = []byte(c.body)
 
-	for _, hdr := range c.hdrs {
-		parts := strings.SplitN(hdr, ":", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid header %q", hdr)
-		}
-		msg.Header.Add(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-	}
-
-	return msg, nil
+	return msg, parseStringsToHeader(c.hdrs, msg)
 }
 
 func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
@@ -84,15 +76,16 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 	}
 
 	if c.req {
-		if len(c.hdrs) > 0 {
-			return fmt.Errorf("requests with Headers are nor supported")
-		}
-
 		if !c.raw {
 			log.Printf("Sending request on [%s]\n", c.subject)
 		}
 
-		m, err := nc.Request(c.subject, []byte(c.body), timeout)
+		msg, err := c.prepareMsg()
+		if err != nil {
+			return err
+		}
+
+		m, err := nc.RequestMsg(msg, timeout)
 		if err != nil {
 			return err
 		}
@@ -103,7 +96,21 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 			return nil
 		}
 
-		log.Printf("Received on [%s]: %q", m.Subject, m.Data)
+		log.Printf("Received on [%s]", m.Subject)
+		if len(m.Header) > 0 {
+			for h, vals := range m.Header {
+				for _, val := range vals {
+					log.Printf("%s: %s", h, val)
+				}
+			}
+
+			fmt.Println()
+		}
+
+		fmt.Println(string(m.Data))
+		if !strings.HasSuffix(string(m.Data), "\n") {
+			fmt.Println()
+		}
 
 		return nil
 	}

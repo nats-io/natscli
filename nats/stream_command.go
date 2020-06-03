@@ -436,7 +436,7 @@ func (c *streamCmd) reportAction(pc *kingpin.ParseContext) error {
 
 	stats := []stat{}
 	jsm.EachStream(func(stream *jsm.Stream) {
-		info, err := stream.Information()
+		info, err := stream.LatestInformation()
 		kingpin.FatalIfError(err, "could not get stream info for %s", stream.Name())
 		stats = append(stats, stat{info.Config.Name, info.State.Consumers, int64(info.State.Msgs), info.State.Bytes, info.Config.Storage.String(), info.Config.Template})
 	})
@@ -653,7 +653,7 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 }
 
 func (c *streamCmd) showStream(stream *jsm.Stream) error {
-	info, err := stream.Information()
+	info, err := stream.LatestInformation()
 	if err != nil {
 		return err
 	}

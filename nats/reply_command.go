@@ -14,10 +14,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -30,6 +32,7 @@ type replyCmd struct {
 	queue   string
 	echo    bool
 	sleep   time.Duration
+	hdrs    []string
 }
 
 func configureReplyCommand(app *kingpin.Application) {
@@ -40,6 +43,8 @@ func configureReplyCommand(app *kingpin.Application) {
 	act.Flag("echo", "Echo back what is received").BoolVar(&c.echo)
 	act.Flag("queue", "Queue group name").Default("NATS-RPLY-22").Short('q').StringVar(&c.queue)
 	act.Flag("sleep", "Inject a random sleep delay between replies up to this duration max").PlaceHolder("MAX").DurationVar(&c.sleep)
+	act.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
+
 }
 
 func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
@@ -55,17 +60,41 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 
 	i := 0
 	nc.QueueSubscribe(c.subject, c.queue, func(m *nats.Msg) {
-		log.Printf("[#%d] Received on [%s]: '%s'\n", i, m.Subject, string(m.Data))
+		log.Printf("[#%d] Received on [%s]:", i, m.Subject)
+		for h, vals := range m.Header {
+			for _, val := range vals {
+				log.Printf("%s: %s", h, val)
+			}
+		}
+
+		fmt.Println()
+		fmt.Println(string(m.Data))
 
 		if c.sleep != 0 {
 			time.Sleep(time.Duration(rand.Intn(int(c.sleep))))
 		}
 
-		if c.echo {
-			m.Respond(m.Data)
-		} else {
-			m.Respond([]byte(c.body))
+		msg := nats.NewMsg(m.Reply)
+		if len(c.hdrs) > 0 {
+			parseStringsToHeader(c.hdrs, msg)
 		}
+
+		if c.echo {
+			for h, vals := range m.Header {
+				for _, v := range vals {
+					msg.Header.Add(h, v)
+				}
+			}
+
+			msg.Header.Add("NATS-Reply-Counter", strconv.Itoa(i))
+			msg.Data = m.Data
+		} else {
+			msg.Data = []byte(c.body)
+		}
+
+		m.RespondMsg(msg)
+
+		i++
 	})
 	nc.Flush()
 
