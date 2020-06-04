@@ -77,17 +77,18 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	}
 
 	var (
-		clusters          = make(map[string]*srvListCluster)
-		servers           = 0
-		connections       = 0
-		memory      int64 = 0
-		slow        int64 = 0
-		start             = time.Now()
+		clusters           = make(map[string]*srvListCluster)
+		servers            = 0
+		connections        = 0
+		memory      int64  = 0
+		slow        int64  = 0
+		subs        uint32 = 0
+		start              = time.Now()
 	)
 
 	table := tablewriter.CreateTable()
 	table.AddTitle("Server Overview")
-	table.AddHeaders("Name", "Cluster", "IP", "Version", "Conns", "Routes", "GWs", "Mem", "CPU", "Slow", "Uptime", "RTT")
+	table.AddHeaders("Name", "Cluster", "IP", "Version", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU", "Slow", "Uptime", "RTT")
 
 	sub, err := ec.Subscribe(nc.NewRespInbox(), func(ssm *server.ServerStatsMsg) {
 		last := atomic.AddUint32(&seen, 1)
@@ -100,6 +101,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		connections += ssm.Stats.Connections
 		memory += ssm.Stats.Mem
 		slow += ssm.Stats.SlowConsumers
+		subs += ssm.Stats.NumSubs
 
 		cluster := ssm.Server.Cluster
 		if cluster != "" {
@@ -119,7 +121,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		results = append(results, ssm)
 		mu.Unlock()
 
-		table.AddRow(ssm.Server.Name, ssm.Server.Cluster, ssm.Server.Host, ssm.Server.Version, ssm.Stats.Connections, len(ssm.Stats.Routes), len(ssm.Stats.Gateways), humanize.IBytes(uint64(ssm.Stats.Mem)), fmt.Sprintf("%.1f", ssm.Stats.CPU), ssm.Stats.SlowConsumers, humanizeTime(ssm.Stats.Start), time.Since(start))
+		table.AddRow(ssm.Server.Name, ssm.Server.Cluster, ssm.Server.Host, ssm.Server.Version, ssm.Stats.Connections, ssm.Stats.NumSubs, len(ssm.Stats.Routes), len(ssm.Stats.Gateways), humanize.IBytes(uint64(ssm.Stats.Mem)), fmt.Sprintf("%.1f", ssm.Stats.CPU), ssm.Stats.SlowConsumers, humanizeTime(ssm.Stats.Start), time.Since(start))
 
 		if last == c.expect {
 			cancel()
@@ -151,7 +153,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	}
 
 	table.AddSeparator()
-	table.AddRow("", fmt.Sprintf("%d Clusters", len(clusters)), fmt.Sprintf("%d Servers", servers), "", connections, "", "", humanize.IBytes(uint64(memory)), "", slow, "", "")
+	table.AddRow("", fmt.Sprintf("%d Clusters", len(clusters)), fmt.Sprintf("%d Servers", servers), "", connections, subs, "", "", humanize.IBytes(uint64(memory)), "", slow, "", "")
 	fmt.Print(table.Render())
 
 	if c.expect != 0 && c.expect != seen {
