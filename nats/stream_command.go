@@ -63,6 +63,7 @@ type streamCmd struct {
 	backupFile          string
 	showProgress        bool
 	healthCheck         bool
+	snapshotChunk       int
 }
 
 func configureStreamCommand(app *kingpin.Application) {
@@ -140,11 +141,13 @@ func configureStreamCommand(app *kingpin.Application) {
 	strBackup.Arg("target", "File to create the backup in").Required().StringVar(&c.backupFile)
 	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	strBackup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
+	strBackup.Flag("chunk-size", "The size of individual chunks to send").Default("16777216").IntVar(&c.snapshotChunk)
 
 	strRestore := str.Command("restore", "Restore a Stream over the NATS network").Action(c.restoreAction)
 	strRestore.Arg("stream", "The name of the Stream to restore").Required().StringVar(&c.stream)
 	strRestore.Arg("file", "The file holding the backup to restore").Required().ExistingFileVar(&c.backupFile)
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
+	strRestore.Flag("chunk-size", "The size of individual chunks to send").Default("16777216").IntVar(&c.snapshotChunk)
 
 	strTemplate := str.Command("template", "Manages Stream Templates").Alias("templ").Alias("t")
 
@@ -190,7 +193,9 @@ func (c *streamCmd) restoreAction(pc *kingpin.ParseContext) (err error) {
 		progress.Set(int(p.ChunksSent()))
 	}
 
-	var opts []jsm.SnapshotOption
+	var opts = []jsm.SnapshotOption{
+		jsm.SnapshotChunkSize(c.snapshotChunk),
+	}
 
 	if c.showProgress {
 		uiprogress.Start()
@@ -201,7 +206,7 @@ func (c *streamCmd) restoreAction(pc *kingpin.ParseContext) (err error) {
 
 	fmt.Printf("Starting restore of Stream %q from file %q\n\n", c.stream, c.backupFile)
 
-	fp, err := jsm.RestoreSnapshotFromFile(context.Background(), c.stream, c.backupFile, opts...)
+	fp, _, err := jsm.RestoreSnapshotFromFile(context.Background(), c.stream, c.backupFile, opts...)
 	kingpin.FatalIfError(err, "restore failed")
 	if c.showProgress {
 		progress.Set(int(fp.ChunksSent()))
@@ -271,6 +276,7 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
 
 	opts := []jsm.SnapshotOption{
 		jsm.SnapshotConsumers(),
+		jsm.SnapshotChunkSize(c.snapshotChunk),
 	}
 
 	if c.showProgress {
@@ -295,7 +301,7 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
 	kingpin.FatalIfError(err, "snapshot failed")
 
 	fmt.Println()
-	fmt.Printf("Received %s bytes of compressed data in %d chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), fp.ChunksReceived(), c.stream, fp.EndTime().Sub(fp.StartTime()), humanize.IBytes(fp.BlockBytesReceived()))
+	fmt.Printf("Received %s compressed data in %d chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), fp.ChunksReceived(), c.stream, fp.EndTime().Sub(fp.StartTime()), humanize.IBytes(fp.BlockBytesReceived()))
 
 	return nil
 }
