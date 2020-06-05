@@ -30,14 +30,14 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	req.Flag("limit", "Limit the responses to a certain amount of records").Default("1024").IntVar(&c.limit)
 	req.Flag("offset", "Start at a certain record").Default("0").IntVar(&c.offset)
 
-	subz := req.Command("subs", "Show subscription information").Alias("subsz").Action(c.subs)
+	subz := req.Command("subscriptions", "Show subscription information").Alias("sub").Alias("subsz").Action(c.subs)
 	subz.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
 	subz.Flag("detail", "Include detail about all subscriptions").Default("false").BoolVar(&c.detail)
 
-	varz := req.Command("variables", "Show runtime variables").Alias("varz").Action(c.varz)
+	varz := req.Command("variables", "Show runtime variables").Alias("var").Alias("varz").Action(c.varz)
 	varz.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
 
-	connz := req.Command("connections", "Show connection details").Alias("connz").Action(c.conns)
+	connz := req.Command("connections", "Show connection details").Alias("conn").Alias("connz").Action(c.conns)
 	connz.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
 	connz.Flag("sort", "Sort by a specific property").Default("cid").EnumVar(&c.sortOpt, "cid", "start", "subs", "pending", "msgs_to", "msgs_from", "bytes_to", "bytes_from", "last", "idle", "uptime", "stop", "reason")
 	connz.Flag("subscriptions", "Show subscriptions").Default("false").BoolVar(&c.detail)
@@ -46,17 +46,17 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	connz.Flag("filter-user", "Filter on a specific username").StringVar(&c.userFilter)
 	connz.Flag("filter-account", "Filter on a specific account").StringVar(&c.accountFilter)
 
-	routez := req.Command("routes", "Show route details").Alias("routez").Action(c.routez)
+	routez := req.Command("routes", "Show route details").Alias("route").Alias("routez").Action(c.routez)
 	routez.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
 	routez.Flag("subscriptions", "Show subscription detail").Default("false").BoolVar(&c.detail)
 
-	gwyz := req.Command("gateways", "Show gateway details").Alias("gatewayz").Action(c.gwyz)
+	gwyz := req.Command("gateways", "Show gateway details").Alias("gateway").Alias("gwy").Alias("gatewayz").Action(c.gwyz)
 	gwyz.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
 	gwyz.Arg("filter-name", "Filter results on gateway name").StringVar(&c.nameFilter)
 	gwyz.Flag("filter-account", "Show only a certain account in account detail").StringVar(&c.accountFilter)
 	gwyz.Flag("accounts", "Show account detail").Default("false").BoolVar(&c.detail)
 
-	leafz := req.Command("leafnodes", "Show leafnode details").Alias("leafz").Action(c.leafz)
+	leafz := req.Command("leafnodes", "Show leafnode details").Alias("leaf").Alias("leafz").Action(c.leafz)
 	leafz.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
 	leafz.Flag("subscriptions", "Show subscription detail").Default("false").BoolVar(&c.detail)
 }
