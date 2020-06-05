@@ -32,6 +32,7 @@ import (
 type SrvPingCmd struct {
 	expect uint32
 	graph  bool
+	showId bool
 }
 
 func configureServerPingCommand(srv *kingpin.CmdClause) {
@@ -40,6 +41,7 @@ func configureServerPingCommand(srv *kingpin.CmdClause) {
 	ls := srv.Command("ping", "Ping all servers").Action(c.ping)
 	ls.Arg("expect", "How many servers to expect").Uint32Var(&c.expect)
 	ls.Flag("graph", "Produce a response distribution graph").BoolVar(&c.graph)
+	ls.Flag("id", "Include the Server ID in the output").BoolVar(&c.showId)
 }
 
 func (c *SrvPingCmd) ping(_ *kingpin.ParseContext) error {
@@ -71,7 +73,11 @@ func (c *SrvPingCmd) ping(_ *kingpin.ParseContext) error {
 		rtt := since.Milliseconds()
 		times = append(times, float64(rtt))
 
-		fmt.Printf("%-60s rtt=%s\n", ssm.Server.Name, since)
+		if c.showId {
+			fmt.Printf("%s %-60s rtt=%s\n", ssm.Server.ID, ssm.Server.Name, since)
+		} else {
+			fmt.Printf("%-60s rtt=%s\n", ssm.Server.Name, since)
+		}
 
 		if last == c.expect {
 			cancel()

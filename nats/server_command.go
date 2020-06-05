@@ -21,4 +21,5 @@ func configureServerCommand(app *kingpin.Application) {
 	srv := app.Command("server", "Server information").Alias("srv")
 	configureServerListCommand(srv)
 	configureServerPingCommand(srv)
+	configureServerRequestCommand(srv)
 }
