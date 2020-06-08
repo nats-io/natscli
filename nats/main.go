@@ -57,6 +57,7 @@ func main() {
 	configureBackupCommand(ncli)
 	configureRestoreCommand(ncli)
 	configureRTTCommand(ncli)
+	configureLatencyCommand(ncli)
 
 	kingpin.MustParse(ncli.Parse(os.Args[1:]))
 }
