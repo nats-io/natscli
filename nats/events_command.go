@@ -18,16 +18,14 @@ type eventsCmd struct {
 	ce    bool
 	short bool
 
-	bodyF      string
-	bodyFRe    *regexp.Regexp
-	subjectF   string
-	subjectFRe *regexp.Regexp
+	bodyF   string
+	bodyFRe *regexp.Regexp
 
-	metricsF    bool
-	advisoriesF bool
-	allF        bool
-	connsF      bool
-	latencySubj []string
+	showJsMetrics        bool
+	showJsAdvisories     bool
+	showServerAdvisories bool
+	showAll              bool
+	extraSubjects        []string
 
 	sync.Mutex
 }
@@ -36,24 +34,19 @@ func configureEventsCommand(app *kingpin.Application) {
 	c := &eventsCmd{}
 
 	events := app.Command("events", "Show Advisories and Events").Alias("event").Alias("e").Action(c.eventsAction)
-	events.Flag("all", "Show all events").Default("false").Short('a').BoolVar(&c.allF)
+	events.Flag("all", "Show all events").Default("false").Short('a').BoolVar(&c.showAll)
 	events.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	events.Flag("cloudevent", "Produce CloudEvents v1.0 output").BoolVar(&c.ce)
+	events.Flag("cloudevent", "Produce CloudEvents v1 output").BoolVar(&c.ce)
 	events.Flag("short", "Short event format").BoolVar(&c.short)
-	events.Flag("subject", "Filter the messages by the subject using regular expressions").Default(".").StringVar(&c.subjectF)
 	events.Flag("filter", "Filter across the entire event using regular expressions").Default(".").StringVar(&c.bodyF)
-	events.Flag("metrics", "Shows JetStream metric events (false)").Default("false").BoolVar(&c.metricsF)
-	events.Flag("advisories", "Shows advisory events (true)").Default("true").BoolVar(&c.advisoriesF)
-	events.Flag("connections", "Shows connections being opened and closed (false)").Default("false").BoolVar(&c.connsF)
-	events.Flag("latency", "Show service latency samples received on a specific subject").PlaceHolder("SUBJECT").StringsVar(&c.latencySubj)
+	events.Flag("js-metric", "Shows JetStream metric events (false)").Default("false").BoolVar(&c.showJsMetrics)
+	events.Flag("js-advisory", "Shows advisory events (false)").Default("false").BoolVar(&c.showJsAdvisories)
+	events.Flag("srv-advisory", "Shows NATS Server advisories (true)").Default("true").BoolVar(&c.showServerAdvisories)
+	events.Flag("subjects", "Show Advisories and Metrics received on specific subjects").PlaceHolder("SUBJECTS").StringsVar(&c.extraSubjects)
 }
 
 func (c *eventsCmd) handleNATSEvent(m *nats.Msg) {
 	if !c.bodyFRe.MatchString(strings.ToUpper(string(m.Data))) {
-		return
-	}
-
-	if !c.subjectFRe.MatchString(strings.ToUpper(m.Subject)) {
 		return
 	}
 
@@ -118,26 +111,28 @@ func (c *eventsCmd) eventsAction(_ *kingpin.ParseContext) error {
 	nc, err := prepareHelper(servers, natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	c.subjectFRe, err = regexp.Compile(strings.ToUpper(c.subjectF))
-	kingpin.FatalIfError(err, "invalid subjects regular expression")
 	c.bodyFRe, err = regexp.Compile(strings.ToUpper(c.bodyF))
 	kingpin.FatalIfError(err, "invalid body regular expression")
 
-	if c.advisoriesF || c.allF {
+	if !c.showAll && !c.showJsAdvisories && !c.showJsMetrics && !c.showServerAdvisories && len(c.extraSubjects) == 0 {
+		return fmt.Errorf("no events were chosen")
+	}
+
+	if c.showJsAdvisories || c.showAll {
 		c.Printf("Listening for Advisories on %s.>\n", api.JSAdvisoryPrefix)
 		nc.Subscribe(fmt.Sprintf("%s.>", api.JSAdvisoryPrefix), func(m *nats.Msg) {
 			c.handleNATSEvent(m)
 		})
 	}
 
-	if c.metricsF || c.allF {
+	if c.showJsMetrics || c.showAll {
 		c.Printf("Listening for Metrics on %s.>\n", api.JSMetricPrefix)
 		nc.Subscribe(fmt.Sprintf("%s.>", api.JSMetricPrefix), func(m *nats.Msg) {
 			c.handleNATSEvent(m)
 		})
 	}
 
-	if c.connsF || c.allF {
+	if c.showServerAdvisories || c.showAll {
 		c.Printf("Listening for Client Connection events on $SYS.ACCOUNT.*.CONNECT\n")
 		nc.Subscribe("$SYS.ACCOUNT.*.CONNECT", func(m *nats.Msg) {
 			c.handleNATSEvent(m)
@@ -149,8 +144,8 @@ func (c *eventsCmd) eventsAction(_ *kingpin.ParseContext) error {
 		})
 	}
 
-	if len(c.latencySubj) > 0 {
-		for _, s := range c.latencySubj {
+	if len(c.extraSubjects) > 0 {
+		for _, s := range c.extraSubjects {
 			c.Printf("Listening for latency samples on %s\n", s)
 			nc.Subscribe(s, func(m *nats.Msg) {
 				c.handleNATSEvent(m)
