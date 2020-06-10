@@ -12,7 +12,7 @@ require (
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.4.2
-	github.com/nats-io/jsm.go v0.0.0-20200604150022-038b2e57f403
+	github.com/nats-io/jsm.go v0.0.17
 	github.com/nats-io/nats-server/v2 v2.1.8-0.20200609235003-ddfbc33c9543
 	github.com/nats-io/nats.go v1.10.1-0.20200606002146-fc6fed82929a
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20180430173243-73b8d31ba571
