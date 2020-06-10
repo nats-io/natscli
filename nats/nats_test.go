@@ -325,7 +325,7 @@ func TestCLIStreamBackupAndRestore(t *testing.T) {
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, "file1")
 
-	for i := 0; i < 3000; i++ {
+	for i := 0; i < 1000; i++ {
 		nc.Publish("js.file.1", []byte(RandomString(5480)))
 	}
 
@@ -350,8 +350,8 @@ func TestCLIStreamBackupAndRestore(t *testing.T) {
 		t.Fatalf("restored state differed")
 	}
 
-	if postState.Msgs != 3000 {
-		t.Fatalf("Expected 3000 messages got %d", postState.Msgs)
+	if postState.Msgs != 1000 {
+		t.Fatalf("Expected 1000 messages got %d", postState.Msgs)
 	}
 }
 
