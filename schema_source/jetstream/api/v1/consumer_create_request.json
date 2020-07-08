@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/jetstream/api/v1/consumer_create_request.json",
+  "description": "A request to the JetStream $JS.API.CONSUMER.CREATE and $JS.API.CONSUMER.DURABLE.CREATE APIs",
+  "title": "io.nats.jetstream.api.v1.consumer_create_request",
+  "type": "object",
+  "required": [
+    "stream_name",
+    "config"
+  ],
+  "properties": {
+    "stream_name": {
+      "type": "string",
+      "description": "The name of the stream to create the consumer in"
+    },
+    "config": {
+      "type": "object",
+      "description": "The consumer configuration",
+      "$ref": "definitions.json#/definitions/consumer_configuration"
+    }
+  }
+}

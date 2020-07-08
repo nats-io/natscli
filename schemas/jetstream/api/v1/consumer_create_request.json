@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/jetstream/api/v1/consumer_create_request.json",
+  "description": "A request to the JetStream $JS.API.CONSUMER.CREATE and $JS.API.CONSUMER.DURABLE.CREATE APIs",
+  "title": "io.nats.jetstream.api.v1.consumer_create_request",
+  "type": "object",
+  "required": [
+    "stream_name",
+    "config"
+  ],
+  "properties": {
+    "stream_name": {
+      "type": "string",
+      "description": "The name of the stream to create the consumer in"
+    },
+    "config": {
+      "type": "object",
+      "description": "The consumer configuration",
+      "required": [
+        "deliver_policy",
+        "ack_policy",
+        "replay_policy"
+      ],
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "deliver_policy"
+              ],
+              "properties": {
+                "deliver_policy": {
+                  "type": "string",
+                  "enum": [
+                    "all"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "deliver_policy"
+              ],
+              "properties": {
+                "deliver_policy": {
+                  "type": "string",
+                  "enum": [
+                    "last"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "deliver_policy"
+              ],
+              "properties": {
+                "deliver_policy": {
+                  "type": "string",
+                  "enum": [
+                    "new"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "deliver_policy",
+                "opt_start_seq"
+              ],
+              "properties": {
+                "deliver_policy": {
+                  "type": "string",
+                  "enum": [
+                    "by_start_sequence"
+                  ]
+                },
+                "opt_start_seq": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            {
+              "required": [
+                "deliver_policy",
+                "opt_start_time"
+              ],
+              "properties": {
+                "deliver_policy": {
+                  "type": "string",
+                  "enum": [
+                    "by_start_time"
+                  ]
+                },
+                "opt_start_time": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "durable_name": {
+          "description": "A unique name for a durable consumer",
+          "type": "string",
+          "pattern": "^[^.*>]+$",
+          "minLength": 1
+        },
+        "deliver_subject": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ack_policy": {
+          "type": "string",
+          "enum": [
+            "none",
+            "all",
+            "explicit"
+          ]
+        },
+        "ack_wait": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_deliver": {
+          "type": "integer",
+          "minimum": -1
+        },
+        "filter_subject": {
+          "type": "string"
+        },
+        "replay_policy": {
+          "type": "string",
+          "enum": [
+            "instant",
+            "original"
+          ]
+        },
+        "sample_freq": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
