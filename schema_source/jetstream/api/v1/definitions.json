@@ -424,7 +424,7 @@
         "max_age": {
           "description": "Maximum age of any message in the stream, expressed in microseconds. -1 for unlimited.",
           "type": "integer",
-          "minimum": 0,
+          "minimum": -1,
           "default": 0
         },
         "max_msg_size": {
@@ -459,6 +459,12 @@
           "type": "string",
           "enum": ["old", "new"],
           "default": "old"
+        },
+        "duplicate_window": {
+          "description": "The time window to track duplicate messages for, expressed in microseconds. 0 for default",
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
         }
       }
     },
