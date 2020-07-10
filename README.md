@@ -43,6 +43,7 @@ JetStream is the [NATS.io](https://nats.io) persistence engine that will support
   * [Stream Limits and Retention Modes](#stream-limits-and-retention-modes)
   * [Message Deduplication](#message-deduplication)
   * [Acknowledgement Models](#acknowledgement-models)
+  * [Exactly Once Delivery](#exactly-once-delivery)
   * [Consumer Starting Position](#consumer-starting-position)
   * [Ephemeral Consumers](#ephemeral-consumers)
   * [Consumer Message Rates](#consumer-message-rates)
@@ -105,6 +106,8 @@ Streams can consume many subjects. Here we have `ORDERS.*` but we could also con
 
 Streams support various retention policies - they can be kept based on limits like max count, size or age but also more novel methods like keeping them as long as any Consumers have them unacknowledged, or work queue like behavior where a message is removed after first ack.
 
+Streams support deduplication using a `Msg-Id` header and a sliding window within which to track duplicate messages. See the [Message Deduplication](#message-deduplication) section.
+
 When defining Streams the items below make up the entire configuration of the set.
 
 |Item|Description|
@@ -121,6 +124,7 @@ When defining Streams the items below make up the entire configuration of the se
 |Discard|When a Stream reached it's limits either, `DiscardNew` refuses new messages while `DiscardOld` (default) deletes old messages| 
 |Storage|The type of storage backend, `file` and `memory` as of January 2020|
 |Subjects|A list of subjects to consume, supports wildcards|
+|Duplicates|The window within which to track duplicate messages|
 
 ### Consumers
 
