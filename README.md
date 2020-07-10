@@ -1233,6 +1233,16 @@ Additionally there are a few types of acknowledgements:
 
 So far all the examples was the `AckAck` type of acknowledgement, by replying to the Ack with the body as indicated in `Bytes` you can pick what mode of acknowledgement you want.
 
+All of these acknowledgement modes support double acknowledgement - if you set a reply subject when acknowledging the server will in turn acknowledge having received your ACK.
+ 
+### Exactly Once Delivery
+
+JetStream supports Exactly Once delivery by combining Message Deduplication and double acks.
+
+On the publishing side you can avoid duplicate message ingestion using the [Message Deduplication](#message-deduplication) feature. 
+
+Consumers can be 100% sure a message was correctly processed by requesting the server Acknowledge having received your acknowledgement by setting a reply subject on the Ack. If you receive this response you will never receive that message again.
+
 ### Consumer Starting Position
 
 When setting up an Consumer you can decide where to start, the system supports the following for the `DeliverPolicy`:
