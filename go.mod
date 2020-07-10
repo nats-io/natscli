@@ -12,8 +12,8 @@ require (
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.4.2
-	github.com/nats-io/jsm.go v0.0.17
-	github.com/nats-io/nats-server/v2 v2.1.8-0.20200609235003-ddfbc33c9543
+	github.com/nats-io/jsm.go v0.0.18-0.20200710092941-c8d92463a24b
+	github.com/nats-io/nats-server/v2 v2.1.8-0.20200710024651-6ba1559598fa
 	github.com/nats-io/nats.go v1.10.1-0.20200606002146-fc6fed82929a
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20180430173243-73b8d31ba571
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect

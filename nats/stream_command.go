@@ -64,6 +64,7 @@ type streamCmd struct {
 	showProgress        bool
 	healthCheck         bool
 	snapshotChunk       int
+	dupeWindow          string
 }
 
 func configureStreamCommand(app *kingpin.Application) {
@@ -86,6 +87,7 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
 		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int32Var(&c.maxMsgSize)
 		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
 	}
 
 	strAdd := str.Command("create", "Create a new Stream").Alias("add").Alias("new").Action(c.addAction)
@@ -546,6 +548,14 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.MaxMsgSize = c.maxMsgSize
 	}
 
+	if c.dupeWindow != "" {
+		dw, err := parseDurationString(c.dupeWindow)
+		if err != nil {
+			return api.StreamConfig{}, fmt.Errorf("invalid duplicate window: %v", err)
+		}
+		cfg.Duplicates = dw
+	}
+
 	return cfg, nil
 }
 
@@ -628,6 +638,7 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	fmt.Printf("            Retention: %s - %s\n", cfg.Storage.String(), cfg.Retention.String())
 	fmt.Printf("             Replicas: %d\n", cfg.Replicas)
 	fmt.Printf("       Discard Policy: %s\n", cfg.Discard.String())
+	fmt.Printf("     Duplicate Window: %v\n", cfg.Duplicates)
 	if cfg.MaxMsgs == -1 {
 		fmt.Println("     Maximum Messages: unlimited")
 	} else {
@@ -876,12 +887,28 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
+	var dupeWindow time.Duration
+	if c.dupeWindow == "" {
+		err = survey.AskOne(&survey.Input{
+			Message: "Duplicate tracking time window",
+			Default: "",
+			Help:    "Duplicate messages are identified by the Msg-Id headers and tracked within a window of this size. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --dupe-window.",
+		}, &c.dupeWindow)
+		kingpin.FatalIfError(err, "invalid input")
+	}
+
+	if c.dupeWindow != "" {
+		dupeWindow, err = parseDurationString(c.dupeWindow)
+		kingpin.FatalIfError(err, "invalid duplicate window format")
+	}
+
 	cfg = api.StreamConfig{
 		Name:         c.stream,
 		Subjects:     c.subjects,
 		MaxMsgs:      c.maxMsgLimit,
 		MaxBytes:     c.maxBytesLimit,
 		MaxMsgSize:   c.maxMsgSize,
+		Duplicates:   dupeWindow,
 		MaxAge:       maxAge,
 		Storage:      storage,
 		NoAck:        !c.ack,

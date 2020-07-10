@@ -1060,6 +1060,30 @@ A final control is the Maximum Size any single message may have. NATS have it's 
 
 The `Discard Policy` sets how messages are discard when limits set by `LimitsPolicy` are reached. The `DiscardOld` option removes old messages making space for new, while `DiscardNew` refuses any new messages.
 
+### Message Deduplication
+
+JetStream support idempotent message writes by ignoring duplicate messages as indicated by the `Msg-Id` header.
+
+```nohighlight
+% nats req -H Msg-Id:1 ORDERS.new hello1
+% nats req -H Msg-Id:1 ORDERS.new hello2
+% nats req -H Msg-Id:1 ORDERS.new hello3
+% nats req -H Msg-Id:1 ORDERS.new hello4
+```
+ 
+Here we set a `Msg-Id:1` header which tells JetStream to ensure we do not have duplicates of this message - we only consult the message ID not the body.
+
+```nohighlight
+$ nats str info ORDERS
+....
+State:
+
+            Messages: 1
+               Bytes: 67 B
+```
+
+The default window to track duplicates in is 2 minutes, this can be set on the command line using `--dupe-window` when creating a stream, though we would caution against large windows.
+
 ### Acknowledgement Models
 
 Streams support acknowledging receiving a message, if you send a `Request()` to a subject covered by the configuration of the Stream the service will reply to you once it stored the message.  If you just publish, it will not. A Stream can be set to disable Acknowledgements by setting `NoAck` to `true` in it's configuration.

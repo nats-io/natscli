@@ -167,7 +167,7 @@ func TestCLIStreamCreate(t *testing.T) {
 	srv, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m  --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m  --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new --dupe-window 1h", srv.ClientURL()))
 	streamShouldExist(t, "mem1")
 	info := streamInfo(t, "mem1")
 
@@ -195,6 +195,10 @@ func TestCLIStreamCreate(t *testing.T) {
 		t.Fatalf("incorrect discard policy %q", info.Config.Discard)
 	}
 
+	if info.Config.Duplicates != time.Hour {
+		t.Fatalf("expected duplicate window of 1 hour got %v", info.Config.Duplicates)
+	}
+
 	runNatsCli(t, fmt.Sprintf("--server='%s' str create ORDERS --config testdata/ORDERS_config.json", srv.ClientURL()))
 	streamShouldExist(t, "ORDERS")
 	info = streamInfo(t, "ORDERS")
@@ -209,6 +213,10 @@ func TestCLIStreamCreate(t *testing.T) {
 
 	if info.Config.Storage != api.FileStorage {
 		t.Fatalf("expected file storage got %q", info.Config.Storage)
+	}
+
+	if info.Config.Duplicates != time.Hour {
+		t.Fatalf("expected duplicate window of 1 hour got %v", info.Config.Duplicates)
 	}
 }
 
