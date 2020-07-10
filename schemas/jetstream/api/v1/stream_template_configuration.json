@@ -81,9 +81,9 @@
           "default": -1
         },
         "max_age": {
-          "description": "Maximum age of any message in the stream, expressed in microseconds. -1 for unlimited.",
+          "description": "Maximum age of any message in the stream, expressed in microseconds. 0 for unlimited.",
           "type": "integer",
-          "minimum": -1,
+          "minimum": 0,
           "default": 0
         },
         "max_msg_size": {
