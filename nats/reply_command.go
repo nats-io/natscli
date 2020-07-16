@@ -92,7 +92,13 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 			msg.Data = []byte(c.body)
 		}
 
-		m.RespondMsg(msg)
+		err = m.RespondMsg(msg)
+		if err == nats.ErrHeadersNotSupported {
+			msg.Header = nil
+			m.RespondMsg(msg)
+		} else if err != nil {
+			log.Printf("Could not publish reply: %s", err)
+		}
 
 		i++
 	})
