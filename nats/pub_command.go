@@ -120,7 +120,10 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 		return err
 	}
 
-	nc.PublishMsg(msg)
+	err = nc.PublishMsg(msg)
+	if err != nil {
+		return err
+	}
 	nc.Flush()
 
 	err = nc.LastError()
