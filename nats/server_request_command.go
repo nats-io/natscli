@@ -1,18 +1,24 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type SrvRequestCmd struct {
-	sid    string
-	limit  int
-	offset int
+	name    string
+	host    string
+	cluster string
+
+	limit   int
+	offset  int
+	waitFor int
 
 	detail        bool
 	sortOpt       string
@@ -23,22 +29,31 @@ type SrvRequestCmd struct {
 	nameFilter    string
 }
 
+type serverReqFilter struct {
+	Name    string `json:"name"`
+	Host    string `json:"host"`
+	Cluster string `json:"cluster"`
+}
+
 func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	c := &SrvRequestCmd{}
 
 	req := srv.Command("request", "Request monitoring data from a specific server").Alias("req")
 	req.Flag("limit", "Limit the responses to a certain amount of records").Default("1024").IntVar(&c.limit)
 	req.Flag("offset", "Start at a certain record").Default("0").IntVar(&c.offset)
+	req.Flag("name", "Limit to servers matching a server name").StringVar(&c.name)
+	req.Flag("host", "Limit to servers matching a server host name").StringVar(&c.host)
+	req.Flag("cluster", "Limit to servers matching a cluster name").StringVar(&c.cluster)
 
 	subz := req.Command("subscriptions", "Show subscription information").Alias("sub").Alias("subsz").Action(c.subs)
-	subz.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
+	subz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
 	subz.Flag("detail", "Include detail about all subscriptions").Default("false").BoolVar(&c.detail)
 
 	varz := req.Command("variables", "Show runtime variables").Alias("var").Alias("varz").Action(c.varz)
-	varz.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
+	varz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
 
 	connz := req.Command("connections", "Show connection details").Alias("conn").Alias("connz").Action(c.conns)
-	connz.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
+	connz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
 	connz.Flag("sort", "Sort by a specific property").Default("cid").EnumVar(&c.sortOpt, "cid", "start", "subs", "pending", "msgs_to", "msgs_from", "bytes_to", "bytes_from", "last", "idle", "uptime", "stop", "reason")
 	connz.Flag("subscriptions", "Show subscriptions").Default("false").BoolVar(&c.detail)
 	connz.Flag("filter-cid", "Filter on a specific CID").Uint64Var(&c.cidFilter)
@@ -47,24 +62,33 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	connz.Flag("filter-account", "Filter on a specific account").StringVar(&c.accountFilter)
 
 	routez := req.Command("routes", "Show route details").Alias("route").Alias("routez").Action(c.routez)
-	routez.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
+	routez.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
 	routez.Flag("subscriptions", "Show subscription detail").Default("false").BoolVar(&c.detail)
 
 	gwyz := req.Command("gateways", "Show gateway details").Alias("gateway").Alias("gwy").Alias("gatewayz").Action(c.gwyz)
-	gwyz.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
+	gwyz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
 	gwyz.Arg("filter-name", "Filter results on gateway name").StringVar(&c.nameFilter)
 	gwyz.Flag("filter-account", "Show only a certain account in account detail").StringVar(&c.accountFilter)
 	gwyz.Flag("accounts", "Show account detail").Default("false").BoolVar(&c.detail)
 
 	leafz := req.Command("leafnodes", "Show leafnode details").Alias("leaf").Alias("leafz").Action(c.leafz)
-	leafz.Arg("server", "The ID of the server to request from").Required().StringVar(&c.sid)
+	leafz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
 	leafz.Flag("subscriptions", "Show subscription detail").Default("false").BoolVar(&c.detail)
+}
+
+func (c *SrvRequestCmd) reqFilter() serverReqFilter {
+	return serverReqFilter{
+		Name:    c.name,
+		Host:    c.host,
+		Cluster: c.cluster,
+	}
 }
 
 func (c *SrvRequestCmd) leafz(_ *kingpin.ParseContext) error {
 	type leafzOptions struct {
 		// Subscriptions indicates that Leafz will return a leafnode's subscriptions
 		Subscriptions bool `json:"subscriptions"`
+		serverReqFilter
 	}
 
 	nc, err := prepareHelper(servers, natsOpts()...)
@@ -72,12 +96,14 @@ func (c *SrvRequestCmd) leafz(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	res, err := c.doReq(c.sid, "LEAFZ", &leafzOptions{c.detail}, nc)
+	res, err := c.doReq("LEAFZ", &leafzOptions{c.detail, c.reqFilter()}, nc)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(string(res))
+	for _, m := range res {
+		fmt.Println(string(m))
+	}
 
 	return nil
 
@@ -93,6 +119,8 @@ func (c *SrvRequestCmd) gwyz(_ *kingpin.ParseContext) error {
 
 		// AccountName will limit the list of accounts to that account name (makes Accounts implicit)
 		AccountName string `json:"account_name"`
+
+		serverReqFilter
 	}
 
 	if c.accountFilter != "" {
@@ -104,12 +132,14 @@ func (c *SrvRequestCmd) gwyz(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	res, err := c.doReq(c.sid, "GATEWAYZ", &gatewayzOptions{c.nameFilter, c.detail, c.accountFilter}, nc)
+	res, err := c.doReq("GATEWAYZ", &gatewayzOptions{c.nameFilter, c.detail, c.accountFilter, c.reqFilter()}, nc)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(string(res))
+	for _, m := range res {
+		fmt.Println(string(m))
+	}
 
 	return nil
 }
@@ -120,6 +150,8 @@ func (c *SrvRequestCmd) routez(_ *kingpin.ParseContext) error {
 		Subscriptions bool `json:"subscriptions"`
 		// SubscriptionsDetail indicates if subscription details should be included in the results
 		SubscriptionsDetail bool `json:"subscriptions_detail"`
+
+		serverReqFilter
 	}
 
 	nc, err := prepareHelper(servers, natsOpts()...)
@@ -127,12 +159,14 @@ func (c *SrvRequestCmd) routez(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	res, err := c.doReq(c.sid, "ROUTEZ", &routezOptions{c.detail, c.detail}, nc)
+	res, err := c.doReq("ROUTEZ", &routezOptions{c.detail, c.detail, c.reqFilter()}, nc)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(string(res))
+	for _, m := range res {
+		fmt.Println(string(m))
+	}
 
 	return nil
 
@@ -172,6 +206,8 @@ func (c *SrvRequestCmd) conns(_ *kingpin.ParseContext) error {
 
 		// Filter by account.
 		Account string `json:"acc"`
+
+		serverReqFilter
 	}
 
 	opts := &connzOptions{
@@ -184,6 +220,7 @@ func (c *SrvRequestCmd) conns(_ *kingpin.ParseContext) error {
 		CID:                 c.cidFilter,
 		User:                c.userFilter,
 		Account:             c.accountFilter,
+		serverReqFilter:     c.reqFilter(),
 	}
 
 	switch c.stateFilter {
@@ -200,12 +237,14 @@ func (c *SrvRequestCmd) conns(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	res, err := c.doReq(c.sid, "CONNZ", opts, nc)
+	res, err := c.doReq("CONNZ", opts, nc)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(string(res))
+	for _, m := range res {
+		fmt.Println(string(m))
+	}
 
 	return nil
 
@@ -217,12 +256,14 @@ func (c *SrvRequestCmd) varz(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	res, err := c.doReq(c.sid, "VARZ", struct{}{}, nc)
+	res, err := c.doReq("VARZ", struct{}{}, nc)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(string(res))
+	for _, m := range res {
+		fmt.Println(string(m))
+	}
 
 	return nil
 
@@ -243,6 +284,8 @@ func (c *SrvRequestCmd) subs(_ *kingpin.ParseContext) error {
 		// Test the list against this subject. Needs to be literal since it signifies a publish subject.
 		// We will only return subscriptions that would match if a message was sent to this subject.
 		Test string `json:"test,omitempty"`
+
+		serverReqFilter
 	}
 
 	nc, err := prepareHelper(servers, natsOpts()...)
@@ -250,32 +293,60 @@ func (c *SrvRequestCmd) subs(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	res, err := c.doReq(c.sid, "SUBSZ", &subszOptions{c.offset, c.limit, c.detail, ""}, nc)
+	res, err := c.doReq("SUBSZ", &subszOptions{c.offset, c.limit, c.detail, "", c.reqFilter()}, nc)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(string(res))
+	for _, m := range res {
+		fmt.Println(string(m))
+	}
 
 	return nil
 }
 
-func (c *SrvRequestCmd) doReq(server string, kind string, req interface{}, nc *nats.Conn) ([]byte, error) {
+func (c *SrvRequestCmd) doReq(kind string, req interface{}, nc *nats.Conn) ([][]byte, error) {
 	jreq, err := json.MarshalIndent(req, "", "  ")
 	if err != nil {
 		return nil, err
 	}
 
-	subj := fmt.Sprintf("$SYS.REQ.SERVER.%s.%s", server, kind)
+	subj := fmt.Sprintf("$SYS.REQ.SERVER.PING.%s", kind)
 
 	if trace {
 		log.Printf(">>> %s: %s\n", subj, string(jreq))
 	}
 
-	res, err := nc.Request(subj, jreq, timeout)
+	var resp [][]byte
+	var mu sync.Mutex
+	ctr := 0
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	sub, err := nc.Subscribe(nats.NewInbox(), func(m *nats.Msg) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		resp = append(resp, m.Data)
+		ctr++
+
+		if ctr == c.waitFor {
+			cancel()
+		}
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	return res.Data, nil
+	sub.AutoUnsubscribe(c.waitFor)
+
+	err = nc.PublishRequest(subj, sub.Subject, jreq)
+	if err != nil {
+		return nil, err
+	}
+
+	<-ctx.Done()
+
+	return resp, nil
 }
