@@ -1065,6 +1065,8 @@ A final control is the Maximum Size any single message may have. NATS have it's 
 
 The `Discard Policy` sets how messages are discard when limits set by `LimitsPolicy` are reached. The `DiscardOld` option removes old messages making space for new, while `DiscardNew` refuses any new messages.
 
+The `WorkQueuePolicy` mode is a specialized mode where a message, once consumed and acknowledged, is discarded from the Stream. In this mode there are a few limits on consumers. Inherently it's about 1 message to one consumer, this means you cannot have overlapping consumers defined on the Stream - needs unique filter subjects.
+
 ### Message Deduplication
 
 JetStream support idempotent message writes by ignoring duplicate messages as indicated by the `Msg-Id` header.
