@@ -41,6 +41,7 @@ type consumerCmd struct {
 	destination string
 	inputFile   string
 
+	bpsRateLimit  uint64
 	maxDeliver    int
 	pull          bool
 	replayPolicy  string
@@ -84,6 +85,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 		f.Flag("ephemeral", "Create an ephemeral Consumer").Default("false").BoolVar(&c.ephemeral)
 		f.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
 		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").IntVar(&c.maxDeliver)
+		f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
 	}
 
 	consAdd := cons.Command("add", "Creates a new Consumer").Alias("create").Alias("new").Action(c.createAction)
@@ -214,6 +216,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	}
 	if config.SampleFrequency != "" {
 		fmt.Printf("       Sampling Rate: %s\n", config.SampleFrequency)
+	}
+	if config.RateLimit > 0 {
+		fmt.Printf("    Rate Limit (bps): %d\n", config.RateLimit)
 	}
 
 	fmt.Println()
@@ -511,6 +516,12 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 	if c.maxDeliver != 0 && cfg.AckPolicy != api.AckNone {
 		cfg.MaxDeliver = c.maxDeliver
 	}
+
+	if c.bpsRateLimit > 0 && cfg.DeliverSubject == "" {
+		return nil, fmt.Errorf("rate limits are only possible on Push consumers")
+	}
+
+	cfg.RateLimit = c.bpsRateLimit
 
 	return cfg, nil
 }

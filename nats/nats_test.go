@@ -434,11 +434,19 @@ func TestCLIConsumerAdd(t *testing.T) {
 	srv, _ := setupConsTest(t)
 	defer srv.Shutdown()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --replay instant --deliver all --pull --filter '' --max-deliver 20", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --replay instant --deliver all --target out.push1 --ack explicit --filter '' --max-deliver 20 --bps 1024", srv.ClientURL()))
 	consumerShouldExist(t, "mem1", "push1")
-
 	push1, err := jsm.LoadConsumer("mem1", "push1")
 	checkErr(t, err, "push1 could not be loaded")
+	if push1.RateLimit() != 1024 {
+		t.Fatalf("Expected rate limit of 1024 but got %v", push1.RateLimit())
+	}
+	if push1.MaxDeliver() != 20 {
+		t.Fatalf("Expected max delivery of 20 but got %v", push1.MaxDeliver())
+	}
+	if push1.DeliverySubject() != "out.push1" {
+		t.Fatalf("Expected delivery target out.push1 but got %v", push1.DeliverySubject())
+	}
 	push1.Delete()
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 pull1 --config testdata/mem1_pull1_consumer.json", srv.ClientURL()))
