@@ -157,6 +157,7 @@ When defining Consumers the items below make up the entire configuration of the 
 |ReplayPolicy|How messages are sent `ReplayInstant` or `ReplayOriginal`|
 |SampleFrequency|What percentage of acknowledgements should be samples for observability, 0-100|
 |OptStartTime|When first consuming messages from the Stream start with messages on or after this time|
+|RateLimit|The rate of message delivery in bits per second|
 
 ### Configuration
 
