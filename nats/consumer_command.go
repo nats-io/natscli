@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -218,7 +219,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		fmt.Printf("       Sampling Rate: %s\n", config.SampleFrequency)
 	}
 	if config.RateLimit > 0 {
-		fmt.Printf("    Rate Limit (bps): %d\n", config.RateLimit)
+		fmt.Printf("          Rate Limit: %s / second\n", humanize.IBytes(config.RateLimit/8))
 	}
 
 	fmt.Println()
