@@ -209,6 +209,10 @@
             },
             "sample_freq": {
               "type": "string"
+            },
+            "rate_limit_bps": {
+              "type": "integer",
+              "description": "The rate at which messages will be delivered to clients, expressed in bit per second"
             }
           }
         },
