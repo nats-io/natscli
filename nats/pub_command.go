@@ -77,7 +77,7 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 
 	if c.req {
 		if !c.raw {
-			log.Printf("Sending request on [%s]\n", c.subject)
+			log.Printf("Sending request on %q\n", c.subject)
 		}
 
 		msg, err := c.prepareMsg()
@@ -96,7 +96,7 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 			return nil
 		}
 
-		log.Printf("Received on [%s]", m.Subject)
+		log.Printf("Received on %q", m.Subject)
 		if len(m.Header) > 0 {
 			for h, vals := range m.Header {
 				for _, val := range vals {
@@ -131,7 +131,7 @@ func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
 		return err
 	}
 
-	log.Printf("Published %d bytes to %s\n", len(c.body), c.subject)
+	log.Printf("Published %d bytes to %q\n", len(c.body), c.subject)
 
 	return nil
 }
