@@ -807,7 +807,7 @@ The `nats` CLI can be used to manage Streams and Consumers easily using it's `--
 
 ### Add a new Stream
 
-This creates a new Stream based on `orders.json`. The `orders.json` file can be extracted from an existing stream using `nats stream info ORDERS | jq .config`
+This creates a new Stream based on `orders.json`. The `orders.json` file can be extracted from an existing stream using `nats stream info ORDERS -j | jq .config`
 
 ```
 $ nats str add ORDERS --config orders.json
@@ -822,7 +822,7 @@ $ nats str edit ORDERS --config orders.json
 
 ### Add a New Consumer
 
-This creates a new Consumer based on `orders_new.json`. The `orders_new.json` file can be extracted from an existing stream using `nats con info ORDERS NEW | jq .config`
+This creates a new Consumer based on `orders_new.json`. The `orders_new.json` file can be extracted from an existing stream using `nats con info ORDERS NEW -j | jq .config`
 
 ```
 $ nats con add ORDERS NEW --config orders_new.json
