@@ -142,6 +142,11 @@ func (c *eventsCmd) eventsAction(_ *kingpin.ParseContext) error {
 		nc.Subscribe("$SYS.ACCOUNT.*.DISCONNECT", func(m *nats.Msg) {
 			c.handleNATSEvent(m)
 		})
+
+		c.Printf("Listening for Authentication Errors events on $SYS.SERVER.*.CLIENT.AUTH.ERR\n")
+		nc.Subscribe("$SYS.SERVER.*.CLIENT.AUTH.ERR", func(m *nats.Msg) {
+			c.handleNATSEvent(m)
+		})
 	}
 
 	if len(c.extraSubjects) > 0 {
