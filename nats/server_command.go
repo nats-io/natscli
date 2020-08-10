@@ -22,4 +22,5 @@ func configureServerCommand(app *kingpin.Application) {
 	configureServerListCommand(srv)
 	configureServerPingCommand(srv)
 	configureServerRequestCommand(srv)
+	configureServerReportCommand(srv)
 }
