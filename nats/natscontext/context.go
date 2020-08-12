@@ -131,6 +131,10 @@ func DeleteContext(name string) error {
 
 // IsKnown determines if a context is known
 func IsKnown(name string) bool {
+	if !validName(name) {
+		return false
+	}
+
 	parent, err := parentDir()
 	if err != nil {
 		return false
@@ -208,6 +212,10 @@ func SelectedContext() string {
 }
 
 func knownContext(parent string, name string) bool {
+	if !validName(name) {
+		return false
+	}
+
 	_, err := os.Stat(filepath.Join(ctxDir(parent), name+".json"))
 	return !os.IsNotExist(err)
 }
