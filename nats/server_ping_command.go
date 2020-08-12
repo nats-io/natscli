@@ -45,7 +45,7 @@ func configureServerPingCommand(srv *kingpin.CmdClause) {
 }
 
 func (c *SrvPingCmd) ping(_ *kingpin.ParseContext) error {
-	nc, err := newNatsConn(servers, natsOpts()...)
+	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
 	}

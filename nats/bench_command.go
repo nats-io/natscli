@@ -62,7 +62,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	donewg := &sync.WaitGroup{}
 
 	for i := 0; i < c.numSubs; i++ {
-		nc, err := nats.Connect(servers, natsOpts()...)
+		nc, err := nats.Connect(config.ServerURL(), natsOpts()...)
 		if err != nil {
 			return fmt.Errorf("nats connection %d failed: %s", i, err)
 		}
@@ -77,7 +77,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 
 	pubCounts := bench.MsgsPerClient(c.numMsg, c.numPubs)
 	for i := 0; i < c.numPubs; i++ {
-		nc, err := nats.Connect(servers, natsOpts()...)
+		nc, err := nats.Connect(config.ServerURL(), natsOpts()...)
 		if err != nil {
 			return fmt.Errorf("nats connection %d failed: %s", i, err)
 		}

@@ -55,7 +55,7 @@ func configureServerListCommand(srv *kingpin.CmdClause) {
 }
 
 func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
-	nc, err := newNatsConn(servers, natsOpts()...)
+	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
 	}

@@ -80,7 +80,7 @@ In JetStream the configuration for storing messages is defined separately from h
 
 We'll discuss these 2 subjects in the context of this architecture.
 
-![Orders](images/streams-and-consumers-75p.png)
+    ![Orders](images/streams-and-consumers-75p.png)
 
 While this is an incomplete architecture it does show a number of key points:
 
@@ -1604,7 +1604,7 @@ $JS.API.CONSUMER.DURABLE.CREATE.<stream>.<consumer>
 $JS.API.CONSUMER.DELETE.<stream>.<consumer>
 $JS.API.CONSUMER.INFO.<stream>.<consumer>
 $JS.API.CONSUMER.LIST.<stream>
-$JS.API.CONSUMER.MSG.NEXT.<stream>.%s
+$JS.API.CONSUMER.MSG.NEXT.<stream>.<consumer>
 $JS.API.CONSUMER.NAMES.<stream>
 $JS.API.STREAM.TEMPLATE.CREATE.<stream template>
 $JS.API.STREAM.TEMPLATE.DELETE.<stream template>

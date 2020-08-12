@@ -59,8 +59,8 @@ func (c *pubCmd) prepareMsg() (*nats.Msg, error) {
 	return msg, parseStringsToHeader(c.hdrs, msg)
 }
 
-func (c *pubCmd) publish(pc *kingpin.ParseContext) error {
-	nc, err := newNatsConn(servers, natsOpts()...)
+func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
+	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
 	}

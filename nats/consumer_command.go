@@ -692,7 +692,7 @@ func (c *consumerCmd) nextAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool) {
-	_, err := prepareHelper(servers, natsOpts()...)
+	_, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	if askStream {

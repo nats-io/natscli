@@ -52,7 +52,7 @@ func configureReplyCommand(app *kingpin.Application) {
 }
 
 func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
-	nc, err := newNatsConn(servers, natsOpts()...)
+	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
 	}
