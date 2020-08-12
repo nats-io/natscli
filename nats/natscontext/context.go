@@ -56,6 +56,7 @@ type settings struct {
 type Context struct {
 	Name   string `json:"-"`
 	config *settings
+	path   string
 }
 
 // New loads a new configuration context. If name is empty the current active
@@ -126,6 +127,30 @@ func DeleteContext(name string) error {
 	}
 
 	return os.Remove(cfile)
+}
+
+// IsKnown determines if a context is known
+func IsKnown(name string) bool {
+	parent, err := parentDir()
+	if err != nil {
+		return false
+	}
+
+	return knownContext(parent, name)
+}
+
+// ContextPath is the path on disk to store the context
+func ContextPath(name string) (string, error) {
+	if !validName(name) {
+		return "", fmt.Errorf("invalid context name %q", name)
+	}
+
+	parent, err := parentDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(ctxDir(parent), name+".json"), nil
 }
 
 // KnownContexts is a list of known context
@@ -209,7 +234,8 @@ func (c *Context) loadActiveContext() error {
 		return fmt.Errorf("unknown context %q", c.Name)
 	}
 
-	ctxContent, err := ioutil.ReadFile(filepath.Join(parent, "nats", "context", c.Name+".json"))
+	c.path = filepath.Join(parent, "nats", "context", c.Name+".json")
+	ctxContent, err := ioutil.ReadFile(c.path)
 	if err != nil {
 		return err
 	}
@@ -278,7 +304,8 @@ func (c *Context) Save(name string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(filepath.Join(ctxDir, c.Name+".json"), j, 0600)
+	c.path = filepath.Join(ctxDir, c.Name+".json")
+	return ioutil.WriteFile(c.path, j, 0600)
 }
 
 // WithServerURL supplies the url(s) to connect to nats with
@@ -394,3 +421,6 @@ func WithDescription(d string) Option {
 
 // Description retrieves the description, empty if not set
 func (c *Context) Description() string { return c.config.Description }
+
+// Path returns the path on disk for a loaded context, empty when not saved or loaded
+func (c *Context) Path() string { return c.path }
