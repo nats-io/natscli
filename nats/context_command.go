@@ -15,6 +15,9 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"os/exec"
 
 	"github.com/AlecAivazis/survey/v2"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -45,11 +48,33 @@ func configureCtxCommand(app *kingpin.Application) {
 	save.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
 	save.Flag("select", "Select the saved context as the default one").BoolVar(&c.activate)
 
+	edit := context.Command("edit", "Edits the context in your EDITOR").Alias("vi").Action(c.editCommand)
+	edit.Arg("name", "The context name to edit").Required().StringVar(&c.name)
+
 	pick := context.Command("select", "Select the default context").Alias("switch").Alias("set").Action(c.selectCommand)
 	pick.Arg("name", "The context name to select").StringVar(&c.name)
 
 	rm := context.Command("remove", "Update or create a context").Alias("rm").Action(c.removeCommand)
 	rm.Arg("name", "The context name to remove").Required().StringVar(&c.name)
+}
+
+func (c *ctxCommand) editCommand(_ *kingpin.ParseContext) error {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		return fmt.Errorf("set EDITOR environment variable to your chosen editor")
+	}
+
+	path, err := natscontext.ContextPath(c.name)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("editor: %s path: %s", editor, path)
+	cmd := exec.Command(editor, path)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func (c *ctxCommand) listCommand(_ *kingpin.ParseContext) error {
@@ -109,16 +134,25 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 	c.showIfNotEmpty("  Certificate: %s\n", cfg.Certificate())
 	c.showIfNotEmpty("          Key: %s\n", cfg.Key())
 	c.showIfNotEmpty("           CA: %s\n", cfg.CA())
+	c.showIfNotEmpty("         Path: %s\n", cfg.Path())
+	fmt.Println()
 
 	return nil
 }
 func (c *ctxCommand) createCommand(pc *kingpin.ParseContext) error {
 	lname := ""
-	if cfgCtx != "" {
+	load := false
+
+	switch {
+	case natscontext.IsKnown(c.name):
+		lname = c.name
+		load = true
+	case cfgCtx != "":
 		lname = cfgCtx
+		load = true
 	}
 
-	config, err := natscontext.New(lname, lname != "",
+	config, err := natscontext.New(lname, load,
 		natscontext.WithServerURL(servers),
 		natscontext.WithUser(username),
 		natscontext.WithPassword(password),
