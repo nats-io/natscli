@@ -15,7 +15,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 
@@ -64,16 +63,20 @@ func (c *ctxCommand) editCommand(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("set EDITOR environment variable to your chosen editor")
 	}
 
+	if !natscontext.IsKnown(c.name) {
+		return fmt.Errorf("unknown context %q", c.name)
+	}
+
 	path, err := natscontext.ContextPath(c.name)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("editor: %s path: %s", editor, path)
 	cmd := exec.Command(editor, path)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
 	return cmd.Run()
 }
 
