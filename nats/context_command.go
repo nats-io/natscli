@@ -29,6 +29,7 @@ type ctxCommand struct {
 	activate    bool
 	description string
 	name        string
+	force       bool
 }
 
 func configureCtxCommand(app *kingpin.Application) {
@@ -36,25 +37,26 @@ func configureCtxCommand(app *kingpin.Application) {
 
 	context := app.Command("context", "Manage nats configuration contexts").Alias("ctx")
 
-	context.Command("list", "List known contexts").Alias("ls").Alias("l").Action(c.listCommand)
+	edit := context.Command("edit", "Edit a context in your EDITOR").Alias("vi").Action(c.editCommand)
+	edit.Arg("name", "The context name to edit").Required().StringVar(&c.name)
 
-	show := context.Command("show", "Shows the current context").Action(c.showCommand)
-	show.Arg("name", "The context name to show").StringVar(&c.name)
-	show.Flag("json", "Show the context in JSON format").BoolVar(&c.json)
+	context.Command("ls", "List known contexts").Alias("list").Alias("l").Action(c.listCommand)
+
+	rm := context.Command("rm", "Remove a context").Alias("remove").Action(c.removeCommand)
+	rm.Arg("name", "The context name to remove").Required().StringVar(&c.name)
+	rm.Flag("force", "Force remove without prompting").Short('f').BoolVar(&c.force)
 
 	save := context.Command("save", "Update or create a context").Alias("add").Alias("create").Action(c.createCommand)
 	save.Arg("name", "The context name to act on").Required().StringVar(&c.name)
 	save.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
 	save.Flag("select", "Select the saved context as the default one").BoolVar(&c.activate)
 
-	edit := context.Command("edit", "Edits the context in your EDITOR").Alias("vi").Action(c.editCommand)
-	edit.Arg("name", "The context name to edit").Required().StringVar(&c.name)
-
 	pick := context.Command("select", "Select the default context").Alias("switch").Alias("set").Action(c.selectCommand)
 	pick.Arg("name", "The context name to select").StringVar(&c.name)
 
-	rm := context.Command("remove", "Removes a context").Alias("rm").Action(c.removeCommand)
-	rm.Arg("name", "The context name to remove").Required().StringVar(&c.name)
+	show := context.Command("show", "Show the current or named context").Action(c.showCommand)
+	show.Arg("name", "The context name to show").StringVar(&c.name)
+	show.Flag("json", "Show the context in JSON format").Short('j').BoolVar(&c.json)
 }
 
 func (c *ctxCommand) editCommand(_ *kingpin.ParseContext) error {
@@ -183,6 +185,17 @@ func (c *ctxCommand) createCommand(pc *kingpin.ParseContext) error {
 }
 
 func (c *ctxCommand) removeCommand(_ *kingpin.ParseContext) error {
+	if !c.force {
+		ok, err := askConfirmation(fmt.Sprintf("Really delete context %q", c.name), false)
+		if err != nil {
+			return fmt.Errorf("could not obtain confirmation: %s", err)
+		}
+
+		if !ok {
+			return nil
+		}
+	}
+
 	return natscontext.DeleteContext(c.name)
 }
 

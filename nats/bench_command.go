@@ -39,7 +39,7 @@ type benchCmd struct {
 
 func configureBenchCommand(app *kingpin.Application) {
 	c := &benchCmd{}
-	bench := app.Command("bench", "Benchmark Utility").Action(c.bench)
+	bench := app.Command("bench", "Benchmark utility").Action(c.bench)
 	bench.Arg("subject", "Subject to use for testing").Required().StringVar(&c.subject)
 	bench.Flag("pub", "Number of concurrent publishers").Default("1").IntVar(&c.numPubs)
 	bench.Flag("sub", "Number of concurrent subscribers").Default("0").IntVar(&c.numSubs)

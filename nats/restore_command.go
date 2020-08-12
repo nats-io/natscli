@@ -30,9 +30,9 @@ type restoreCmd struct {
 func configureRestoreCommand(app *kingpin.Application) {
 	c := &restoreCmd{}
 
-	restore := app.Command("restore", "Restores a restore of JetStream configuration").Action(c.restoreAction)
-	restore.Arg("directory", "Directory to read restore from").StringVar(&c.backupDir)
-	restore.Flag("file", "File to read restore from").StringVar(&c.file)
+	restore := app.Command("restore", "Restores a backup of JetStream configuration").Action(c.restoreAction)
+	restore.Arg("directory", "Directory to read backup from").StringVar(&c.backupDir)
+	restore.Flag("file", "File to read backup from").StringVar(&c.file)
 	restore.Flag("update-streams", "Update existing stream configuration").BoolVar(&c.updateStream)
 }
 
