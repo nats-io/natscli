@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/nats-io/nats.go"
+
 	"github.com/nats-io/jetstream/nats/natscontext"
 )
 
@@ -74,7 +76,7 @@ func TestContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error loading context: %s", err)
 	}
-	if config.ServerURL() != "localhost" {
+	if config.ServerURL() != nats.DefaultURL {
 		t.Fatalf("expected localhost got %s", config.ServerURL())
 	}
 }

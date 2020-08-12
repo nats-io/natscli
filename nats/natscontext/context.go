@@ -68,7 +68,7 @@ type Context struct {
 func New(name string, load bool, opts ...Option) (*Context, error) {
 	c := &Context{
 		Name:   name,
-		config: &settings{URL: "localhost"},
+		config: &settings{URL: nats.DefaultURL},
 	}
 
 	if load {

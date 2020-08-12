@@ -16,7 +16,7 @@ func configureBackupCommand(app *kingpin.Application) {
 
 	backup := app.Command("backup", "JetStream configuration backup utility").Action(c.backupAction)
 	backup.Arg("output", "Directory to write backup to").Required().StringVar(&c.outDir)
-	backup.Flag("data", "Include data in while performing backups").BoolVar(&c.data)
+	backup.Flag("data", "Include data while performing backups").BoolVar(&c.data)
 }
 
 func (c *backupCmd) backupAction(_ *kingpin.ParseContext) error {
