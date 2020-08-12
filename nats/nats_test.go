@@ -35,6 +35,10 @@ import (
 	"github.com/nats-io/jsm.go"
 )
 
+func init() {
+	skipContexts = true
+}
+
 func runNatsCli(t *testing.T, args ...string) (output []byte) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

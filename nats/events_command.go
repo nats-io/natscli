@@ -108,7 +108,7 @@ func (c *eventsCmd) eventsAction(_ *kingpin.ParseContext) error {
 		c.json = true
 	}
 
-	nc, err := prepareHelper(servers, natsOpts()...)
+	nc, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	c.bodyFRe, err = regexp.Compile(strings.ToUpper(c.bodyF))

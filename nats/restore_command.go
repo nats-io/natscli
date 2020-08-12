@@ -45,7 +45,7 @@ func (c *restoreCmd) restoreAction(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("both file and directory can not be supplied")
 	}
 
-	_, err := prepareHelper(servers, natsOpts()...)
+	_, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}

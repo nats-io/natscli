@@ -49,7 +49,7 @@ func (c *latencyCmd) latencyAction(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("message Payload Size must be at least %d bytes", 8)
 	}
 
-	c1, err := newNatsConn(servers, natsOpts()...)
+	c1, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
 	}

@@ -20,7 +20,7 @@ func configureBackupCommand(app *kingpin.Application) {
 }
 
 func (c *backupCmd) backupAction(_ *kingpin.ParseContext) error {
-	_, err := prepareHelper(servers, natsOpts()...)
+	_, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}

@@ -33,6 +33,8 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go"
+
+	"github.com/nats-io/jetstream/nats/natscontext"
 )
 
 func selectConsumer(stream string, consumer string, force bool) (string, error) {
@@ -290,11 +292,18 @@ func splitString(s string) []string {
 }
 
 func natsOpts() []nats.Option {
+	if config == nil {
+		return []nats.Option{}
+	}
+
+	opts, err := NATSOptions(config)
+	kingpin.FatalIfError(err, "configuration error")
+
 	totalWait := 10 * time.Minute
 	reconnectDelay := time.Second
 
-	opts := []nats.Option{
-		nats.Name("NATS CLI"),
+	return append(opts, []nats.Option{
+		nats.Name("NATS CLI Version " + version),
 		nats.MaxReconnects(-1),
 		nats.UseOldRequestStyle(),
 		nats.ReconnectWait(reconnectDelay),
@@ -315,39 +324,40 @@ func natsOpts() []nats.Option {
 				log.Printf("Unexpected NATS error from server %s: %s", url, err)
 			}
 		}),
-	}
-
-	if username != "" {
-		opts = append(opts, nats.UserInfo(username, password))
-	}
-
-	if creds != "" {
-		opts = append(opts, nats.UserCredentials(creds))
-	}
-
-	if nkey != "" {
-		nko, err := nats.NkeyOptionFromSeed(nkey)
-		kingpin.FatalIfError(err, "nkey authentication error")
-
-		opts = append(opts, nko)
-	}
-
-	if tlsCert != "" && tlsKey != "" {
-		opts = append(opts, nats.ClientCert(tlsCert, tlsKey))
-	}
-
-	if tlsCA != "" {
-		opts = append(opts, nats.RootCAs(tlsCA))
-	}
-
-	return opts
+	}...)
 }
 
 func newNatsConn(servers string, opts ...nats.Option) (*nats.Conn, error) {
+	if config == nil {
+		if ctxError != nil {
+			return nil, ctxError
+		}
+
+		err := loadContext()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if servers == "" {
+		servers = config.ServerURL()
+	}
+
 	return nats.Connect(servers, opts...)
 }
 
 func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, error) {
+	if config == nil {
+		if ctxError != nil {
+			return nil, ctxError
+		}
+
+		err := loadContext()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	nc, err := newNatsConn(servers, opts...)
 	if err != nil {
 		return nil, err
@@ -425,6 +435,27 @@ func parseStringsToHeader(hdrs []string, msg *nats.Msg) error {
 		}
 		msg.Header.Add(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 	}
+
+	return nil
+}
+
+func loadContext() error {
+	config, ctxError = natscontext.New(cfgCtx, !skipContexts,
+		natscontext.WithServerURL(servers),
+		natscontext.WithUser(username),
+		natscontext.WithPassword(password),
+		natscontext.WithCreds(creds),
+		natscontext.WithNKey(nkey),
+		natscontext.WithCertificate(tlsCert),
+		natscontext.WithKey(tlsKey),
+		natscontext.WithCA(tlsCA),
+	)
+
+	return ctxError
+}
+
+func prepareConfig(_ *kingpin.ParseContext) (err error) {
+	loadContext()
 
 	return nil
 }

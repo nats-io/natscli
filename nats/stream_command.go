@@ -171,7 +171,7 @@ func configureStreamCommand(app *kingpin.Application) {
 }
 
 func (c *streamCmd) restoreAction(pc *kingpin.ParseContext) (err error) {
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	known, err := jsm.IsKnownStream(c.stream)
@@ -228,7 +228,7 @@ func (c *streamCmd) restoreAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	stream, err := jsm.LoadStream(c.stream)
@@ -309,7 +309,7 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) streamTemplateRm(_ *kingpin.ParseContext) (err error) {
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	c.stream, err = selectStreamTemplate(c.stream, c.force)
@@ -349,7 +349,7 @@ func (c *streamCmd) streamTemplateAdd(pc *kingpin.ParseContext) (err error) {
 
 	cfg.Name = ""
 
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "could not create Stream")
 
 	_, err = jsm.NewStreamTemplate(c.stream, uint32(c.maxStreams), cfg)
@@ -361,7 +361,7 @@ func (c *streamCmd) streamTemplateAdd(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) streamTemplateInfo(_ *kingpin.ParseContext) error {
-	_, err := prepareHelper(servers, natsOpts()...)
+	_, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	c.stream, err = selectStreamTemplate(c.stream, c.force)
@@ -398,7 +398,7 @@ func (c *streamCmd) streamTemplateInfo(_ *kingpin.ParseContext) error {
 }
 
 func (c *streamCmd) streamTemplateLs(_ *kingpin.ParseContext) error {
-	_, err := prepareHelper(servers, natsOpts()...)
+	_, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	names, err := jsm.StreamTemplateNames()
@@ -425,8 +425,8 @@ func (c *streamCmd) streamTemplateLs(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *streamCmd) reportAction(pc *kingpin.ParseContext) error {
-	_, err := prepareHelper(servers, natsOpts()...)
+func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
+	_, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	type stat struct {
@@ -938,7 +938,7 @@ func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		return nil
 	}
 
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "could not create Stream")
 
 	str, err := jsm.NewStreamFromDefault(c.stream, cfg)
@@ -996,7 +996,7 @@ func (c *streamCmd) purgeAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) lsAction(_ *kingpin.ParseContext) (err error) {
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	streams, err := jsm.StreamNames()
@@ -1102,7 +1102,7 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) connectAndAskStream() {
-	_, err := prepareHelper(servers, natsOpts()...)
+	_, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	c.stream, err = selectStream(c.stream, c.force)
