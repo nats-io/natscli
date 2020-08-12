@@ -54,7 +54,7 @@ func configureCtxCommand(app *kingpin.Application) {
 	pick := context.Command("select", "Select the default context").Alias("switch").Alias("set").Action(c.selectCommand)
 	pick.Arg("name", "The context name to select").StringVar(&c.name)
 
-	rm := context.Command("remove", "Update or create a context").Alias("rm").Action(c.removeCommand)
+	rm := context.Command("remove", "Removes a context").Alias("rm").Action(c.removeCommand)
 	rm.Arg("name", "The context name to remove").Required().StringVar(&c.name)
 }
 
