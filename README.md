@@ -182,7 +182,7 @@ The `synadia/jsm:latest` docker image contains both the JetStream enabled NATS S
 In one window start JetStream:
 
 ```
-$ docker run -ti --name jetstream synadia/jsm:latest server
+$ docker run -ti -p 4222:4222 --name jetstream synadia/jsm:latest server
 [1] 2020/01/20 12:44:11.752465 [INF] Starting nats-server version 2.2.0-beta
 [1] 2020/01/20 12:44:11.752694 [INF] Git commit [19dc3eb]
 [1] 2020/01/20 12:44:11.752875 [INF] Starting JetStream
