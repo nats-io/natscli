@@ -294,6 +294,8 @@ func (c *SrvReportCmd) getConnz(current []*server.Connz, nc *nats.Conn, level in
 
 	// get the initial result from all nodes as one req and then recursively fetch all that has more pages
 	if len(current) == 0 {
+		var initial []*server.Connz
+
 		res, err := c.doReq(&server.ConnzOptions{
 			Subscriptions:       true,
 			SubscriptionsDetail: false,
@@ -328,11 +330,11 @@ func (c *SrvReportCmd) getConnz(current []*server.Connz, nc *nats.Conn, level in
 				return nil, false, err
 			}
 
-			result = append(result, connz)
+			initial = append(initial, connz)
 		}
 
 		// recursively fetch...
-		recursed, all, err := c.getConnz(result, nc, level+1)
+		recursed, all, err := c.getConnz(initial, nc, level+1)
 		if !all {
 			return nil, false, fmt.Errorf("could not fetch all connections")
 		}
