@@ -35,6 +35,7 @@ type SrvReportCmd struct {
 	waitFor int
 	sort    string
 	topk    int
+	reverse bool
 }
 
 type srvReportAccountInfo struct {
@@ -53,6 +54,7 @@ func configureServerReportCommand(srv *kingpin.CmdClause) {
 
 	report := srv.Command("report", "Report on various server metrics").Alias("rep")
 	report.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	report.Flag("reverse", "Reverse sort connections").Short('R').BoolVar(&c.reverse)
 
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnections)
 	conns.Arg("limit", "Limit the responses to a certain amount of servers").Default("1024").IntVar(&c.waitFor)
@@ -123,17 +125,17 @@ func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
 	sort.Slice(accounts, func(i int, j int) bool {
 		switch c.sort {
 		case "in-bytes":
-			return accounts[i].InBytes < accounts[j].InBytes
+			return c.boolReverse(accounts[i].InBytes < accounts[j].InBytes)
 		case "out-bytes":
-			return accounts[i].OutBytes < accounts[j].OutBytes
+			return c.boolReverse(accounts[i].OutBytes < accounts[j].OutBytes)
 		case "in-msgs":
-			return accounts[i].InMsgs < accounts[j].InMsgs
+			return c.boolReverse(accounts[i].InMsgs < accounts[j].InMsgs)
 		case "out-msgs":
-			return accounts[i].OutMsgs < accounts[j].OutMsgs
+			return c.boolReverse(accounts[i].OutMsgs < accounts[j].OutMsgs)
 		case "conns":
-			return accounts[i].Connections < accounts[j].Connections
+			return c.boolReverse(accounts[i].Connections < accounts[j].Connections)
 		default:
-			return accounts[i].Subs < accounts[j].Subs
+			return c.boolReverse(accounts[i].Subs < accounts[j].Subs)
 		}
 	})
 
@@ -221,23 +223,31 @@ func (c *SrvReportCmd) reportConnections(_ *kingpin.ParseContext) error {
 	return nil
 }
 
+func (c *SrvReportCmd) boolReverse(v bool) bool {
+	if c.reverse {
+		return !v
+	}
+
+	return v
+}
+
 func (c *SrvReportCmd) sortConnections(conns []*server.ConnInfo) {
 	sort.Slice(conns, func(i int, j int) bool {
 		switch c.sort {
 		case "in-bytes":
-			return conns[i].InBytes < conns[j].InBytes
+			return c.boolReverse(conns[i].InBytes < conns[j].InBytes)
 		case "out-bytes":
-			return conns[i].OutBytes < conns[j].OutBytes
+			return c.boolReverse(conns[i].OutBytes < conns[j].OutBytes)
 		case "in-msgs":
-			return conns[i].InMsgs < conns[j].InMsgs
+			return c.boolReverse(conns[i].InMsgs < conns[j].InMsgs)
 		case "out-msgs":
-			return conns[i].OutMsgs < conns[j].OutMsgs
+			return c.boolReverse(conns[i].OutMsgs < conns[j].OutMsgs)
 		case "uptime":
-			return conns[i].Start.After(conns[j].Start)
+			return c.boolReverse(conns[i].Start.After(conns[j].Start))
 		case "cid":
-			return conns[i].Cid < conns[j].Cid
+			return c.boolReverse(conns[i].Cid < conns[j].Cid)
 		default:
-			return len(conns[i].Subs) < len(conns[j].Subs)
+			return c.boolReverse(len(conns[i].Subs) < len(conns[j].Subs))
 		}
 	})
 }
