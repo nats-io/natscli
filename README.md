@@ -32,7 +32,7 @@ JetStream is the [NATS.io](https://nats.io) persistence engine that will support
     + [Consuming Pull-Based Consumers](#consuming-pull-based-consumers)
     + [Consuming Push-Based Consumers](#consuming-push-based-consumers)
 - [Configuration Management](#configuration-management)
-  * [`nats` CLI](#nats-cli)
+  * [`nats` CLI](#nats-admin-cli)
   * [Terraform](#terraform)
   * [GitHub Actions](#github-actions)
 - [Disaster Recovery](#disaster-recovery)
@@ -65,6 +65,7 @@ JetStream is the [NATS.io](https://nats.io) persistence engine that will support
   * [Fetching From a Stream By Sequence](#fetching-from-a-stream-by-sequence)
   * [Consumer Samples](#consumer-samples)
 - [Multi Tenancy and Resource Management](#multi-tenancy-and-resource-management)
+- [`nats` CLI](#nats-cli)
 - [Next Steps](#next-steps)
 - [Discussion Items](#discussion-items)
   * [DLQ (Dead Letter Queue)](#dlq-dead-letter-queue)
@@ -80,7 +81,7 @@ In JetStream the configuration for storing messages is defined separately from h
 
 We'll discuss these 2 subjects in the context of this architecture.
 
-![Orders](images/streams-and-consumers-75p.png)
+    ![Orders](images/streams-and-consumers-75p.png)
 
 While this is an incomplete architecture it does show a number of key points:
 
@@ -801,7 +802,7 @@ We support a number of tools to assist with this:
  * [GitHub Actions](https://github.com/features/actions) 
 
 
-### `nats` CLI
+### nats Admin CLI
 
 The `nats` CLI can be used to manage Streams and Consumers easily using it's `--config` flag, for example:
 
@@ -1604,7 +1605,7 @@ $JS.API.CONSUMER.DURABLE.CREATE.<stream>.<consumer>
 $JS.API.CONSUMER.DELETE.<stream>.<consumer>
 $JS.API.CONSUMER.INFO.<stream>.<consumer>
 $JS.API.CONSUMER.LIST.<stream>
-$JS.API.CONSUMER.MSG.NEXT.<stream>.%s
+$JS.API.CONSUMER.MSG.NEXT.<stream>.<consumer>
 $JS.API.CONSUMER.NAMES.<stream>
 $JS.API.STREAM.TEMPLATE.CREATE.<stream template>
 $JS.API.STREAM.TEMPLATE.DELETE.<stream template>
@@ -1732,6 +1733,71 @@ accounts {
 Now the `HR` account it limited in various dimensions.
 
 If you try to configure JetStream for an account without enabling it globally you'll get a warning and the account designated as System cannot have JetStream enabled.
+
+## `nats` CLI
+
+As part of the JetStream efforts a new `nats` CLI is being developed to act as a single point of access to the NATS eco system.
+
+This CLI has been seen throughout the guide, it's available in the Docker containers today and downloadable on the [Releases](https://github.com/nats-io/jetstream/releases)
+page.
+
+### Configuration Contexts
+
+The CLI has a number of environment configuration settings - where your NATS server is, credentials, TLS keys and more:
+
+```nohighlight
+$ nats --help
+...
+  -s, --server=NATS_URL         NATS servers
+      --user=NATS_USER          Username of Token
+      --password=NATS_PASSWORD  Password
+      --creds=NATS_CREDS        User credentials
+      --nkey=NATS_NKEY          User NKEY
+      --tlscert=NATS_CERT       TLS public certificate
+      --tlskey=NATS_KEY         TLS private key
+      --tlsca=NATS_CA           TLS certificate authority chain
+      --timeout=NATS_TIMEOUT    Time to wait on responses from NATS
+      --context=CONTEXT         NATS Configuration Context to use for access
+...
+```
+
+You can set these using the CLI flag, the environmet variable - like **NATS_URL** - or using our context feature.
+
+A context is a named configuration that stores all these settings, you can switch between access configurations and
+designate a default.
+
+Creating one is easy, just specify the same settings to the `nats context save`
+
+```nohighlight
+$ nats context save example --server nats://nats.example.net:4222 --description 'Example.Net Server'
+$ nats context save local --server nats://localhost:4222 --description 'Local Host' --select 
+$ nats context ls
+Known contexts:
+
+   example             Example.Net Server
+   local*              Local Host
+```
+
+We passed `--select` to the `local` one meaning it will be the default when nothing is set.
+
+```nohighlight
+$ nats rtt
+nats://localhost:4222:
+
+   nats://127.0.0.1:4222: 245.115µs
+       nats://[::1]:4222: 390.239µs
+
+$ nats rtt --context example
+nats://nats.example.net:4222:
+
+   nats://192.0.2.10:4222: 41.560815ms
+   nats://192.0.2.11:4222: 41.486609ms
+   nats://192.0.2.12:4222: 41.178009ms
+```
+
+The `nats context select` command can be used to set the default context.
+
+All `nats` commands are context aware and the `nats context` command has various commands to view, edit and remove contexts.
 
 ## Next Steps
 

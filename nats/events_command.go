@@ -108,7 +108,7 @@ func (c *eventsCmd) eventsAction(_ *kingpin.ParseContext) error {
 		c.json = true
 	}
 
-	nc, err := prepareHelper(servers, natsOpts()...)
+	nc, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	c.bodyFRe, err = regexp.Compile(strings.ToUpper(c.bodyF))
@@ -140,6 +140,11 @@ func (c *eventsCmd) eventsAction(_ *kingpin.ParseContext) error {
 
 		c.Printf("Listening for Client Disconnection events on $SYS.ACCOUNT.*.DISCONNECT\n")
 		nc.Subscribe("$SYS.ACCOUNT.*.DISCONNECT", func(m *nats.Msg) {
+			c.handleNATSEvent(m)
+		})
+
+		c.Printf("Listening for Authentication Errors events on $SYS.SERVER.*.CLIENT.AUTH.ERR\n")
+		nc.Subscribe("$SYS.SERVER.*.CLIENT.AUTH.ERR", func(m *nats.Msg) {
 			c.handleNATSEvent(m)
 		})
 	}

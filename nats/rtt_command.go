@@ -127,7 +127,7 @@ func (c *rttCmd) performTest(targets []*rttTarget) (err error) {
 }
 
 func (c *rttCmd) calcRTT(server string, opts []nats.Option) (string, time.Duration, error) {
-	nc, err := newNatsConn(server, opts...)
+	nc, err := newNatsConn("", opts...)
 	if err != nil {
 		return "", 0, err
 	}
@@ -147,7 +147,7 @@ func (c *rttCmd) calcRTT(server string, opts []nats.Option) (string, time.Durati
 }
 
 func (c *rttCmd) targets() (targets []*rttTarget, err error) {
-	for _, s := range strings.Split(servers, ",") {
+	for _, s := range strings.Split(config.ServerURL(), ",") {
 		if !strings.Contains(s, "://") {
 			s = fmt.Sprintf("nats://%s", s)
 		}

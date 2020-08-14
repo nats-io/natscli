@@ -34,7 +34,7 @@ func configureActCommand(app *kingpin.Application) {
 }
 
 func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
-	_, err := prepareHelper(servers, natsOpts()...)
+	_, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	info, err := jsm.JetStreamAccountInfo()

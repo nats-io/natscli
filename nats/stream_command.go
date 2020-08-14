@@ -70,12 +70,6 @@ type streamCmd struct {
 func configureStreamCommand(app *kingpin.Application) {
 	c := &streamCmd{msgID: -1}
 
-	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
-
-	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
-	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
-	strInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-
 	addCreateFlags := func(f *kingpin.CmdClause) {
 		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
 		f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
@@ -90,27 +84,40 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
 	}
 
-	strAdd := str.Command("create", "Create a new Stream").Alias("add").Alias("new").Action(c.addAction)
+	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
+
+	strAdd := str.Command("add", "Create a new Stream").Alias("create").Alias("new").Action(c.addAction)
 	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	strAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	strAdd.Flag("validate", "Only validates the configuration against the official Schema").BoolVar(&c.validateOnly)
 	addCreateFlags(strAdd)
 
-	strEdit := str.Command("edit", "Edits an existing stream").Action(c.editAction)
-	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
-	strEdit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
-	strEdit.Flag("force", "Force edit without prompting").Short('f').BoolVar(&c.force)
-
-	addCreateFlags(strEdit)
+	strBackup := str.Command("backup", "Backs up a Stream over the NATS network").Action(c.backupAction)
+	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
+	strBackup.Arg("target", "File to create the backup in").Required().StringVar(&c.backupFile)
+	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
+	strBackup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
+	strBackup.Flag("chunk-size", "The size of individual chunks to send").Default("16777216").IntVar(&c.snapshotChunk)
 
 	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another").Alias("cp").Action(c.cpAction)
 	strCopy.Arg("source", "Source Stream to copy").Required().StringVar(&c.stream)
 	strCopy.Arg("destination", "New Stream to create").Required().StringVar(&c.destination)
 	addCreateFlags(strCopy)
 
-	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
-	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
-	strRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+	strEdit := str.Command("edit", "Edits an existing stream").Action(c.editAction)
+	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
+	strEdit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
+	strEdit.Flag("force", "Force edit without prompting").Short('f').BoolVar(&c.force)
+	addCreateFlags(strEdit)
+
+	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
+	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
+	strGet.Arg("id", "Message ID to retrieve").Int64Var(&c.msgID)
+	strGet.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+
+	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
+	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
+	strInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
 	strLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
@@ -120,16 +127,6 @@ func configureStreamCommand(app *kingpin.Application) {
 	strPurge.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	strPurge.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
-	strRmMsg := str.Command("rmm", "Securely removes an individual message from a Stream").Action(c.rmMsgAction)
-	strRmMsg.Arg("stream", "Stream name").StringVar(&c.stream)
-	strRmMsg.Arg("id", "Message ID to remove").Int64Var(&c.msgID)
-	strRmMsg.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
-
-	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
-	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
-	strGet.Arg("id", "Message ID to retrieve").Int64Var(&c.msgID)
-	strGet.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-
 	strReport := str.Command("report", "Reports on Stream statistics").Action(c.reportAction)
 	strReport.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	strReport.Flag("consumers", "Sort by number of Consumers").Short('o').BoolVar(&c.reportSortConsumers)
@@ -138,18 +135,20 @@ func configureStreamCommand(app *kingpin.Application) {
 	strReport.Flag("storage", "Sort by Storage type").Short('t').BoolVar(&c.reportSortStorage)
 	strReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.reportRaw)
 
-	strBackup := str.Command("backup", "Backs up a Stream over the NATS network").Action(c.backupAction)
-	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
-	strBackup.Arg("target", "File to create the backup in").Required().StringVar(&c.backupFile)
-	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
-	strBackup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
-	strBackup.Flag("chunk-size", "The size of individual chunks to send").Default("16777216").IntVar(&c.snapshotChunk)
-
 	strRestore := str.Command("restore", "Restore a Stream over the NATS network").Action(c.restoreAction)
 	strRestore.Arg("stream", "The name of the Stream to restore").Required().StringVar(&c.stream)
 	strRestore.Arg("file", "The file holding the backup to restore").Required().ExistingFileVar(&c.backupFile)
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	strRestore.Flag("chunk-size", "The size of individual chunks to send").Default("16777216").IntVar(&c.snapshotChunk)
+
+	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
+	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
+	strRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+
+	strRmMsg := str.Command("rmm", "Securely removes an individual message from a Stream").Action(c.rmMsgAction)
+	strRmMsg.Arg("stream", "Stream name").StringVar(&c.stream)
+	strRmMsg.Arg("id", "Message ID to remove").Int64Var(&c.msgID)
+	strRmMsg.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
 	strTemplate := str.Command("template", "Manages Stream Templates").Alias("templ").Alias("t")
 
@@ -158,20 +157,20 @@ func configureStreamCommand(app *kingpin.Application) {
 	strTAdd.Flag("max-streams", "Maximum amount of streams that this template can generate").Default("-1").IntVar(&c.maxStreams)
 	addCreateFlags(strTAdd)
 
+	strTInfo := strTemplate.Command("info", "Stream Template information").Alias("nfo").Alias("i").Action(c.streamTemplateInfo)
+	strTInfo.Arg("template", "Stream Template to retrieve information for").StringVar(&c.stream)
+	strTInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+
 	strTLs := strTemplate.Command("ls", "List all known Stream Templates").Alias("list").Alias("l").Action(c.streamTemplateLs)
 	strTLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 	strTRm := strTemplate.Command("rm", "Removes a Stream Template").Alias("delete").Alias("del").Action(c.streamTemplateRm)
 	strTRm.Arg("template", "Stream Template name").StringVar(&c.stream)
 	strTRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
-
-	strTInfo := strTemplate.Command("info", "Stream Template information").Alias("nfo").Alias("i").Action(c.streamTemplateInfo)
-	strTInfo.Arg("template", "Stream Template to retrieve information for").StringVar(&c.stream)
-	strTInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 }
 
 func (c *streamCmd) restoreAction(pc *kingpin.ParseContext) (err error) {
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	known, err := jsm.IsKnownStream(c.stream)
@@ -228,7 +227,7 @@ func (c *streamCmd) restoreAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	stream, err := jsm.LoadStream(c.stream)
@@ -309,7 +308,7 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) streamTemplateRm(_ *kingpin.ParseContext) (err error) {
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	c.stream, err = selectStreamTemplate(c.stream, c.force)
@@ -349,7 +348,7 @@ func (c *streamCmd) streamTemplateAdd(pc *kingpin.ParseContext) (err error) {
 
 	cfg.Name = ""
 
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "could not create Stream")
 
 	_, err = jsm.NewStreamTemplate(c.stream, uint32(c.maxStreams), cfg)
@@ -361,7 +360,7 @@ func (c *streamCmd) streamTemplateAdd(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) streamTemplateInfo(_ *kingpin.ParseContext) error {
-	_, err := prepareHelper(servers, natsOpts()...)
+	_, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	c.stream, err = selectStreamTemplate(c.stream, c.force)
@@ -398,7 +397,7 @@ func (c *streamCmd) streamTemplateInfo(_ *kingpin.ParseContext) error {
 }
 
 func (c *streamCmd) streamTemplateLs(_ *kingpin.ParseContext) error {
-	_, err := prepareHelper(servers, natsOpts()...)
+	_, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	names, err := jsm.StreamTemplateNames()
@@ -425,8 +424,8 @@ func (c *streamCmd) streamTemplateLs(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *streamCmd) reportAction(pc *kingpin.ParseContext) error {
-	_, err := prepareHelper(servers, natsOpts()...)
+func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
+	_, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	type stat struct {
@@ -938,7 +937,7 @@ func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		return nil
 	}
 
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "could not create Stream")
 
 	str, err := jsm.NewStreamFromDefault(c.stream, cfg)
@@ -996,7 +995,7 @@ func (c *streamCmd) purgeAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) lsAction(_ *kingpin.ParseContext) (err error) {
-	_, err = prepareHelper(servers, natsOpts()...)
+	_, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	streams, err := jsm.StreamNames()
@@ -1102,7 +1101,7 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 }
 
 func (c *streamCmd) connectAndAskStream() {
-	_, err := prepareHelper(servers, natsOpts()...)
+	_, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	c.stream, err = selectStream(c.stream, c.force)

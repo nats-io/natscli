@@ -59,22 +59,6 @@ type consumerCmd struct {
 func configureConsumerCommand(app *kingpin.Application) {
 	c := &consumerCmd{}
 
-	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
-
-	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
-	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
-	consInfo.Arg("consumer", "Consumer name").StringVar(&c.consumer)
-	consInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-
-	consLs := cons.Command("ls", "List known Consumers").Alias("list").Action(c.lsAction)
-	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
-	consLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-
-	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
-	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
-	consRm.Arg("consumer", "Consumer name").StringVar(&c.consumer)
-	consRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
-
 	addCreateFlags := func(f *kingpin.CmdClause) {
 		f.Flag("target", "Push based delivery target subject").StringVar(&c.delivery)
 		f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
@@ -89,6 +73,8 @@ func configureConsumerCommand(app *kingpin.Application) {
 		f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
 	}
 
+	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
+
 	consAdd := cons.Command("add", "Creates a new Consumer").Alias("create").Alias("new").Action(c.createAction)
 	consAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	consAdd.Arg("consumer", "Consumer name").StringVar(&c.consumer)
@@ -102,11 +88,25 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consCp.Arg("destination", "Destination Consumer name").Required().StringVar(&c.destination)
 	addCreateFlags(consCp)
 
+	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
+	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
+	consInfo.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	consInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+
+	consLs := cons.Command("ls", "List known Consumers").Alias("list").Action(c.lsAction)
+	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
+	consLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+
 	consNext := cons.Command("next", "Retrieves messages from Pull Consumers without interactive prompts").Action(c.nextAction)
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consNext.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
+
+	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
+	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
+	consRm.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	consRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
 	consSub := cons.Command("sub", "Retrieves messages from Consumers").Action(c.subAction)
 	consSub.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -692,7 +692,7 @@ func (c *consumerCmd) nextAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool) {
-	_, err := prepareHelper(servers, natsOpts()...)
+	_, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	if askStream {

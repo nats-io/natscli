@@ -39,7 +39,7 @@ type benchCmd struct {
 
 func configureBenchCommand(app *kingpin.Application) {
 	c := &benchCmd{}
-	bench := app.Command("bench", "Benchmark Utility").Action(c.bench)
+	bench := app.Command("bench", "Benchmark utility").Action(c.bench)
 	bench.Arg("subject", "Subject to use for testing").Required().StringVar(&c.subject)
 	bench.Flag("pub", "Number of concurrent publishers").Default("1").IntVar(&c.numPubs)
 	bench.Flag("sub", "Number of concurrent subscribers").Default("0").IntVar(&c.numSubs)
@@ -62,7 +62,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	donewg := &sync.WaitGroup{}
 
 	for i := 0; i < c.numSubs; i++ {
-		nc, err := nats.Connect(servers, natsOpts()...)
+		nc, err := nats.Connect(config.ServerURL(), natsOpts()...)
 		if err != nil {
 			return fmt.Errorf("nats connection %d failed: %s", i, err)
 		}
@@ -77,7 +77,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 
 	pubCounts := bench.MsgsPerClient(c.numMsg, c.numPubs)
 	for i := 0; i < c.numPubs; i++ {
-		nc, err := nats.Connect(servers, natsOpts()...)
+		nc, err := nats.Connect(config.ServerURL(), natsOpts()...)
 		if err != nil {
 			return fmt.Errorf("nats connection %d failed: %s", i, err)
 		}

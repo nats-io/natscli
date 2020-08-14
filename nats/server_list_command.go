@@ -42,6 +42,7 @@ type srvListCluster struct {
 	nodes []string
 	gwOut int
 	gwIn  int
+	conns int
 }
 
 func configureServerListCommand(srv *kingpin.CmdClause) {
@@ -54,7 +55,7 @@ func configureServerListCommand(srv *kingpin.CmdClause) {
 }
 
 func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
-	nc, err := newNatsConn(servers, natsOpts()...)
+	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
 	}
@@ -107,9 +108,10 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		if cluster != "" {
 			_, ok := clusters[cluster]
 			if !ok {
-				clusters[cluster] = &srvListCluster{cluster, []string{}, 0, 0}
+				clusters[cluster] = &srvListCluster{cluster, []string{}, 0, 0, 0}
 			}
 
+			clusters[cluster].conns += ssm.Stats.Connections
 			clusters[cluster].nodes = append(clusters[cluster].nodes, ssm.Server.Name)
 			clusters[cluster].gwOut += len(ssm.Stats.Gateways)
 			for _, g := range ssm.Stats.Gateways {
@@ -171,7 +173,7 @@ func (c *SrvLsCmd) showClusters(cl map[string]*srvListCluster) {
 	fmt.Println()
 	table := tablewriter.CreateTable()
 	table.AddTitle("Cluster Overview")
-	table.AddHeaders("Cluster", "Node Count", "Outgoing Gateways", "Incoming Gateways")
+	table.AddHeaders("Cluster", "Node Count", "Outgoing Gateways", "Incoming Gateways", "Connections")
 
 	var clusters []*srvListCluster
 	for c := range cl {
@@ -185,15 +187,17 @@ func (c *SrvLsCmd) showClusters(cl map[string]*srvListCluster) {
 	in := 0
 	out := 0
 	nodes := 0
+	conns := 0
 
 	for _, c := range clusters {
 		in += c.gwIn
 		out += c.gwOut
 		nodes += len(c.nodes)
-		table.AddRow(c.name, len(c.nodes), c.gwOut, c.gwIn)
+		conns += c.conns
+		table.AddRow(c.name, len(c.nodes), c.gwOut, c.gwIn, c.conns)
 	}
 	table.AddSeparator()
-	table.AddRow("", nodes, out, in)
+	table.AddRow("", nodes, out, in, conns)
 
 	fmt.Print(table.Render())
 }
