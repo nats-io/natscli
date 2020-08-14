@@ -40,7 +40,7 @@ JetStream is the [NATS.io](https://nats.io) persistence engine that will support
   * [Restoring Data](#restoring-data)
   * [Interactive CLI](#interactive-cli)
 - [Model Deep Dive](#model-deep-dive)
-  * [Stream Limits and Retention Modes](#stream-limits-and-retention-modes)
+  * [Stream Limits and Retention Modes](#stream-limits-retention-modes-and-discard-policy)
   * [Message Deduplication](#message-deduplication)
   * [Acknowledgement Models](#acknowledgement-models)
   * [Exactly Once Delivery](#exactly-once-delivery)
