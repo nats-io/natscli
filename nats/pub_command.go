@@ -19,6 +19,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"golang.org/x/crypto/ssh/terminal"
@@ -76,6 +77,7 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 	}
 
 	if c.req {
+		start := time.Now()
 		if !c.raw {
 			log.Printf("Sending request on %q\n", c.subject)
 		}
@@ -96,7 +98,7 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 			return nil
 		}
 
-		log.Printf("Received on %q", m.Subject)
+		log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
 		if len(m.Header) > 0 {
 			for h, vals := range m.Header {
 				for _, val := range vals {
