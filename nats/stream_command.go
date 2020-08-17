@@ -63,7 +63,6 @@ type streamCmd struct {
 	backupFile          string
 	showProgress        bool
 	healthCheck         bool
-	snapshotChunk       int
 	dupeWindow          string
 }
 
@@ -97,7 +96,6 @@ func configureStreamCommand(app *kingpin.Application) {
 	strBackup.Arg("target", "File to create the backup in").Required().StringVar(&c.backupFile)
 	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	strBackup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
-	strBackup.Flag("chunk-size", "The size of individual chunks to send").Default("16777216").IntVar(&c.snapshotChunk)
 
 	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another").Alias("cp").Action(c.cpAction)
 	strCopy.Arg("source", "Source Stream to copy").Required().StringVar(&c.stream)
@@ -139,7 +137,6 @@ func configureStreamCommand(app *kingpin.Application) {
 	strRestore.Arg("stream", "The name of the Stream to restore").Required().StringVar(&c.stream)
 	strRestore.Arg("file", "The file holding the backup to restore").Required().ExistingFileVar(&c.backupFile)
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
-	strRestore.Flag("chunk-size", "The size of individual chunks to send").Default("16777216").IntVar(&c.snapshotChunk)
 
 	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
 	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -194,9 +191,7 @@ func (c *streamCmd) restoreAction(pc *kingpin.ParseContext) (err error) {
 		progress.Set(int(p.ChunksSent()))
 	}
 
-	var opts = []jsm.SnapshotOption{
-		jsm.SnapshotChunkSize(c.snapshotChunk),
-	}
+	var opts []jsm.SnapshotOption
 
 	if c.showProgress {
 		uiprogress.Start()
@@ -277,7 +272,6 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
 
 	opts := []jsm.SnapshotOption{
 		jsm.SnapshotConsumers(),
-		jsm.SnapshotChunkSize(c.snapshotChunk),
 	}
 
 	if c.showProgress {
