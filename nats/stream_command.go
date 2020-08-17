@@ -210,7 +210,7 @@ func (c *streamCmd) restoreAction(pc *kingpin.ParseContext) (err error) {
 	}
 
 	fmt.Println()
-	fmt.Printf("Restored stream %q in %v\n", c.stream, fp.EndTime().Sub(fp.StartTime()))
+	fmt.Printf("Restored stream %q in %v\n", c.stream, fp.EndTime().Sub(fp.StartTime()).Round(time.Second))
 	fmt.Println()
 
 	stream, err := jsm.LoadStream(c.stream)
@@ -296,7 +296,7 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) (err error) {
 	kingpin.FatalIfError(err, "snapshot failed")
 
 	fmt.Println()
-	fmt.Printf("Received %s compressed data in %d chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), fp.ChunksReceived(), c.stream, fp.EndTime().Sub(fp.StartTime()), humanize.IBytes(fp.BlockBytesReceived()))
+	fmt.Printf("Received %s compressed data in %d chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), fp.ChunksReceived(), c.stream, fp.EndTime().Sub(fp.StartTime()).Round(time.Second), humanize.IBytes(fp.BlockBytesReceived()))
 
 	return nil
 }
