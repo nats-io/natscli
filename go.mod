@@ -13,7 +13,7 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.4.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/nats-io/jsm.go v0.0.18
+	github.com/nats-io/jsm.go v0.0.19-0.20200817093744-f697110f50cd
 	github.com/nats-io/nats-server/v2 v2.1.8-0.20200805175456-400b044ea033
 	github.com/nats-io/nats.go v1.10.1-0.20200720131241-97eff70ce747
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20180430173243-73b8d31ba571
