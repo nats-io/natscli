@@ -251,12 +251,16 @@ func (c *SrvRequestCmd) conns(_ *kingpin.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) varz(_ *kingpin.ParseContext) error {
+	type varzOptions struct {
+		serverReqFilter
+	}
+
 	nc, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 
-	res, err := c.doReq("VARZ", struct{}{}, nc)
+	res, err := c.doReq("VARZ", &varzOptions{c.reqFilter()}, nc)
 	if err != nil {
 		return err
 	}
