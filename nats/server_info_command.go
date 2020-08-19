@@ -94,16 +94,16 @@ func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
 
 	fmt.Println()
 	fmt.Printf("%s\n\n", bold("Connection Details:"))
+	fmt.Printf("   Auth Required: %v\n", varz.AuthRequired)
+	fmt.Printf("    TLS Required: %v\n", varz.TLSRequired)
 	if varz.IP != "" {
 		fmt.Printf("            Host: %s:%d (%s)\n", varz.Host, varz.Port, varz.IP)
 	} else {
 		fmt.Printf("            Host: %s:%d\n", varz.Host, varz.Port)
 	}
-	fmt.Printf("   Auth Required: %v\n", varz.AuthRequired)
-	fmt.Printf("    TLS Required: %v\n", varz.TLSRequired)
-	fmt.Printf("     Client URLs: %s\n", strings.Join(varz.ClientConnectURLs, ", "))
+	fmt.Printf("     Client URLs: %s\n", strings.Join(varz.ClientConnectURLs, "\n                  "))
 	if len(varz.WSConnectURLs) > 0 {
-		fmt.Printf("  WebSocket URLs: %s\n", strings.Join(varz.WSConnectURLs, ", "))
+		fmt.Printf("  WebSocket URLs: %s\n", strings.Join(varz.WSConnectURLs, "\n                  "))
 	}
 
 	fmt.Println()
@@ -116,27 +116,25 @@ func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
 
 	fmt.Println()
 	fmt.Printf("%s\n\n", bold("Statistics:"))
-	fmt.Printf("       CPU Cores: %d\n", varz.Cores)
+	fmt.Printf("       CPU Cores: %d %.2f%%\n", varz.Cores, varz.CPU)
 	fmt.Printf("          Memory: %s\n", humanize.IBytes(uint64(varz.Mem)))
 	fmt.Printf("     Connections: %s\n", humanize.Comma(int64(varz.Connections)))
 	fmt.Printf("   Subscriptions: %s\n", humanize.Comma(int64(varz.Subscriptions)))
-	fmt.Printf("         In Msgs: %s\n", humanize.Comma(varz.InMsgs))
-	fmt.Printf("        Out Msgs: %s\n", humanize.Comma(varz.OutMsgs))
-	fmt.Printf("        In Bytes: %s\n", humanize.IBytes(uint64(varz.InBytes)))
-	fmt.Printf("       Out Bytes: %s\n", humanize.IBytes(uint64(varz.OutBytes)))
+	fmt.Printf("            Msgs: %s in %s out\n", humanize.Comma(varz.InMsgs), humanize.Comma(varz.OutMsgs))
+	fmt.Printf("           Bytes: %s in %s out\n", humanize.IBytes(uint64(varz.InBytes)), humanize.IBytes(uint64(varz.OutBytes)))
 	fmt.Printf("  Slow Consumers: %s\n", humanize.Comma(varz.SlowConsumers))
 
 	if len(varz.Cluster.URLs) > 0 {
 		fmt.Println()
-		fmt.Printf("%s\n\n", bold("Clusters:"))
+		fmt.Printf("%s\n\n", bold("Cluster:"))
 		fmt.Printf("            Name: %s\n", varz.Cluster.Name)
 		fmt.Printf("            Host: %s:%d\n", varz.Cluster.Host, varz.Cluster.Port)
-		fmt.Printf("            URLs: %s\n", strings.Join(varz.Cluster.URLs, ", "))
+		fmt.Printf("            URLs: %s\n", strings.Join(varz.Cluster.URLs, "\n                  "))
 	}
 
 	if len(varz.Gateway.Gateways) > 0 {
 		fmt.Println()
-		fmt.Printf("%s\n\n", bold("Gateways:"))
+		fmt.Printf("%s\n\n", bold("Super Cluster:"))
 		fmt.Printf("            Name: %s\n", varz.Gateway.Name)
 		fmt.Printf("            Host: %s:%d\n", varz.Gateway.Host, varz.Gateway.Port)
 		var list []string
@@ -145,7 +143,7 @@ func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
 		}
 		sort.Strings(list)
 
-		fmt.Printf("        Clusters: %s\n", strings.Join(list, ", "))
+		fmt.Printf("        Clusters: %s\n", strings.Join(list, "\n                  "))
 	}
 	fmt.Println()
 	return nil
