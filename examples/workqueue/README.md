@@ -28,7 +28,7 @@ show only the backend.
 
 ## Work Requests
 
-As mentioned above we will store the incoming image that needs to be converts on disk and the workers will access it
+As mentioned above we will store the incoming image that needs to be converted on disk and the workers will access it
 there.  We do not send the actual image over NATS only a request to perform the modification.
 
 To do this we'll publish JSON messages like this:
@@ -66,7 +66,7 @@ them on disk.
 We choose the Work Queue Retention scheme that will ensure a message is deleted from the stream as soon as any worker
 has completed processing it.
 
-We keep an unlimited amount or messages but enforce a maximum size of `512` bytes per message.
+We keep an unlimited amount of messages but enforce a maximum size of `512` bytes per message.
 
 ```nohighlight
 $ nats stream add IMAGES 
@@ -106,7 +106,7 @@ $ nats consumer add IMAGES BW
 
 Our image converters are normal NATS clients using existing core NATS client libraries. They Request their work using
 the Next Subject for the `BW` Consumer which will be `$JS.API.CONSUMER.MSG.NEXT.IMAGES.BW` and acknowledge using the
-normal Respond meethod.
+normal Respond method.
 
 We can publish requests using the CLI to test these, pick a color image and fill it into the message below:
 
