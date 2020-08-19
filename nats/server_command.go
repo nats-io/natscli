@@ -19,6 +19,7 @@ import (
 
 func configureServerCommand(app *kingpin.Application) {
 	srv := app.Command("server", "Server information").Alias("srv")
+	configureServerInfoCommand(srv)
 	configureServerListCommand(srv)
 	configureServerPingCommand(srv)
 	configureServerReportCommand(srv)

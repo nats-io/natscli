@@ -7,6 +7,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -29,12 +30,6 @@ type SrvRequestCmd struct {
 	nameFilter    string
 }
 
-type serverReqFilter struct {
-	Name    string `json:"name"`
-	Host    string `json:"host"`
-	Cluster string `json:"cluster"`
-}
-
 func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	c := &SrvRequestCmd{}
 
@@ -48,6 +43,7 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	subz := req.Command("subscriptions", "Show subscription information").Alias("sub").Alias("subsz").Action(c.subs)
 	subz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
 	subz.Flag("detail", "Include detail about all subscriptions").Default("false").BoolVar(&c.detail)
+	subz.Flag("filter-account", "Filter on a specific account").StringVar(&c.accountFilter)
 
 	varz := req.Command("variables", "Show runtime variables").Alias("var").Alias("varz").Action(c.varz)
 	varz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
@@ -76,8 +72,8 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	leafz.Flag("subscriptions", "Show subscription detail").Default("false").BoolVar(&c.detail)
 }
 
-func (c *SrvRequestCmd) reqFilter() serverReqFilter {
-	return serverReqFilter{
+func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
+	return server.EventFilterOptions{
 		Name:    c.name,
 		Host:    c.host,
 		Cluster: c.cluster,
@@ -85,18 +81,17 @@ func (c *SrvRequestCmd) reqFilter() serverReqFilter {
 }
 
 func (c *SrvRequestCmd) leafz(_ *kingpin.ParseContext) error {
-	type leafzOptions struct {
-		// Subscriptions indicates that Leafz will return a leafnode's subscriptions
-		Subscriptions bool `json:"subscriptions"`
-		serverReqFilter
-	}
-
 	nc, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 
-	res, err := c.doReq("LEAFZ", &leafzOptions{c.detail, c.reqFilter()}, nc)
+	opts := server.LeafzEventOptions{
+		LeafzOptions:       server.LeafzOptions{Subscriptions: c.detail},
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	res, err := c.doReq("LEAFZ", &opts, nc)
 	if err != nil {
 		return err
 	}
@@ -110,19 +105,6 @@ func (c *SrvRequestCmd) leafz(_ *kingpin.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) gwyz(_ *kingpin.ParseContext) error {
-	type gatewayzOptions struct {
-		// Name will output only remote gateways with this name
-		Name string `json:"name"`
-
-		// Accounts indicates if accounts with its interest should be included in the results.
-		Accounts bool `json:"accounts"`
-
-		// AccountName will limit the list of accounts to that account name (makes Accounts implicit)
-		AccountName string `json:"account_name"`
-
-		serverReqFilter
-	}
-
 	if c.accountFilter != "" {
 		c.detail = true
 	}
@@ -132,7 +114,16 @@ func (c *SrvRequestCmd) gwyz(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	res, err := c.doReq("GATEWAYZ", &gatewayzOptions{c.nameFilter, c.detail, c.accountFilter, c.reqFilter()}, nc)
+	opts := server.GatewayzEventOptions{
+		GatewayzOptions: server.GatewayzOptions{
+			Name:        c.nameFilter,
+			Accounts:    c.detail,
+			AccountName: c.accountFilter,
+		},
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	res, err := c.doReq("GATEWAYZ", &opts, nc)
 	if err != nil {
 		return err
 	}
@@ -145,21 +136,20 @@ func (c *SrvRequestCmd) gwyz(_ *kingpin.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) routez(_ *kingpin.ParseContext) error {
-	type routezOptions struct {
-		// Subscriptions indicates that Routez will return a route's subscriptions
-		Subscriptions bool `json:"subscriptions"`
-		// SubscriptionsDetail indicates if subscription details should be included in the results
-		SubscriptionsDetail bool `json:"subscriptions_detail"`
-
-		serverReqFilter
-	}
-
 	nc, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 
-	res, err := c.doReq("ROUTEZ", &routezOptions{c.detail, c.detail, c.reqFilter()}, nc)
+	opts := server.RoutezEventOptions{
+		RoutezOptions: server.RoutezOptions{
+			Subscriptions:       c.detail,
+			SubscriptionsDetail: c.detail,
+		},
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	res, err := c.doReq("ROUTEZ", &opts, nc)
 	if err != nil {
 		return err
 	}
@@ -172,55 +162,19 @@ func (c *SrvRequestCmd) routez(_ *kingpin.ParseContext) error {
 
 }
 func (c *SrvRequestCmd) conns(_ *kingpin.ParseContext) error {
-	type connzOptions struct {
-		// Sort indicates how the results will be sorted. Check SortOpt for possible values.
-		// Only the sort by connection ID (ByCid) is ascending, all others are descending.
-		Sort string `json:"sort"`
-
-		// Username indicates if user names should be included in the results.
-		Username bool `json:"auth"`
-
-		// Subscriptions indicates if subscriptions should be included in the results.
-		Subscriptions bool `json:"subscriptions"`
-
-		// SubscriptionsDetail indicates if subscription details should be included in the results
-		SubscriptionsDetail bool `json:"subscriptions_detail"`
-
-		// Offset is used for pagination. Connz() only returns connections starting at this
-		// offset from the global results.
-		Offset int `json:"offset"`
-
-		// Limit is the maximum number of connections that should be returned by Connz().
-		Limit int `json:"limit"`
-
-		// Filter for this explicit client connection.
-		CID uint64 `json:"cid"`
-
-		// Filter by connection state.
-		State int `json:"state"`
-
-		// The below options only apply if auth is true.
-
-		// Filter by username.
-		User string `json:"user"`
-
-		// Filter by account.
-		Account string `json:"acc"`
-
-		serverReqFilter
-	}
-
-	opts := &connzOptions{
-		Sort:                c.sortOpt,
-		Username:            true,
-		Subscriptions:       c.detail,
-		SubscriptionsDetail: c.detail,
-		Offset:              c.offset,
-		Limit:               c.limit,
-		CID:                 c.cidFilter,
-		User:                c.userFilter,
-		Account:             c.accountFilter,
-		serverReqFilter:     c.reqFilter(),
+	opts := &server.ConnzEventOptions{
+		ConnzOptions: server.ConnzOptions{
+			Sort:                server.SortOpt(c.sortOpt),
+			Username:            true,
+			Subscriptions:       c.detail,
+			SubscriptionsDetail: c.detail,
+			Offset:              c.offset,
+			Limit:               c.limit,
+			CID:                 c.cidFilter,
+			User:                c.userFilter,
+			Account:             c.accountFilter,
+		},
+		EventFilterOptions: c.reqFilter(),
 	}
 
 	switch c.stateFilter {
@@ -251,16 +205,17 @@ func (c *SrvRequestCmd) conns(_ *kingpin.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) varz(_ *kingpin.ParseContext) error {
-	type varzOptions struct {
-		serverReqFilter
-	}
-
 	nc, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 
-	res, err := c.doReq("VARZ", &varzOptions{c.reqFilter()}, nc)
+	opts := server.VarzEventOptions{
+		VarzOptions:        server.VarzOptions{},
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	res, err := c.doReq("VARZ", &opts, nc)
 	if err != nil {
 		return err
 	}
@@ -274,30 +229,23 @@ func (c *SrvRequestCmd) varz(_ *kingpin.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) subs(_ *kingpin.ParseContext) error {
-	type subszOptions struct {
-		// Offset is used for pagination. Subsz() only returns connections starting at this
-		// offset from the global results.
-		Offset int `json:"offset"`
-
-		// Limit is the maximum number of subscriptions that should be returned by Subsz().
-		Limit int `json:"limit"`
-
-		// Subscriptions indicates if subscriptions should be included in the results.
-		Subscriptions bool `json:"subscriptions"`
-
-		// Test the list against this subject. Needs to be literal since it signifies a publish subject.
-		// We will only return subscriptions that would match if a message was sent to this subject.
-		Test string `json:"test,omitempty"`
-
-		serverReqFilter
-	}
-
 	nc, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 
-	res, err := c.doReq("SUBSZ", &subszOptions{c.offset, c.limit, c.detail, "", c.reqFilter()}, nc)
+	opts := server.SubszEventOptions{
+		SubszOptions: server.SubszOptions{
+			Offset:        c.offset,
+			Limit:         c.limit,
+			Subscriptions: c.detail,
+			Account:       c.accountFilter,
+			Test:          "",
+		},
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	res, err := c.doReq("SUBSZ", &opts, nc)
 	if err != nil {
 		return err
 	}
