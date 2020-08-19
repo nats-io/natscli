@@ -22,7 +22,7 @@ func configureServerInfoCommand(srv *kingpin.CmdClause) {
 	c := &SrvInfoCmd{}
 
 	info := srv.Command("info", "Show information about a single server").Alias("i").Action(c.info)
-	info.Arg("server", "Server ID to inspect").StringVar(&c.id)
+	info.Arg("server", "Server ID or Name to inspect").StringVar(&c.id)
 }
 
 func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
@@ -32,11 +32,22 @@ func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
 	}
 
 	subj := fmt.Sprintf("$SYS.REQ.SERVER.%s.VARZ", c.id)
-	if trace {
-		log.Printf(">>> %s: {}", subj)
+	body := []byte("{}")
+
+	if len(c.id) != 56 || strings.ToUpper(c.id) != c.id {
+		subj = "$SYS.REQ.SERVER.PING.VARZ"
+		opts := server.VarzEventOptions{EventFilterOptions: server.EventFilterOptions{Name: c.id}}
+		body, err = json.Marshal(opts)
+		if err != nil {
+			return err
+		}
 	}
 
-	resp, err := nc.Request(subj, []byte("{}"), timeout)
+	if trace {
+		log.Printf(">>> %s: %s", subj, string(body))
+	}
+
+	resp, err := nc.Request(subj, body, timeout)
 	if err != nil {
 		return err
 	}
