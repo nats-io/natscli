@@ -19,8 +19,7 @@
         },
         "start":{
           "type": "string",
-          "description": "The time this client connected to the server",
-          "format": "date-time"
+          "description": "The time this client connected to the server, in RFC3339 format",
         },
         "user": {
           "type": "string",
@@ -43,7 +42,7 @@
           "description": "The IP address the client is connecting from"
         },
         "cid": {
-          "type": "string",
+          "type": "integer",
           "description": "The unique client ID assigned by the server"
         },
         "server": {
@@ -76,8 +75,27 @@
     },
     "timestamp": {
       "type": "string",
-      "format": "date-time",
       "description": "The time this event was created in RFC3339 format"
+    },
+    "requestor": {
+      "description": "Details about the service requestor",
+      "$ref": "#/definitions/latency_client"
+    },
+    "responder": {
+      "description": "Details about the service responder",
+      "$ref": "#/definitions/latency_client"
+    },
+    "header": {
+      "description": "When header based latency is enabled, the headers that triggered the event",
+      "type": "object",
+      "patternProperties": {
+        ".+": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     },
     "status": {
       "type": "integer",
@@ -90,8 +108,7 @@
     },
     "start": {
       "type": "string",
-      "format": "date-time",
-      "description": "The time the request started"
+      "description": "The time the request started in RFC3339 format"
     },
     "service": {
       "type": "integer",

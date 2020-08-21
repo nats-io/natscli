@@ -22,8 +22,7 @@
         },
         "start": {
           "type": "string",
-          "description": "The time this client connected to the server",
-          "format": "date-time"
+          "description": "The time this client connected to the server, in RFC3339 format"
         },
         "user": {
           "type": "string",
@@ -46,7 +45,7 @@
           "description": "The IP address the client is connecting from"
         },
         "cid": {
-          "type": "string",
+          "type": "integer",
           "description": "The unique client ID assigned by the server"
         },
         "server": {
@@ -79,8 +78,121 @@
     },
     "timestamp": {
       "type": "string",
-      "format": "date-time",
       "description": "The time this event was created in RFC3339 format"
+    },
+    "requestor": {
+      "description": "Details about the service requestor",
+      "type": "object",
+      "additionalItems": false,
+      "required": [
+        "acc",
+        "rtt"
+      ],
+      "properties": {
+        "acc": {
+          "type": "string",
+          "description": "The account the client belongs to"
+        },
+        "rtt": {
+          "type": "integer",
+          "description": "The latency between the client and the server"
+        },
+        "start": {
+          "type": "string",
+          "description": "The time this client connected to the server, in RFC3339 format"
+        },
+        "user": {
+          "type": "string",
+          "description": "The username of the connected client"
+        },
+        "name": {
+          "type": "string",
+          "description": "The connection name declared while connecting"
+        },
+        "lang": {
+          "type": "string",
+          "description": "The language the client is programmed in"
+        },
+        "ver": {
+          "type": "string",
+          "description": "The version of the client library"
+        },
+        "ip": {
+          "type": "string",
+          "description": "The IP address the client is connecting from"
+        },
+        "cid": {
+          "type": "integer",
+          "description": "The unique client ID assigned by the server"
+        },
+        "server": {
+          "type": "string",
+          "description": "The server name where the client is connected"
+        }
+      }
+    },
+    "responder": {
+      "description": "Details about the service responder",
+      "type": "object",
+      "additionalItems": false,
+      "required": [
+        "acc",
+        "rtt"
+      ],
+      "properties": {
+        "acc": {
+          "type": "string",
+          "description": "The account the client belongs to"
+        },
+        "rtt": {
+          "type": "integer",
+          "description": "The latency between the client and the server"
+        },
+        "start": {
+          "type": "string",
+          "description": "The time this client connected to the server, in RFC3339 format"
+        },
+        "user": {
+          "type": "string",
+          "description": "The username of the connected client"
+        },
+        "name": {
+          "type": "string",
+          "description": "The connection name declared while connecting"
+        },
+        "lang": {
+          "type": "string",
+          "description": "The language the client is programmed in"
+        },
+        "ver": {
+          "type": "string",
+          "description": "The version of the client library"
+        },
+        "ip": {
+          "type": "string",
+          "description": "The IP address the client is connecting from"
+        },
+        "cid": {
+          "type": "integer",
+          "description": "The unique client ID assigned by the server"
+        },
+        "server": {
+          "type": "string",
+          "description": "The server name where the client is connected"
+        }
+      }
+    },
+    "header": {
+      "description": "When header based latency is enabled, the headers that triggered the event",
+      "type": "object",
+      "patternProperties": {
+        ".+": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     },
     "status": {
       "type": "integer",
@@ -99,8 +211,7 @@
     },
     "start": {
       "type": "string",
-      "format": "date-time",
-      "description": "The time the request started"
+      "description": "The time the request started in RFC3339 format"
     },
     "service": {
       "type": "integer",
