@@ -124,6 +124,8 @@ ImageMagick command `convert` to do the conversion.
 
 It is configurable via environment variables and will exit on any error as is typical for 12 factor style applications.
 
+_**You can find complete go implementation of the whole process [here](./worker-full/worker-full.go).**_
+
 ```nohighlight
 $ NATS_URL=localhost OUTDIR=/tmp/images/output ./bw
 2020/07/22 12:41:30 Looking for a B&W conversion job
