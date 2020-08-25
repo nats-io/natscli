@@ -20,6 +20,7 @@ import (
 )
 
 func main() {
+	// NATS_URL must be like nats://localhost:4222
 	natsURL, err := url.Parse(os.Getenv("NATS_URL"))
 	if err != nil {
 		panic(err)
@@ -141,7 +142,7 @@ func sendMessage(subj string, nc *nats.Conn) error {
 }
 
 func processNextMessage(stream, consumer, outDir string, nc *nats.Conn) error {
-	msg, err := nc.Request(fmt.Sprintf("$JS.API.CONSUMER.MSG.NEXT.%s.%s", stream, consumer), []byte(""), time.Minute)
+	msg, err := jsm.NextMsg(stream, consumer, jsm.WithConnection(nc), jsm.WithTimeout(time.Minute))
 	if err == nats.ErrTimeout {
 		return nil
 	}
