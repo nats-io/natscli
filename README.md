@@ -51,6 +51,7 @@ JetStream is the [NATS.io](https://nats.io) persistence engine that will support
   * [Ack Sampling](#ack-sampling)
     + [Configuration](#configuration-1)
     + [Consuming](#consuming)
+  * [Storage Overhead](#storage-overhead)
 - [NATS API Reference](#nats-api-reference)
   * [Reference](#reference)
   * [Error Handling](#error-handling)
@@ -1485,6 +1486,39 @@ $ nats con events ORDERS NEW --json
   "delivered": 1
 }
 ```
+
+### Storage Overhead
+
+JetStream file storage is very efficient storing as little extra information about the message as possible.
+
+**NOTE:** This might change once clustering is supported.
+
+We do store some message data with each message, namely:
+
+ * Message headers
+ * The subject it was received on
+ * The time it was received
+ * The message payload
+ * A hash of the message
+ * The message sequence
+ * A few other bits like length of the subject and lengh of headers
+
+Without any headers the size is:
+
+```
+length of the message record (4bytes) + seq(8) + ts(8) + subj_len(2) + subj + msg + hash(8)
+```
+
+A 5 byte `hello` message without headers will take 39 bytes.
+
+With headers:
+
+```
+length of the message record (4bytes) + seq(8) + ts(8) + subj_len(2) + subj + hdr_len(4) + hdr + msg + hash(8)
+```
+
+So if you are publishing many small messages the overhead will be, relatively speaking, quite large, but for larger messages
+the overhead is very small.  If you publish many small messages it's worth trying to optimise the subject length.
 
 ## NATS API Reference
 
