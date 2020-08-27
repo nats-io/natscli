@@ -67,6 +67,7 @@ func main() {
 	configureRTTCommand(ncli)
 	configureReplyCommand(ncli)
 	configureRestoreCommand(ncli)
+	configureSchemaCommand(ncli)
 	configureServerCommand(ncli)
 	configureStreamCommand(ncli)
 	configureSubCommand(ncli)
