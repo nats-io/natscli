@@ -56,26 +56,37 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		defer mu.Unlock()
 
 		i += 1
-		if c.raw {
-			fmt.Println(string(m.Data))
-			return
-		}
 
 		var info *jsm.MsgInfo
 		if m.Reply != "" {
 			info, _ = jsm.ParseJSMsgMetadata(m)
 		}
 
+		if c.jsAck && info != nil {
+			defer func() {
+				err = m.Respond(nil)
+				if err != nil {
+					log.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
+				}
+
+			}()
+		}
+
+		if c.raw {
+			fmt.Println(string(m.Data))
+			return
+		}
+
 		if info == nil {
-			log.Printf("[#%d] Received on %q", i, m.Subject)
+			fmt.Printf("[#%d] Received on %q\n", i, m.Subject)
 		} else {
-			log.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d / ack: %v", i, info.Stream(), info.Consumer(), m.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), c.jsAck)
+			fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d / ack: %v\n", i, info.Stream(), info.Consumer(), m.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), c.jsAck)
 		}
 
 		if len(m.Header) > 0 {
 			for h, vals := range m.Header {
 				for _, val := range vals {
-					log.Printf("%s: %s", h, val)
+					fmt.Printf("%s: %s\n", h, val)
 				}
 			}
 
@@ -86,12 +97,13 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		if !strings.HasSuffix(string(m.Data), "\n") {
 			fmt.Println()
 		}
+	}
 
-		if c.jsAck && info != nil {
-			err = m.Respond(nil)
-			if err != nil {
-				fmt.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
-			}
+	if !c.raw {
+		if c.jsAck {
+			log.Printf("Subscribing on %s with acknowledgement of JetStream messages\n", c.subject)
+		} else {
+			log.Printf("Subscribing on %s\n", c.subject)
 		}
 	}
 
@@ -105,15 +117,6 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 	err = nc.LastError()
 	if err != nil {
 		return err
-	}
-
-	if !c.raw {
-		if c.jsAck {
-			log.Printf("Subscribing on %s with acknowledgement of JetStream messages\n", c.subject)
-		} else {
-			log.Printf("Subscribing on %s\n", c.subject)
-		}
-
 	}
 
 	<-context.Background().Done()

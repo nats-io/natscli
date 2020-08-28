@@ -60,7 +60,7 @@ func (c *schemaValidateCmd) validate(_ *kingpin.ParseContext) error {
 	}
 
 	if ok {
-		fmt.Printf("%s validates against %s", c.file, c.schema)
+		fmt.Printf("%s validates against %s\n", c.file, c.schema)
 		return nil
 	}
 

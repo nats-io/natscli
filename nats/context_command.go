@@ -133,7 +133,7 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 	c.showIfNotEmpty("  Description: %s\n", cfg.Description())
 	c.showIfNotEmpty("  Server URLs: %s\n", cfg.ServerURL())
 	c.showIfNotEmpty("     Username: %s\n", cfg.User())
-	c.showIfNotEmpty("     Password: %s\n", cfg.User())
+	c.showIfNotEmpty("     Password: %s\n", cfg.Password())
 	c.showIfNotEmpty("  Credentials: %s\n", cfg.Creds())
 	c.showIfNotEmpty("         NKey: %s\n", cfg.NKey())
 	c.showIfNotEmpty("  Certificate: %s\n", cfg.Certificate())
