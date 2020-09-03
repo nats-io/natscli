@@ -286,6 +286,7 @@
           "enum": ["none", "all", "explicit"]
         },
         "ack_wait": {
+          "description": "How long (in nanoseconds) to allow messages to remain un-acknowledged before attempting redelivery",
           "type": "integer",
           "minimum": 1
         },
