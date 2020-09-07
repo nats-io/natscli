@@ -35,6 +35,7 @@ type benchCmd struct {
 	msgSize  int
 	csvFile  string
 	progress bool
+	ack      bool
 }
 
 func configureBenchCommand(app *kingpin.Application) {
@@ -47,6 +48,7 @@ func configureBenchCommand(app *kingpin.Application) {
 	bench.Flag("size", "Size of the test messages").Default("128").IntVar(&c.msgSize)
 	bench.Flag("csv", "Save benchmark data to CSV file").StringVar(&c.csvFile)
 	bench.Flag("progress", "Enable progress bar while publishing").Default("true").BoolVar(&c.progress)
+	bench.Flag("ack", "Waits for acknowledgement on messages using Requests rather than Publish").Default("false").BoolVar(&c.ack)
 }
 
 func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
@@ -55,6 +57,11 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	}
 
 	log.Printf("Starting benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d]\n\n", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs)
+
+	if c.ack && c.progress {
+		log.Printf("Disabling progress bars in request mode")
+		c.progress = false
+	}
 
 	bm := bench.NewBenchmark("NATS", c.numSubs, c.numPubs)
 
@@ -131,12 +138,26 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 
 	start := time.Now()
 
+	var m *nats.Msg
+	var err error
+
 	for i := 0; i < numMsg; i++ {
 		if progress != nil {
 			progress.Incr()
 		}
 
-		nc.Publish(c.subject, msg)
+		if !c.ack {
+			nc.Publish(c.subject, msg)
+			continue
+		}
+
+		m, err = nc.Request(c.subject, msg, time.Second)
+		if err != nil {
+			log.Println(err)
+		}
+		if len(m.Data) == 0 || m.Data[0] != '+' {
+			log.Printf("Did not receive a positive ACK: %q", m.Data)
+		}
 	}
 
 	nc.Flush()
