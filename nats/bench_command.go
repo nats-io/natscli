@@ -154,7 +154,9 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 		m, err = nc.Request(c.subject, msg, time.Second)
 		if err != nil {
 			log.Println(err)
+			continue
 		}
+
 		if len(m.Data) == 0 || m.Data[0] != '+' {
 			log.Printf("Did not receive a positive ACK: %q", m.Data)
 		}
