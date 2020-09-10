@@ -41,6 +41,7 @@ type consumerCmd struct {
 	raw         bool
 	destination string
 	inputFile   string
+	outFile     string
 
 	bpsRateLimit  uint64
 	maxDeliver    int
@@ -80,6 +81,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consAdd.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	consAdd.Flag("validate", "Only validates the configuration against the official Schema").BoolVar(&c.validateOnly)
+	consAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
 	addCreateFlags(consAdd)
 
 	consCp := cons.Command("copy", "Creates a new Consumer based on the configuration of another").Alias("cp").Action(c.cpAction)
@@ -527,24 +529,46 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 	return cfg, nil
 }
 
+func (c *consumerCmd) validateCfg(cfg *api.ConsumerConfig) (bool, []byte, []string, error) {
+	j, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return false, nil, nil, err
+	}
+
+	valid, errs := cfg.Validate()
+
+	return valid, j, errs, nil
+}
+
 func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	cfg, err := c.prepareConfig()
 	if err != nil {
 		return err
 	}
 
-	if c.validateOnly {
-		j, err := json.MarshalIndent(cfg, "", "  ")
-		kingpin.FatalIfError(err, "Could not marshal configuration")
+	switch {
+	case c.validateOnly:
+		valid, j, errs, err := c.validateCfg(cfg)
+		kingpin.FatalIfError(err, "Could not validate configuration")
+
 		fmt.Println(string(j))
 		fmt.Println()
-		valid, errs := cfg.Validate()
 		if !valid {
 			kingpin.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
 		}
 
 		fmt.Println("Configuration is a valid Consumer")
 		return nil
+
+	case c.outFile != "":
+		valid, j, errs, err := c.validateCfg(cfg)
+		kingpin.FatalIfError(err, "Could not validate configuration")
+
+		if !valid {
+			kingpin.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
+		}
+
+		return ioutil.WriteFile(c.outFile, j, 0644)
 	}
 
 	c.connectAndSetup(true, false)

@@ -43,6 +43,7 @@ type streamCmd struct {
 	msgID            int64
 	retentionPolicyS string
 	inputFile        string
+	outFile          string
 
 	destination         string
 	subjects            []string
@@ -89,6 +90,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	strAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	strAdd.Flag("validate", "Only validates the configuration against the official Schema").BoolVar(&c.validateOnly)
+	strAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
 	addCreateFlags(strAdd)
 
 	strBackup := str.Command("backup", "Backs up a Stream over the NATS network").Action(c.backupAction)
@@ -914,21 +916,45 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 	return cfg
 }
 
+func (c *streamCmd) validateCfg(cfg *api.StreamConfig) (bool, []byte, []string, error) {
+	j, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return false, nil, nil, err
+	}
+
+	valid, errs := cfg.Validate()
+
+	return valid, j, errs, nil
+}
+
 func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 	cfg := c.prepareConfig()
 
-	if c.validateOnly {
-		j, err := json.MarshalIndent(cfg, "", "  ")
-		kingpin.FatalIfError(err, "Could not marshal configuration")
+	switch {
+	case c.validateOnly:
+		valid, j, errs, err := c.validateCfg(&cfg)
+		if err != nil {
+			return err
+		}
+
 		fmt.Println(string(j))
 		fmt.Println()
-		valid, errs := cfg.Validate()
 		if !valid {
 			kingpin.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
 		}
 
 		fmt.Println("Configuration is a valid Stream")
 		return nil
+
+	case c.outFile != "":
+		valid, j, errs, err := c.validateCfg(&cfg)
+		kingpin.FatalIfError(err, "Could not validate configuration")
+
+		if !valid {
+			kingpin.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
+		}
+
+		return ioutil.WriteFile(c.outFile, j, 0644)
 	}
 
 	_, err = prepareHelper("", natsOpts()...)
