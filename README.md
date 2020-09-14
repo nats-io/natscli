@@ -1524,6 +1524,8 @@ the overhead is very small.  If you publish many small messages it's worth tryin
 
 Thus far we saw a lot of CLI interactions. The CLI works by sending and receiving specially crafted messages over core NATS to configure the JetStream system. In time we will look to add file based configuration but for now the only method is the NATS API.
 
+**NOTE:** Some NATS client libraries may need to enable an option to use old style requests when interacting withe JetStream server. Consult the libraries README's for more information.
+
 ### Reference
 
 All of these subjects are found as constants in the NATS Server source, so for example the `$JS.API.STREAM.LIST` is a constant in the nats-server source `api.JetStreamListStreams` tables below will reference these constants and likewise data structures in the server for payloads.
