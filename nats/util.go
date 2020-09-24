@@ -457,5 +457,7 @@ func loadContext() error {
 func prepareConfig(_ *kingpin.ParseContext) (err error) {
 	loadContext()
 
+	jsm.Validate(new(SchemaValidator))
+
 	return nil
 }

@@ -19,7 +19,6 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/nats-io/jsm.go/api"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -50,7 +49,7 @@ func (c *schemaValidateCmd) validate(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("could not parse JSON data in %q: %s", c.file, err)
 	}
 
-	ok, errs := api.ValidateStruct(data, c.schema)
+	ok, errs := new(SchemaValidator).ValidateStruct(data, c.schema)
 	if c.json {
 		if errs == nil {
 			errs = []string{}
