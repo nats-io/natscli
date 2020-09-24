@@ -28,7 +28,7 @@ type schemaSearchCmd struct {
 
 func configureSchemaSearchCommand(schema *kingpin.CmdClause) {
 	c := &schemaSearchCmd{}
-	search := schema.Command("search", "Search schemas using a pattern").Action(c.search)
+	search := schema.Command("search", "Search schemas using a pattern").Alias("find").Action(c.search)
 	search.Arg("pattern", "Regular expression to search for").Default(".").StringVar(&c.filter)
 	search.Flag("json", "Produce JSON format output").BoolVar(&c.json)
 }
