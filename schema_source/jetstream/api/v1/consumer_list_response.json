@@ -15,7 +15,14 @@
       "$ref": "definitions.json#/definitions/error_response"
     },
     {
-      "$ref": "definitions.json#/definitions/consumer_info"
+      "type": "object",
+      "additionalItems": false,
+      "required": ["consumers"],
+      "properties": {
+        "consumer": {
+          "$ref": "definitions.json#/definitions/consumer_info"
+        }
+      }
     }
   ],
   "properties": {
