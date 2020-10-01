@@ -1412,7 +1412,7 @@ Managed Streams:
   No Streams have been defined by this template
 ```
 
-You can see now streams exist now for it, let's publish some data:
+You can see no streams currently exist, let's publish some data:
 
 ```
 $ nats pub CLIENT.acme hello
