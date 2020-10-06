@@ -800,8 +800,8 @@ We support a number of tools to assist with this:
 
  * `nats` CLI with configuration files 
  * [Terraform](https://www.terraform.io/)
- * [GitHub Actions](https://github.com/features/actions) 
-
+ * [GitHub Actions](https://github.com/features/actions)
+ * [Kubernetes JetStream Controller](https://github.com/nats-io/nack#jetstream-controller) 
 
 ### nats Admin CLI
 
@@ -953,6 +953,10 @@ jobs:
           message: Published new deployment via "${{ github.event_name }}" in "${{ github.repository }}"
           server: js.example.net
 ```
+
+### Kubernetes JetStream Controller
+
+The JetStream controllers allows you to manage NATS JetStream Streams and Consumers via K8S CRDs. You can find more info on how to deploy and usage [here](https://github.com/nats-io/nack#getting-started).
 
 ## Disaster Recovery
 
