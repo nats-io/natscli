@@ -800,8 +800,8 @@ We support a number of tools to assist with this:
 
  * `nats` CLI with configuration files 
  * [Terraform](https://www.terraform.io/)
- * [GitHub Actions](https://github.com/features/actions) 
-
+ * [GitHub Actions](https://github.com/features/actions)
+ * [Kubernetes JetStream Controller](https://github.com/nats-io/nack#jetstream-controller) 
 
 ### nats Admin CLI
 
@@ -952,6 +952,64 @@ jobs:
           subject: ORDERS.deployment
           message: Published new deployment via "${{ github.event_name }}" in "${{ github.repository }}"
           server: js.example.net
+```
+
+### Kubernetes JetStream Controller
+
+The JetStream controllers allows you to manage NATS JetStream Streams and Consumers via K8S CRDs. You can find more info on how to deploy and usage [here](https://github.com/nats-io/nack#getting-started).  Below you can find an example on how to create a stream and a couple of consumers:
+
+```yaml
+---
+apiVersion: jetstream.nats.io/v1beta1
+kind: Stream
+metadata:
+  name: mystream
+spec:
+  name: mystream
+  subjects: ["orders.*"]
+  storage: memory
+  maxAge: 1h
+---
+apiVersion: jetstream.nats.io/v1beta1
+kind: Consumer
+metadata:
+  name: my-push-consumer
+spec:
+  streamName: mystream
+  durableName: my-push-consumer
+  deliverSubject: my-push-consumer.orders
+  deliverPolicy: last
+  ackPolicy: none
+  replayPolicy: instant
+---
+apiVersion: jetstream.nats.io/v1beta1
+kind: Consumer
+metadata:
+  name: my-pull-consumer
+spec:
+  streamName: mystream
+  durableName: my-pull-consumer
+  deliverPolicy: all
+  filterSubject: orders.received
+  maxDeliver: 20
+  ackPolicy: explicit
+```
+
+Once the CRDs are installed you can use `kubectl` to manage the streams and consumers as follows:
+
+```sh
+$ kubectl get streams
+NAME       STATE     STREAM NAME   SUBJECTS
+mystream   Created   mystream      [orders.*]
+
+$ kubectl get consumers
+NAME               STATE     STREAM     CONSUMER           ACK POLICY
+my-pull-consumer   Created   mystream   my-pull-consumer   explicit
+my-push-consumer   Created   mystream   my-push-consumer   none
+
+# If you end up in an Errored state, run kubectl describe for more info.
+#     kubectl describe streams mystream
+#     kubectl describe consumers my-pull-consumer
 ```
 
 ## Disaster Recovery
