@@ -17,8 +17,6 @@ import (
 	"fmt"
 
 	"gopkg.in/alecthomas/kingpin.v2"
-
-	"github.com/nats-io/jsm.go"
 )
 
 type restoreCmd struct {
@@ -45,14 +43,14 @@ func (c *restoreCmd) restoreAction(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("both file and directory can not be supplied")
 	}
 
-	_, err := prepareHelper("", natsOpts()...)
+	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 
 	if c.backupDir != "" {
-		return jsm.RestoreJetStreamConfiguration(c.backupDir, c.updateStream)
+		return mgr.RestoreJetStreamConfiguration(c.backupDir, c.updateStream)
 	}
 
-	return jsm.RestoreJetStreamConfigurationFile(c.file, c.updateStream)
+	return mgr.RestoreJetStreamConfigurationFile(c.file, c.updateStream)
 }

@@ -27,18 +27,18 @@ func main() {
 	}
 	outDir := os.Getenv("OUTDIR")
 
-	srv, nc, err := StartJSServer(natsURL)
+	srv, nc, mgr, err := StartJSServer(natsURL)
 	if err != nil {
 		panic(err)
 	}
 	defer srv.Shutdown()
 	defer nc.Flush()
 
-	stream, err := AddStream("IMAGES", nc)
+	stream, err := AddStream("IMAGES", mgr)
 	if err != nil {
 		panic(err)
 	}
-	consumer, err := AddConsumer("BW", "IMAGES.blackandwhite", stream.Name(), nc)
+	consumer, err := AddConsumer("BW", "IMAGES.blackandwhite", stream.Name(), mgr)
 	if err != nil {
 		panic(err)
 	}
@@ -47,20 +47,20 @@ func main() {
 		panic(err)
 	}
 
-	if err = processNextMessage(stream.Name(), consumer.DurableName(), outDir, nc); err != nil {
+	if err = processNextMessage(stream.Name(), consumer.DurableName(), outDir, mgr, nc); err != nil {
 		panic(err)
 	}
 }
 
-func StartJSServer(url *url.URL) (*natsd.Server, *nats.Conn, error) {
+func StartJSServer(url *url.URL) (*natsd.Server, *nats.Conn, *jsm.Manager, error) {
 	dir, err := ioutil.TempDir("", "nats-jetstream-*")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	natsPort, err := strconv.Atoi(url.Port())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	opts := &natsd.Options{
@@ -73,24 +73,29 @@ func StartJSServer(url *url.URL) (*natsd.Server, *nats.Conn, error) {
 	}
 	s, err := natsd.NewServer(opts)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	go s.Start()
 	if !s.ReadyForConnections(10 * time.Second) {
-		return nil, nil, errors.New("nats server didn't start")
+		return nil, nil, nil, errors.New("nats server didn't start")
 	}
 
 	nc, err := nats.Connect(s.ClientURL())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return s, nc, nil
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return s, nc, mgr, nil
 }
 
-func AddStream(name string, nc *nats.Conn) (*jsm.Stream, error) {
-	stream, err := jsm.NewStreamFromDefault(name, jsm.DefaultWorkQueue, jsm.StreamConnection(
-		jsm.WithConnection(nc)), jsm.Subjects(name+".*"), jsm.FileStorage(), jsm.MaxAge(24*365*time.Hour),
+func AddStream(name string, mgr *jsm.Manager) (*jsm.Stream, error) {
+	stream, err := mgr.NewStreamFromDefault(name, jsm.DefaultWorkQueue,
+		jsm.Subjects(name+".*"), jsm.FileStorage(), jsm.MaxAge(24*365*time.Hour),
 		jsm.DiscardOld(), jsm.MaxMessages(-1), jsm.MaxBytes(-1), jsm.MaxMessageSize(512),
 		jsm.DuplicateWindow(1*time.Hour))
 	if err != nil {
@@ -100,9 +105,9 @@ func AddStream(name string, nc *nats.Conn) (*jsm.Stream, error) {
 	return stream, nil
 }
 
-func AddConsumer(name, filter, stream string, nc *nats.Conn) (*jsm.Consumer, error) {
-	consumer, err := jsm.NewConsumerFromDefault(stream, jsm.DefaultConsumer, jsm.ConsumerConnection(
-		jsm.WithConnection(nc)), jsm.DurableName(name), jsm.MaxDeliveryAttempts(5),
+func AddConsumer(name, filter, stream string, mgr *jsm.Manager) (*jsm.Consumer, error) {
+	consumer, err := mgr.NewConsumerFromDefault(stream, jsm.DefaultConsumer,
+		jsm.DurableName(name), jsm.MaxDeliveryAttempts(5),
 		jsm.AckWait(30*time.Second), jsm.AcknowledgeExplicit(), jsm.ReplayInstantly(),
 		jsm.DeliverAllAvailable(), jsm.FilterStreamBySubject(filter))
 	if err != nil {
@@ -141,8 +146,11 @@ func sendMessage(subj string, nc *nats.Conn) error {
 	return nil
 }
 
-func processNextMessage(stream, consumer, outDir string, nc *nats.Conn) error {
-	msg, err := jsm.NextMsg(stream, consumer, jsm.WithConnection(nc), jsm.WithTimeout(time.Minute))
+func processNextMessage(stream, consumer, outDir string, mgr *jsm.Manager, nc *nats.Conn) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	msg, err := mgr.NextMsgContext(ctx, stream, consumer)
 	if err == nats.ErrTimeout {
 		return nil
 	}

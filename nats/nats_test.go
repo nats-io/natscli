@@ -61,7 +61,7 @@ func runNatsCli(t *testing.T, args ...string) (output []byte) {
 	return out
 }
 
-func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn) {
+func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) {
 	t.Helper()
 
 	dir, err := ioutil.TempDir("", "")
@@ -79,58 +79,58 @@ func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn) {
 		t.Errorf("nats server did not start")
 	}
 
-	nc, err = prepareHelper(srv.ClientURL())
+	nc, mgr, err = prepareHelper(srv.ClientURL())
 	checkErr(t, err, "could not connect client to server @ %s: %v", srv.ClientURL(), err)
 
-	streams, err := jsm.StreamNames()
+	streams, err := mgr.StreamNames()
 	checkErr(t, err, "could not load streams: %v", err)
 	if len(streams) != 0 {
 		t.Fatalf("found %v message streams but it should be empty", streams)
 	}
 
-	return srv, nc
+	return srv, nc, mgr
 }
 
-func setupConsTest(t *testing.T) (srv *server.Server, nc *nats.Conn) {
-	srv, nc = setupJStreamTest(t)
+func setupConsTest(t *testing.T) (srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) {
+	srv, nc, mgr = setupJStreamTest(t)
 
-	_, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
+	_, err := mgr.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
-	streamShouldExist(t, "mem1")
+	streamShouldExist(t, mgr, "mem1")
 
-	return srv, nc
+	return srv, nc, mgr
 }
 
-func streamShouldExist(t *testing.T, stream string) {
+func streamShouldExist(t *testing.T, mgr *jsm.Manager, stream string) {
 	t.Helper()
-	known, err := jsm.IsKnownStream(stream)
+	known, err := mgr.IsKnownStream(stream)
 	checkErr(t, err, "stream lookup failed: %v", err)
 	if !known {
 		t.Fatalf("%s does not exist", stream)
 	}
 }
 
-func streamShouldNotExist(t *testing.T, stream string) {
+func streamShouldNotExist(t *testing.T, mgr *jsm.Manager, stream string) {
 	t.Helper()
-	known, err := jsm.IsKnownStream(stream)
+	known, err := mgr.IsKnownStream(stream)
 	checkErr(t, err, "stream lookup failed: %v", err)
 	if known {
 		t.Fatalf("unexpectedly found %s already existing", stream)
 	}
 }
 
-func consumerShouldExist(t *testing.T, stream string, consumer string) {
+func consumerShouldExist(t *testing.T, mgr *jsm.Manager, stream string, consumer string) {
 	t.Helper()
-	known, err := jsm.IsKnownConsumer(stream, consumer)
+	known, err := mgr.IsKnownConsumer(stream, consumer)
 	checkErr(t, err, "consumer lookup failed: %v", err)
 	if !known {
 		t.Fatalf("%s does not exist", consumer)
 	}
 }
 
-func streamInfo(t *testing.T, stream string) *api.StreamInfo {
+func streamInfo(t *testing.T, mgr *jsm.Manager, stream string) *api.StreamInfo {
 	t.Helper()
-	str, err := jsm.LoadStream(stream)
+	str, err := mgr.LoadStream(stream)
 	checkErr(t, err, "could not load stream %s", stream)
 	info, err := str.Information()
 	checkErr(t, err, "could not load stream %s", stream)
@@ -168,12 +168,12 @@ func pull1Cons() api.ConsumerConfig {
 }
 
 func TestCLIStreamCreate(t *testing.T) {
-	srv, _ := setupJStreamTest(t)
+	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m  --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new --dupe-window 1h", srv.ClientURL()))
-	streamShouldExist(t, "mem1")
-	info := streamInfo(t, "mem1")
+	streamShouldExist(t, mgr, "mem1")
+	info := streamInfo(t, mgr, "mem1")
 
 	if len(info.Config.Subjects) != 2 {
 		t.Fatalf("expected 2 subjects in the message stream, got %v", info.Config.Subjects)
@@ -204,8 +204,8 @@ func TestCLIStreamCreate(t *testing.T) {
 	}
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' str create ORDERS --config testdata/ORDERS_config.json", srv.ClientURL()))
-	streamShouldExist(t, "ORDERS")
-	info = streamInfo(t, "ORDERS")
+	streamShouldExist(t, mgr, "ORDERS")
+	info = streamInfo(t, mgr, "ORDERS")
 
 	if len(info.Config.Subjects) != 1 {
 		t.Fatalf("expected 1 subject in the message stream, got %v", info.Config.Subjects)
@@ -225,12 +225,12 @@ func TestCLIStreamCreate(t *testing.T) {
 }
 
 func TestCLIStreamInfo(t *testing.T) {
-	srv, _ := setupJStreamTest(t)
+	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
+	_, err := mgr.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
-	streamShouldExist(t, "mem1")
+	streamShouldExist(t, mgr, "mem1")
 
 	out := runNatsCli(t, fmt.Sprintf("--server='%s' str info mem1 -j", srv.ClientURL()))
 
@@ -245,24 +245,24 @@ func TestCLIStreamInfo(t *testing.T) {
 }
 
 func TestCLIStreamDelete(t *testing.T) {
-	srv, _ := setupJStreamTest(t)
+	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
+	_, err := mgr.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create message stream: %v", err)
-	streamShouldExist(t, "mem1")
+	streamShouldExist(t, mgr, "mem1")
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' str rm mem1 -f", srv.ClientURL()))
-	streamShouldNotExist(t, "mem1")
+	streamShouldNotExist(t, mgr, "mem1")
 }
 
 func TestCLIStreamLs(t *testing.T) {
-	srv, _ := setupJStreamTest(t)
+	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
+	_, err := mgr.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
-	streamShouldExist(t, "mem1")
+	streamShouldExist(t, mgr, "mem1")
 
 	out := runNatsCli(t, fmt.Sprintf("--server='%s' str ls -j", srv.ClientURL()))
 
@@ -280,12 +280,12 @@ func TestCLIStreamLs(t *testing.T) {
 }
 
 func TestCLIStreamPurge(t *testing.T) {
-	srv, nc := setupJStreamTest(t)
+	srv, nc, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	stream, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
+	stream, err := mgr.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
-	streamShouldExist(t, "mem1")
+	streamShouldExist(t, mgr, "mem1")
 
 	_, err = nc.Request("js.mem.1", []byte("hello"), time.Second)
 	checkErr(t, err, "could not publish message: %v", err)
@@ -305,12 +305,12 @@ func TestCLIStreamPurge(t *testing.T) {
 }
 
 func TestCLIStreamGet(t *testing.T) {
-	srv, nc := setupJStreamTest(t)
+	srv, nc, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	stream, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
+	stream, err := mgr.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
-	streamShouldExist(t, "mem1")
+	streamShouldExist(t, mgr, "mem1")
 
 	_, err = nc.Request("js.mem.1", []byte("hello"), time.Second)
 	checkErr(t, err, "could not publish message: %v", err)
@@ -330,12 +330,12 @@ func TestCLIStreamGet(t *testing.T) {
 }
 
 func TestCLIStreamBackupAndRestore(t *testing.T) {
-	srv, nc := setupJStreamTest(t)
+	srv, nc, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	stream, err := jsm.NewStreamFromDefault("file1", file1Stream())
+	stream, err := mgr.NewStreamFromDefault("file1", file1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
-	streamShouldExist(t, "file1")
+	streamShouldExist(t, mgr, "file1")
 
 	for i := 0; i < 1000; i++ {
 		nc.Publish("js.file.1", []byte(RandomString(5480)))
@@ -353,7 +353,7 @@ func TestCLIStreamBackupAndRestore(t *testing.T) {
 	stream.Delete()
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' str restore file1 %s --no-progress", srv.ClientURL(), tf.Name()))
-	stream, err = jsm.NewStreamFromDefault("file1", file1Stream())
+	stream, err = mgr.NewStreamFromDefault("file1", file1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 
 	postState, err := stream.State()
@@ -378,12 +378,12 @@ func RandomString(n int) string {
 }
 
 func TestCLIConsumerInfo(t *testing.T) {
-	srv, _ := setupConsTest(t)
+	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsm.NewConsumerFromDefault("mem1", pull1Cons())
+	_, err := mgr.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
-	consumerShouldExist(t, "mem1", "push1")
+	consumerShouldExist(t, mgr, "mem1", "push1")
 
 	out := runNatsCli(t, fmt.Sprintf("--server='%s' con info mem1 push1 -j", srv.ClientURL()))
 	var info server.ConsumerInfo
@@ -396,12 +396,12 @@ func TestCLIConsumerInfo(t *testing.T) {
 }
 
 func TestCLIConsumerLs(t *testing.T) {
-	srv, _ := setupConsTest(t)
+	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsm.NewConsumerFromDefault("mem1", pull1Cons())
+	_, err := mgr.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
-	consumerShouldExist(t, "mem1", "push1")
+	consumerShouldExist(t, mgr, "mem1", "push1")
 
 	out := runNatsCli(t, fmt.Sprintf("--server='%s' con ls mem1 -j", srv.ClientURL()))
 	var info []string
@@ -418,16 +418,16 @@ func TestCLIConsumerLs(t *testing.T) {
 }
 
 func TestCLIConsumerDelete(t *testing.T) {
-	srv, _ := setupConsTest(t)
+	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsm.NewConsumerFromDefault("mem1", pull1Cons())
+	_, err := mgr.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
-	consumerShouldExist(t, "mem1", "push1")
+	consumerShouldExist(t, mgr, "mem1", "push1")
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' con rm mem1 push1 -f", srv.ClientURL()))
 
-	list, err := jsm.ConsumerNames("mem1")
+	list, err := mgr.ConsumerNames("mem1")
 	checkErr(t, err, "could not check cnsumer: %v", err)
 	if len(list) != 0 {
 		t.Fatalf("Expected no consumer, got %v", list)
@@ -435,12 +435,12 @@ func TestCLIConsumerDelete(t *testing.T) {
 }
 
 func TestCLIConsumerAdd(t *testing.T) {
-	srv, _ := setupConsTest(t)
+	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --replay instant --deliver all --target out.push1 --ack explicit --filter '' --max-deliver 20 --bps 1024", srv.ClientURL()))
-	consumerShouldExist(t, "mem1", "push1")
-	push1, err := jsm.LoadConsumer("mem1", "push1")
+	consumerShouldExist(t, mgr, "mem1", "push1")
+	push1, err := mgr.LoadConsumer("mem1", "push1")
 	checkErr(t, err, "push1 could not be loaded")
 	if push1.RateLimit() != 1024 {
 		t.Fatalf("Expected rate limit of 1024 but got %v", push1.RateLimit())
@@ -454,16 +454,16 @@ func TestCLIConsumerAdd(t *testing.T) {
 	push1.Delete()
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 pull1 --config testdata/mem1_pull1_consumer.json", srv.ClientURL()))
-	consumerShouldExist(t, "mem1", "pull1")
+	consumerShouldExist(t, mgr, "mem1", "pull1")
 }
 
 func TestCLIConsumerNext(t *testing.T) {
-	srv, nc := setupConsTest(t)
+	srv, nc, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	push1, err := jsm.NewConsumerFromDefault("mem1", pull1Cons())
+	push1, err := mgr.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
-	consumerShouldExist(t, "mem1", "push1")
+	consumerShouldExist(t, mgr, "mem1", "push1")
 
 	push1.Reset()
 	if !push1.IsPullMode() {
@@ -484,12 +484,12 @@ func TestCLIConsumerNext(t *testing.T) {
 }
 
 func TestCLIStreamEdit(t *testing.T) {
-	srv, _ := setupJStreamTest(t)
+	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	mem1, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
+	mem1, err := mgr.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
-	streamShouldExist(t, "mem1")
+	streamShouldExist(t, mgr, "mem1")
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' str edit mem1 --subjects other -f", srv.ClientURL()))
 
@@ -519,17 +519,17 @@ func TestCLIStreamEdit(t *testing.T) {
 }
 
 func TestCLIStreamCopy(t *testing.T) {
-	srv, _ := setupJStreamTest(t)
+	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsm.NewStreamFromDefault("mem1", mem1Stream())
+	_, err := mgr.NewStreamFromDefault("mem1", mem1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
-	streamShouldExist(t, "mem1")
+	streamShouldExist(t, mgr, "mem1")
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' str cp mem1 file1 --storage file --subjects other", srv.ClientURL()))
-	streamShouldExist(t, "file1")
+	streamShouldExist(t, mgr, "file1")
 
-	stream, err := jsm.LoadStream("file1")
+	stream, err := mgr.LoadStream("file1")
 	checkErr(t, err, "could not get stream: %v", err)
 	info, err := stream.Information()
 	checkErr(t, err, "could not get stream: %v", err)
@@ -539,21 +539,21 @@ func TestCLIStreamCopy(t *testing.T) {
 }
 
 func TestCLIConsumerCopy(t *testing.T) {
-	srv, _ := setupConsTest(t)
+	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := jsm.NewConsumerFromDefault("mem1", pull1Cons())
+	_, err := mgr.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
-	consumerShouldExist(t, "mem1", "push1")
+	consumerShouldExist(t, mgr, "mem1", "push1")
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' con cp mem1 push1 pull1 --pull", srv.ClientURL()))
-	consumerShouldExist(t, "mem1", "pull1")
+	consumerShouldExist(t, mgr, "mem1", "pull1")
 
-	pull1, err := jsm.LoadConsumer("mem1", "pull1")
+	pull1, err := mgr.LoadConsumer("mem1", "pull1")
 	checkErr(t, err, "could not get consumer: %v", err)
-	consumerShouldExist(t, "mem1", "pull1")
+	consumerShouldExist(t, mgr, "mem1", "pull1")
 
-	ols, err := jsm.ConsumerNames("mem1")
+	ols, err := mgr.ConsumerNames("mem1")
 	checkErr(t, err, "could not get consumer: %v", err)
 
 	if len(ols) != 2 {
@@ -566,7 +566,7 @@ func TestCLIConsumerCopy(t *testing.T) {
 }
 
 func TestCLIBackupRestore(t *testing.T) {
-	srv, _ := setupConsTest(t)
+	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
 	dir, err := ioutil.TempDir("", "")
@@ -575,7 +575,7 @@ func TestCLIBackupRestore(t *testing.T) {
 
 	target := filepath.Join(dir, "backup")
 
-	mem1, err := jsm.LoadStream("mem1")
+	mem1, err := mgr.LoadStream("mem1")
 	checkErr(t, err, "fetch mem1 failed")
 	origMem1Config := mem1.Configuration()
 
@@ -583,7 +583,7 @@ func TestCLIBackupRestore(t *testing.T) {
 	checkErr(t, err, "consumer c1 failed")
 	origC1Config := c1.Configuration()
 
-	t1, err := jsm.NewStreamTemplate("t1", 1, jsm.DefaultStream, jsm.Subjects("t1"), jsm.MemoryStorage())
+	t1, err := mgr.NewStreamTemplate("t1", 1, jsm.DefaultStream, jsm.Subjects("t1"), jsm.MemoryStorage())
 	checkErr(t, err, "TEST template create failed")
 	origT1Config := t1.Configuration()
 
@@ -594,7 +594,7 @@ func TestCLIBackupRestore(t *testing.T) {
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' restore '%s'", srv.ClientURL(), target))
 
-	mem1, err = jsm.LoadStream("mem1")
+	mem1, err = mgr.LoadStream("mem1")
 	checkErr(t, err, "fetch mem1 failed")
 	if !cmp.Equal(mem1.Configuration(), origMem1Config) {
 		t.Fatalf("mem1 recreate failed")
@@ -606,7 +606,7 @@ func TestCLIBackupRestore(t *testing.T) {
 		t.Fatalf("mem1 recreate failed")
 	}
 
-	t1, err = jsm.LoadStreamTemplate("t1")
+	t1, err = mgr.LoadStreamTemplate("t1")
 	checkErr(t, err, "template load failed")
 	if !cmp.Equal(t1.Configuration(), origT1Config) {
 		t.Fatalf("mem1 recreate failed")
@@ -614,7 +614,7 @@ func TestCLIBackupRestore(t *testing.T) {
 }
 
 func TestCLIBackupRestore_UpdateStream(t *testing.T) {
-	srv, _ := setupConsTest(t)
+	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
 	dir, err := ioutil.TempDir("", "")
@@ -623,7 +623,7 @@ func TestCLIBackupRestore_UpdateStream(t *testing.T) {
 
 	target := filepath.Join(dir, "backup")
 
-	mem1, err := jsm.LoadStream("mem1")
+	mem1, err := mgr.LoadStream("mem1")
 	checkErr(t, err, "fetch mem1 failed")
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' backup '%s'", srv.ClientURL(), target))
@@ -644,14 +644,14 @@ func TestCLIBackupRestore_UpdateStream(t *testing.T) {
 }
 
 func TestCLIMessageRm(t *testing.T) {
-	srv, nc := setupConsTest(t)
+	srv, nc, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
 	checkErr(t, nc.Publish("js.mem.1", []byte("msg1")), "publish failed")
 	checkErr(t, nc.Publish("js.mem.1", []byte("msg2")), "publish failed")
 	checkErr(t, nc.Publish("js.mem.1", []byte("msg3")), "publish failed")
 
-	mem1, err := jsm.LoadStream("mem1")
+	mem1, err := mgr.LoadStream("mem1")
 	checkErr(t, err, "load failed")
 
 	state, err := mem1.State()

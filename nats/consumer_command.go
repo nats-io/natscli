@@ -55,6 +55,9 @@ type consumerCmd struct {
 	delivery      string
 	ephemeral     bool
 	validateOnly  bool
+
+	mgr *jsm.Manager
+	nc  *nats.Conn
 }
 
 func configureConsumerCommand(app *kingpin.Application) {
@@ -129,7 +132,7 @@ func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	consumer, err := jsm.LoadConsumer(c.stream, c.consumer)
+	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
 	kingpin.FatalIfError(err, "could not load Consumer")
 
 	return consumer.Delete()
@@ -138,7 +141,7 @@ func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
 func (c *consumerCmd) lsAction(pc *kingpin.ParseContext) error {
 	c.connectAndSetup(true, false)
 
-	stream, err := jsm.LoadStream(c.stream)
+	stream, err := c.mgr.LoadStream(c.stream)
 	kingpin.FatalIfError(err, "could not load Consumers")
 
 	consumers, err := stream.ConsumerNames()
@@ -238,7 +241,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 func (c *consumerCmd) infoAction(pc *kingpin.ParseContext) error {
 	c.connectAndSetup(true, true)
 
-	consumer, err := jsm.LoadConsumer(c.stream, c.consumer)
+	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
 	kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
 
 	c.showConsumer(consumer)
@@ -319,7 +322,7 @@ func (c *consumerCmd) setStartPolicy(cfg *api.ConsumerConfig, policy string) {
 func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 	c.connectAndSetup(true, false)
 
-	source, err := jsm.LoadConsumer(c.stream, c.consumer)
+	source, err := c.mgr.LoadConsumer(c.stream, c.consumer)
 	kingpin.FatalIfError(err, "could not load source Consumer")
 
 	cfg := source.Configuration()
@@ -367,7 +370,7 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.MaxDeliver = c.maxDeliver
 	}
 
-	consumer, err := jsm.NewConsumerFromDefault(c.stream, cfg)
+	consumer, err := c.mgr.NewConsumerFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed")
 
 	if cfg.Durable == "" {
@@ -540,7 +543,7 @@ func (c *consumerCmd) validateCfg(cfg *api.ConsumerConfig) (bool, []byte, []stri
 	return valid, j, errs, nil
 }
 
-func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
+func (c *consumerCmd) createAction(_ *kingpin.ParseContext) (err error) {
 	cfg, err := c.prepareConfig()
 	if err != nil {
 		return err
@@ -573,7 +576,7 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 
 	c.connectAndSetup(true, false)
 
-	created, err := jsm.NewConsumerFromDefault(c.stream, *cfg)
+	created, err := c.mgr.NewConsumerFromDefault(c.stream, *cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed")
 
 	c.consumer = created.Name()
@@ -584,7 +587,7 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 }
 
 func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
-	msg, err := jsm.NextMsg(stream, consumer)
+	msg, err := c.mgr.NextMsg(stream, consumer)
 	kingpin.FatalIfError(err, "could not load next message")
 
 	if !c.raw {
@@ -617,9 +620,9 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	}
 
 	if c.ack {
-		err = msg.Respond(api.AckAck)
+		err = msg.Ack()
 		kingpin.FatalIfError(err, "could not Acknowledge message")
-		jsm.Flush()
+		c.nc.Flush()
 		if !c.raw {
 			fmt.Println("\nAcknowledged message")
 		}
@@ -639,7 +642,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 		fmt.Println()
 	}
 
-	_, err = consumer.Subscribe(func(m *nats.Msg) {
+	_, err = c.nc.Subscribe(consumer.DeliverySubject(), func(m *nats.Msg) {
 		msginfo, err := jsm.ParseJSMsgMetadata(m)
 		kingpin.FatalIfError(err, "could not parse JetStream metadata")
 
@@ -676,7 +679,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 		}
 
 		if c.ack {
-			err = m.Respond(nil)
+			err = m.Ack()
 			if err != nil {
 				fmt.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
 			}
@@ -692,7 +695,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 func (c *consumerCmd) subAction(_ *kingpin.ParseContext) error {
 	c.connectAndSetup(true, true)
 
-	consumer, err := jsm.LoadConsumer(c.stream, c.consumer)
+	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
 	kingpin.FatalIfError(err, "could not get Consumer info")
 
 	if consumer.AckPolicy() == api.AckNone {
@@ -716,15 +719,17 @@ func (c *consumerCmd) nextAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool) {
-	_, err := prepareHelper("", natsOpts()...)
+	var err error
+
+	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	if askStream {
-		c.stream, err = selectStream(c.stream, c.force)
+		c.stream, err = selectStream(c.mgr, c.stream, c.force)
 		kingpin.FatalIfError(err, "could not select Stream")
 
 		if askConsumer {
-			c.consumer, err = selectConsumer(c.stream, c.consumer, c.force)
+			c.consumer, err = selectConsumer(c.mgr, c.stream, c.consumer, c.force)
 			kingpin.FatalIfError(err, "could not select Consumer")
 		}
 	}

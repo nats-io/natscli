@@ -70,7 +70,7 @@ func configureServerReportCommand(srv *kingpin.CmdClause) {
 }
 
 func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
-	nc, err := prepareHelper("", natsOpts()...)
+	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func (c *SrvReportCmd) accountInfo(connz []*server.Connz) map[string]*srvReportA
 }
 
 func (c *SrvReportCmd) reportConnections(_ *kingpin.ParseContext) error {
-	nc, err := prepareHelper("", natsOpts()...)
+	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}

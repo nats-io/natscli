@@ -94,7 +94,7 @@ func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
 }
 
 func (c *SrvRequestCmd) leafz(_ *kingpin.ParseContext) error {
-	nc, err := prepareHelper("", natsOpts()...)
+	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func (c *SrvRequestCmd) gwyz(_ *kingpin.ParseContext) error {
 		c.detail = true
 	}
 
-	nc, err := prepareHelper("", natsOpts()...)
+	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func (c *SrvRequestCmd) gwyz(_ *kingpin.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) routez(_ *kingpin.ParseContext) error {
-	nc, err := prepareHelper("", natsOpts()...)
+	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (c *SrvRequestCmd) conns(_ *kingpin.ParseContext) error {
 		opts.State = 2
 	}
 
-	nc, err := prepareHelper("", natsOpts()...)
+	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
@@ -218,7 +218,7 @@ func (c *SrvRequestCmd) conns(_ *kingpin.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) varz(_ *kingpin.ParseContext) error {
-	nc, err := prepareHelper("", natsOpts()...)
+	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func (c *SrvRequestCmd) varz(_ *kingpin.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) subs(_ *kingpin.ParseContext) error {
-	nc, err := prepareHelper("", natsOpts()...)
+	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
