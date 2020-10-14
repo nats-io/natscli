@@ -37,9 +37,9 @@ import (
 	"github.com/nats-io/jetstream/nats/natscontext"
 )
 
-func selectConsumer(stream string, consumer string, force bool) (string, error) {
+func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool) (string, error) {
 	if consumer != "" {
-		known, err := jsm.IsKnownConsumer(stream, consumer)
+		known, err := mgr.IsKnownConsumer(stream, consumer)
 		if err != nil {
 			return "", err
 		}
@@ -53,7 +53,7 @@ func selectConsumer(stream string, consumer string, force bool) (string, error) 
 		return "", fmt.Errorf("unknown consumer %q > %q", stream, consumer)
 	}
 
-	consumers, err := jsm.ConsumerNames(stream)
+	consumers, err := mgr.ConsumerNames(stream)
 	if err != nil {
 		return "", err
 	}
@@ -76,9 +76,9 @@ func selectConsumer(stream string, consumer string, force bool) (string, error) 
 	}
 }
 
-func selectStreamTemplate(template string, force bool) (string, error) {
+func selectStreamTemplate(mgr *jsm.Manager, template string, force bool) (string, error) {
 	if template != "" {
-		known, err := jsm.IsKnownStreamTemplate(template)
+		known, err := mgr.IsKnownStreamTemplate(template)
 		if err != nil {
 			return "", err
 		}
@@ -92,7 +92,7 @@ func selectStreamTemplate(template string, force bool) (string, error) {
 		return "", fmt.Errorf("unknown template %q", template)
 	}
 
-	templates, err := jsm.StreamTemplateNames()
+	templates, err := mgr.StreamTemplateNames()
 	if err != nil {
 		return "", err
 	}
@@ -115,8 +115,8 @@ func selectStreamTemplate(template string, force bool) (string, error) {
 	}
 }
 
-func selectStream(stream string, force bool) (string, error) {
-	streams, err := jsm.StreamNames()
+func selectStream(mgr *jsm.Manager, stream string, force bool) (string, error) {
+	streams, err := mgr.StreamNames()
 	if err != nil {
 		return "", err
 	}
@@ -135,11 +135,6 @@ func selectStream(stream string, force bool) (string, error) {
 
 	if force {
 		return "", fmt.Errorf("unknown stream %q", stream)
-	}
-
-	streams, err = jsm.StreamNames()
-	if err != nil {
-		return "", err
 	}
 
 	switch len(streams) {
@@ -346,34 +341,41 @@ func newNatsConn(servers string, opts ...nats.Option) (*nats.Conn, error) {
 	return nats.Connect(servers, opts...)
 }
 
-func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, error) {
+func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, *jsm.Manager, error) {
 	if config == nil {
 		if ctxError != nil {
-			return nil, ctxError
+			return nil, nil, ctxError
 		}
 
 		err := loadContext()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	nc, err := newNatsConn(servers, opts...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	jsopts := []jsm.Option{
+		jsm.WithAPIValidation(new(SchemaValidator)),
 	}
 
 	if timeout != 0 {
-		jsm.SetTimeout(timeout)
+		jsopts = append(jsopts, jsm.WithTimeout(timeout))
 	}
 
 	if trace {
-		jsm.Trace()
+		jsopts = append(jsopts, jsm.WithTrace())
 	}
 
-	jsm.SetConnection(nc)
+	mgr, err := jsm.New(nc, jsopts...)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	return nc, err
+	return nc, mgr, err
 }
 
 func humanizeDuration(d time.Duration) string {
@@ -456,8 +458,6 @@ func loadContext() error {
 
 func prepareConfig(_ *kingpin.ParseContext) (err error) {
 	loadContext()
-
-	jsm.Validate(new(SchemaValidator))
 
 	return nil
 }

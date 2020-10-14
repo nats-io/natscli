@@ -1,4 +1,4 @@
-// Copyright 2019 The NATS Authors
+// Copyright 2019-2020 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -18,8 +18,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"gopkg.in/alecthomas/kingpin.v2"
-
-	"github.com/nats-io/jsm.go"
 )
 
 type actCmd struct {
@@ -34,10 +32,10 @@ func configureActCommand(app *kingpin.Application) {
 }
 
 func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
-	_, err := prepareHelper("", natsOpts()...)
+	_, mgr, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	info, err := jsm.JetStreamAccountInfo()
+	info, err := mgr.JetStreamAccountInfo()
 	kingpin.FatalIfError(err, "could not request account info")
 
 	if c.json {

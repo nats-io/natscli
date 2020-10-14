@@ -39,7 +39,7 @@ func configureServerInfoCommand(srv *kingpin.CmdClause) {
 }
 
 func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
-	nc, err := prepareHelper("", natsOpts()...)
+	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
