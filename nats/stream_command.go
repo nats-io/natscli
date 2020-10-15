@@ -18,11 +18,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
+	"os/signal"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -66,6 +70,11 @@ type streamCmd struct {
 	showProgress        bool
 	healthCheck         bool
 	dupeWindow          string
+
+	vwStartId    int
+	vwStartDelta time.Duration
+	vwPageSize   int
+	vwRaw        bool
 
 	nc  *nats.Conn
 	mgr *jsm.Manager
@@ -153,6 +162,13 @@ func configureStreamCommand(app *kingpin.Application) {
 	strRmMsg.Arg("id", "Message ID to remove").Int64Var(&c.msgID)
 	strRmMsg.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
+	strView := str.Command("view", "View messages in a stream").Action(c.viewAction)
+	strView.Arg("stream", "Stream name").StringVar(&c.stream)
+	strView.Arg("size", "Page size").Default("10").IntVar(&c.vwPageSize)
+	strView.Flag("id", "Start at a specific message ID").Default("-1").IntVar(&c.vwStartId)
+	strView.Flag("since", "Start at a time delta").DurationVar(&c.vwStartDelta)
+	strView.Flag("raw", "Show the raw data received").BoolVar(&c.vwRaw)
+
 	strTemplate := str.Command("template", "Manages Stream Templates").Alias("templ").Alias("t")
 
 	strTAdd := strTemplate.Command("create", "Creates a new Stream Template").Alias("add").Alias("new").Action(c.streamTemplateAdd)
@@ -172,7 +188,100 @@ func configureStreamCommand(app *kingpin.Application) {
 	strTRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 }
 
-func (c *streamCmd) restoreAction(pc *kingpin.ParseContext) error {
+func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {
+	if c.vwPageSize > 25 {
+		c.vwPageSize = 25
+	}
+
+	c.connectAndAskStream()
+
+	str, err := c.mgr.LoadStream(c.stream)
+	if err != nil {
+		return err
+	}
+
+	pops := []jsm.PagerOption{
+		jsm.PagerSize(c.vwPageSize),
+	}
+
+	switch {
+	case c.vwStartDelta > 0:
+		pops = append(pops, jsm.PagerStartDelta(c.vwStartDelta))
+	case c.vwStartId > -1:
+		pops = append(pops, jsm.PagerStartDelta(c.vwStartDelta))
+	}
+
+	pgr, err := str.PageContents(pops...)
+	if err != nil {
+		return err
+	}
+	defer pgr.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sigs:
+			cancel()
+		}
+	}()
+
+	for {
+		msg, last, err := pgr.NextMsg(ctx)
+		if err != nil && last {
+			log.Println("Reached apparent end of data")
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		switch {
+		case c.vwRaw:
+			fmt.Println(string(msg.Data))
+		default:
+			meta, err := msg.JetStreamMetaData()
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("[%d] Subject: %s Received: %s\n", meta.StreamSeq, msg.Subject, meta.TimeStamp.Format(time.RFC3339))
+			if len(msg.Header) > 0 {
+				fmt.Println()
+				for k, vs := range msg.Header {
+					for _, v := range vs {
+						fmt.Printf("  %s: %s\n", k, v)
+					}
+				}
+			}
+
+			fmt.Println()
+			if len(msg.Data) == 0 {
+				fmt.Println("nil body")
+			} else {
+				fmt.Println(string(msg.Data))
+				if !strings.HasSuffix(string(msg.Data), "\n") {
+					fmt.Println()
+				}
+			}
+
+		}
+
+		if last {
+			next := false
+			survey.AskOne(&survey.Confirm{Message: "Next Page?", Default: true}, &next)
+			if !next {
+				return nil
+			}
+		}
+	}
+}
+
+func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
