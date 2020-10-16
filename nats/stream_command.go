@@ -165,7 +165,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strView := str.Command("view", "View messages in a stream").Action(c.viewAction)
 	strView.Arg("stream", "Stream name").StringVar(&c.stream)
 	strView.Arg("size", "Page size").Default("10").IntVar(&c.vwPageSize)
-	strView.Flag("id", "Start at a specific message ID").Default("-1").IntVar(&c.vwStartId)
+	strView.Flag("id", "Start at a specific message ID").IntVar(&c.vwStartId)
 	strView.Flag("since", "Start at a time delta").DurationVar(&c.vwStartDelta)
 	strView.Flag("raw", "Show the raw data received").BoolVar(&c.vwRaw)
 
@@ -207,7 +207,7 @@ func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {
 	switch {
 	case c.vwStartDelta > 0:
 		pops = append(pops, jsm.PagerStartDelta(c.vwStartDelta))
-	case c.vwStartId > -1:
+	case c.vwStartId > 0:
 		pops = append(pops, jsm.PagerStartId(c.vwStartId))
 	}
 
