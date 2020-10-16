@@ -208,7 +208,7 @@ func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {
 	case c.vwStartDelta > 0:
 		pops = append(pops, jsm.PagerStartDelta(c.vwStartDelta))
 	case c.vwStartId > -1:
-		pops = append(pops, jsm.PagerStartDelta(c.vwStartDelta))
+		pops = append(pops, jsm.PagerStartId(c.vwStartId))
 	}
 
 	pgr, err := str.PageContents(pops...)
