@@ -20,6 +20,7 @@ import (
 	"os/signal"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,9 +33,11 @@ import (
 )
 
 type SrvLsCmd struct {
-	expect uint32
-	json   bool
-	filter string
+	expect  uint32
+	json    bool
+	filter  string
+	sort    string
+	reverse bool
 }
 
 type srvListCluster struct {
@@ -52,6 +55,8 @@ func configureServerListCommand(srv *kingpin.CmdClause) {
 	ls.Arg("expect", "How many servers to expect").Uint32Var(&c.expect)
 	ls.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	ls.Flag("filter", "Regular expression filter on server name").Short('f').StringVar(&c.filter)
+	ls.Flag("sort", "Sort servers by a specific key (conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
+	ls.Flag("reverse", "Reverse sort servers").Short('R').BoolVar(&c.reverse)
 }
 
 func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
@@ -70,8 +75,14 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	defer cancel()
 
 	seen := uint32(0)
-	var results []*server.ServerStatsMsg
-	mu := &sync.Mutex{}
+	mu := sync.Mutex{}
+
+	type result struct {
+		*server.ServerStatsMsg
+		rtt time.Duration
+	}
+
+	var results []*result
 	filter, err := regexp.Compile(c.filter)
 	if err != nil {
 		return err
@@ -87,11 +98,10 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		start              = time.Now()
 	)
 
-	table := tablewriter.CreateTable()
-	table.AddTitle("Server Overview")
-	table.AddHeaders("Name", "Cluster", "IP", "Version", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU", "Slow", "Uptime", "RTT")
-
 	sub, err := ec.Subscribe(nc.NewRespInbox(), func(ssm *server.ServerStatsMsg) {
+		mu.Lock()
+		defer mu.Unlock()
+
 		last := atomic.AddUint32(&seen, 1)
 
 		if !filter.MatchString(ssm.Server.Name) {
@@ -119,11 +129,10 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 			}
 		}
 
-		mu.Lock()
-		results = append(results, ssm)
-		mu.Unlock()
-
-		table.AddRow(ssm.Server.Name, ssm.Server.Cluster, ssm.Server.Host, ssm.Server.Version, ssm.Stats.Connections, ssm.Stats.NumSubs, len(ssm.Stats.Routes), len(ssm.Stats.Gateways), humanize.IBytes(uint64(ssm.Stats.Mem)), fmt.Sprintf("%.1f", ssm.Stats.CPU), ssm.Stats.SlowConsumers, humanizeTime(ssm.Stats.Start), time.Since(start))
+		results = append(results, &result{
+			ServerStatsMsg: ssm,
+			rtt:            time.Since(start),
+		})
 
 		if last == c.expect {
 			cancel()
@@ -152,6 +161,47 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	if c.json {
 		printJSON(results)
 		return nil
+	}
+
+	table := tablewriter.CreateTable()
+	table.AddTitle("Server Overview")
+	table.AddHeaders("Name", "Cluster", "IP", "Version", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU", "Slow", "Uptime", "RTT")
+
+	rev := func(v bool) bool {
+		if c.reverse {
+			return !v
+		}
+		return v
+	}
+
+	sort.Slice(results, func(i int, j int) bool {
+		stati := results[i].Stats
+		statj := results[j].Stats
+
+		switch c.sort {
+		case "conns", "conn":
+			return rev(stati.Connections < statj.Connections)
+		case "subs", "sub":
+			return rev(stati.NumSubs < statj.NumSubs)
+		case "routes", "route":
+			return rev(len(stati.Routes) < len(statj.Routes))
+		case "gws", "gw":
+			return rev(len(stati.Gateways) < len(statj.Gateways))
+		case "mem":
+			return rev(stati.Mem < statj.Mem)
+		case "cpu":
+			return rev(stati.CPU < statj.CPU)
+		case "slow":
+			return rev(stati.SlowConsumers < statj.SlowConsumers)
+		case "uptime":
+			return rev(stati.Start.UnixNano() > statj.Start.UnixNano())
+		default:
+			return rev(results[i].rtt < results[j].rtt)
+		}
+	})
+
+	for _, ssm := range results {
+		table.AddRow(ssm.Server.Name, ssm.Server.Cluster, ssm.Server.Host, ssm.Server.Version, ssm.Stats.Connections, ssm.Stats.NumSubs, len(ssm.Stats.Routes), len(ssm.Stats.Gateways), humanize.IBytes(uint64(ssm.Stats.Mem)), fmt.Sprintf("%.1f", ssm.Stats.CPU), ssm.Stats.SlowConsumers, humanizeTime(ssm.Stats.Start), ssm.rtt)
 	}
 
 	table.AddSeparator()
