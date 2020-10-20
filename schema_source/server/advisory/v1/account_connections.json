@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/server/advisory/v1/account_connections.json",
+  "description": "Regular advisory published with account states",
+  "title": "io.nats.server.advisory.v1.account_connections",
+  "type":"object",
+  "required":[
+    "type",
+    "id",
+    "timestamp",
+    "server",
+    "acc",
+    "conns",
+    "leafnodes",
+    "total_conns"
+  ],
+  "additionalItems": false,
+  "properties": {
+    "type": {
+      "type":"string",
+      "const": "io.nats.server.advisory.v1.account_connections"
+    },
+    "id": {
+      "type":"string",
+      "description": "Unique correlation ID for this event"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The time this event was created in RFC3339 format"
+    },
+    "server": {
+      "$ref": "definitions.json#/definitions/server"
+    },
+    "acc": {
+      "type": "string",
+      "description": "The account the update is for"
+    },
+    "conns": {
+      "type": "integer",
+      "description": "The number of active client connections to the server",
+      "minimum": 0
+    },
+    "leafnodes": {
+      "type": "integer",
+      "description": "The number of active leafnode connections to the server",
+      "minimum": 0
+    },
+    "total_conns": {
+      "type": "integer",
+      "description": "The combined client and leafnode account connections",
+      "minimum": 0
+    }
+  }
+}

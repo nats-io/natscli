@@ -27,99 +27,10 @@
       "description": "The time this event was created in RFC3339 format"
     },
     "server": {
-      "type": "object",
-      "additionalItems": false,
-      "description": "Details about the server the client connected to",
-      "required": ["name","host","id","ver","seq","jetstream","time"],
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The configured name for the server, matches ID when unconfigured",
-          "minLength": 1
-        },
-        "host": {
-          "type": "string",
-          "description": "The host this server runs on, typically a IP address"
-        },
-        "id": {
-          "type": "string",
-          "description": "The unique server ID for this node"
-        },
-        "cluster": {
-          "type": "string",
-          "description": "The cluster the server belongs to"
-        },
-        "ver": {
-          "type": "string",
-          "description": "The version NATS running on the server"
-        },
-        "seq": {
-          "type": "integer",
-          "description": "Internal server sequence ID"
-        },
-        "jetstream": {
-          "type": "boolean",
-          "description": "Indicates if this server has JetStream enabled"
-        },
-        "time": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The local time of the server"
-        }
-      }
+      "$ref": "definitions.json#/definitions/server"
     },
     "client": {
-      "type": "object",
-      "additionalItems": false,
-      "description": "Details about the client that connected to the server",
-      "required": [
-        "id",
-        "acc"
-      ],
-      "properties": {
-        "start": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp when the client connected"
-        },
-        "stop": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp when the client disconnected"
-        },
-        "host": {
-          "type": "string",
-          "description": "The remote host the client is connected from"
-        },
-        "id": {
-          "type": "string",
-          "description": "The internally assigned client ID for this connection"
-        },
-        "acc": {
-          "type": "string",
-          "description": "The account this user logged in to"
-        },
-        "user": {
-          "type": "string",
-          "description": "The clients username"
-        },
-        "name": {
-          "type": "string",
-          "description": "The name presented by the client during connection"
-        },
-        "lang": {
-          "type": "string",
-          "description": "The programming language library in use by the client"
-        },
-        "ver": {
-          "type": "string",
-          "description": "The version of the client library in use"
-        },
-        "rtt": {
-          "type": "string",
-          "description": "The last known latency between the NATS Server and the Client"
-        }
-      }
+      "$ref": "definitions.json#/definitions/client"
     }
   }
 }
