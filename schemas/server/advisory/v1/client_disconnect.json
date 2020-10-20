@@ -4,22 +4,6 @@
   "description": "Advisory published a client disconnects to the NATS Server",
   "title": "io.nats.server.advisory.v1.client_disconnect",
   "type": "object",
-  "definitions": {
-    "datastats": {
-      "type": "object",
-      "additionalItems": false,
-      "properties": {
-        "msgs": {
-          "type": "integer",
-          "description": "The number of messages handled by the client"
-        },
-        "bytes": {
-          "type": "integer",
-          "description": "The number of bytes handled by the client"
-        }
-      }
-    }
-  },
   "required": [
     "type",
     "id",
