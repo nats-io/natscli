@@ -693,7 +693,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 }
 
 func (c *consumerCmd) subAction(_ *kingpin.ParseContext) error {
-	c.connectAndSetup(true, true)
+	c.connectAndSetup(true, true, nats.UseOldRequestStyle())
 
 	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
 	kingpin.FatalIfError(err, "could not get Consumer info")
@@ -713,15 +713,15 @@ func (c *consumerCmd) subAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *consumerCmd) nextAction(_ *kingpin.ParseContext) error {
-	c.connectAndSetup(false, false)
+	c.connectAndSetup(false, false, nats.UseOldRequestStyle())
 
 	return c.getNextMsgDirect(c.stream, c.consumer)
 }
 
-func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool) {
+func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool, opts ...nats.Option) {
 	var err error
 
-	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
+	c.nc, c.mgr, err = prepareHelper("", append(natsOpts(), opts...)...)
 	kingpin.FatalIfError(err, "setup failed")
 
 	if askStream {

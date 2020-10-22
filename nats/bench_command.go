@@ -56,7 +56,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("number of messages should be greater than 0")
 	}
 
-	log.Printf("Starting benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d]\n\n", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs)
+	log.Printf("Starting benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs)
 
 	if c.ack && c.progress {
 		log.Printf("Disabling progress bars in request mode")
