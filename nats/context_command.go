@@ -141,8 +141,8 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 	c.showIfNotEmpty("  Certificate: %s\n", cfg.Certificate())
 	c.showIfNotEmpty("          Key: %s\n", cfg.Key())
 	c.showIfNotEmpty("           CA: %s\n", cfg.CA())
-	c.showIfNotEmpty("         Path: %s\n", cfg.Path())
 	c.showIfNotEmpty("   NSC Lookup: %s\n", cfg.NscURL())
+	c.showIfNotEmpty("         Path: %s\n", cfg.Path())
 
 	fmt.Println()
 
