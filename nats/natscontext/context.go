@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"sort"
@@ -44,13 +45,16 @@ type Option func(c *settings)
 type settings struct {
 	Description string `json:"description"`
 	URL         string `json:"url"`
+	nscUrl      string
 	User        string `json:"user"`
 	Password    string `json:"password"`
 	Creds       string `json:"creds"`
+	nscCreds    string
 	NKey        string `json:"nkey"`
 	Cert        string `json:"cert"`
 	Key         string `json:"key"`
 	CA          string `json:"ca"`
+	NSCLookup   string `json:"nsc"`
 }
 
 type Context struct {
@@ -248,7 +252,59 @@ func (c *Context) loadActiveContext() error {
 		return err
 	}
 
-	return json.Unmarshal(ctxContent, c.config)
+	err = json.Unmarshal(ctxContent, c.config)
+	if err != nil {
+		return err
+	}
+
+	if c.config.NSCLookup != "" {
+		err := c.resolveNscLookup()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Context) resolveNscLookup() error {
+	if c.config.NSCLookup == "" {
+		return nil
+	}
+
+	path, err := exec.LookPath("nsc")
+	if err != nil {
+		return fmt.Errorf("cannot find 'nsc' in user path")
+	}
+
+	cmd := exec.Command(path, "generate", "profile", c.config.NSCLookup)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("nsc invoke failed: %s", err)
+	}
+
+	type nscCreds struct {
+		UserCreds string `json:"user_creds"`
+		Operator  struct {
+			Service []string `json:"service"`
+		} `json:"operator"`
+	}
+
+	var result nscCreds
+	err = json.Unmarshal(out, &result)
+	if err != nil {
+		return fmt.Errorf("could not parse nsc output: %s", err)
+	}
+
+	if result.UserCreds != "" {
+		c.config.nscCreds = result.UserCreds
+	}
+
+	if len(result.Operator.Service) > 0 {
+		c.config.nscUrl = strings.Join(result.Operator.Service, ",")
+	}
+
+	return nil
 }
 
 func validName(name string) bool {
@@ -327,11 +383,14 @@ func WithServerURL(url string) Option {
 
 // ServerURL is the configured server urls, 'nats://localhost:4222' if not set
 func (c *Context) ServerURL() string {
-	if c.config.URL == "" {
+	switch {
+	case c.config.URL != "":
+		return c.config.URL
+	case c.config.nscUrl != "":
+		return c.config.nscUrl
+	default:
 		return nats.DefaultURL
 	}
-
-	return c.config.URL
 }
 
 // WithUser sets the username
@@ -368,7 +427,16 @@ func WithCreds(c string) Option {
 }
 
 // Creds retrieves the configured credentials file path, empty if not set
-func (c *Context) Creds() string { return c.config.Creds }
+func (c *Context) Creds() string {
+	switch {
+	case c.config.Creds != "":
+		return c.config.Creds
+	case c.config.nscCreds != "":
+		return c.config.nscCreds
+	default:
+		return ""
+	}
+}
 
 // WithNKey sets the nkey path
 func WithNKey(n string) Option {
@@ -426,6 +494,16 @@ func WithDescription(d string) Option {
 		}
 	}
 }
+
+// WithNscUrl queries nsc for a credential based on a url like nsc://<operator>/<account>/<user>
+func WithNscUrl(u string) Option {
+	return func(s *settings) {
+		s.NSCLookup = u
+	}
+}
+
+// NscURL is the url used to resolve credentials in nsc
+func (c *Context) NscURL() string { return c.config.NSCLookup }
 
 // Description retrieves the description, empty if not set
 func (c *Context) Description() string { return c.config.Description }
