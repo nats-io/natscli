@@ -1893,6 +1893,14 @@ The `nats context select` command can be used to set the default context.
 
 All `nats` commands are context aware and the `nats context` command has various commands to view, edit and remove contexts.
 
+Server URLs and Credential paths can be resolved via the `nsc` command by specifying an url, for example to find user `new` within the `orders` account of the `acme` operator you can use this:
+
+```nohighlight
+$ nats context save example --description 'Example.Net Server' --nsc nsc://acme/orders/new
+```
+
+The server list and credentials path will now be resolved via `nsc`, if these are specifically set in the context, the specific context configuration will take precedence.
+
 ## Next Steps
 
 There is plenty more to discuss and features to describe. We will continue to add information to this document and feel free to post any questions on the JetStream Slack channel. For the brave, take a look at `nats-server/test/jetstream_test.go` for all that JetStream can do. And please file any issues or communicate on [Slack](https://slack.nats.io) or by email <info@nats.io>.

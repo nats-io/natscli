@@ -29,6 +29,7 @@ type ctxCommand struct {
 	activate    bool
 	description string
 	name        string
+	nsc         string
 	force       bool
 }
 
@@ -50,6 +51,7 @@ func configureCtxCommand(app *kingpin.Application) {
 	save.Arg("name", "The context name to act on").Required().StringVar(&c.name)
 	save.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
 	save.Flag("select", "Select the saved context as the default one").BoolVar(&c.activate)
+	save.Flag("nsc", "URL to a nsc user, eg. nsc://<operator>/<account/user").StringVar(&c.nsc)
 
 	pick := context.Command("select", "Select the default context").Alias("switch").Alias("set").Action(c.selectCommand)
 	pick.Arg("name", "The context name to select").StringVar(&c.name)
@@ -140,6 +142,8 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 	c.showIfNotEmpty("          Key: %s\n", cfg.Key())
 	c.showIfNotEmpty("           CA: %s\n", cfg.CA())
 	c.showIfNotEmpty("         Path: %s\n", cfg.Path())
+	c.showIfNotEmpty("   NSC Lookup: %s\n", cfg.NscURL())
+
 	fmt.Println()
 
 	return nil
@@ -167,6 +171,7 @@ func (c *ctxCommand) createCommand(pc *kingpin.ParseContext) error {
 		natscontext.WithKey(tlsKey),
 		natscontext.WithCA(tlsCA),
 		natscontext.WithDescription(c.description),
+		natscontext.WithNscUrl(c.nsc),
 	)
 	if err != nil {
 		return err
