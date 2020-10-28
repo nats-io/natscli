@@ -593,7 +593,12 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	if !c.raw {
 		info, err := jsm.ParseJSMsgMetadata(msg)
 		if err != nil {
-			fmt.Printf("--- subject: %s\n", msg.Subject)
+			if msg.Reply == "" {
+				fmt.Printf("--- subject: %s\n", msg.Subject)
+			} else {
+				fmt.Printf("--- subject: %s reply: %s\n", msg.Subject, msg.Reply)
+			}
+
 		} else {
 			fmt.Printf("--- subject: %s / delivered: %d / stream seq: %d / consumer seq: %d\n", msg.Subject, info.Delivered(), info.StreamSequence(), info.ConsumerSequence())
 		}
