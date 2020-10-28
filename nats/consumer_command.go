@@ -233,8 +233,13 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	fmt.Println()
 	fmt.Printf("  Last Delivered Message: Consumer sequence: %d Stream sequence: %d\n", state.Delivered.ConsumerSeq, state.Delivered.StreamSeq)
 	fmt.Printf("    Acknowledgment floor: Consumer sequence: %d Stream sequence: %d\n", state.AckFloor.ConsumerSeq, state.AckFloor.StreamSeq)
-	fmt.Printf("        Pending Messages: %d\n", state.NumPending)
-	fmt.Printf("    Redelivered Messages: %d\n", state.NumRedelivered)
+	fmt.Printf("               Outstanding Acknowledgements: %d\n", state.NumAckPending)
+	fmt.Printf("                       Redelivered Messages: %d\n", state.NumRedelivered)
+	if config.DeliverSubject == "" {
+		fmt.Printf("                      Waiting Pull Requests: %d\n", state.NumWaiting)
+	}
+	fmt.Printf("                       Unprocessed Messages: %d\n", state.NumPending)
+
 	fmt.Println()
 }
 
@@ -655,7 +660,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 			now := time.Now().Format("15:04:05")
 
 			if msginfo != nil {
-				fmt.Printf("[%s] subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", now, m.Subject, msginfo.Delivered(), msginfo.ConsumerSequence(), msginfo.StreamSequence())
+				fmt.Printf("[%s] subj: %s / tries: %d / cons seq: %d / str seq: %d / pending: %d\n", now, m.Subject, msginfo.Delivered(), msginfo.ConsumerSequence(), msginfo.StreamSequence(), msginfo.Pending())
 			} else {
 				fmt.Printf("[%s] %s reply: %s\n", now, m.Subject, m.Reply)
 			}
