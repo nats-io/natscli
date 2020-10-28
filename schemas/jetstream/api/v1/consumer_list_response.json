@@ -76,8 +76,10 @@
             "created",
             "delivered",
             "ack_floor",
-            "num_pending",
-            "num_redelivered"
+            "num_ack_pending",
+            "num_redelivered",
+            "num_waiting",
+            "num_pending"
           ],
           "type": "object",
           "additionalItems": false,
@@ -270,13 +272,23 @@
                 }
               }
             },
-            "num_pending": {
+            "num_ack_pending": {
               "description": "The number of messages pending acknowledgement",
               "type": "integer",
               "minimum": 0
             },
             "num_redelivered": {
               "description": "The number of redeliveries that have been performed",
+              "type": "integer",
+              "minimum": 0
+            },
+            "num_waiting": {
+              "description": "The number of pull consumers waiting for messages",
+              "type": "integer",
+              "minimum": 0
+            },
+            "num_pending": {
+              "description": "The number of messages left unconsumed in this Consumer",
               "type": "integer",
               "minimum": 0
             }
