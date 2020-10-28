@@ -605,7 +605,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 			}
 
 		} else {
-			fmt.Printf("--- subject: %s / delivered: %d / stream seq: %d / consumer seq: %d\n", msg.Subject, info.Delivered(), info.StreamSequence(), info.ConsumerSequence())
+			fmt.Printf("[%s] subj: %s / tries: %d / cons seq: %d / str seq: %d / pending: %d\n", time.Now().Format("15:04:05"), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), info.Pending())
 		}
 
 		if len(msg.Header) > 0 {
