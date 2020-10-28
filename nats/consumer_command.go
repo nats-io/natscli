@@ -231,14 +231,14 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 
 	fmt.Println("State:")
 	fmt.Println()
-	fmt.Printf("  Last Delivered Message: Consumer sequence: %d Stream sequence: %d\n", state.Delivered.ConsumerSeq, state.Delivered.StreamSeq)
-	fmt.Printf("    Acknowledgment floor: Consumer sequence: %d Stream sequence: %d\n", state.AckFloor.ConsumerSeq, state.AckFloor.StreamSeq)
-	fmt.Printf("               Outstanding Acknowledgements: %d\n", state.NumAckPending)
-	fmt.Printf("                       Redelivered Messages: %d\n", state.NumRedelivered)
+	fmt.Printf("   Last Delivered Message: Consumer sequence: %d Stream sequence: %d\n", state.Delivered.ConsumerSeq, state.Delivered.StreamSeq)
+	fmt.Printf("     Acknowledgment floor: Consumer sequence: %d Stream sequence: %d\n", state.AckFloor.ConsumerSeq, state.AckFloor.StreamSeq)
+	fmt.Printf("         Outstanding Acks: %d\n", state.NumAckPending)
+	fmt.Printf("     Redelivered Messages: %d\n", state.NumRedelivered)
 	if config.DeliverSubject == "" {
-		fmt.Printf("                      Waiting Pull Requests: %d\n", state.NumWaiting)
+		fmt.Printf("    Waiting Pull Requests: %d\n", state.NumWaiting)
 	}
-	fmt.Printf("                       Unprocessed Messages: %d\n", state.NumPending)
+	fmt.Printf("     Unprocessed Messages: %d\n", state.NumPending)
 
 	fmt.Println()
 }
