@@ -158,6 +158,10 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 
 	sub.Drain()
 
+	if len(results) == 0 {
+		return fmt.Errorf("no results received, ensure the account used has system privileges and appropriate permissions")
+	}
+
 	if c.json {
 		printJSON(results)
 		return nil
