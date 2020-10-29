@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/jetstream/api/v1/consumer_getnext_request.json",
+  "description": "A request to the JetStream $JS.API.CONSUMER.MSG.NEXT API",
+  "title": "io.nats.jetstream.api.v1.consumer_getnext_request",
+  "type": "object",
+  "properties": {
+    "expires": {
+      "type": "string",
+      "description": "A time when this request should be expired from the server wait list",
+      "format": "date-time"
+    },
+    "batch": {
+      "type": "integer",
+      "description": "How many messages the server should deliver to the requestor",
+      "minimum": 0
+    },
+    "no_wait": {
+      "type": "boolean",
+      "description": "When true a response with a 404 status header will be returned when no messages are available"
+    }
+  }
+}
