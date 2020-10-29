@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 	"strings"
@@ -59,6 +60,10 @@ func (c *eventsCmd) handleNATSEvent(m *nats.Msg) {
 		kind, event, err := api.ParseMessage(m.Data)
 		if err != nil {
 			return fmt.Errorf("parsing failed: %s", err)
+		}
+
+		if trace {
+			log.Printf("Received %s event on subject %s", kind, m.Subject)
 		}
 
 		if kind == "io.nats.unknown_message" {
