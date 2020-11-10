@@ -15,8 +15,8 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.4.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/nats-io/jsm.go v0.0.20-0.20201029112257-4697b8ad8577
-	github.com/nats-io/nats-server/v2 v2.1.8-0.20201028153921-3e5d484fc8ae
+	github.com/nats-io/jsm.go v0.0.20-0.20201029154805-5a5f9821de77
+	github.com/nats-io/nats-server/v2 v2.1.8-0.20201029035148-5adce5c01c15
 	github.com/nats-io/nats.go v1.10.1-0.20201028154001-fbdabc0ebcfc
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20180430173243-73b8d31ba571
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect

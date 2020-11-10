@@ -635,7 +635,7 @@ Again this can all be done in a single CLI call, lets make the `DISPATCH` Consum
 $ nats con add ORDERS DISPATCH --filter ORDERS.processed --ack explicit --pull --deliver all --sample 100 --max-deliver 20
 ```
 
-Additionally one can store the configuration in a JSON file, the format of this is the same as `$ nats con info ORDERS DISPATCH -j | jq .config`:
+Additionally, one can store the configuration in a JSON file, the format of this is the same as `$ nats con info ORDERS DISPATCH -j | jq .config`:
 
 ```
 $ nats con add ORDERS MONITOR --config monitor.json
@@ -1332,7 +1332,9 @@ Additionally there are a few types of acknowledgements:
 
 So far all the examples was the `AckAck` type of acknowledgement, by replying to the Ack with the body as indicated in `Bytes` you can pick what mode of acknowledgement you want.
 
-All of these acknowledgement modes support double acknowledgement - if you set a reply subject when acknowledging the server will in turn acknowledge having received your ACK.
+All of these acknowledgement modes, except `AckNext`, support double acknowledgement - if you set a reply subject when acknowledging the server will in turn acknowledge having received your ACK.
+
+The `+NXT` acknowledgement can have a few formats: `+NXT 10` requests 10 messages and `+NXT {"no_wait": true}` which is the same data that can be sent in a Pull request.
  
 ### Exactly Once Delivery
 
@@ -1774,6 +1776,37 @@ Received  [js.1] : 'message 1'
 ```
 
 Here we ask for just 1 message - `nats req` only shows 1 - but you can fetch a batch of messages by varying the argument. This combines well with the `AckAll` Ack policy.
+
+The above request for the next message will stay in the server for as long as the client is connected and future pulls from the same client will accumulate on the server, meaning if you ask for 1 message 100 times and 1000 messages arrive you'll get sent 100 messages not 1.
+
+This is often not desired, pull consumers support a mode where a JSON document is sent describing the pull request.
+
+```json
+{
+  "expires": "2020-11-10T12:41:00.075933464Z",
+  "batch": 10,
+}
+```
+
+This requests 10 messages and asks the server to keep this request until the specific `expires` time, this is useful when you poll the server frequently and do not want the pull requests to accumulate on the server. Set the expire time to now + your poll frequency.
+
+```json
+{
+  "batch": 10,
+  "no_wait": true
+}
+```
+
+Here we see a second format of the Pull request that will not store the request on the queue at all but when there are no messages to deliver will send a nil bytes message with a `Status` header of `404`, this way you can know when you reached the end of the stream for example.
+
+```
+[rip@dev1]% nats req '$JS.API.CONSUMER.MSG.NEXT.ORDERS.NEW' '{"no_wait": true, "batch": 10}'
+ test --password test
+13:45:30 Sending request on "$JS.API.CONSUMER.MSG.NEXT.ORDERS.NEW"
+13:45:30 Received on "_INBOX.UKQGqq0W1EKl8inzXU1naH.XJiawTRM" rtt 594.908µs
+13:45:30 Status: 404
+13:45:30 Description: No Messages
+```
 
 ### Fetching From a Stream By Sequence
 
