@@ -1332,7 +1332,9 @@ Additionally there are a few types of acknowledgements:
 
 So far all the examples was the `AckAck` type of acknowledgement, by replying to the Ack with the body as indicated in `Bytes` you can pick what mode of acknowledgement you want.
 
-All of these acknowledgement modes support double acknowledgement - if you set a reply subject when acknowledging the server will in turn acknowledge having received your ACK.
+All of these acknowledgement modes, except `AckNext`, support double acknowledgement - if you set a reply subject when acknowledging the server will in turn acknowledge having received your ACK.
+
+The `+NXT` acknowledgement can have a few formats: `+NXT 10` requests 10 messages and `+NXT {"no_wait": true}` which is the same data that can be sent in a Pull request.
  
 ### Exactly Once Delivery
 
