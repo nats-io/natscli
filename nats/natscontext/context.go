@@ -224,6 +224,38 @@ func knownContext(parent string, name string) bool {
 	return !os.IsNotExist(err)
 }
 
+// NATSOptions creates NATS client configuration based on the contents of the context
+func (c *Context) NATSOptions() ([]nats.Option, error) {
+	var opts []nats.Option
+
+	if c.User() != "" {
+		opts = append(opts, nats.UserInfo(c.User(), c.Password()))
+	}
+
+	if c.Creds() != "" {
+		opts = append(opts, nats.UserCredentials(c.Creds()))
+	}
+
+	if c.NKey() != "" {
+		nko, err := nats.NkeyOptionFromSeed(c.NKey())
+		if err != nil {
+			return nil, err
+		}
+
+		opts = append(opts, nko)
+	}
+
+	if c.Certificate() != "" && c.Key() != "" {
+		opts = append(opts, nats.ClientCert(c.Certificate(), c.Key()))
+	}
+
+	if c.CA() != "" {
+		opts = append(opts, nats.RootCAs(c.CA()))
+	}
+
+	return opts, nil
+}
+
 func (c *Context) loadActiveContext() error {
 	parent, err := parentDir()
 	if err != nil {

@@ -28,6 +28,8 @@ var (
 
 	// used during tests
 	skipContexts bool
+
+	overrideEnvVars = []string{"NATS_URL", "NATS_USER", "NATS_PASSWORD", "NATS_CREDS", "NATS_NKEY", "NATS_CERT", "NATS_KEY", "NATS_CA", "NATS_TIMEOUT"}
 )
 
 func main() {

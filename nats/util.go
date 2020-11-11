@@ -291,7 +291,7 @@ func natsOpts() []nats.Option {
 		return []nats.Option{}
 	}
 
-	opts, err := NATSOptions(config)
+	opts, err := config.NATSOptions()
 	kingpin.FatalIfError(err, "configuration error")
 
 	totalWait := 10 * time.Minute
