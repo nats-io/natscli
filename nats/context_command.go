@@ -17,8 +17,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/fatih/color"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jetstream/nats/natscontext"
@@ -61,7 +63,22 @@ func configureCtxCommand(app *kingpin.Application) {
 	show.Flag("json", "Show the context in JSON format").Short('j').BoolVar(&c.json)
 }
 
-func (c *ctxCommand) editCommand(_ *kingpin.ParseContext) error {
+func (c *ctxCommand) hasOverrides() bool {
+	return len(c.overrideVars()) != 0
+}
+
+func (c *ctxCommand) overrideVars() []string {
+	var list []string
+	for _, v := range overrideEnvVars {
+		if os.Getenv(v) != "" {
+			list = append(list, v)
+		}
+	}
+
+	return list
+}
+
+func (c *ctxCommand) editCommand(pc *kingpin.ParseContext) error {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
 		return fmt.Errorf("set EDITOR environment variable to your chosen editor")
@@ -81,7 +98,12 @@ func (c *ctxCommand) editCommand(_ *kingpin.ParseContext) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	return cmd.Run()
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	return c.showCommand(pc)
 }
 
 func (c *ctxCommand) listCommand(_ *kingpin.ParseContext) error {
@@ -146,6 +168,11 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 
 	fmt.Println()
 
+	if c.hasOverrides() {
+		fmt.Printf("%s: Shell environment overrides in place using %v", color.HiRedString("WARNING"), strings.Join(c.overrideVars(), ", "))
+		fmt.Println()
+	}
+
 	return nil
 }
 func (c *ctxCommand) createCommand(pc *kingpin.ParseContext) error {
@@ -186,7 +213,7 @@ func (c *ctxCommand) createCommand(pc *kingpin.ParseContext) error {
 		return c.selectCommand(pc)
 	}
 
-	return nil
+	return c.showCommand(pc)
 }
 
 func (c *ctxCommand) removeCommand(_ *kingpin.ParseContext) error {
@@ -204,7 +231,7 @@ func (c *ctxCommand) removeCommand(_ *kingpin.ParseContext) error {
 	return natscontext.DeleteContext(c.name)
 }
 
-func (c *ctxCommand) selectCommand(_ *kingpin.ParseContext) error {
+func (c *ctxCommand) selectCommand(pc *kingpin.ParseContext) error {
 	known := natscontext.KnownContexts()
 
 	if len(known) == 0 {
@@ -225,7 +252,12 @@ func (c *ctxCommand) selectCommand(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("please select a context to activate")
 	}
 
-	return natscontext.SelectContext(c.name)
+	err := natscontext.SelectContext(c.name)
+	if err != nil {
+		return err
+	}
+
+	return c.showCommand(pc)
 }
 
 func (c *ctxCommand) showIfNotEmpty(format string, arg string) {
