@@ -45,7 +45,10 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 	fmt.Printf("         Maximum Payload: %v\n", humanize.IBytes(uint64(nc.MaxPayload())))
 	fmt.Printf("           Connected URL: %v\n", nc.ConnectedUrl())
 	fmt.Printf("       Connected Address: %v\n", nc.ConnectedAddr())
-	fmt.Printf("   Connected Server Name: %v\n", nc.ConnectedServerName())
+	fmt.Printf("     Connected Server ID: %v\n", nc.ConnectedServerId())
+	if nc.ConnectedServerId() != nc.ConnectedServerName() {
+		fmt.Printf("   Connected Server Name: %v\n", nc.ConnectedServerName())
+	}
 
 	fmt.Println()
 
