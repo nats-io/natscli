@@ -5,17 +5,17 @@ go 1.14
 replace github.com/codahale/hdrhistogram => github.com/HdrHistogram/hdrhistogram-go v0.9.0
 
 require (
-	github.com/AlecAivazis/survey/v2 v2.0.7
+	github.com/AlecAivazis/survey/v2 v2.2.2
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
 	github.com/codahale/hdrhistogram v0.0.0-00010101000000-000000000000
 	github.com/dustin/go-humanize v1.0.0
-	github.com/fatih/color v1.9.0
+	github.com/fatih/color v1.10.0
 	github.com/ghodss/yaml v1.0.0
-	github.com/google/go-cmp v0.4.1
+	github.com/google/go-cmp v0.5.3
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/gosuri/uiprogress v0.0.1
-	github.com/guptarohit/asciigraph v0.4.2
+	github.com/guptarohit/asciigraph v0.5.1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/nats-io/jsm.go v0.0.20-0.20201029154805-5a5f9821de77
 	github.com/nats-io/nats-server/v2 v2.1.8-0.20201103213111-0965a20b516d
