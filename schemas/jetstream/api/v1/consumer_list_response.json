@@ -223,6 +223,10 @@
                 "rate_limit_bps": {
                   "type": "integer",
                   "description": "The rate at which messages will be delivered to clients, expressed in bit per second"
+                },
+                "max_ack_pending": {
+                  "type": "integer",
+                  "description": "The maximum number of messages without acknowledgement that can be outstanding, once this limit is reached message delivery will be suspended"
                 }
               }
             },
