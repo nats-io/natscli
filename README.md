@@ -161,6 +161,7 @@ When defining Consumers the items below make up the entire configuration of the 
 |SampleFrequency|What percentage of acknowledgements should be samples for observability, 0-100|
 |OptStartTime|When first consuming messages from the Stream start with messages on or after this time|
 |RateLimit|The rate of message delivery in bits per second|
+|MaxAckPending|The maximum number of messages without acknowledgement that can be outstanding, once this limit is reached message delivery will be suspended|
 
 ### Configuration
 
