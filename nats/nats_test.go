@@ -164,6 +164,7 @@ func pull1Cons() api.ConsumerConfig {
 		DeliverPolicy: api.DeliverAll,
 		AckPolicy:     api.AckExplicit,
 		ReplayPolicy:  api.ReplayOriginal,
+		MaxAckPending: 1000,
 	}
 }
 
@@ -438,7 +439,7 @@ func TestCLIConsumerAdd(t *testing.T) {
 	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --replay instant --deliver all --target out.push1 --ack explicit --filter '' --max-deliver 20 --bps 1024", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --max-pending 10 --replay instant --deliver all --target out.push1 --ack explicit --filter '' --max-deliver 20 --bps 1024", srv.ClientURL()))
 	consumerShouldExist(t, mgr, "mem1", "push1")
 	push1, err := mgr.LoadConsumer("mem1", "push1")
 	checkErr(t, err, "push1 could not be loaded")
@@ -450,6 +451,9 @@ func TestCLIConsumerAdd(t *testing.T) {
 	}
 	if push1.DeliverySubject() != "out.push1" {
 		t.Fatalf("Expected delivery target out.push1 but got %v", push1.DeliverySubject())
+	}
+	if push1.MaxAckPending() != 10 {
+		t.Fatalf("Expected max ack pending 10 but got %v", push1.MaxAckPending())
 	}
 	push1.Delete()
 
@@ -546,7 +550,7 @@ func TestCLIConsumerCopy(t *testing.T) {
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, mgr, "mem1", "push1")
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' con cp mem1 push1 pull1 --pull", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' con cp mem1 push1 pull1 --pull --max-pending 0", srv.ClientURL()))
 	consumerShouldExist(t, mgr, "mem1", "pull1")
 
 	pull1, err := mgr.LoadConsumer("mem1", "pull1")
@@ -562,6 +566,10 @@ func TestCLIConsumerCopy(t *testing.T) {
 
 	if !pull1.IsPullMode() {
 		t.Fatalf("Expected pull1 to be pull-based, got %v", pull1.Configuration())
+	}
+
+	if pull1.MaxAckPending() != 0 {
+		t.Fatalf("Expected pull1 to have 0 Ack outstanding, got %v", pull1.MaxAckPending())
 	}
 }
 

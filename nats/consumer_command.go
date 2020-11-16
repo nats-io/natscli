@@ -44,6 +44,7 @@ type consumerCmd struct {
 	outFile     string
 
 	bpsRateLimit  uint64
+	maxAckPending int
 	maxDeliver    int
 	pull          bool
 	replayPolicy  string
@@ -75,6 +76,8 @@ func configureConsumerCommand(app *kingpin.Application) {
 		f.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
 		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").IntVar(&c.maxDeliver)
 		f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
+		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
+		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
@@ -226,14 +229,21 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	if config.RateLimit > 0 {
 		fmt.Printf("          Rate Limit: %s / second\n", humanize.IBytes(config.RateLimit/8))
 	}
+	if config.MaxAckPending > 0 {
+		fmt.Printf("     Max Ack Pending: %s\n", humanize.Comma(int64(config.MaxAckPending)))
+	}
 
 	fmt.Println()
 
 	fmt.Println("State:")
 	fmt.Println()
-	fmt.Printf("   Last Delivered Message: Consumer sequence: %d Stream sequence: %d\n", state.Delivered.ConsumerSeq, state.Delivered.StreamSeq)
-	fmt.Printf("     Acknowledgment floor: Consumer sequence: %d Stream sequence: %d\n", state.AckFloor.ConsumerSeq, state.AckFloor.StreamSeq)
-	fmt.Printf("         Outstanding Acks: %d\n", state.NumAckPending)
+	fmt.Printf("   Last Delivered Message: Consumer sequence: %d Stream sequence: %d\n", state.Delivered.Consumer, state.Delivered.Stream)
+	fmt.Printf("     Acknowledgment floor: Consumer sequence: %d Stream sequence: %d\n", state.AckFloor.Consumer, state.AckFloor.Stream)
+	if config.MaxAckPending > 0 {
+		fmt.Printf("         Outstanding Acks: %d out of maximum %d\n", state.NumAckPending, config.MaxAckPending)
+	} else {
+		fmt.Printf("         Outstanding Acks: %d\n", state.NumAckPending)
+	}
 	fmt.Printf("     Redelivered Messages: %d\n", state.NumRedelivered)
 	if config.DeliverSubject == "" {
 		fmt.Printf("    Waiting Pull Requests: %d\n", state.NumWaiting)
@@ -373,6 +383,14 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 
 	if c.maxDeliver != 0 {
 		cfg.MaxDeliver = c.maxDeliver
+	}
+
+	if c.bpsRateLimit != 0 {
+		cfg.RateLimit = c.bpsRateLimit
+	}
+
+	if c.maxAckPending != -1 {
+		cfg.MaxAckPending = c.maxAckPending
 	}
 
 	consumer, err := c.mgr.NewConsumerFromDefault(c.stream, cfg)
@@ -524,6 +542,16 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 		kingpin.FatalIfError(err, "could not ask for maximum allowed deliveries")
 	}
 
+	if c.maxAckPending == -1 && cfg.AckPolicy != api.AckNone {
+		err = survey.AskOne(&survey.Input{
+			Message: "Maximum Acknowledgements Pending",
+			Default: "0",
+			Help:    "The maximum number of messages without acknowledgement that can be outstanding, once this limit is reached message delivery will be suspended",
+		}, &c.maxAckPending)
+		kingpin.FatalIfError(err, "could not ask for maximum outstanding acknowledgements")
+	}
+	cfg.MaxAckPending = c.maxAckPending
+
 	if c.maxDeliver != 0 && cfg.AckPolicy != api.AckNone {
 		cfg.MaxDeliver = c.maxDeliver
 	}
@@ -531,7 +559,6 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 	if c.bpsRateLimit > 0 && cfg.DeliverSubject == "" {
 		return nil, fmt.Errorf("rate limits are only possible on Push consumers")
 	}
-
 	cfg.RateLimit = c.bpsRateLimit
 
 	return cfg, nil
