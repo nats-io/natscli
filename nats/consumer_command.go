@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -619,6 +620,12 @@ func (c *consumerCmd) createAction(_ *kingpin.ParseContext) (err error) {
 }
 
 func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
+	if trace {
+		subj, err := jsm.NextSubject(stream, consumer)
+		kingpin.FatalIfError(err, "could not load next message")
+		log.Printf(">>> %s", subj)
+	}
+
 	msg, err := c.mgr.NextMsg(stream, consumer)
 	kingpin.FatalIfError(err, "could not load next message")
 
