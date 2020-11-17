@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nats.io/schemas/jetstream/api/v1/stream_lookup_request.json",
+  "description": "A request to the JetStream $JS.API.STREAM.LOOKUP API",
+  "title": "io.nats.jetstream.api.v1.stream_lookup_request",
+  "type": "object",
+  "required": ["subject"],
+  "properties": {
+    "subject": {
+      "type": "string",
+      "description": "A specific or wildcard subject to use when finding streams, any stream ingesting the supplied topic will be returned",
+      "minLength": 1
+    }
+  }
+}

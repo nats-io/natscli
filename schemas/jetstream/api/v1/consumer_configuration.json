@@ -133,7 +133,8 @@
     },
     "rate_limit_bps": {
       "type": "integer",
-      "description": "The rate at which messages will be delivered to clients, expressed in bit per second"
+      "description": "The rate at which messages will be delivered to clients, expressed in bit per second",
+      "minimum": 0
     },
     "max_ack_pending": {
       "type": "integer",
