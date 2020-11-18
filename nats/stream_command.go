@@ -70,6 +70,7 @@ type streamCmd struct {
 	showProgress        bool
 	healthCheck         bool
 	dupeWindow          string
+	lookupSubject       string
 
 	vwStartId    int
 	vwStartDelta time.Duration
@@ -106,27 +107,11 @@ func configureStreamCommand(app *kingpin.Application) {
 	strAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
 	addCreateFlags(strAdd)
 
-	strBackup := str.Command("backup", "Backs up a Stream over the NATS network").Action(c.backupAction)
-	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
-	strBackup.Arg("target", "File to create the backup in").Required().StringVar(&c.backupFile)
-	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
-	strBackup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
-
-	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another").Alias("cp").Action(c.cpAction)
-	strCopy.Arg("source", "Source Stream to copy").Required().StringVar(&c.stream)
-	strCopy.Arg("destination", "New Stream to create").Required().StringVar(&c.destination)
-	addCreateFlags(strCopy)
-
 	strEdit := str.Command("edit", "Edits an existing stream").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
 	strEdit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	strEdit.Flag("force", "Force edit without prompting").Short('f').BoolVar(&c.force)
 	addCreateFlags(strEdit)
-
-	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
-	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
-	strGet.Arg("id", "Message ID to retrieve").Int64Var(&c.msgID)
-	strGet.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
@@ -135,10 +120,45 @@ func configureStreamCommand(app *kingpin.Application) {
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
 	strLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
+	strLookup := str.Command("lookup", "Find a stream matching certain criteria").Action(c.lookupAction)
+	strLookup.Arg("subject", "Stream that ingest a certain subject or wildcard").Required().StringVar(&c.lookupSubject)
+
+	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
+	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
+	strRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+
 	strPurge := str.Command("purge", "Purge a Stream without deleting it").Action(c.purgeAction)
 	strPurge.Arg("stream", "Stream name").StringVar(&c.stream)
 	strPurge.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	strPurge.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+
+	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another").Alias("cp").Action(c.cpAction)
+	strCopy.Arg("source", "Source Stream to copy").Required().StringVar(&c.stream)
+	strCopy.Arg("destination", "New Stream to create").Required().StringVar(&c.destination)
+	addCreateFlags(strCopy)
+
+	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
+	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
+	strGet.Arg("id", "Message ID to retrieve").Int64Var(&c.msgID)
+	strGet.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+
+	strRmMsg := str.Command("rmm", "Securely removes an individual message from a Stream").Action(c.rmMsgAction)
+	strRmMsg.Arg("stream", "Stream name").StringVar(&c.stream)
+	strRmMsg.Arg("id", "Message ID to remove").Int64Var(&c.msgID)
+	strRmMsg.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+
+	strView := str.Command("view", "View messages in a stream").Action(c.viewAction)
+	strView.Arg("stream", "Stream name").StringVar(&c.stream)
+	strView.Arg("size", "Page size").Default("10").IntVar(&c.vwPageSize)
+	strView.Flag("id", "Start at a specific message ID").IntVar(&c.vwStartId)
+	strView.Flag("since", "Start at a time delta").DurationVar(&c.vwStartDelta)
+	strView.Flag("raw", "Show the raw data received").BoolVar(&c.vwRaw)
+
+	strBackup := str.Command("backup", "Backs up a Stream over the NATS network").Action(c.backupAction)
+	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
+	strBackup.Arg("target", "File to create the backup in").Required().StringVar(&c.backupFile)
+	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
+	strBackup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
 
 	strReport := str.Command("report", "Reports on Stream statistics").Action(c.reportAction)
 	strReport.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
@@ -152,22 +172,6 @@ func configureStreamCommand(app *kingpin.Application) {
 	strRestore.Arg("stream", "The name of the Stream to restore").Required().StringVar(&c.stream)
 	strRestore.Arg("file", "The file holding the backup to restore").Required().ExistingFileVar(&c.backupFile)
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
-
-	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
-	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
-	strRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
-
-	strRmMsg := str.Command("rmm", "Securely removes an individual message from a Stream").Action(c.rmMsgAction)
-	strRmMsg.Arg("stream", "Stream name").StringVar(&c.stream)
-	strRmMsg.Arg("id", "Message ID to remove").Int64Var(&c.msgID)
-	strRmMsg.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
-
-	strView := str.Command("view", "View messages in a stream").Action(c.viewAction)
-	strView.Arg("stream", "Stream name").StringVar(&c.stream)
-	strView.Arg("size", "Page size").Default("10").IntVar(&c.vwPageSize)
-	strView.Flag("id", "Start at a specific message ID").IntVar(&c.vwStartId)
-	strView.Flag("since", "Start at a time delta").DurationVar(&c.vwStartDelta)
-	strView.Flag("raw", "Show the raw data received").BoolVar(&c.vwRaw)
 
 	strTemplate := str.Command("template", "Manages Stream Templates").Alias("templ").Alias("t")
 
@@ -186,6 +190,23 @@ func configureStreamCommand(app *kingpin.Application) {
 	strTRm := strTemplate.Command("rm", "Removes a Stream Template").Alias("delete").Alias("del").Action(c.streamTemplateRm)
 	strTRm.Arg("template", "Stream Template name").StringVar(&c.stream)
 	strTRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+}
+
+func (c *streamCmd) lookupAction(_ *kingpin.ParseContext) error {
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	kingpin.FatalIfError(err, "setup failed")
+
+	stream, err := mgr.StreamLookup(c.lookupSubject)
+	kingpin.FatalIfError(err, "lookup failed")
+
+	if stream == "" {
+		fmt.Printf("No stream found matching %q", c.lookupSubject)
+		os.Exit(1)
+	}
+
+	fmt.Println(stream)
+
+	return nil
 }
 
 func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {

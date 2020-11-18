@@ -1674,7 +1674,9 @@ The API uses JSON for inputs and outputs, all the responses are typed using a `t
 
 |Subject|Constant|Description|Request Payload|Response Payload|
 |-------|--------|-----------|---------------|----------------|
-|`$JS.API.STREAM.LIST`|`api.JSApiStreamList`|Paged list known Stream including all their current information|`api.JSApiStreamListRequest`|`api.JSApiStreamListResponse`|
+|`$JS.API.STREAM.LIST`|`api.JSApiStreamList`|Paged list known Streams including all their current information|`api.JSApiStreamListRequest`|`api.JSApiStreamListResponse`|
+|`$JS.API.STREAM.NAMES`|`api.JSApiStreamNames`|Paged list of Streams|`api.JSApiStreamNamesRequest`|`api.JSApiStreamNamesResponse`|
+|`$JS.API.STREAM.LOOKUP`|`api.JSApiStreamLookup`|Finds a stream with interest on a certain subject|`api.JSApiStreamLookupRequest`|`api.JSApiStreamLookupResponse`|
 |`$JS.API.STREAM.CREATE.*`|`api.JSApiStreamCreateT`|Creates a new Stream|`api.StreamConfig`|`api.JSApiStreamCreateResponse`|
 |`$JS.API.STREAM.UPDATE.*`|`api.JSApiStreamUpdateT`|Updates an existing Stream with new config|`api.StreamConfig`|`api.JSApiStreamUpdateResponse`|
 |`$JS.API.STREAM.INFO.*`|`api.JSApiStreamInfoT`|Information about config and state of a Stream|empty payload, Stream name in subject|`api.JSApiStreamInfoResponse`|
