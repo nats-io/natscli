@@ -651,6 +651,16 @@ func TestCLIBackupRestore_UpdateStream(t *testing.T) {
 	}
 }
 
+func TestCLIStreamLookup(t *testing.T) {
+	srv, _, _ := setupConsTest(t)
+	defer srv.Shutdown()
+
+	out := runNatsCli(t, fmt.Sprintf("--server='%s' str lookup js.mem.1", srv.ClientURL()))
+	if strings.TrimSpace(string(out)) != "mem1" {
+		t.Fatalf("expected 'mem1' got %q", out)
+	}
+}
+
 func TestCLIMessageRm(t *testing.T) {
 	srv, nc, mgr := setupConsTest(t)
 	defer srv.Shutdown()
