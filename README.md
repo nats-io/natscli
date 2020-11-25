@@ -109,7 +109,7 @@ Streams can consume many subjects. Here we have `ORDERS.*` but we could also con
 
 Streams support various retention policies - they can be kept based on limits like max count, size or age but also more novel methods like keeping them as long as any Consumers have them unacknowledged, or work queue like behavior where a message is removed after first ack.
 
-Streams support deduplication using a `Msg-Id` header and a sliding window within which to track duplicate messages. See the [Message Deduplication](#message-deduplication) section.
+Streams support deduplication using a `Nats-Msg-Id` header and a sliding window within which to track duplicate messages. See the [Message Deduplication](#message-deduplication) section.
 
 When defining Streams the items below make up the entire configuration of the set.
 
@@ -1163,16 +1163,16 @@ The `WorkQueuePolicy` mode is a specialized mode where a message, once consumed 
 
 ### Message Deduplication
 
-JetStream support idempotent message writes by ignoring duplicate messages as indicated by the `Msg-Id` header.
+JetStream support idempotent message writes by ignoring duplicate messages as indicated by the `Nats-Msg-Id` header.
 
 ```nohighlight
-% nats req -H Msg-Id:1 ORDERS.new hello1
-% nats req -H Msg-Id:1 ORDERS.new hello2
-% nats req -H Msg-Id:1 ORDERS.new hello3
-% nats req -H Msg-Id:1 ORDERS.new hello4
+% nats req -H Nats-Msg-Id:1 ORDERS.new hello1
+% nats req -H Nats-Msg-Id:1 ORDERS.new hello2
+% nats req -H Nats-Msg-Id:1 ORDERS.new hello3
+% nats req -H Nats-Msg-Id:1 ORDERS.new hello4
 ```
  
-Here we set a `Msg-Id:1` header which tells JetStream to ensure we do not have duplicates of this message - we only consult the message ID not the body.
+Here we set a `Nats-Msg-Id:1` header which tells JetStream to ensure we do not have duplicates of this message - we only consult the message ID not the body.
 
 ```nohighlight
 $ nats str info ORDERS
@@ -1676,7 +1676,6 @@ The API uses JSON for inputs and outputs, all the responses are typed using a `t
 |-------|--------|-----------|---------------|----------------|
 |`$JS.API.STREAM.LIST`|`api.JSApiStreamList`|Paged list known Streams including all their current information|`api.JSApiStreamListRequest`|`api.JSApiStreamListResponse`|
 |`$JS.API.STREAM.NAMES`|`api.JSApiStreamNames`|Paged list of Streams|`api.JSApiStreamNamesRequest`|`api.JSApiStreamNamesResponse`|
-|`$JS.API.STREAM.LOOKUP`|`api.JSApiStreamLookup`|Finds a stream with interest on a certain subject|`api.JSApiStreamLookupRequest`|`api.JSApiStreamLookupResponse`|
 |`$JS.API.STREAM.CREATE.*`|`api.JSApiStreamCreateT`|Creates a new Stream|`api.StreamConfig`|`api.JSApiStreamCreateResponse`|
 |`$JS.API.STREAM.UPDATE.*`|`api.JSApiStreamUpdateT`|Updates an existing Stream with new config|`api.StreamConfig`|`api.JSApiStreamUpdateResponse`|
 |`$JS.API.STREAM.INFO.*`|`api.JSApiStreamInfoT`|Information about config and state of a Stream|empty payload, Stream name in subject|`api.JSApiStreamInfoResponse`|
