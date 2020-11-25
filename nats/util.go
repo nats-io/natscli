@@ -116,7 +116,7 @@ func selectStreamTemplate(mgr *jsm.Manager, template string, force bool) (string
 }
 
 func selectStream(mgr *jsm.Manager, stream string, force bool) (string, error) {
-	streams, err := mgr.StreamNames()
+	streams, err := mgr.StreamNames(nil)
 	if err != nil {
 		return "", err
 	}
