@@ -70,7 +70,6 @@ type streamCmd struct {
 	showProgress        bool
 	healthCheck         bool
 	dupeWindow          string
-	lookupSubject       string
 
 	vwStartId    int
 	vwStartDelta time.Duration
@@ -119,9 +118,6 @@ func configureStreamCommand(app *kingpin.Application) {
 
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
 	strLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-
-	strLookup := str.Command("lookup", "Find a stream matching certain criteria").Action(c.lookupAction)
-	strLookup.Arg("subject", "Stream that ingest a certain subject or wildcard").Required().StringVar(&c.lookupSubject)
 
 	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
 	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -190,23 +186,6 @@ func configureStreamCommand(app *kingpin.Application) {
 	strTRm := strTemplate.Command("rm", "Removes a Stream Template").Alias("delete").Alias("del").Action(c.streamTemplateRm)
 	strTRm.Arg("template", "Stream Template name").StringVar(&c.stream)
 	strTRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
-}
-
-func (c *streamCmd) lookupAction(_ *kingpin.ParseContext) error {
-	_, mgr, err := prepareHelper("", natsOpts()...)
-	kingpin.FatalIfError(err, "setup failed")
-
-	stream, err := mgr.StreamLookup(c.lookupSubject)
-	kingpin.FatalIfError(err, "lookup failed")
-
-	if stream == "" {
-		fmt.Printf("No stream found matching %q", c.lookupSubject)
-		os.Exit(1)
-	}
-
-	fmt.Println(stream)
-
-	return nil
 }
 
 func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {
