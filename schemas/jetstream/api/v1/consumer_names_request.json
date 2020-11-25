@@ -18,5 +18,11 @@
         }
       }
     }
-  ]
+  ],
+  "properties": {
+    "subject": {
+      "type": "string",
+      "description": "Filter the names to those consuming messages matching this subject or wildcard"
+    }
+  }
 }
