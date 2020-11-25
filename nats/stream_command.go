@@ -49,6 +49,7 @@ type streamCmd struct {
 	retentionPolicyS string
 	inputFile        string
 	outFile          string
+	filterSubject    string
 
 	destination         string
 	subjects            []string
@@ -117,6 +118,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
+	strLs.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
 	strLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
@@ -1131,7 +1133,7 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	streams, err := mgr.StreamNames()
+	streams, err := mgr.StreamNames(&jsm.StreamNamesFilter{Subject: c.filterSubject})
 	kingpin.FatalIfError(err, "could not list Streams")
 
 	if c.json {
@@ -1145,7 +1147,12 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	fmt.Println("Streams:")
+	if c.filterSubject == "" {
+		fmt.Println("Streams:")
+	} else {
+		fmt.Printf("Streams matching %q:\n", c.filterSubject)
+	}
+
 	fmt.Println()
 	for _, s := range streams {
 		fmt.Printf("\t%s\n", s)

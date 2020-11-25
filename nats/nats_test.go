@@ -82,7 +82,7 @@ func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn, mgr *jsm
 	nc, mgr, err = prepareHelper(srv.ClientURL())
 	checkErr(t, err, "could not connect client to server @ %s: %v", srv.ClientURL(), err)
 
-	streams, err := mgr.StreamNames()
+	streams, err := mgr.StreamNames(nil)
 	checkErr(t, err, "could not load streams: %v", err)
 	if len(streams) != 0 {
 		t.Fatalf("found %v message streams but it should be empty", streams)
