@@ -9,7 +9,7 @@
     "config",
     "max_streams"
   ],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "name": {
       "description": "A unique name for the Stream Template.",

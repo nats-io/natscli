@@ -11,7 +11,6 @@
     },
     {
       "type": "object",
-      "additionalItems": false,
       "required": ["message"],
       "properties": {
         "message": {

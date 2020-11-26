@@ -10,7 +10,7 @@
   "oneOf": [
     {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "config",
         "streams"
@@ -18,7 +18,7 @@
       "properties": {
         "config": {
           "type": "object",
-          "additionalItems": false,
+          "additionalProperties": false,
           "required": [
             "name",
             "config",
@@ -42,7 +42,7 @@
                 "storage",
                 "num_replicas"
               ],
-              "additionalItems": false,
+              "additionalProperties": false,
               "properties": {
                 "name": {
                   "description": "A unique name for the Stream, empty for Stream Templates.",
@@ -158,14 +158,14 @@
     },
     {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "error"
       ],
       "properties": {
         "error": {
           "type": "object",
-          "additionalItems": false,
+          "additionalProperties": false,
           "required": [
             "code"
           ],

@@ -13,6 +13,7 @@
     "block_size",
     "client"
   ],
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type": "string",
@@ -34,7 +35,7 @@
     "blocks": {
       "type": "integer",
       "description": "Approximate number of blocks in the snapshot",
-      "minimum": 0,
+      "minimum": 0
     },
     "block_size": {
       "type": "integer",

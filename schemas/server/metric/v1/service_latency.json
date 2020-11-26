@@ -6,7 +6,7 @@
   "definitions": {
     "latency_client": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "acc",
         "rtt"
@@ -66,7 +66,7 @@
     "system",
     "total"
   ],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type": "string",
@@ -83,7 +83,7 @@
     "requestor": {
       "description": "Details about the service requestor",
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "acc",
         "rtt"
@@ -134,7 +134,7 @@
     "responder": {
       "description": "Details about the service responder",
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "acc",
         "rtt"

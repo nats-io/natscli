@@ -15,7 +15,7 @@
     "ack_time",
     "deliveries"
   ],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type": "string",

@@ -11,7 +11,7 @@
     "server",
     "client"
   ],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type":"string",

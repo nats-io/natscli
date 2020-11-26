@@ -14,7 +14,7 @@
     "leafnodes",
     "total_conns"
   ],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type":"string",

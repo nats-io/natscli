@@ -7,7 +7,7 @@
   "allOf": [
     {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "offset"
       ],

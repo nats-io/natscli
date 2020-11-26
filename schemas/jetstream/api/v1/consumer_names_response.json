@@ -10,7 +10,7 @@
   "allOf": [
     {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "total",
         "offset",
@@ -35,14 +35,14 @@
   "oneOf": [
     {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "error"
       ],
       "properties": {
         "error": {
           "type": "object",
-          "additionalItems": false,
+          "additionalProperties": false,
           "required": [
             "code"
           ],
@@ -63,7 +63,6 @@
     },
     {
       "type": "object",
-      "additionalItems": false,
       "required": [
         "consumers"
       ],

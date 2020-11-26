@@ -14,7 +14,7 @@
     "leafnodes",
     "total_conns"
   ],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type": "string",
@@ -31,7 +31,7 @@
     },
     "server": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "description": "Details about the server the client connected to",
       "required": [
         "name",

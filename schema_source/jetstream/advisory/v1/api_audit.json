@@ -12,7 +12,7 @@
         "cid",
         "account"
       ],
-      "additionalItems": false,
+      "additionalProperties": false,
       "properties": {
         "host": {
           "type": "string",
@@ -59,7 +59,7 @@
     "subject",
     "response"
   ],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type":"string",
