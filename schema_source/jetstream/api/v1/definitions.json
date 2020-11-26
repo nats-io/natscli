@@ -97,7 +97,6 @@
     },
     "iterable_response": {
       "type": "object",
-      "additionalProperties": false,
       "required": ["total", "offset", "limit"],
       "properties": {
         "total": {
@@ -116,7 +115,6 @@
     },
     "error_response": {
       "type": "object",
-      "additionalProperties": false,
       "required": ["error"],
       "properties": {
         "error": {
@@ -126,7 +124,6 @@
     },
     "api_error": {
       "type": "object",
-      "additionalProperties": false,
       "required": ["code"],
       "properties": {
         "code": {
