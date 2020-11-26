@@ -1185,6 +1185,66 @@ State:
 
 The default window to track duplicates in is 2 minutes, this can be set on the command line using `--dupe-window` when creating a stream, though we would caution against large windows.
 
+### Publish Expectations and Constraints
+
+When publishing messages Headers can be added with constraints that has to be met before a message is stored.
+
+#### Stream Name
+
+Here we publish a message expecting to reach stream `ORDERS_DEVELOPMENT` but the message is not stored because the stream listening on that subject is `ORDERS`:
+
+```
+% nats req ORDERS.new 'new order' -H Nats-Expected-Stream:ORDERS_DEVELOPMENT
+14:52:06 Sending request on "ORDERS.new"
+14:52:06 Received on "_INBOX.o6FZWISax12isnVByD4Qr9.Key0BzJT" rtt 384.107µs
+{"error":{"code":400,"description":"expected stream does not match"},"stream":"ORDERS","seq":0}
+```
+
+#### Last Sequence
+
+One can require a specific stream sequence to ensure that messages are entering the stream in the order expected.
+
+Here we ensure that the last message in the stream has to be sequence `1`, it is and a new message sequence `2` is saved.
+
+```
+% nats req ORDERS.new 'new order' -H Nats-Expected-Last-Sequence:1
+14:55:29 Sending request on "ORDERS.new"
+14:55:29 Received on "_INBOX.0SdF0FnJO0YiOpE1RBtuXu.B8YyOW4H" rtt 391.052µs
+{"stream":"ORDERS","seq":2}
+```
+
+If we then try to submit a message expecting sequence 3 it should fail because the previous message is `2`.
+
+```
+% nats req ORDERS.new 'new order' -H Nats-Expected-Last-Sequence:3
+14:55:29 Sending request on "ORDERS.new"
+14:55:29 Received on "_INBOX.0SdF0FnJO0YiOpE1RBtuXu.B8YyOW4H" rtt 378.198µs
+{"error":{"code":400,"description":"wrong last sequence: 2"},"stream":"ORDERS","seq":0}
+```
+
+#### Last Message ID
+
+When publishing using the `Nats-Msg-Id` header you can assert that the last ID in the stream should match a known one
+when publishing.
+
+```
+% nats req ORDERS.new 'new order' -H Nats-Msg-Id:125 -H Nats-Expected-Last-Msg-Id:124
+15:20:21 Sending request on "ORDERS.new"
+15:20:21 Received on "_INBOX.dvJBVwiwZ62FlmAdZzI83n.Z2W9YGBz" rtt 757.521µs
+{"stream":"ORDERS","seq":6}
+```
+
+Here we publish a new message with the `Nats-Msg-Id:125` and we assert that the previous value of that should be `124`, only when that sequence is matched will the message be stored.
+
+Below we deliberately expect the wrong ID and the message is not saved
+
+```
+% nats req ORDERS.new 'new order' -H Nats-Msg-Id:126 -H Nats-Expected-Last-Msg-Id:999
+15:20:21 Sending request on "ORDERS.new"
+15:22:17 Received on "_INBOX.SssC2RtkyWRAkIHqV3Zoll.6ERLQH8R" rtt 474.864µs
+{"error":{"code":400,"description":"wrong last msg ID: 125"},"stream":"ORDERS","seq":0}
+```
+
 ### Acknowledgement Models
 
 Streams support acknowledging receiving a message, if you send a `Request()` to a subject covered by the configuration of the Stream the service will reply to you once it stored the message.  If you just publish, it will not. A Stream can be set to disable Acknowledgements by setting `NoAck` to `true` in it's configuration.
