@@ -326,7 +326,6 @@
     "stream_info": {
       "type": "object",
       "required": ["config", "state"],
-      "additionalProperties": false,
       "properties": {
         "config": {
           "type": "object",
