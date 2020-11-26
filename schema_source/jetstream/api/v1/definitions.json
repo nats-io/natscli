@@ -7,7 +7,6 @@
   "definitions": {
     "account_stats": {
       "type": "object",
-      "additionalProperties": false,
       "required": ["memory", "storage", "streams", "limits"],
       "properties": {
         "memory": {
@@ -225,7 +224,6 @@
     "consumer_info": {
       "required": ["stream_name", "name", "config", "created", "delivered", "ack_floor", "num_ack_pending", "num_redelivered", "num_waiting", "num_pending"],
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "stream_name": {
           "type": "string",
@@ -487,7 +485,6 @@
     },
     "stream_template_info": {
       "type": "object",
-      "additionalProperties": false,
       "required": ["config", "streams"],
       "properties": {
         "config": {

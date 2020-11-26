@@ -22,7 +22,6 @@
         "num_pending"
       ],
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "stream_name": {
           "type": "string",
