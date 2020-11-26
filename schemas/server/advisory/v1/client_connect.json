@@ -11,7 +11,7 @@
     "server",
     "client"
   ],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type": "string",
@@ -28,7 +28,7 @@
     },
     "server": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "description": "Details about the server the client connected to",
       "required": [
         "name",
@@ -78,7 +78,7 @@
     },
     "client": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "description": "Details about the client that connected to the server",
       "required": [
         "id",

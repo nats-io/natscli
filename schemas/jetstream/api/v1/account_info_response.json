@@ -10,7 +10,7 @@
   "oneOf": [
     {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "memory",
         "storage",
@@ -35,7 +35,7 @@
         },
         "limits": {
           "type": "object",
-          "additionalItems": false,
+          "additionalProperties": false,
           "required": [
             "max_consumers",
             "max_memory",
@@ -69,14 +69,14 @@
     },
     {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "error"
       ],
       "properties": {
         "error": {
           "type": "object",
-          "additionalItems": false,
+          "additionalProperties": false,
           "required": [
             "code"
           ],

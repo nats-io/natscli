@@ -10,7 +10,7 @@
   "allOf": [
     {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "total",
         "offset",
@@ -35,14 +35,14 @@
   "oneOf": [
     {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "error"
       ],
       "properties": {
         "error": {
           "type": "object",
-          "additionalItems": false,
+          "additionalProperties": false,
           "required": [
             "code"
           ],
@@ -63,7 +63,6 @@
     },
     {
       "type": "object",
-      "additionalItems": false,
       "required": [
         "streams"
       ],
@@ -78,7 +77,7 @@
                   "config",
                   "state"
                 ],
-                "additionalItems": false,
+                "additionalProperties": false,
                 "properties": {
                   "config": {
                     "type": "object",
@@ -96,7 +95,7 @@
                           "storage",
                           "num_replicas"
                         ],
-                        "additionalItems": false,
+                        "additionalProperties": false,
                         "properties": {
                           "name": {
                             "description": "A unique name for the Stream, empty for Stream Templates.",
@@ -202,7 +201,7 @@
                     "allOf": [
                       {
                         "type": "object",
-                        "additionalItems": false,
+                        "additionalProperties": false,
                         "required": [
                           "messages",
                           "bytes",

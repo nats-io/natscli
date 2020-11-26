@@ -7,7 +7,7 @@
   "required": [
     "deliver_subject"
   ],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "deliver_subject": {
       "type": "string",

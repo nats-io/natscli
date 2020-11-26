@@ -14,6 +14,7 @@
     "bytes",
     "client"
   ],
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type": "string",
@@ -55,7 +56,7 @@
         "cid",
         "account"
       ],
-      "additionalItems": false,
+      "additionalProperties": false,
       "properties": {
         "host": {
           "type": "string",

@@ -7,7 +7,7 @@
   "definitions": {
     "account_stats": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["memory", "storage", "streams", "limits"],
       "properties": {
         "memory": {
@@ -32,7 +32,7 @@
     },
     "account_limits": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["max_consumers", "max_memory", "max_storage", "max_streams"],
       "properties": {
         "max_memory": {
@@ -59,7 +59,7 @@
     },
     "stored_message": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["subject", "seq", "data", "time"],
       "properties": {
         "subject": {
@@ -86,7 +86,7 @@
     },
     "iterable_request": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["offset"],
       "properties": {
         "offset": {
@@ -97,7 +97,7 @@
     },
     "iterable_response": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["total", "offset", "limit"],
       "properties": {
         "total": {
@@ -116,7 +116,7 @@
     },
     "error_response": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["error"],
       "properties": {
         "error": {
@@ -126,7 +126,7 @@
     },
     "api_error": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["code"],
       "properties": {
         "code": {
@@ -210,7 +210,7 @@
     },
     "sequence_pair": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["consumer_seq", "stream_seq"],
       "properties": {
         "consumer_seq": {
@@ -228,7 +228,7 @@
     "consumer_info": {
       "required": ["stream_name", "name", "config", "created", "delivered", "ack_floor", "num_ack_pending", "num_redelivered", "num_waiting", "num_pending"],
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "properties": {
         "stream_name": {
           "type": "string",
@@ -329,7 +329,7 @@
     "stream_info": {
       "type": "object",
       "required": ["config", "state"],
-      "additionalItems": false,
+      "additionalProperties": false,
       "properties": {
         "config": {
           "type": "object",
@@ -349,7 +349,7 @@
     },
     "stream_state": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["messages", "bytes", "first_seq", "last_seq", "consumer_count"],
       "properties": {
         "messages": {
@@ -401,7 +401,7 @@
         "storage",
         "num_replicas"
       ],
-      "additionalItems": false,
+      "additionalProperties": false,
       "properties": {
         "name": {
           "description": "A unique name for the Stream, empty for Stream Templates.",
@@ -491,7 +491,7 @@
     },
     "stream_template_info": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["config", "streams"],
       "properties": {
         "config": {
@@ -508,7 +508,7 @@
     },
     "stream_template_configuration": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["name", "config", "max_streams"],
       "properties": {
         "name": {

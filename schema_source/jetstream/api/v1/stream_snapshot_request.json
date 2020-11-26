@@ -5,7 +5,7 @@
   "title": "io.nats.jetstream.api.v1.stream_snapshot_request",
   "type": "object",
   "required": ["deliver_subject"],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "deliver_subject": {
       "type": "string",

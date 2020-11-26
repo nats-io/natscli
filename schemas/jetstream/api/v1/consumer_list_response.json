@@ -10,7 +10,7 @@
   "allOf": [
     {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "total",
         "offset",
@@ -35,14 +35,14 @@
   "oneOf": [
     {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": [
         "error"
       ],
       "properties": {
         "error": {
           "type": "object",
-          "additionalItems": false,
+          "additionalProperties": false,
           "required": [
             "code"
           ],
@@ -63,7 +63,6 @@
     },
     {
       "type": "object",
-      "additionalItems": false,
       "required": [
         "consumers"
       ],
@@ -82,7 +81,7 @@
             "num_pending"
           ],
           "type": "object",
-          "additionalItems": false,
+          "additionalProperties": false,
           "properties": {
             "stream_name": {
               "type": "string",
@@ -239,7 +238,7 @@
             "delivered": {
               "description": "The last message delivered from this Consumer",
               "type": "object",
-              "additionalItems": false,
+              "additionalProperties": false,
               "required": [
                 "consumer_seq",
                 "stream_seq"
@@ -260,7 +259,7 @@
             "ack_floor": {
               "description": "The highest contiguous acknowledged message",
               "type": "object",
-              "additionalItems": false,
+              "additionalProperties": false,
               "required": [
                 "consumer_seq",
                 "stream_seq"

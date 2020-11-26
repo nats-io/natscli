@@ -14,7 +14,7 @@
     "stream_seq",
     "deliveries"
   ],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type": "string",

@@ -6,7 +6,7 @@
   "definitions": {
     "latency_client": {
       "type": "object",
-      "additionalItems": false,
+      "additionalProperties": false,
       "required": ["acc" ,"rtt"],
       "properties": {
         "acc": {
@@ -63,7 +63,7 @@
     "system",
     "total"
   ],
-  "additionalItems": false,
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type":"string",

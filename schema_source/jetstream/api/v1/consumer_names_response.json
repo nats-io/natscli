@@ -16,7 +16,6 @@
     },
     {
       "type": "object",
-      "additionalItems": false,
       "required": ["consumers"],
       "properties": {
         "consumers": {

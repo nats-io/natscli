@@ -11,6 +11,7 @@
     "stream",
     "action"
   ],
+  "additionalProperties": false,
   "properties": {
     "type": {
       "type": "string",
