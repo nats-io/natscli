@@ -158,14 +158,12 @@
     },
     {
       "type": "object",
-      "additionalProperties": false,
       "required": [
         "error"
       ],
       "properties": {
         "error": {
           "type": "object",
-          "additionalProperties": false,
           "required": [
             "code"
           ],

@@ -11,7 +11,6 @@
   "properties": {
     "error": {
       "type": "object",
-      "additionalProperties": false,
       "required": [
         "code"
       ],
