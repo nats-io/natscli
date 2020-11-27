@@ -63,7 +63,7 @@ Available template variables are:
 	pub.Flag("wait", "Wait for a reply from a service").Short('w').BoolVar(&c.req)
 	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
 	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
-	pub.Flag("count", "Publish multiple messages").IntVar(&c.cnt)
+	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 
 	req := app.Command("request", "Generic data request utility").Alias("req").Action(c.publish)
 	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
