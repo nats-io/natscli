@@ -41,7 +41,20 @@ type replyCmd struct {
 
 func configureReplyCommand(app *kingpin.Application) {
 	c := &replyCmd{}
-	act := app.Command("reply", "Generic service reply utility").Action(c.reply)
+	help := `Generic service reply utility
+
+The "command" supports extracting some information from the subject the request came in on.
+
+When the subject being listened on is "weather.>" a request on "weather.london" can extract
+the "london" part and use it in the command string:
+
+  nats reply 'weather.>' --command "curl -s wttr.in/{{1}}?format=3"
+
+This will request the weather for london when invoked as:
+
+  nats request weather.london ''
+`
+	act := app.Command("reply", help).Action(c.reply)
 	act.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	act.Arg("body", "Reply body").StringVar(&c.body)
 	act.Flag("echo", "Echo back what is received").BoolVar(&c.echo)
