@@ -14,6 +14,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -141,6 +142,9 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 	var m *nats.Msg
 	var err error
 
+	errBytes := []byte("error")
+	minusByte := byte('-')
+
 	for i := 0; i < numMsg; i++ {
 		if progress != nil {
 			progress.Incr()
@@ -157,7 +161,7 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 			continue
 		}
 
-		if len(m.Data) == 0 || m.Data[0] != '+' {
+		if len(m.Data) == 0 || m.Data[0] == minusByte || bytes.Contains(m.Data, errBytes) {
 			log.Printf("Did not receive a positive ACK: %q", m.Data)
 		}
 	}
