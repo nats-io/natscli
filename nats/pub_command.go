@@ -155,7 +155,11 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	for i := 0; i < c.cnt; i++ {
+	if c.cnt < 1 {
+		c.cnt = 1
+	}
+
+	for i := 1; i <= c.cnt; i++ {
 		var body bytes.Buffer
 		now := time.Now()
 		err = t.Execute(&body, &pubData{
