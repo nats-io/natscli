@@ -6,7 +6,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	"github.com/nats-io/jetstream/nats/natscontext"
+	"github.com/nats-io/natscli/natscontext"
 )
 
 func TestContext(t *testing.T) {

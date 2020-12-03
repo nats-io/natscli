@@ -23,7 +23,7 @@ import (
 	"github.com/fatih/color"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/nats-io/jetstream/nats/natscontext"
+	"github.com/nats-io/natscli/natscontext"
 )
 
 type ctxCommand struct {

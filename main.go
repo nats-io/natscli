@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/nats-io/jetstream/nats/natscontext"
+	"github.com/nats-io/natscli/natscontext"
 )
 
 var (

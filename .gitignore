@@ -42,6 +42,5 @@ coverage.out
 pkg
 
 # bin
-jsm/jsm
 dist
-nats/nats
+natscli
