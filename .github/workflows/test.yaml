@@ -4,14 +4,14 @@ on: [push, pull_request]
 jobs:
   test:
     env:
-      GOPATH: /home/runner/work/jetstream
+      GOPATH: /home/runner/work/natscli
 
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v1
         with:
-          path: src/github.com/nats-io/jetstream
+          path: src/github.com/nats-io/natscli
 
       - name: Setup Go
         uses: actions/setup-go@v1
