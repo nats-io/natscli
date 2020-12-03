@@ -1,9 +1,9 @@
-project_name: jetstream
+project_name: natscli
 
 release:
   github:
     owner: nats-io
-    name: jetstream
+    name: natscli
   name_template: "Release {{.Tag}}"
   draft: true
 
@@ -11,8 +11,7 @@ changelog:
   skip: true
 
 builds:
-  - main: ./nats
-    id: nats
+  - id: nats
     binary: nats
     env:
       - GO111MODULE=on
@@ -40,20 +39,6 @@ archives:
     files:
       - README.md
       - LICENSE
-
-dockers:
-  - goos: linux
-    goarch: amd64
-    skip_push: true
-    binaries:
-      - nats
-    image_templates:
-      - "synadia/jsm:latest"
-      - "synadia/jsm:{{.Version}}"
-    extra_files:
-      - README.md
-      - ngs-server.conf
-      - entrypoint.sh
 
 checksum:
   name_template: "SHA256SUMS"
