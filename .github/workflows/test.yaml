@@ -27,8 +27,7 @@ jobs:
       - name: Build
         shell: bash --noprofile --norc -x -eo pipefail {0}
         run: |
-          cd nats
-          go build
+          go build -o nats
 
       - name: Lint
         shell: bash --noprofile --norc -x -eo pipefail {0}
