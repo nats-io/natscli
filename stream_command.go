@@ -246,12 +246,12 @@ func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {
 		case c.vwRaw:
 			fmt.Println(string(msg.Data))
 		default:
-			meta, err := msg.JetStreamMetaData()
+			meta, err := jsm.ParseJSMsgMetadata(msg)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("[%d] Subject: %s Received: %s\n", meta.StreamSeq, msg.Subject, meta.TimeStamp.Format(time.RFC3339))
+			fmt.Printf("[%d] Subject: %s Received: %s\n", meta.StreamSequence(), msg.Subject, meta.TimeStamp().Format(time.RFC3339))
 			if len(msg.Header) > 0 {
 				fmt.Println()
 				for k, vs := range msg.Header {
