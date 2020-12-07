@@ -43,3 +43,29 @@ archives:
 checksum:
   name_template: "SHA256SUMS"
   algorithm: sha256
+
+brews:
+  - name: nats
+    folder: Formula
+    tap:
+      owner: nats-io
+      name: homebrew-nats-tools
+    url_template: "https://github.com/nats-io/natscli/releases/download/{{ .Tag }}/nats-{{ .Os }}-{{ .Arch }}.zip"
+    homepage: "https://github.com/nats-io/nats"
+    description: "NATS utility"
+    skip_upload: false
+    test: |
+      system "#{bin}/nats --version"
+    install: |
+      bin.install "nats"
+
+nfpms:
+  - file_name_template: '{{.ProjectName}}-{{.Tag}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
+    homepage:  https://nats.io
+    description: NATS Utility
+    maintainer: R.I. Pienaar <rip@devco.net>
+    license: Apache 2.0
+    vendor: Synadia Inc.
+    formats:
+      - deb
+      - rpm
