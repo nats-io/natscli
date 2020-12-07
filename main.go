@@ -52,7 +52,7 @@ func main() {
 		version = "development"
 	}
 
-	ncli := kingpin.New("nats", "NATS Management Utility")
+	ncli := kingpin.New("nats", "NATS Utility")
 	ncli.Author("NATS Authors <info@nats.io>")
 	ncli.Version(version)
 	ncli.HelpFlag.Short('h')
