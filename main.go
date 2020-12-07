@@ -42,6 +42,8 @@ var (
 	// used during tests
 	skipContexts bool
 
+	// These are persisted by contexts, as properties thereof.
+	// So don't include NATS_CONTEXT in this list.
 	overrideEnvVars = []string{"NATS_URL", "NATS_USER", "NATS_PASSWORD", "NATS_CREDS", "NATS_NKEY", "NATS_CERT", "NATS_KEY", "NATS_CA", "NATS_TIMEOUT"}
 )
 
@@ -64,7 +66,7 @@ func main() {
 	ncli.Flag("tlskey", "TLS private key").Envar("NATS_KEY").PlaceHolder("NATS_KEY").ExistingFileVar(&tlsKey)
 	ncli.Flag("tlsca", "TLS certificate authority chain").Envar("NATS_CA").PlaceHolder("NATS_CA").ExistingFileVar(&tlsCA)
 	ncli.Flag("timeout", "Time to wait on responses from NATS").Default("2s").Envar("NATS_TIMEOUT").PlaceHolder("NATS_TIMEOUT").DurationVar(&timeout)
-	ncli.Flag("context", "Configuration context").StringVar(&cfgCtx)
+	ncli.Flag("context", "Configuration context").Envar("NATS_CONTEXT").StringVar(&cfgCtx)
 	ncli.Flag("trace", "Trace API interactions").BoolVar(&trace)
 
 	ncli.PreAction(prepareConfig)
