@@ -33,7 +33,7 @@ builds:
         goarch: 386
 
 archives:
-  - name_template: "{{.ProjectName}}-{{.Version}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
+  - name_template: "nats-{{.Version}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
     wrap_in_directory: true
     format: zip
     files:
@@ -60,7 +60,7 @@ brews:
       bin.install "nats"
 
 nfpms:
-  - file_name_template: '{{.ProjectName}}-{{.Tag}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
+  - file_name_template: 'nats-{{.Tag}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
     homepage:  https://nats.io
     description: NATS Utility
     maintainer: R.I. Pienaar <rip@devco.net>
