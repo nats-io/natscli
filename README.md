@@ -16,6 +16,20 @@ and support full JetStream management.
  * Configuration context maintenance
  * NATS eco system schema registry
 
+### Installation
+
+Releases are [published to GitHub](https://github.com/nats-io/natscli/releases/) where zip, rpm and debs for various
+operating systems can be found.
+
+For OS X `brew` can be used to install the latest version:
+
+```nohighlight
+$ brew tap nats-io/nats-tools
+$ brew install nats-io/nats-tools/nats
+```
+
+Nightly builds are included in the `synadia/nats-server:nightly` Docker images.
+
 ### Configuration Contexts
 
 The `nats` CLI supports multiple named configurations, for the rest of the document we'll interact via `demo.nats.io`.
