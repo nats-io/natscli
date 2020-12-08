@@ -20,7 +20,7 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/nats-io/natscli/natscontext"
+	"github.com/nats-io/jsm.go/natscontext"
 )
 
 var (
