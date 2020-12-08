@@ -34,7 +34,7 @@ import (
 
 	"github.com/nats-io/jsm.go"
 
-	"github.com/nats-io/natscli/natscontext"
+	"github.com/nats-io/jsm.go/natscontext"
 )
 
 func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool) (string, error) {
