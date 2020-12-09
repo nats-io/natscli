@@ -25,7 +25,7 @@ type SchemaValidator struct{}
 func (v SchemaValidator) ValidateStruct(data interface{}, schemaType string) (ok bool, errs []string) {
 	s, err := api.Schema(schemaType)
 	if err != nil {
-		return false, []string{"unknown schema type %s", schemaType}
+		return false, []string{fmt.Sprintf("unknown schema type %s", schemaType)}
 	}
 
 	ls := gojsonschema.NewBytesLoader(s)
