@@ -58,7 +58,7 @@ type streamCmd struct {
 	maxMsgLimit         int64
 	maxBytesLimit       int64
 	maxAgeLimit         string
-	maxMsgSize          int32
+	maxMsgSize          int64
 	reportSortConsumers bool
 	reportSortMsgs      bool
 	reportSortName      bool
@@ -93,7 +93,7 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
-		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int32Var(&c.maxMsgSize)
+		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int64Var(&c.maxMsgSize)
 		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
 	}
@@ -655,7 +655,7 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 	}
 
 	if c.maxMsgSize != 0 {
-		cfg.MaxMsgSize = c.maxMsgSize
+		cfg.MaxMsgSize = int32(c.maxMsgSize)
 	}
 
 	if c.dupeWindow != "" {
@@ -989,11 +989,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 	}
 
 	if c.maxMsgSize == 0 {
-		err = survey.AskOne(&survey.Input{
-			Message: "Maximum individual message size",
-			Default: "-1",
-			Help:    "Defines the maximum size any single message may be to be accepted by the Stream. Settable using --max-msg-size",
-		}, &c.maxMsgSize)
+		c.maxMsgSize, err = askOneBytes("Maximum individual message size", "-1", "Defines the maximum size any single message may be to be accepted by the Stream. Settable using --max-msg-size")
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
@@ -1017,7 +1013,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		Subjects:     c.subjects,
 		MaxMsgs:      c.maxMsgLimit,
 		MaxBytes:     c.maxBytesLimit,
-		MaxMsgSize:   c.maxMsgSize,
+		MaxMsgSize:   int32(c.maxMsgSize),
 		Duplicates:   dupeWindow,
 		MaxAge:       maxAge,
 		Storage:      storage,
