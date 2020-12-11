@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
@@ -111,6 +112,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consNext.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
+	consNext.Flag("wait", "Wait up to this period to acknowledge messages").DurationVar(&c.ackWait)
 
 	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
 	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -472,7 +474,7 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 	if c.ackPolicy == "" {
 		err = survey.AskOne(&survey.Select{
 			Message: "Acknowledgement policy",
-			Options: []string{"none", "all", "explicit"},
+			Options: []string{"explicit", "all", "none"},
 			Default: "none",
 			Help:    "Messages that are not acknowledged will be redelivered at a later time. 'none' means no acknowledgement is needed only 1 delivery ever, 'all' means acknowledging message 10 will also acknowledge 0-9 and 'explicit' means each has to be acknowledged specifically. Settable using --ack",
 		}, &c.ackPolicy)
@@ -664,11 +666,27 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	}
 
 	if c.ack {
+		var stime time.Duration
+		if c.ackWait > 0 {
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			stime = time.Duration(r.Intn(int(c.ackWait)))
+
+		}
+
+		if stime > 0 {
+			time.Sleep(stime)
+		}
+
 		err = msg.Ack()
 		kingpin.FatalIfError(err, "could not Acknowledge message")
 		c.nc.Flush()
 		if !c.raw {
-			fmt.Println("\nAcknowledged message")
+			if stime > 0 {
+				fmt.Printf("\nAcknowledged message after %s delay\n", stime)
+			} else {
+				fmt.Println("\nAcknowledged message")
+			}
+			fmt.Println()
 		}
 	}
 
