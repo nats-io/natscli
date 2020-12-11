@@ -11,7 +11,8 @@ changelog:
   skip: true
 
 builds:
-  - id: nats
+  - main: ./nats
+    id: nats
     binary: nats
     env:
       - GO111MODULE=on
