@@ -44,3 +44,4 @@ pkg
 # bin
 dist
 natscli
+nats/nats
