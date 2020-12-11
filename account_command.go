@@ -66,7 +66,7 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 		}
 
 		if info.Limits.MaxConsumers == -1 {
-			fmt.Println("   Max Consumers: unlimited")
+			fmt.Println("    Max Consumers: unlimited")
 		} else {
 			fmt.Printf("    Max Consumers: %d\n", info.Limits.MaxConsumers)
 		}
