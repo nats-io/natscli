@@ -135,7 +135,7 @@ message metadata is also produced:
 
 ```
 $ nats sub js.out.testing --ack
-12:55:23 Subscribing on js.out.mc with acknowledgement of JetStream messages
+12:55:23 Subscribing on js.out.testing with acknowledgement of JetStream messages
 [#1] Received JetStream message: consumer: TESTING > TAIL / subject: js.in.testing / delivered: 1 / consumer seq: 568 / stream seq: 2638 / ack: true
 test JS message
 ``` 
