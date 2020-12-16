@@ -21,18 +21,20 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
+	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go/natscontext"
 )
 
 type ctxCommand struct {
-	json        bool
-	activate    bool
-	description string
-	name        string
-	nsc         string
-	force       bool
+	json           bool
+	activate       bool
+	description    string
+	name           string
+	nsc            string
+	force          bool
+	validateErrors int
 }
 
 func configureCtxCommand(app *kingpin.Application) {
@@ -61,6 +63,11 @@ func configureCtxCommand(app *kingpin.Application) {
 	show := context.Command("show", "Show the current or named context").Action(c.showCommand)
 	show.Arg("name", "The context name to show").StringVar(&c.name)
 	show.Flag("json", "Show the context in JSON format").Short('j').BoolVar(&c.json)
+	show.Flag("connect", "Attempts to connect to NATS using the context while validating").BoolVar(&c.activate)
+
+	validate := context.Command("validate", "Validate one or all contexts").Action(c.validateCommand)
+	validate.Arg("name", "Validate a specific context, validates all when not supplied").StringVar(&c.name)
+	validate.Flag("connect", "Attempts to connect to NATS using the context while validating").BoolVar(&c.activate)
 }
 
 func (c *ctxCommand) hasOverrides() bool {
@@ -76,6 +83,30 @@ func (c *ctxCommand) overrideVars() []string {
 	}
 
 	return list
+}
+func (c *ctxCommand) validateCommand(pc *kingpin.ParseContext) error {
+	var contexts []string
+	if c.name == "" {
+		contexts = natscontext.KnownContexts()
+	} else {
+		contexts = append(contexts, c.name)
+	}
+
+	for _, name := range contexts {
+		c.name = name
+		err := c.showCommand(pc)
+		if err != nil {
+			fmt.Printf("Could not load %s: %s\n\n", name, color.RedString(err.Error()))
+		}
+
+		fmt.Println()
+	}
+
+	if c.validateErrors > 0 {
+		return fmt.Errorf("validation failed")
+	}
+
+	return nil
 }
 
 func (c *ctxCommand) editCommand(pc *kingpin.ParseContext) error {
@@ -153,18 +184,57 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
+	checkFile := func(file string) string {
+		if file == "" {
+			return ""
+		}
+
+		ok, err := fileAccessible(file)
+		if !ok || err != nil {
+			c.validateErrors++
+			return color.RedString("ERROR")
+		}
+
+		return color.GreenString("OK")
+	}
+
 	fmt.Printf("NATS Configuration Context %q\n\n", c.name)
 	c.showIfNotEmpty("  Description: %s\n", cfg.Description())
 	c.showIfNotEmpty("  Server URLs: %s\n", cfg.ServerURL())
 	c.showIfNotEmpty("     Username: %s\n", cfg.User())
-	c.showIfNotEmpty("     Password: %s\n", cfg.Password(), "*********")
-	c.showIfNotEmpty("  Credentials: %s\n", cfg.Creds())
-	c.showIfNotEmpty("         NKey: %s\n", cfg.NKey())
-	c.showIfNotEmpty("  Certificate: %s\n", cfg.Certificate())
-	c.showIfNotEmpty("          Key: %s\n", cfg.Key())
-	c.showIfNotEmpty("           CA: %s\n", cfg.CA())
+	c.showIfNotEmpty("     Password: *********\n", cfg.Password())
+	c.showIfNotEmpty("  Credentials: %s (%s)\n", cfg.Creds(), checkFile(cfg.Creds()))
+	c.showIfNotEmpty("         NKey: %s (%s)\n", cfg.NKey(), checkFile(cfg.NKey()))
+	c.showIfNotEmpty("  Certificate: %s (%s)\n", cfg.Certificate(), checkFile(cfg.Certificate()))
+	c.showIfNotEmpty("          Key: %s (%s)\n", cfg.Key(), checkFile(cfg.Key()))
+	c.showIfNotEmpty("           CA: %s (%s)\n", cfg.CA(), checkFile(cfg.CA()))
 	c.showIfNotEmpty("   NSC Lookup: %s\n", cfg.NscURL())
 	c.showIfNotEmpty("         Path: %s\n", cfg.Path())
+
+	checkConn := func() error {
+		opts, err := cfg.NATSOptions()
+		opts = append(opts, nats.MaxReconnects(1))
+		if err != nil {
+			return err
+		}
+		nc, err := nats.Connect(cfg.ServerURL(), opts...)
+		if err != nil {
+			return err
+		}
+		nc.Close()
+
+		return nil
+	}
+
+	if c.activate {
+		err = checkConn()
+		if err != nil {
+			c.validateErrors++
+			fmt.Printf("   Connection: %s", color.RedString(err.Error()))
+		} else {
+			fmt.Printf("   Connection: %s", color.GreenString("OK"))
+		}
+	}
 
 	fmt.Println()
 
@@ -260,15 +330,14 @@ func (c *ctxCommand) selectCommand(pc *kingpin.ParseContext) error {
 	return c.showCommand(pc)
 }
 
-func (c *ctxCommand) showIfNotEmpty(format string, arg ...string) {
-	if len(arg) == 0 || arg[0] == "" {
+func (c *ctxCommand) showIfNotEmpty(format string, val string, arg ...interface{}) {
+	if val == "" {
 		return
 	}
 
-	if len(arg) == 2 {
-		fmt.Printf(format, arg[1])
-		return
+	if !strings.Contains(format, "%") {
+		fmt.Print(format)
 	}
 
-	fmt.Printf(format, arg[0])
+	fmt.Printf(format, append([]interface{}{interface{}(val)}, arg...)...)
 }

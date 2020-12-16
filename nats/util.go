@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/http"
 	"net/textproto"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -459,4 +460,23 @@ func prepareConfig(_ *kingpin.ParseContext) (err error) {
 	loadContext()
 
 	return nil
+}
+
+func fileAccessible(f string) (bool, error) {
+	stat, err := os.Stat(f)
+	if err != nil {
+		return false, err
+	}
+
+	if stat.IsDir() {
+		return false, fmt.Errorf("is a directory")
+	}
+
+	file, err := os.Open(f)
+	if err != nil {
+		return false, err
+	}
+	file.Close()
+
+	return true, nil
 }
