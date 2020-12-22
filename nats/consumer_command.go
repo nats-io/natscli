@@ -677,7 +677,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 			time.Sleep(stime)
 		}
 
-		err = msg.Ack()
+		err = msg.Respond(nil)
 		kingpin.FatalIfError(err, "could not Acknowledge message")
 		c.nc.Flush()
 		if !c.raw {
@@ -741,7 +741,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 		}
 
 		if c.ack {
-			err = m.Ack()
+			err = m.Respond(nil)
 			if err != nil {
 				fmt.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
 			}

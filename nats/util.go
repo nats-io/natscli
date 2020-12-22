@@ -25,12 +25,14 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 	"unicode"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nuid"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go"
@@ -429,13 +431,54 @@ func decodeHeadersMsg(data []byte) (http.Header, error) {
 	return http.Header(mh), nil
 }
 
-func parseStringsToHeader(hdrs []string, msg *nats.Msg) error {
+type pubData struct {
+	Cnt       int
+	Unix      int64
+	UnixNano  int64
+	TimeStamp string
+	Time      string
+}
+
+func (p *pubData) ID() string {
+	return nuid.Next()
+}
+
+func pubReplyBodyTemplate(body string, ctr int) ([]byte, error) {
+	templ, err := template.New("body").Parse(body)
+	if err != nil {
+		return []byte(body), err
+	}
+
+	var b bytes.Buffer
+	now := time.Now()
+	err = templ.Execute(&b, &pubData{
+		Cnt:       ctr,
+		Unix:      now.Unix(),
+		UnixNano:  now.UnixNano(),
+		TimeStamp: now.Format(time.RFC3339),
+		Time:      now.Format(time.Kitchen),
+	})
+	if err != nil {
+		return []byte(body), err
+	}
+
+	return b.Bytes(), nil
+}
+
+func parseStringsToHeader(hdrs []string, seq int, msg *nats.Msg) error {
 	for _, hdr := range hdrs {
 		parts := strings.SplitN(hdr, ":", 2)
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid header %q", hdr)
 		}
-		msg.Header.Add(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+
+		val, err := pubReplyBodyTemplate(strings.TrimSpace(parts[1]), seq)
+		if err != nil {
+			log.Printf("Failed to parse Header template for %s: %s", parts[0], err)
+			continue
+		}
+
+		msg.Header.Add(strings.TrimSpace(parts[0]), string(val))
 	}
 
 	return nil

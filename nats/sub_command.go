@@ -64,7 +64,7 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 
 		if c.jsAck && info != nil {
 			defer func() {
-				err = m.Ack()
+				err = m.Respond(nil)
 				if err != nil {
 					log.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
 				}

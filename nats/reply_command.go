@@ -53,7 +53,22 @@ the "london" part and use it in the command string:
 This will request the weather for london when invoked as:
 
   nats request weather.london ''
+
+The body and Header values of the messages may use Go templates to create unique messages.
+
+   nats reply test "Message {{.Cnt}} @ {{.Time}}"
+
+Available template variables are:
+
+   .Cnt       the message number
+   .TimeStamp RFC3339 format current time
+   .Unix      seconds since 1970 in UTC
+   .UnixNano  nano seconds since 1970 in UTC
+   .Time      the current time
+   .ID        generates a unique ID
+
 `
+
 	act := app.Command("reply", help).Action(c.reply)
 	act.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	act.Arg("body", "Reply body").StringVar(&c.body)
@@ -93,7 +108,7 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 
 		msg := nats.NewMsg(m.Reply)
 		if nc.HeadersSupported() && len(c.hdrs) > 0 {
-			parseStringsToHeader(c.hdrs, msg)
+			parseStringsToHeader(c.hdrs, i, msg)
 		}
 
 		switch {
@@ -138,7 +153,13 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 			}
 
 		default:
-			msg.Data = []byte(c.body)
+			log.Printf("cnt: %d", i)
+			body, err := pubReplyBodyTemplate(c.body, i)
+			if err != nil {
+				log.Printf("Could not parse body template: %s", err)
+			}
+
+			msg.Data = body
 		}
 
 		err = m.RespondMsg(msg)
