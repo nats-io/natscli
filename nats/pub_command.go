@@ -14,13 +14,11 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -43,8 +41,8 @@ func configurePubCommand(app *kingpin.Application) {
 	help := `Generic data publishing utility
 
 When publishing multiple messages using the "count" flag
-the body of the messages may use Go templates to create
-multiple unique messages.
+the body and Header values of the messages may use Go
+templates to create multiple unique messages.
 
    nats pub test --count 10 "Message {{.Cnt}} @ {{.Time}}"
 
@@ -55,6 +53,7 @@ Available template variables are:
    .Unix      seconds since 1970 in UTC
    .UnixNano  nano seconds since 1970 in UTC
    .Time      the current time
+   .ID        generates a unique ID
 
 `
 	pub := app.Command("pub", help).Action(c.publish)
@@ -78,7 +77,7 @@ func (c *pubCmd) prepareMsg(body []byte) (*nats.Msg, error) {
 	msg.Reply = c.replyTo
 	msg.Data = body
 
-	return msg, parseStringsToHeader(c.hdrs, msg)
+	return msg, parseStringsToHeader(c.hdrs, 0, msg)
 }
 
 func (c *pubCmd) doReq(nc *nats.Conn) error {
@@ -104,6 +103,7 @@ func (c *pubCmd) doReq(nc *nats.Conn) error {
 	}
 
 	log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
+	log.Printf("body: %q", string(m.Data))
 	if len(m.Header) > 0 {
 		for h, vals := range m.Header {
 			for _, val := range vals {
@@ -142,38 +142,17 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 		return c.doReq(nc)
 	}
 
-	type pubData struct {
-		Cnt       int
-		Unix      int64
-		UnixNano  int64
-		TimeStamp string
-		Time      string
-	}
-
-	t, err := template.New("body").Parse(c.body)
-	if err != nil {
-		return err
-	}
-
 	if c.cnt < 1 {
 		c.cnt = 1
 	}
 
 	for i := 1; i <= c.cnt; i++ {
-		var body bytes.Buffer
-		now := time.Now()
-		err = t.Execute(&body, &pubData{
-			Cnt:       i,
-			Unix:      now.Unix(),
-			UnixNano:  now.UnixNano(),
-			TimeStamp: now.Format(time.RFC3339),
-			Time:      now.Format(time.Kitchen),
-		})
+		body, err := pubReplyBodyTemplate(c.body, i)
 		if err != nil {
-			return err
+			log.Printf("Could not parse body template: %s", err)
 		}
 
-		msg, err := c.prepareMsg(body.Bytes())
+		msg, err := c.prepareMsg(body)
 		if err != nil {
 			return err
 		}
