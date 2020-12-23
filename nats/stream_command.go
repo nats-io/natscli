@@ -352,6 +352,12 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 	var bps uint64
 
 	cb := func(p jsm.SnapshotProgress) {
+		if progress == nil {
+			progress = uiprogress.AddBar(p.BlocksExpected() * p.BlockSize()).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
+				return humanize.IBytes(bps) + "/s"
+			})
+		}
+
 		if first {
 			fmt.Printf("Starting backup of Stream %q with %d data blocks\n\n", c.stream, p.BlocksExpected())
 
@@ -367,12 +373,6 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 		}
 
 		bps = p.BytesPerSecond()
-
-		if progress == nil {
-			progress = uiprogress.AddBar(p.BlocksExpected() * p.BlockSize()).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
-				return humanize.IBytes(bps) + "/s"
-			})
-		}
 
 		if !p.HasData() {
 			progress.Set(int(p.BlockBytesReceived()))
@@ -403,6 +403,8 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 	}
 
 	fp, err := stream.SnapshotToFile(context.Background(), c.backupFile, opts...)
+	kingpin.FatalIfError(err, "snapshot failed")
+
 	pmu.Lock()
 	if c.showProgress && inprogress {
 		progress.Set(fp.BlocksExpected() * fp.BlockSize())
@@ -410,7 +412,6 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 		inprogress = false
 	}
 	pmu.Unlock()
-	kingpin.FatalIfError(err, "snapshot failed")
 
 	fmt.Println()
 	fmt.Printf("Received %s compressed data in %d chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), fp.ChunksReceived(), c.stream, fp.EndTime().Sub(fp.StartTime()).Round(time.Second), humanize.IBytes(fp.BlockBytesReceived()))
