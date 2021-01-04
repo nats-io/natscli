@@ -103,7 +103,6 @@ func (c *pubCmd) doReq(nc *nats.Conn) error {
 	}
 
 	log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
-	log.Printf("body: %q", string(m.Data))
 	if len(m.Header) > 0 {
 		for h, vals := range m.Header {
 			for _, val := range vals {
