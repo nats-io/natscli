@@ -337,6 +337,7 @@ func (c *ctxCommand) showIfNotEmpty(format string, val string, arg ...interface{
 
 	if !strings.Contains(format, "%") {
 		fmt.Print(format)
+		return
 	}
 
 	fmt.Printf(format, append([]interface{}{interface{}(val)}, arg...)...)
