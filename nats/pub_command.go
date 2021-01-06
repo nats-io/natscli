@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"golang.org/x/crypto/ssh/terminal"
+	terminal "golang.org/x/term"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
