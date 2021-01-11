@@ -35,5 +35,6 @@ This file lists the dependencies used in this repository.
 | golang.org/x/sys | BSD 3-Clause "New" or "Revised" License |
 | golang.org/x/text | BSD 3-Clause "New" or "Revised" License |
 | golang.org/x/time | BSD 3-Clause "New" or "Revised" License |
+| golang.org/x/term | BSD 3-Clause "New" or "Revised" License |
 | gopkg.in/alecthomas/kingpin.v2 | MIT License |
 | gopkg.in/yaml.v2 | Apache License 2.0 |

@@ -71,6 +71,7 @@ type streamCmd struct {
 	showProgress        bool
 	healthCheck         bool
 	dupeWindow          string
+	replicas            int64
 
 	vwStartId    int
 	vwStartDelta time.Duration
@@ -96,6 +97,7 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int64Var(&c.maxMsgSize)
 		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
+		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
 	}
 
 	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
@@ -1009,6 +1011,14 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		kingpin.FatalIfError(err, "invalid duplicate window format")
 	}
 
+	if c.replicas == 0 {
+		c.replicas, err = askOneInt("Number of replicas to store", "1", "When clustered, defines how many replicas of the data to store.  Settable using --replicas.")
+		kingpin.FatalIfError(err, "invalid input")
+	}
+	if c.replicas <= 0 {
+		kingpin.Fatalf("replicas should be >= 1")
+	}
+
 	cfg = api.StreamConfig{
 		Name:         c.stream,
 		Subjects:     c.subjects,
@@ -1022,7 +1032,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		Retention:    c.retentionPolicyFromString(),
 		Discard:      c.discardPolicyFromString(),
 		MaxConsumers: -1,
-		Replicas:     1,
+		Replicas:     int(c.replicas),
 	}
 
 	return cfg

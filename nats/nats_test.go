@@ -172,7 +172,7 @@ func TestCLIStreamCreate(t *testing.T) {
 	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m  --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new --dupe-window 1h", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m  --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new --dupe-window 1h --replicas 1", srv.ClientURL()))
 	streamShouldExist(t, mgr, "mem1")
 	info := streamInfo(t, mgr, "mem1")
 
