@@ -70,6 +70,7 @@ Available template variables are:
 	req.Flag("wait", "Wait for a reply from a service").Short('w').Default("true").Hidden().BoolVar(&c.req)
 	req.Flag("raw", "Show just the output received").Short('r').Default("false").BoolVar(&c.raw)
 	req.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
+	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 }
 
 func (c *pubCmd) prepareMsg(body []byte) (*nats.Msg, error) {
@@ -81,41 +82,52 @@ func (c *pubCmd) prepareMsg(body []byte) (*nats.Msg, error) {
 }
 
 func (c *pubCmd) doReq(nc *nats.Conn) error {
-	start := time.Now()
-	if !c.raw {
-		log.Printf("Sending request on %q\n", c.subject)
+	if c.cnt < 1 {
+		c.cnt = 1
 	}
 
-	msg, err := c.prepareMsg([]byte(c.body))
-	if err != nil {
-		return err
-	}
-
-	m, err := nc.RequestMsg(msg, timeout)
-	if err != nil {
-		return err
-	}
-
-	if c.raw {
-		fmt.Println(string(m.Data))
-
-		return nil
-	}
-
-	log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
-	if len(m.Header) > 0 {
-		for h, vals := range m.Header {
-			for _, val := range vals {
-				log.Printf("%s: %s", h, val)
-			}
+	for i := 1; i <= c.cnt; i++ {
+		start := time.Now()
+		if !c.raw {
+			log.Printf("Sending request on %q\n", c.subject)
 		}
 
-		fmt.Println()
-	}
+		body, err := pubReplyBodyTemplate(c.body, i)
+		if err != nil {
+			log.Printf("Could not parse body template: %s", err)
+		}
 
-	fmt.Println(string(m.Data))
-	if !strings.HasSuffix(string(m.Data), "\n") {
-		fmt.Println()
+		msg, err := c.prepareMsg(body)
+		if err != nil {
+			return err
+		}
+
+		m, err := nc.RequestMsg(msg, timeout)
+		if err != nil {
+			return err
+		}
+
+		if c.raw {
+			fmt.Println(string(m.Data))
+
+			return nil
+		}
+
+		log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
+		if len(m.Header) > 0 {
+			for h, vals := range m.Header {
+				for _, val := range vals {
+					log.Printf("%s: %s", h, val)
+				}
+			}
+
+			fmt.Println()
+		}
+
+		fmt.Println(string(m.Data))
+		if !strings.HasSuffix(string(m.Data), "\n") {
+			fmt.Println()
+		}
 	}
 
 	return nil
@@ -171,5 +183,4 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 	}
 
 	return nil
-
 }
