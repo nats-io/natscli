@@ -800,7 +800,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		return
 	}
 
-	fmt.Printf("Information for Stream %s created %s\n", c.stream, info.Created.Format(time.RFC3339))
+	fmt.Printf("Information for Stream %s created %s\n", c.stream, info.Created.Local().Format(time.RFC3339))
 	fmt.Println()
 	c.showStreamConfig(info.Config)
 	fmt.Println()
@@ -811,10 +811,15 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		fmt.Printf("                 Name: %s\n", info.Cluster.Name)
 		fmt.Printf("               Leader: %s\n", info.Cluster.Leader)
 		for _, r := range info.Cluster.Replicas {
+			since := fmt.Sprintf("seen %s ago", humanizeDuration(time.Since(r.Last)))
+			if r.Last.Equal(time.Unix(0, 0)) {
+				since = "not seen"
+			}
+
 			if r.Current {
-				fmt.Printf("              Replica: %s, current, seen %.2fs ago\n", r.Name, time.Since(r.Last).Seconds())
+				fmt.Printf("              Replica: %s, current, %s\n", r.Name, since)
 			} else {
-				fmt.Printf("              Replica: %s, outdated, seen %.2fs ago\n", r.Name, time.Since(r.Last).Seconds())
+				fmt.Printf("              Replica: %s, outdated, %s\n", r.Name, since)
 			}
 		}
 		fmt.Println()
