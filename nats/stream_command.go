@@ -830,13 +830,13 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	fmt.Printf("             Messages: %s\n", humanize.Comma(int64(info.State.Msgs)))
 	fmt.Printf("                Bytes: %s\n", humanize.IBytes(info.State.Bytes))
 
-	if info.State.FirstTime.IsZero() {
+	if info.State.FirstTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
 		fmt.Printf("             FirstSeq: %s\n", humanize.Comma(int64(info.State.FirstSeq)))
 	} else {
 		fmt.Printf("             FirstSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.FirstSeq)), info.State.FirstTime.Format("2006-01-02T15:04:05"))
 	}
 
-	if info.State.LastTime.IsZero() {
+	if info.State.LastTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
 		fmt.Printf("              LastSeq: %s\n", humanize.Comma(int64(info.State.LastSeq)))
 	} else {
 		fmt.Printf("              LastSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.LastSeq)), info.State.LastTime.Format("2006-01-02T15:04:05"))
