@@ -800,28 +800,44 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		return
 	}
 
-	fmt.Printf("Information for Stream %s\n", c.stream)
+	fmt.Printf("Information for Stream %s created %s\n", c.stream, info.Created.Format(time.RFC3339))
 	fmt.Println()
 	c.showStreamConfig(info.Config)
 	fmt.Println()
+
+	if info.Cluster != nil {
+		fmt.Println("Cluster Information:")
+		fmt.Println()
+		fmt.Printf("                 Name: %s\n", info.Cluster.Name)
+		fmt.Printf("               Leader: %s\n", info.Cluster.Leader)
+		for _, r := range info.Cluster.Replicas {
+			if r.Current {
+				fmt.Printf("              Replica: %s, current, seen %.2fs ago\n", r.Name, time.Since(r.Last).Seconds())
+			} else {
+				fmt.Printf("              Replica: %s, outdated, seen %.2fs ago\n", r.Name, time.Since(r.Last).Seconds())
+			}
+		}
+		fmt.Println()
+	}
+
 	fmt.Println("State:")
 	fmt.Println()
-	fmt.Printf("            Messages: %s\n", humanize.Comma(int64(info.State.Msgs)))
-	fmt.Printf("               Bytes: %s\n", humanize.IBytes(info.State.Bytes))
+	fmt.Printf("             Messages: %s\n", humanize.Comma(int64(info.State.Msgs)))
+	fmt.Printf("                Bytes: %s\n", humanize.IBytes(info.State.Bytes))
 
 	if info.State.FirstTime.IsZero() {
-		fmt.Printf("            FirstSeq: %s\n", humanize.Comma(int64(info.State.FirstSeq)))
+		fmt.Printf("             FirstSeq: %s\n", humanize.Comma(int64(info.State.FirstSeq)))
 	} else {
-		fmt.Printf("            FirstSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.FirstSeq)), info.State.FirstTime.Format("2006-01-02T15:04:05"))
+		fmt.Printf("             FirstSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.FirstSeq)), info.State.FirstTime.Format("2006-01-02T15:04:05"))
 	}
 
 	if info.State.LastTime.IsZero() {
-		fmt.Printf("             LastSeq: %s\n", humanize.Comma(int64(info.State.LastSeq)))
+		fmt.Printf("              LastSeq: %s\n", humanize.Comma(int64(info.State.LastSeq)))
 	} else {
-		fmt.Printf("             LastSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.LastSeq)), info.State.LastTime.Format("2006-01-02T15:04:05"))
+		fmt.Printf("              LastSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.LastSeq)), info.State.LastTime.Format("2006-01-02T15:04:05"))
 	}
 
-	fmt.Printf("    Active Consumers: %d\n", info.State.Consumers)
+	fmt.Printf("     Active Consumers: %d\n", info.State.Consumers)
 }
 
 func (c *streamCmd) infoAction(_ *kingpin.ParseContext) error {
