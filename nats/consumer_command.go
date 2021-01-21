@@ -238,6 +238,21 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 
 	fmt.Println()
 
+	if state.Cluster != nil {
+		fmt.Println("Cluster Information:")
+		fmt.Println()
+		fmt.Printf("                Name: %s\n", state.Cluster.Name)
+		fmt.Printf("              Leader: %s\n", state.Cluster.Leader)
+		for _, r := range state.Cluster.Replicas {
+			if r.Current {
+				fmt.Printf("             Replica: %s, current, seen %.2fs ago\n", r.Name, time.Since(r.Last).Seconds())
+			} else {
+				fmt.Printf("             Replica: %s, outdated, seen %.2fs ago\n", r.Name, time.Since(r.Last).Seconds())
+			}
+		}
+		fmt.Println()
+	}
+
 	fmt.Println("State:")
 	fmt.Println()
 	fmt.Printf("   Last Delivered Message: Consumer sequence: %d Stream sequence: %d\n", state.Delivered.Consumer, state.Delivered.Stream)

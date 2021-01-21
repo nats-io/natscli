@@ -22,7 +22,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -148,15 +147,15 @@ func mem1Stream() api.StreamConfig {
 	}
 }
 
-func file1Stream() api.StreamConfig {
-	return api.StreamConfig{
-		Name:      "file1",
-		Subjects:  []string{"js.file.>"},
-		Storage:   api.FileStorage,
-		Retention: api.LimitsPolicy,
-		Replicas:  1,
-	}
-}
+// func file1Stream() api.StreamConfig {
+// 	return api.StreamConfig{
+// 		Name:      "file1",
+// 		Subjects:  []string{"js.file.>"},
+// 		Storage:   api.FileStorage,
+// 		Retention: api.LimitsPolicy,
+// 		Replicas:  1,
+// 	}
+// }
 
 func pull1Cons() api.ConsumerConfig {
 	return api.ConsumerConfig{
@@ -330,43 +329,44 @@ func TestCLIStreamGet(t *testing.T) {
 	}
 }
 
-func TestCLIStreamBackupAndRestore(t *testing.T) {
-	srv, nc, mgr := setupJStreamTest(t)
-	defer srv.Shutdown()
-
-	stream, err := mgr.NewStreamFromDefault("file1", file1Stream())
-	checkErr(t, err, "could not create stream: %v", err)
-	streamShouldExist(t, mgr, "file1")
-
-	for i := 0; i < 1000; i++ {
-		nc.Publish("js.file.1", []byte(RandomString(5480)))
-	}
-
-	tf, err := ioutil.TempFile("", "")
-	checkErr(t, err, "temp file failed")
-	tf.Close()
-	os.Remove(tf.Name())
-
-	runNatsCli(t, fmt.Sprintf("--server='%s' str backup file1 %s --no-progress", srv.ClientURL(), tf.Name()))
-
-	preState, err := stream.State()
-	checkErr(t, err, "state failed")
-	stream.Delete()
-
-	runNatsCli(t, fmt.Sprintf("--server='%s' str restore file1 %s --no-progress", srv.ClientURL(), tf.Name()))
-	stream, err = mgr.NewStreamFromDefault("file1", file1Stream())
-	checkErr(t, err, "could not create stream: %v", err)
-
-	postState, err := stream.State()
-	checkErr(t, err, "state failed")
-	if !reflect.DeepEqual(preState, postState) {
-		t.Fatalf("restored state differed")
-	}
-
-	if postState.Msgs != 1000 {
-		t.Fatalf("Expected 1000 messages got %d", postState.Msgs)
-	}
-}
+// func TestCLIStreamBackupAndRestore(t *testing.T) {
+// 	t.Skip("disabled till new cluster backup mode is supported")
+// 	srv, nc, mgr := setupJStreamTest(t)
+// 	defer srv.Shutdown()
+//
+// 	stream, err := mgr.NewStreamFromDefault("file1", file1Stream())
+// 	checkErr(t, err, "could not create stream: %v", err)
+// 	streamShouldExist(t, mgr, "file1")
+//
+// 	for i := 0; i < 1000; i++ {
+// 		nc.Publish("js.file.1", []byte(RandomString(5480)))
+// 	}
+//
+// 	tf, err := ioutil.TempFile("", "")
+// 	checkErr(t, err, "temp file failed")
+// 	tf.Close()
+// 	os.Remove(tf.Name())
+//
+// 	runNatsCli(t, fmt.Sprintf("--server='%s' str backup file1 %s --no-progress", srv.ClientURL(), tf.Name()))
+//
+// 	preState, err := stream.State()
+// 	checkErr(t, err, "state failed")
+// 	stream.Delete()
+//
+// 	runNatsCli(t, fmt.Sprintf("--server='%s' str restore file1 %s --no-progress", srv.ClientURL(), tf.Name()))
+// 	stream, err = mgr.NewStreamFromDefault("file1", file1Stream())
+// 	checkErr(t, err, "could not create stream: %v", err)
+//
+// 	postState, err := stream.State()
+// 	checkErr(t, err, "state failed")
+// 	if !reflect.DeepEqual(preState, postState) {
+// 		t.Fatalf("restored state differed")
+// 	}
+//
+// 	if postState.Msgs != 1000 {
+// 		t.Fatalf("Expected 1000 messages got %d", postState.Msgs)
+// 	}
+// }
 
 func RandomString(n int) string {
 	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -621,41 +621,41 @@ func TestCLIBackupRestore(t *testing.T) {
 	}
 }
 
-func TestCLIStreamBackupRestore(t *testing.T) {
-	srv, nc, mgr := setupConsTest(t)
-	defer srv.Shutdown()
-
-	dir, err := ioutil.TempDir("", "")
-	checkErr(t, err, "temp dir failed")
-	defer os.RemoveAll(dir)
-	target := filepath.Join(dir, "backup.tgz")
-
-	stream, err := mgr.NewStreamFromDefault("file1", file1Stream())
-	checkErr(t, err, "could not create stream: %v", err)
-	streamShouldExist(t, mgr, "file1")
-
-	for i := 0; i < 1024; i++ {
-		_, err = nc.Request("js.file.1", []byte(fmt.Sprintf("message %d", i)), time.Second)
-		checkErr(t, err, "publish failed")
-	}
-
-	runNatsCli(t, fmt.Sprintf("--server='%s' stream backup file1 %s", srv.ClientURL(), target))
-
-	err = stream.Delete()
-	checkErr(t, err, "delete failed")
-	streamShouldNotExist(t, mgr, "file1")
-
-	runNatsCli(t, fmt.Sprintf("--server='%s' stream restore file1 %s", srv.ClientURL(), target))
-	streamShouldExist(t, mgr, "file1")
-
-	stream, err = mgr.LoadStream("file1")
-	checkErr(t, err, "load failed")
-	state, err := stream.State()
-	checkErr(t, err, "state failed")
-	if state.LastSeq != 1024 {
-		t.Fatalf("expected 1024 messages got %d", state.LastSeq)
-	}
-}
+// func TestCLIStreamBackupRestore(t *testing.T) {
+// 	srv, nc, mgr := setupConsTest(t)
+// 	defer srv.Shutdown()
+//
+// 	dir, err := ioutil.TempDir("", "")
+// 	checkErr(t, err, "temp dir failed")
+// 	defer os.RemoveAll(dir)
+// 	target := filepath.Join(dir, "backup.tgz")
+//
+// 	stream, err := mgr.NewStreamFromDefault("file1", file1Stream())
+// 	checkErr(t, err, "could not create stream: %v", err)
+// 	streamShouldExist(t, mgr, "file1")
+//
+// 	for i := 0; i < 1024; i++ {
+// 		_, err = nc.Request("js.file.1", []byte(fmt.Sprintf("message %d", i)), time.Second)
+// 		checkErr(t, err, "publish failed")
+// 	}
+//
+// 	runNatsCli(t, fmt.Sprintf("--server='%s' stream backup file1 %s", srv.ClientURL(), target))
+//
+// 	err = stream.Delete()
+// 	checkErr(t, err, "delete failed")
+// 	streamShouldNotExist(t, mgr, "file1")
+//
+// 	runNatsCli(t, fmt.Sprintf("--server='%s' stream restore file1 %s", srv.ClientURL(), target))
+// 	streamShouldExist(t, mgr, "file1")
+//
+// 	stream, err = mgr.LoadStream("file1")
+// 	checkErr(t, err, "load failed")
+// 	state, err := stream.State()
+// 	checkErr(t, err, "state failed")
+// 	if state.LastSeq != 1024 {
+// 		t.Fatalf("expected 1024 messages got %d", state.LastSeq)
+// 	}
+// }
 
 func TestCLIBackupRestore_UpdateStream(t *testing.T) {
 	srv, _, mgr := setupConsTest(t)
