@@ -188,7 +188,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		return
 	}
 
-	fmt.Printf("Information for Consumer %s > %s\n", state.Stream, state.Name)
+	fmt.Printf("Information for Consumer %s > %s created %s\n", state.Stream, state.Name, state.Created.Local().Format(time.RFC3339))
 	fmt.Println()
 	fmt.Println("Configuration:")
 	fmt.Println()
@@ -244,10 +244,15 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		fmt.Printf("                Name: %s\n", state.Cluster.Name)
 		fmt.Printf("              Leader: %s\n", state.Cluster.Leader)
 		for _, r := range state.Cluster.Replicas {
+			since := fmt.Sprintf("seen %s ago", humanizeDuration(time.Since(r.Last)))
+			if r.Last.Equal(time.Unix(0, 0)) {
+				since = "not seen"
+			}
+
 			if r.Current {
-				fmt.Printf("             Replica: %s, current, seen %.2fs ago\n", r.Name, time.Since(r.Last).Seconds())
+				fmt.Printf("             Replica: %s, current, %s\n", r.Name, since)
 			} else {
-				fmt.Printf("             Replica: %s, outdated, seen %.2fs ago\n", r.Name, time.Since(r.Last).Seconds())
+				fmt.Printf("             Replica: %s, outdated, %s\n", r.Name, since)
 			}
 		}
 		fmt.Println()

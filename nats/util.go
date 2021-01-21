@@ -403,7 +403,7 @@ func humanizeDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm%ds", tmins, tsecs%60)
 	}
 
-	return fmt.Sprintf("%ds", tsecs)
+	return fmt.Sprintf("%.2fs", d.Seconds())
 }
 
 func humanizeTime(t time.Time) string {
