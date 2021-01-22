@@ -88,6 +88,8 @@ github.com/nats-io/nats-server/v2 v2.1.8-0.20200929001935-7f44d075f7ad/go.mod h1
 github.com/nats-io/nats-server/v2 v2.1.8-0.20201129161730-ebe63db3e3ed/go.mod h1:XD0zHR/jTXdZvWaQfS5mQgsXj6x12kMjKLyAk/cOGgY=
 github.com/nats-io/nats-server/v2 v2.1.8-0.20210120210020-5d7e69b5402c h1:H+8ArPNfI+o9OGryqEUcq2xkmDQoZwp2/l4Zb/sK/lY=
 github.com/nats-io/nats-server/v2 v2.1.8-0.20210120210020-5d7e69b5402c/go.mod h1:FA26zYxU8tj8QcKb0Ize7HaYub6zgI18BPd/yX7zoUY=
+github.com/nats-io/nats-server/v2 v2.1.8-0.20210122021634-d35cd2996dee h1:6brgRz8gKiznDkiQM7IP4Oeo5mwRqJRWF/GOoBo7Vh8=
+github.com/nats-io/nats-server/v2 v2.1.8-0.20210122021634-d35cd2996dee/go.mod h1:FA26zYxU8tj8QcKb0Ize7HaYub6zgI18BPd/yX7zoUY=
 github.com/nats-io/nats.go v1.10.0/go.mod h1:AjGArbfyR50+afOUotNX2Xs5SYHf+CoOa5HH1eEl2HE=
 github.com/nats-io/nats.go v1.10.1-0.20200531124210-96f2130e4d55/go.mod h1:ARiFsjW9DVxk48WJbO3OSZ2DG8fjkMi7ecLmXoY/n9I=
 github.com/nats-io/nats.go v1.10.1-0.20200606002146-fc6fed82929a h1:gzSKZOBlu/DpbuPbt34paXCOvA6+E+lVfU2BmomQ9HA=
