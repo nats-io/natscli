@@ -28,6 +28,12 @@ $ brew tap nats-io/nats-tools
 $ brew install nats-io/nats-tools/nats
 ```
 
+For Arch users there is an [AUR package](https://aur.archlinux.org/packages/natscli/) that you can install with:
+
+```
+yay natscli
+```
+
 Nightly builds are included in the `synadia/nats-server:nightly` Docker images.
 
 ### Configuration Contexts
