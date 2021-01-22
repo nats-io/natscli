@@ -669,6 +669,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.Duplicates = dw
 	}
 
+	if c.replicas != 0 {
+		cfg.Replicas = int(c.replicas)
+	}
+
 	return cfg, nil
 }
 
