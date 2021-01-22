@@ -30,6 +30,7 @@ type SrvRequestCmd struct {
 	host    string
 	cluster string
 	account string
+	tags    []string
 
 	limit   int
 	offset  int
@@ -53,6 +54,7 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	req.Flag("name", "Limit to servers matching a server name").StringVar(&c.name)
 	req.Flag("host", "Limit to servers matching a server host name").StringVar(&c.host)
 	req.Flag("cluster", "Limit to servers matching a cluster name").StringVar(&c.cluster)
+	req.Flag("tags", "Limit to servers with these configured tags").StringsVar(&c.tags)
 
 	subz := req.Command("subscriptions", "Show subscription information").Alias("sub").Alias("subsz").Action(c.subs)
 	subz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
@@ -95,6 +97,7 @@ func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
 		Name:    c.name,
 		Host:    c.host,
 		Cluster: c.cluster,
+		Tags:    c.tags,
 	}
 }
 
