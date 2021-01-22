@@ -18,6 +18,8 @@ and support full JetStream management.
 
 ### Installation
 
+[![Packaging status](https://repology.org/badge/vertical-allrepos/natscli.svg)](https://repology.org/project/natscli/versions)
+
 Releases are [published to GitHub](https://github.com/nats-io/natscli/releases/) where zip, rpm and debs for various
 operating systems can be found.
 
@@ -26,6 +28,12 @@ For OS X `brew` can be used to install the latest version:
 ```nohighlight
 $ brew tap nats-io/nats-tools
 $ brew install nats-io/nats-tools/nats
+```
+
+For Arch users there is an [AUR package](https://aur.archlinux.org/packages/natscli/) that you can install with:
+
+```
+yay natscli
 ```
 
 Nightly builds are included in the `synadia/nats-server:nightly` Docker images.
