@@ -18,8 +18,6 @@ and support full JetStream management.
 
 ### Installation
 
-[![Packaging status](https://repology.org/badge/vertical-allrepos/natscli.svg)](https://repology.org/project/natscli/versions)
-
 Releases are [published to GitHub](https://github.com/nats-io/natscli/releases/) where zip, rpm and debs for various
 operating systems can be found.
 
