@@ -811,8 +811,8 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		fmt.Printf("                 Name: %s\n", info.Cluster.Name)
 		fmt.Printf("               Leader: %s\n", info.Cluster.Leader)
 		for _, r := range info.Cluster.Replicas {
-			since := fmt.Sprintf("seen %s ago", humanizeDuration(time.Since(r.Last)))
-			if r.Last.Equal(time.Unix(0, 0)) {
+			since := fmt.Sprintf("seen %s ago", humanizeDuration(r.Active))
+			if r.Active == 0 {
 				since = "not seen"
 			}
 

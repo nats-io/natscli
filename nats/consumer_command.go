@@ -244,8 +244,8 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		fmt.Printf("                Name: %s\n", state.Cluster.Name)
 		fmt.Printf("              Leader: %s\n", state.Cluster.Leader)
 		for _, r := range state.Cluster.Replicas {
-			since := fmt.Sprintf("seen %s ago", humanizeDuration(time.Since(r.Last)))
-			if r.Last.Equal(time.Unix(0, 0)) {
+			since := fmt.Sprintf("seen %s ago", humanizeDuration(r.Active))
+			if r.Active == 0 {
 				since = "not seen"
 			}
 
