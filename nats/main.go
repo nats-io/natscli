@@ -88,6 +88,7 @@ func main() {
 	configureServerCommand(ncli)
 	configureStreamCommand(ncli)
 	configureSubCommand(ncli)
+	configureDevCommand(ncli)
 
 	kingpin.MustParse(ncli.Parse(os.Args[1:]))
 }
