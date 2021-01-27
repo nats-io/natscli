@@ -360,8 +360,10 @@ func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, *jsm.Manage
 		return nil, nil, err
 	}
 
-	jsopts := []jsm.Option{
-		jsm.WithAPIValidation(new(SchemaValidator)),
+	var jsopts []jsm.Option
+
+	if os.Getenv("NOVALIDATE") != "" {
+		jsopts = append(jsopts, jsm.WithAPIValidation(new(SchemaValidator)))
 	}
 
 	if timeout != 0 {

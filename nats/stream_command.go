@@ -805,7 +805,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	c.showStreamConfig(info.Config)
 	fmt.Println()
 
-	if info.Cluster != nil {
+	if info.Cluster != nil && info.Cluster.Name != "" {
 		fmt.Println("Cluster Information:")
 		fmt.Println()
 		fmt.Printf("                 Name: %s\n", info.Cluster.Name)

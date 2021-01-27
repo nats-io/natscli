@@ -238,7 +238,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 
 	fmt.Println()
 
-	if state.Cluster != nil {
+	if state.Cluster != nil && state.Cluster.Name != "" {
 		fmt.Println("Cluster Information:")
 		fmt.Println()
 		fmt.Printf("                Name: %s\n", state.Cluster.Name)
@@ -573,6 +573,11 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 		}, &c.maxAckPending)
 		kingpin.FatalIfError(err, "could not ask for maximum outstanding acknowledgements")
 	}
+
+	if c.maxAckPending == -1 {
+		c.maxAckPending = 0
+	}
+
 	cfg.MaxAckPending = c.maxAckPending
 
 	if c.maxDeliver != 0 && cfg.AckPolicy != api.AckNone {
