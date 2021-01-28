@@ -14,9 +14,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/dustin/go-humanize"
+	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -53,9 +55,10 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 	fmt.Println()
 
 	info, err := mgr.JetStreamAccountInfo()
-	if err == nil {
-		fmt.Println("JetStream Account Information:")
-		fmt.Println()
+	fmt.Println("JetStream Account Information:")
+	fmt.Println()
+	switch err {
+	case nil:
 		fmt.Printf("           Memory: %s of %s\n", humanize.IBytes(info.Memory), humanize.IBytes(uint64(info.Limits.MaxMemory)))
 		fmt.Printf("          Storage: %s of %s\n", humanize.IBytes(info.Store), humanize.IBytes(uint64(info.Limits.MaxStore)))
 
@@ -70,10 +73,13 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 		} else {
 			fmt.Printf("    Max Consumers: %d\n", info.Limits.MaxConsumers)
 		}
-	} else {
-		fmt.Println("JetStream Account Information:")
-		fmt.Println()
+
+	case context.DeadlineExceeded:
+		fmt.Printf("   No response from JetStream server")
+	case nats.ErrNoResponders:
 		fmt.Printf("   JetStream is not supported in this account")
+	default:
+		fmt.Printf("   Could not obtain account information: %s", err)
 	}
 
 	fmt.Println()
