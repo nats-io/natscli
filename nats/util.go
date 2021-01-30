@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/textproto"
 	"os"
@@ -435,6 +436,7 @@ func decodeHeadersMsg(data []byte) (http.Header, error) {
 
 type pubData struct {
 	Cnt       int
+	Count     int
 	Unix      int64
 	UnixNano  int64
 	TimeStamp string
@@ -446,7 +448,7 @@ func (p *pubData) ID() string {
 }
 
 func pubReplyBodyTemplate(body string, ctr int) ([]byte, error) {
-	templ, err := template.New("body").Parse(body)
+	templ, err := template.New("body").Funcs(map[string]interface{}{"Random": randomString}).Parse(body)
 	if err != nil {
 		return []byte(body), err
 	}
@@ -455,6 +457,7 @@ func pubReplyBodyTemplate(body string, ctr int) ([]byte, error) {
 	now := time.Now()
 	err = templ.Execute(&b, &pubData{
 		Cnt:       ctr,
+		Count:     ctr,
 		Unix:      now.Unix(),
 		UnixNano:  now.UnixNano(),
 		TimeStamp: now.Format(time.RFC3339),
@@ -465,6 +468,28 @@ func pubReplyBodyTemplate(body string, ctr int) ([]byte, error) {
 	}
 
 	return b.Bytes(), nil
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+func randomString(shortest uint, longest uint) string {
+	if shortest > longest {
+		shortest, longest = longest, shortest
+	}
+
+	desired := int(shortest)
+	if longest-shortest <= 0 {
+		desired += rand.Intn(int(longest))
+	} else {
+		desired += rand.Intn(int(longest - shortest))
+	}
+
+	b := make([]rune, desired)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+
+	return string(b)
 }
 
 func parseStringsToHeader(hdrs []string, seq int, msg *nats.Msg) error {
@@ -503,6 +528,8 @@ func loadContext() error {
 
 func prepareConfig(_ *kingpin.ParseContext) (err error) {
 	loadContext()
+
+	rand.Seed(time.Now().UnixNano())
 
 	return nil
 }

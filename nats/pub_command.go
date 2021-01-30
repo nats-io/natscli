@@ -44,16 +44,24 @@ When publishing multiple messages using the "count" flag
 the body and Header values of the messages may use Go
 templates to create multiple unique messages.
 
-   nats pub test --count 10 "Message {{.Cnt}} @ {{.Time}}"
+   nats pub test --count 10 "Message {{.Count}} @ {{.Time}}"
+
+Multiple messages with random strings between 10 and 100 long:
+
+   nats pub test --count 10 "Message {{.Count }}: {{ Random 10 100 }}"
 
 Available template variables are:
 
-   .Cnt       the message number
+   .Count     the message number
    .TimeStamp RFC3339 format current time
    .Unix      seconds since 1970 in UTC
    .UnixNano  nano seconds since 1970 in UTC
    .Time      the current time
    .ID        generates a unique ID
+
+Available template functions are:
+
+    Random(min, max) Random string at least min long, at most max 
 
 `
 	pub := app.Command("pub", help).Action(c.publish)
@@ -179,7 +187,7 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 			return err
 		}
 
-		log.Printf("Published %d bytes to %q\n", len(c.body), c.subject)
+		log.Printf("Published %d bytes to %q\n", len(body), c.subject)
 	}
 
 	return nil
