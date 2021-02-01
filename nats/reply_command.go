@@ -56,24 +56,21 @@ This will request the weather for london when invoked as:
 
 The body and Header values of the messages may use Go templates to create unique messages.
 
-   nats reply test "Message {{.Count}} @ {{.Time}}"
+   nats reply test "Message {{Count}} @ {{Time}}"
 
 Multiple messages with random strings between 10 and 100 long:
 
-   nats pub test --count 10 "Message {{.Count }}: {{ Random 10 100 }}"
-
-Available template variables are:
-
-   .Count     the message number
-   .TimeStamp RFC3339 format current time
-   .Unix      seconds since 1970 in UTC
-   .UnixNano  nano seconds since 1970 in UTC
-   .Time      the current time
-   .ID        generates a unique ID
+   nats pub test --count 10 "Message {{Count}}: {{ Random 10 100 }}"
 
 Available template functions are:
 
-    Random(min, max) Random string at least min long, at most max 
+   Count            the message number
+   TimeStamp        RFC3339 format current time
+   Unix             seconds since 1970 in UTC
+   UnixNano         nano seconds since 1970 in UTC
+   Time             the current time
+   ID               an unique ID
+   Random(min, max) random string at least min long, at most max 
 
 `
 
