@@ -38,33 +38,29 @@ type pubCmd struct {
 
 func configurePubCommand(app *kingpin.Application) {
 	c := &pubCmd{}
-	help := `Generic data publishing utility
+	help := `%s
 
-When publishing multiple messages using the "count" flag
-the body and Header values of the messages may use Go
-templates to create multiple unique messages.
+Body and Header values of the messages may use Go templates to 
+create unique messages.
 
-   nats pub test --count 10 "Message {{.Count}} @ {{.Time}}"
+   nats pub test --count 10 "Message {{Count}} @ {{Time}}"
 
 Multiple messages with random strings between 10 and 100 long:
 
-   nats pub test --count 10 "Message {{.Count }}: {{ Random 10 100 }}"
-
-Available template variables are:
-
-   .Count     the message number
-   .TimeStamp RFC3339 format current time
-   .Unix      seconds since 1970 in UTC
-   .UnixNano  nano seconds since 1970 in UTC
-   .Time      the current time
-   .ID        generates a unique ID
+   nats pub test --count 10 "Message {{Count}}: {{ Random 10 100 }}"
 
 Available template functions are:
 
-    Random(min, max) Random string at least min long, at most max 
+   Count            the message number
+   TimeStamp        RFC3339 format current time
+   Unix             seconds since 1970 in UTC
+   UnixNano         nano seconds since 1970 in UTC
+   Time             the current time
+   ID               an unique ID
+   Random(min, max) random string at least min long, at most max 
 
 `
-	pub := app.Command("pub", help).Action(c.publish)
+	pub := app.Command("pub", fmt.Sprintf(help, "Generic data publish utilty")).Action(c.publish)
 	pub.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	pub.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	pub.Flag("wait", "Wait for a reply from a service").Short('w').BoolVar(&c.req)
@@ -72,7 +68,7 @@ Available template functions are:
 	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 
-	req := app.Command("request", "Generic data request utility").Alias("req").Action(c.publish)
+	req := app.Command("request", fmt.Sprintf(help, "Generic data request utility")).Alias("req").Action(c.publish)
 	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	req.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	req.Flag("wait", "Wait for a reply from a service").Short('w').Default("true").Hidden().BoolVar(&c.req)

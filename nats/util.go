@@ -448,13 +448,23 @@ func (p *pubData) ID() string {
 }
 
 func pubReplyBodyTemplate(body string, ctr int) ([]byte, error) {
-	templ, err := template.New("body").Funcs(map[string]interface{}{"Random": randomString}).Parse(body)
+	now := time.Now()
+	funcMap := template.FuncMap{
+		"Random":    randomString,
+		"Count":     func() int { return ctr },
+		"Cnt":       func() int { return ctr },
+		"Unix":      func() int64 { return now.Unix() },
+		"UnixNano":  func() int64 { return now.UnixNano() },
+		"TimeStamp": func() string { return now.Format(time.RFC3339) },
+		"Time":      func() string { return now.Format(time.Kitchen) },
+	}
+
+	templ, err := template.New("body").Funcs(funcMap).Parse(body)
 	if err != nil {
 		return []byte(body), err
 	}
 
 	var b bytes.Buffer
-	now := time.Now()
 	err = templ.Execute(&b, &pubData{
 		Cnt:       ctr,
 		Count:     ctr,
