@@ -63,15 +63,15 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 		fmt.Printf("          Storage: %s of %s\n", humanize.IBytes(info.Store), humanize.IBytes(uint64(info.Limits.MaxStore)))
 
 		if info.Limits.MaxStreams == -1 {
-			fmt.Printf("          Streams: %d of Unlimited\n", info.Streams)
+			fmt.Printf("          Streams: %s of Unlimited\n", humanize.Comma(int64(info.Streams)))
 		} else {
-			fmt.Printf("          Streams: %d of %d\n", info.Streams, info.Limits.MaxStreams)
+			fmt.Printf("          Streams: %s of %s\n", humanize.Comma(int64(info.Streams)), humanize.Comma(int64(info.Limits.MaxStreams)))
 		}
 
 		if info.Limits.MaxConsumers == -1 {
-			fmt.Println("    Max Consumers: unlimited")
+			fmt.Printf("        Consumers: %s of Unlimited\n", humanize.Comma(int64(info.Consumers)))
 		} else {
-			fmt.Printf("    Max Consumers: %d\n", info.Limits.MaxConsumers)
+			fmt.Printf("        Consumers: %s of %s\n", humanize.Comma(int64(info.Consumers)), humanize.Comma(int64(info.Limits.MaxConsumers)))
 		}
 
 	case context.DeadlineExceeded:
