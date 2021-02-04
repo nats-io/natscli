@@ -26,7 +26,7 @@ type actCmd struct{}
 
 func configureActCommand(app *kingpin.Application) {
 	c := &actCmd{}
-	act := app.Command("account", "Account information and status")
+	act := app.Command("account", "Account information and status").Alias("a")
 	act.Command("info", "Account information").Alias("nfo").Action(c.infoAction)
 }
 

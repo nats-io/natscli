@@ -72,6 +72,8 @@ type streamCmd struct {
 	healthCheck         bool
 	dupeWindow          string
 	replicas            int64
+	placementCluster    string
+	placementTags       []string
 
 	vwStartId    int
 	vwStartDelta time.Duration
@@ -98,6 +100,8 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
 		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
+		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
+		f.Flag("tags", "Place the stream on servers that has specific tags").StringsVar(&c.placementTags)
 	}
 
 	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
@@ -669,6 +673,28 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.Duplicates = dw
 	}
 
+	if c.replicas != 0 {
+		cfg.Replicas = int(c.replicas)
+	}
+
+	if c.placementCluster != "" {
+		if cfg.Placement == nil {
+			cfg.Placement = &api.Placement{}
+		}
+		cfg.Placement.Cluster = c.placementCluster
+	}
+
+	if len(c.placementTags) == 0 {
+		if cfg.Placement == nil {
+			cfg.Placement = &api.Placement{}
+		}
+		cfg.Placement.Tags = c.placementTags
+	}
+
+	if cfg.Placement.Cluster == "" {
+		cfg.Placement = nil
+	}
+
 	return cfg, nil
 }
 
@@ -779,6 +805,15 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	}
 	if cfg.Template != "" {
 		fmt.Printf("  Managed by Template: %s\n", cfg.Template)
+	}
+	if cfg.Placement != nil {
+		if cfg.Placement.Cluster != "" {
+			fmt.Printf("    Placement Cluster: %s\n", cfg.Placement.Cluster)
+		}
+		if len(cfg.Placement.Tags) > 0 {
+			fmt.Printf("       Placement Tags: %s\n", strings.Join(cfg.Placement.Tags, ", "))
+		}
+		fmt.Println()
 	}
 }
 
@@ -929,6 +964,10 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 			c.stream = cfg.Name
 		}
 
+		if len(c.subjects) > 0 {
+			cfg.Subjects = c.subjects
+		}
+
 		return cfg
 	}
 
@@ -1056,6 +1095,13 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		Replicas:     int(c.replicas),
 	}
 
+	if c.placementCluster != "" || len(c.placementTags) > 0 {
+		cfg.Placement = &api.Placement{
+			Cluster: c.placementCluster,
+			Tags:    c.placementTags,
+		}
+	}
+
 	return cfg
 }
 
@@ -1065,12 +1111,16 @@ func (c *streamCmd) validateCfg(cfg *api.StreamConfig) (bool, []byte, []string, 
 		return false, nil, nil, err
 	}
 
-	valid, errs := cfg.Validate()
+	if os.Getenv("NOVALIDATE") != "" {
+		return true, nil, nil, nil
+	}
+
+	valid, errs := cfg.Validate(new(SchemaValidator))
 
 	return valid, j, errs, nil
 }
 
-func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
+func (c *streamCmd) addAction(_ *kingpin.ParseContext) (err error) {
 	cfg := c.prepareConfig()
 
 	switch {
@@ -1086,7 +1136,7 @@ func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 			kingpin.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
 		}
 
-		fmt.Println("Configuration is a valid Stream")
+		fmt.Printf("Configuration is a valid Stream matching %s\n", cfg.SchemaType())
 		return nil
 
 	case c.outFile != "":

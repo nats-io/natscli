@@ -95,6 +95,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		memory      int64  = 0
 		slow        int64  = 0
 		subs        uint32 = 0
+		js                 = 0
 		start              = time.Now()
 	)
 
@@ -113,6 +114,9 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		memory += ssm.Stats.Mem
 		slow += ssm.Stats.SlowConsumers
 		subs += ssm.Stats.NumSubs
+		if ssm.Server.JetStream {
+			js++
+		}
 
 		cluster := ssm.Server.Cluster
 		if cluster != "" {
@@ -169,7 +173,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 
 	table := tablewriter.CreateTable()
 	table.AddTitle("Server Overview")
-	table.AddHeaders("Name", "Cluster", "IP", "Version", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU", "Slow", "Uptime", "RTT")
+	table.AddHeaders("Name", "Cluster", "IP", "Version", "JS", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU", "Slow", "Uptime", "RTT")
 
 	rev := func(v bool) bool {
 		if c.reverse {
@@ -205,11 +209,15 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	})
 
 	for _, ssm := range results {
-		table.AddRow(ssm.Server.Name, ssm.Server.Cluster, ssm.Server.Host, ssm.Server.Version, ssm.Stats.Connections, ssm.Stats.NumSubs, len(ssm.Stats.Routes), len(ssm.Stats.Gateways), humanize.IBytes(uint64(ssm.Stats.Mem)), fmt.Sprintf("%.1f", ssm.Stats.CPU), ssm.Stats.SlowConsumers, humanizeTime(ssm.Stats.Start), ssm.rtt)
+		jsEnabled := "no"
+		if ssm.Server.JetStream {
+			jsEnabled = "yes"
+		}
+		table.AddRow(ssm.Server.Name, ssm.Server.Cluster, ssm.Server.Host, ssm.Server.Version, jsEnabled, ssm.Stats.Connections, ssm.Stats.NumSubs, len(ssm.Stats.Routes), len(ssm.Stats.Gateways), humanize.IBytes(uint64(ssm.Stats.Mem)), fmt.Sprintf("%.1f", ssm.Stats.CPU), ssm.Stats.SlowConsumers, humanizeTime(ssm.Stats.Start), ssm.rtt)
 	}
 
 	table.AddSeparator()
-	table.AddRow("", fmt.Sprintf("%d Clusters", len(clusters)), fmt.Sprintf("%d Servers", servers), "", connections, subs, "", "", humanize.IBytes(uint64(memory)), "", slow, "", "")
+	table.AddRow("", fmt.Sprintf("%d Clusters", len(clusters)), fmt.Sprintf("%d Servers", servers), "", js, connections, subs, "", "", humanize.IBytes(uint64(memory)), "", slow, "", "")
 	fmt.Print(table.Render())
 
 	if c.expect != 0 && c.expect != seen {
