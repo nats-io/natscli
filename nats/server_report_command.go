@@ -295,7 +295,7 @@ func (c *SrvReportCmd) renderConnections(report []*server.ConnInfo) {
 func (c *SrvReportCmd) getConnz(current []*server.Connz, nc *nats.Conn, level int) (result []*server.Connz, all bool, err error) {
 	// warn every 5 levels that we're still recursing...
 	if level != 0 && level%5 == 0 {
-		log.Printf("Recusring into %d servers to resolve all pages of connection info", len(current))
+		log.Printf("Recursing into %d servers to resolve all pages of connection info", len(current))
 	}
 
 	if current == nil {
