@@ -45,6 +45,9 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 	fmt.Printf("                     RTT: %v\n", rtt)
 	fmt.Printf("       Headers Supported: %v\n", nc.HeadersSupported())
 	fmt.Printf("         Maximum Payload: %v\n", humanize.IBytes(uint64(nc.MaxPayload())))
+	if nc.ConnectedClusterName() != "" {
+		fmt.Printf("       Connected Cluster: %s\n", nc.ConnectedClusterName())
+	}
 	fmt.Printf("           Connected URL: %v\n", nc.ConnectedUrl())
 	fmt.Printf("       Connected Address: %v\n", nc.ConnectedAddr())
 	fmt.Printf("     Connected Server ID: %v\n", nc.ConnectedServerId())
