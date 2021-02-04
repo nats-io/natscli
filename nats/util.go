@@ -363,7 +363,7 @@ func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, *jsm.Manage
 
 	var jsopts []jsm.Option
 
-	if os.Getenv("NOVALIDATE") != "" {
+	if os.Getenv("NOVALIDATE") == "" {
 		jsopts = append(jsopts, jsm.WithAPIValidation(new(SchemaValidator)))
 	}
 

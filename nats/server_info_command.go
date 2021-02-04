@@ -120,6 +120,23 @@ func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
 	}
 
 	fmt.Println()
+	if varz.JetStream.Config.StoreDir != "" {
+		js := varz.JetStream
+		fmt.Printf("%s\n\n", bold("JetStream:"))
+		if len(varz.Tags) > 0 {
+			fmt.Printf("         Server Tags: %s\n", strings.Join(varz.Tags, ", "))
+		}
+		fmt.Printf("   Storage Directory: %s\n", js.Config.StoreDir)
+		fmt.Printf("          Max Memory: %s\n", humanize.IBytes(uint64(js.Config.MaxMemory)))
+		fmt.Printf("            Max File: %s\n", humanize.IBytes(uint64(js.Config.MaxStore)))
+		fmt.Printf("      Active Acconts: %s\n", humanize.Comma(int64(js.Stats.Accounts)))
+		fmt.Printf("       Memory In Use: %s\n", humanize.IBytes(js.Stats.Memory))
+		fmt.Printf("         File In Use: %s\n", humanize.IBytes(js.Stats.Store))
+		fmt.Printf("        API Requests: %s\n", humanize.Comma(int64(js.Stats.API.Total)))
+		fmt.Printf("          API Errors: %s\n", humanize.Comma(int64(js.Stats.API.Errors)))
+		fmt.Println()
+	}
+
 	fmt.Printf("%s\n\n", bold("Limits:"))
 	fmt.Printf("        Max Conn: %d\n", varz.MaxConn)
 	fmt.Printf("        Max Subs: %d\n", varz.MaxSubs)

@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -598,7 +599,11 @@ func (c *consumerCmd) validateCfg(cfg *api.ConsumerConfig) (bool, []byte, []stri
 		return false, nil, nil, err
 	}
 
-	valid, errs := cfg.Validate()
+	if os.Getenv("NOVALIDATE") != "" {
+		return true, nil, nil, nil
+	}
+
+	valid, errs := cfg.Validate(new(SchemaValidator))
 
 	return valid, j, errs, nil
 }
@@ -647,14 +652,25 @@ func (c *consumerCmd) createAction(_ *kingpin.ParseContext) (err error) {
 }
 
 func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
+	req := &api.JSApiConsumerGetNextRequest{Batch: 1, Expires: time.Now().Add(timeout)}
+
 	if trace {
+		jreq, err := json.Marshal(req)
+		kingpin.FatalIfError(err, "could not marshal next request")
 		subj, err := jsm.NextSubject(stream, consumer)
 		kingpin.FatalIfError(err, "could not load next message")
-		log.Printf(">>> %s", subj)
+		log.Printf(">>> %s: %s", subj, jreq)
 	}
 
-	msg, err := c.mgr.NextMsg(stream, consumer)
-	kingpin.FatalIfError(err, "could not load next message")
+	sub, err := c.nc.SubscribeSync(nats.NewInbox())
+	kingpin.FatalIfError(err, "subscribe failed")
+	sub.AutoUnsubscribe(1)
+
+	err = c.mgr.NextMsgRequest(stream, consumer, sub.Subject, req)
+	kingpin.FatalIfError(err, "could not request next message")
+
+	msg, err := sub.NextMsg(timeout)
+	kingpin.FatalIfError(err, "no message received")
 
 	if !c.raw {
 		info, err := jsm.ParseJSMsgMetadata(msg)
