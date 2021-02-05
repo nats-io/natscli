@@ -74,6 +74,7 @@ type streamCmd struct {
 	replicas            int64
 	placementCluster    string
 	placementTags       []string
+	peerName            string
 
 	vwStartId    int
 	vwStartDelta time.Duration
@@ -177,6 +178,14 @@ func configureStreamCommand(app *kingpin.Application) {
 	strRestore.Arg("file", "The file holding the backup to restore").Required().ExistingFileVar(&c.backupFile)
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 
+	strCluster := str.Command("cluster", "Manages a clustered Stream").Alias("c")
+	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
+	strClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
+
+	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the JetStream cluster").Alias("pr").Action(c.removePeer)
+	strClusterRemovePeer.Arg("stream", "The stream to act on").StringVar(&c.stream)
+	strClusterRemovePeer.Arg("peer", "The name of the peer to remove").StringVar(&c.peerName)
+
 	strTemplate := str.Command("template", "Manages Stream Templates").Alias("templ").Alias("t")
 
 	strTAdd := strTemplate.Command("create", "Creates a new Stream Template").Alias("add").Alias("new").Action(c.streamTemplateAdd)
@@ -194,6 +203,102 @@ func configureStreamCommand(app *kingpin.Application) {
 	strTRm := strTemplate.Command("rm", "Removes a Stream Template").Alias("delete").Alias("del").Action(c.streamTemplateRm)
 	strTRm.Arg("template", "Stream Template name").StringVar(&c.stream)
 	strTRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+}
+
+func (c *streamCmd) leaderStandDown(_ *kingpin.ParseContext) error {
+	c.connectAndAskStream()
+
+	stream, err := c.mgr.LoadStream(c.stream)
+	if err != nil {
+		return err
+	}
+
+	info, err := stream.LatestInformation()
+	if err != nil {
+		return err
+	}
+
+	if info.Cluster == nil {
+		return fmt.Errorf("stream %q is not clustered", stream.Name())
+	}
+
+	leader := info.Cluster.Leader
+	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(info.Cluster.Replicas)+1)
+	err = stream.LeaderStepDown()
+	if err != nil {
+		return err
+	}
+
+	ctr := 0
+	start := time.Now()
+	for range time.NewTimer(500 * time.Millisecond).C {
+		if ctr == 5 {
+			return fmt.Errorf("stream did not elect a new leader in time")
+		}
+		ctr++
+
+		info, err = stream.Information()
+		if err != nil {
+			log.Printf("Failed to retrieve Stream State: %s", err)
+			continue
+		}
+
+		if info.Cluster.Leader != leader {
+			log.Printf("New leader elected %q", info.Cluster.Leader)
+			break
+		}
+	}
+
+	if info.Cluster.Leader == leader {
+		log.Printf("Leader did not change after %s", time.Since(start).Round(time.Millisecond))
+	}
+
+	fmt.Println()
+	return c.showStream(stream)
+}
+
+func (c *streamCmd) removePeer(_ *kingpin.ParseContext) error {
+	c.connectAndAskStream()
+
+	stream, err := c.mgr.LoadStream(c.stream)
+	if err != nil {
+		return err
+	}
+
+	info, err := stream.Information()
+	if err != nil {
+		return err
+	}
+
+	if info.Cluster == nil {
+		return fmt.Errorf("stream %q is not clustered", stream.Name())
+	}
+
+	if c.peerName == "" {
+		peerNames := []string{info.Cluster.Leader}
+		for _, r := range info.Cluster.Replicas {
+			peerNames = append(peerNames, r.Name)
+		}
+
+		err = survey.AskOne(&survey.Select{
+			Message: "Select a Peer",
+			Options: peerNames,
+		}, &c.peerName)
+		if err != nil {
+			return err
+		}
+	}
+
+	log.Printf("Removing peer %q", c.peerName)
+
+	err = stream.RemoveRAFTPeer(c.peerName)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Requested removal of peer %q", c.peerName)
+
+	return nil
 }
 
 func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {

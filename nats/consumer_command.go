@@ -125,6 +125,64 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consSub.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consSub.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consSub.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
+
+	conCluster := cons.Command("cluster", "Manages a clustered Consumer").Alias("c")
+	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
+	conClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
+	conClusterDown.Arg("consumer", "Consumer to act on").StringVar(&c.consumer)
+}
+
+func (c *consumerCmd) leaderStandDown(_ *kingpin.ParseContext) error {
+	c.connectAndSetup(true, true)
+
+	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
+	if err != nil {
+		return err
+	}
+
+	info, err := consumer.State()
+	if err != nil {
+		return err
+	}
+
+	if info.Cluster == nil {
+		return fmt.Errorf("consumer %q > %q is not clustered", consumer.StreamName(), consumer.Name())
+	}
+
+	leader := info.Cluster.Leader
+	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(info.Cluster.Replicas)+1)
+	err = consumer.LeaderStepDown()
+	if err != nil {
+		return err
+	}
+
+	ctr := 0
+	start := time.Now()
+	for range time.NewTimer(500 * time.Millisecond).C {
+		if ctr == 5 {
+			return fmt.Errorf("consumer did not elect a new leader in time")
+		}
+		ctr++
+
+		info, err = consumer.State()
+		if err != nil {
+			log.Printf("Failed to retrieve Consumer State: %s", err)
+			continue
+		}
+
+		if info.Cluster.Leader != leader {
+			log.Printf("New leader elected %q", info.Cluster.Leader)
+			break
+		}
+	}
+
+	if info.Cluster.Leader == leader {
+		log.Printf("Leader did not change after %s", time.Since(start).Round(time.Millisecond))
+	}
+
+	fmt.Println()
+	c.showConsumer(consumer)
+	return nil
 }
 
 func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
