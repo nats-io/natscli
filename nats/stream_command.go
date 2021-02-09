@@ -951,16 +951,33 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		fmt.Printf("                 Name: %s\n", info.Cluster.Name)
 		fmt.Printf("               Leader: %s\n", info.Cluster.Leader)
 		for _, r := range info.Cluster.Replicas {
-			since := fmt.Sprintf("seen %s ago", humanizeDuration(r.Active))
-			if r.Active == 0 {
-				since = "not seen"
-			}
+			state := []string{r.Name}
 
 			if r.Current {
-				fmt.Printf("              Replica: %s, current, %s\n", r.Name, since)
+				state = append(state, "current")
 			} else {
-				fmt.Printf("              Replica: %s, outdated, %s\n", r.Name, since)
+				state = append(state, "outdated")
 			}
+
+			if r.Offline {
+				state = append(state, "OFFLINE")
+			}
+
+			if r.Active > 0 {
+				state = append(state, fmt.Sprintf("seen %s ago", humanizeDuration(r.Active)))
+			} else {
+				state = append(state, "not seen")
+			}
+
+			switch {
+			case r.Lag > 1:
+				state = append(state, fmt.Sprintf("%d operations behind", r.Lag))
+			case r.Lag == 1:
+				state = append(state, fmt.Sprintf("%d operation behind", r.Lag))
+			}
+
+			fmt.Printf("              Replica: %s\n", strings.Join(state, ", "))
+
 		}
 		fmt.Println()
 	}
@@ -980,6 +997,10 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		fmt.Printf("              LastSeq: %s\n", humanize.Comma(int64(info.State.LastSeq)))
 	} else {
 		fmt.Printf("              LastSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.LastSeq)), info.State.LastTime.Format("2006-01-02T15:04:05"))
+	}
+
+	if len(info.State.Deleted) > 0 {
+		fmt.Printf("     Deleted Messages: %d\n", len(info.State.Deleted))
 	}
 
 	fmt.Printf("     Active Consumers: %d\n", info.State.Consumers)
