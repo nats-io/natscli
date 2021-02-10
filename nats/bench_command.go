@@ -50,6 +50,13 @@ func configureBenchCommand(app *kingpin.Application) {
 	bench.Flag("csv", "Save benchmark data to CSV file").StringVar(&c.csvFile)
 	bench.Flag("progress", "Enable progress bar while publishing").Default("true").BoolVar(&c.progress)
 	bench.Flag("ack", "Waits for acknowledgement on messages using Requests rather than Publish").Default("false").BoolVar(&c.ack)
+
+	cheats["bench"] = `# benchmark JetStream acknowledged publishes
+nats bench --ack --msgs 10000 ORDERS.bench
+
+# benchmark core nats publish and subscribe with 10 publishers and subscribers
+nats bench --pub 10 --sub 10 --msgs 10000 --size 512
+`
 }
 
 func (c *benchCmd) bench(_ *kingpin.ParseContext) error {

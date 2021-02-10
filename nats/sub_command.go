@@ -39,6 +39,10 @@ func configureSubCommand(app *kingpin.Application) {
 	act.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)
 	act.Flag("raw", "Show the raw data received").Short('r').BoolVar(&c.raw)
 	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
+
+	cheats["sub"] = `# To subscribe to messages, in a queue group and acknowledge any JetStream ones
+nats sub source.subject --queue work --ack
+`
 }
 
 func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {

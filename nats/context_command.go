@@ -42,6 +42,12 @@ func configureCtxCommand(app *kingpin.Application) {
 
 	context := app.Command("context", "Manage nats configuration contexts").Alias("ctx")
 
+	save := context.Command("save", "Update or create a context").Alias("add").Alias("create").Action(c.createCommand)
+	save.Arg("name", "The context name to act on").Required().StringVar(&c.name)
+	save.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
+	save.Flag("select", "Select the saved context as the default one").BoolVar(&c.activate)
+	save.Flag("nsc", "URL to a nsc user, eg. nsc://<operator>/<account>/<user>").StringVar(&c.nsc)
+
 	edit := context.Command("edit", "Edit a context in your EDITOR").Alias("vi").Action(c.editCommand)
 	edit.Arg("name", "The context name to edit").Required().StringVar(&c.name)
 
@@ -50,12 +56,6 @@ func configureCtxCommand(app *kingpin.Application) {
 	rm := context.Command("rm", "Remove a context").Alias("remove").Action(c.removeCommand)
 	rm.Arg("name", "The context name to remove").Required().StringVar(&c.name)
 	rm.Flag("force", "Force remove without prompting").Short('f').BoolVar(&c.force)
-
-	save := context.Command("save", "Update or create a context").Alias("add").Alias("create").Action(c.createCommand)
-	save.Arg("name", "The context name to act on").Required().StringVar(&c.name)
-	save.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
-	save.Flag("select", "Select the saved context as the default one").BoolVar(&c.activate)
-	save.Flag("nsc", "URL to a nsc user, eg. nsc://<operator>/<account>/<user>").StringVar(&c.nsc)
 
 	pick := context.Command("select", "Select the default context").Alias("switch").Alias("set").Action(c.selectCommand)
 	pick.Arg("name", "The context name to select").StringVar(&c.name)
@@ -68,6 +68,22 @@ func configureCtxCommand(app *kingpin.Application) {
 	validate := context.Command("validate", "Validate one or all contexts").Action(c.validateCommand)
 	validate.Arg("name", "Validate a specific context, validates all when not supplied").StringVar(&c.name)
 	validate.Flag("connect", "Attempts to connect to NATS using the context while validating").BoolVar(&c.activate)
+
+	cheats["contexts"] = `# Create or update
+nats context add development --server nats.dev.example.net:4222 [other standard connection properties]
+nats context add ngs --description "NGS Connection in Orders Account" --nsc nsc://acme/orders/new
+nats context edit development [standard connection properties]
+
+# View contexts
+nats context ls
+nats context show development --json
+
+# Validate all connections are valid and that connections can be established
+nats context validate --connect
+
+# Select a new default context
+nats context select
+`
 }
 
 func (c *ctxCommand) hasOverrides() bool {

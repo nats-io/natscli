@@ -42,6 +42,8 @@ var (
 	// used during tests
 	skipContexts bool
 
+	cheats = map[string]string{}
+
 	// These are persisted by contexts, as properties thereof.
 	// So don't include NATS_CONTEXT in this list.
 	overrideEnvVars = []string{"NATS_URL", "NATS_USER", "NATS_PASSWORD", "NATS_CREDS", "NATS_NKEY", "NATS_CERT", "NATS_KEY", "NATS_CA", "NATS_TIMEOUT"}
@@ -89,6 +91,7 @@ func main() {
 	configureStreamCommand(ncli)
 	configureSubCommand(ncli)
 	configureDevCommand(ncli)
+	configureCheatCommand(ncli)
 
 	kingpin.MustParse(ncli.Parse(os.Args[1:]))
 }

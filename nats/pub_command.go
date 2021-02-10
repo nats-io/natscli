@@ -68,6 +68,12 @@ Available template functions are:
 	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 
+	cheats["pub"] = `# To publish 100 messages with a random body between 100 and 1000 characters
+nats pub destination.subject "{{ Random 100 1000 }}" -H Count:{{ Count }} --count 100
+echo "hello world" | nats pub destination.subject
+nats request destination.subject "hello world" -H "Content-type:text/plain" --raw
+`
+
 	req := app.Command("request", fmt.Sprintf(help, "Generic data request utility")).Alias("req").Action(c.publish)
 	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	req.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)

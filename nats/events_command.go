@@ -57,6 +57,13 @@ func configureEventsCommand(app *kingpin.Application) {
 	events.Flag("js-advisory", "Shows advisory events (false)").Default("false").BoolVar(&c.showJsAdvisories)
 	events.Flag("srv-advisory", "Shows NATS Server advisories (true)").Default("true").BoolVar(&c.showServerAdvisories)
 	events.Flag("subjects", "Show Advisories and Metrics received on specific subjects").PlaceHolder("SUBJECTS").StringsVar(&c.extraSubjects)
+
+	cheats["events"] = `# To view common system events
+nats events
+nats events --short --all
+nats events --no-srv-advisory --js-metric --js-advisory
+nats events --no-srv-advisory --subjects service.latency.weather
+`
 }
 
 func (c *eventsCmd) handleNATSEvent(m *nats.Msg) {
