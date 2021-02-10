@@ -51,6 +51,10 @@ func configureLatencyCommand(app *kingpin.Application) {
 	latency.Flag("rate", "Rate of messages per second").Default("1000").IntVar(&c.targetPubRate)
 	latency.Flag("duration", "Test duration").Default("5s").DurationVar(&c.testDuration)
 	latency.Flag("histogram", "Output file to store the histogram in").StringVar(&c.histFile)
+
+	cheats["latency"] = `# To test latency between 2 servers
+nats latency --server srv1.example.net:4222 --server-b srv2.example.net:4222 --duration 10s
+`
 }
 
 func (c *latencyCmd) latencyAction(_ *kingpin.ParseContext) error {

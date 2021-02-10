@@ -28,6 +28,11 @@ func configureActCommand(app *kingpin.Application) {
 	c := &actCmd{}
 	act := app.Command("account", "Account information and status").Alias("a")
 	act.Command("info", "Account information").Alias("nfo").Action(c.infoAction)
+
+	cheats["account"] = `# To view account information and connection
+nats account info
+`
+
 }
 
 func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {

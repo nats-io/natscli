@@ -82,6 +82,14 @@ Available template functions are:
 	act.Flag("queue", "Queue group name").Default("NATS-RPLY-22").Short('q').StringVar(&c.queue)
 	act.Flag("sleep", "Inject a random sleep delay between replies up to this duration max").PlaceHolder("MAX").DurationVar(&c.sleep)
 	act.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
+
+	cheats["reply"] = `# To set up a responder that runs an external command with the 3rd subject token as argument
+nats reply "service.requests.>" --command "service.sh {{2}}"
+
+# To set up basic responder
+nats reply service.requests "Message {{Count}} @ {{Time}}"
+nats reply service.requests --echo --sleep 10
+`
 }
 
 func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
