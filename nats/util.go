@@ -26,6 +26,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 	"text/template"
 	"time"
 	"unicode"
@@ -34,6 +35,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
+	terminal "golang.org/x/term"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go"
@@ -69,8 +71,9 @@ func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool
 		c := ""
 
 		err = survey.AskOne(&survey.Select{
-			Message: "Select a Consumer",
-			Options: consumers,
+			Message:  "Select a Consumer",
+			Options:  consumers,
+			PageSize: selectPageSize(len(consumers)),
 		}, &c)
 		if err != nil {
 			return "", err
@@ -108,8 +111,9 @@ func selectStreamTemplate(mgr *jsm.Manager, template string, force bool) (string
 		s := ""
 
 		err = survey.AskOne(&survey.Select{
-			Message: "Select a Stream Template",
-			Options: templates,
+			Message:  "Select a Stream Template",
+			Options:  templates,
+			PageSize: selectPageSize(len(templates)),
 		}, &s)
 		if err != nil {
 			return "", err
@@ -148,8 +152,9 @@ func selectStream(mgr *jsm.Manager, stream string, force bool) (string, error) {
 		s := ""
 
 		err = survey.AskOne(&survey.Select{
-			Message: "Select a Stream",
-			Options: streams,
+			Message:  "Select a Stream",
+			Options:  streams,
+			PageSize: selectPageSize(len(streams)),
 		}, &s)
 		if err != nil {
 			return "", err
@@ -221,6 +226,20 @@ func parseDurationString(dstr string) (dur time.Duration, err error) {
 	}
 
 	return dur, nil
+}
+
+func selectPageSize(count int) int {
+	_, h, err := terminal.GetSize(syscall.Stdin)
+	if err != nil {
+		h = 40
+	}
+
+	ps := count
+	if ps > h-4 {
+		ps = h - 4
+	}
+
+	return ps
 }
 
 func askConfirmation(prompt string, dflt bool) (bool, error) {
