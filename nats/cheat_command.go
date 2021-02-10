@@ -71,7 +71,7 @@ func (c *cheatCmd) saveCheats() error {
 			return err
 		}
 
-		fmt.Fprint(f, "---\ntags: [\"nats\"]\n---\n\n")
+		fmt.Fprint(f, "---\ntags: [nats]\n---\n\n")
 		fmt.Fprintln(f, cheat)
 		f.Close()
 		log.Printf("Wrote %s\n", dest)
@@ -85,7 +85,8 @@ func (c *cheatCmd) cheat(_ *kingpin.ParseContext) error {
 		return c.saveCheats()
 	}
 
-	if c.section != "" || c.sections {
+	switch {
+	case c.section != "":
 		s, ok := cheats[c.section]
 		if !ok {
 			fmt.Printf("Unknown section %s\n", c.section)
@@ -95,22 +96,16 @@ func (c *cheatCmd) cheat(_ *kingpin.ParseContext) error {
 		}
 
 		fmt.Println(s)
-		return nil
-	}
 
-	fmt.Println(cheats["cheats"])
-	for s, c := range cheats {
-		if s == "cheats" {
-			continue
-		}
-		fmt.Println(c)
+	case c.sections:
+		c.listSections()
 	}
 
 	return nil
 }
 
 func (c *cheatCmd) listSections() {
-	fmt.Println("Known sections")
+	fmt.Println("Known sections:")
 	fmt.Println()
 
 	var sections []string
