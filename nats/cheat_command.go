@@ -99,6 +99,16 @@ func (c *cheatCmd) cheat(_ *kingpin.ParseContext) error {
 
 	case c.sections:
 		c.listSections()
+
+	default:
+		fmt.Println(cheats["cheats"])
+		for s, c := range cheats {
+			if s == "cheats" {
+				continue
+			}
+
+			fmt.Println(c)
+		}
 	}
 
 	return nil
