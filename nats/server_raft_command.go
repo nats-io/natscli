@@ -1,3 +1,16 @@
+// Copyright 2020 The NATS Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -79,9 +92,7 @@ func (c *SrvRaftCmd) metaLeaderStandDown(_ *kingpin.ParseContext) error {
 
 	leader := resp.Meta.Leader
 
-	log.Printf("Current leader: %s", leader)
-
-	log.Printf("Requesting step down")
+	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(resp.Meta.Replicas)+1)
 	err = mgr.MetaLeaderStandDown()
 	if err != nil {
 		return err
@@ -102,7 +113,7 @@ func (c *SrvRaftCmd) metaLeaderStandDown(_ *kingpin.ParseContext) error {
 		}
 
 		if resp.Meta.Leader != leader {
-			log.Printf("New leader: %s", resp.Meta.Leader)
+			log.Printf("New leader elected %q", resp.Meta.Leader)
 			os.Exit(0)
 		}
 	}

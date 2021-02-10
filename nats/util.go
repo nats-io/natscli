@@ -481,6 +481,16 @@ func pubReplyBodyTemplate(body string, ctr int) ([]byte, error) {
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+var passwordRunes = append(letterRunes, []rune("@#_-%^&()")...)
+
+func randomPassword(length int) string {
+	b := make([]rune, length)
+	for i := range b {
+		b[i] = passwordRunes[rand.Intn(len(passwordRunes))]
+	}
+
+	return string(b)
+}
 
 func randomString(shortest uint, longest uint) string {
 	if shortest > longest {
