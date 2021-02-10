@@ -7,7 +7,7 @@ replace github.com/codahale/hdrhistogram => github.com/HdrHistogram/hdrhistogram
 require (
 	github.com/AlecAivazis/survey/v2 v2.2.7
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
-	github.com/alecthomas/units v0.0.0-20201120081800-1786d5ef83d4 // indirect
+	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
 	github.com/codahale/hdrhistogram v1.0.1
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.10.0
@@ -26,9 +26,9 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
-	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4 // indirect
+	golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c // indirect
 	golang.org/x/term v0.0.0-20201210144234-2321bbc49cbf
-	golang.org/x/text v0.3.4 // indirect
+	golang.org/x/text v0.3.5 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/protobuf v1.24.0 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6

@@ -42,7 +42,7 @@ var (
 	// used during tests
 	skipContexts bool
 
-	cheats = map[string]string{}
+	cheats map[string]string
 
 	// These are persisted by contexts, as properties thereof.
 	// So don't include NATS_CONTEXT in this list.
@@ -54,7 +54,14 @@ func main() {
 		version = "development"
 	}
 
-	ncli := kingpin.New("nats", "NATS Utility")
+	help := `NATS Utility
+
+NATS Server and JetStream administration.
+
+See 'nats cheat' for a quick cheatsheet of commands
+	`
+
+	ncli := kingpin.New("nats", help)
 	ncli.Author("NATS Authors <info@nats.io>")
 	ncli.Version(version)
 	ncli.HelpFlag.Short('h')
@@ -74,6 +81,8 @@ func main() {
 	ncli.PreAction(prepareConfig)
 
 	log.SetFlags(log.Ltime)
+
+	cheats = make(map[string]string)
 
 	configureActCommand(ncli)
 	configureBackupCommand(ncli)

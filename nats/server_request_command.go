@@ -14,6 +14,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -35,6 +36,13 @@ type SrvRequestCmd struct {
 	limit   int
 	offset  int
 	waitFor int
+
+	includeAccounts  bool
+	includeStreams   bool
+	includeConsumers bool
+	includeConfig    bool
+	leaderOnly       bool
+	includeAll       bool
 
 	detail        bool
 	sortOpt       string
@@ -87,9 +95,55 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	leafz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
 	leafz.Flag("subscriptions", "Show subscription detail").Default("false").BoolVar(&c.detail)
 
-	accountz := req.Command("accounts", "Show account defailts").Alias("accountz").Alias("acct").Action(c.accountz)
+	accountz := req.Command("accounts", "Show account details").Alias("accountz").Alias("acct").Action(c.accountz)
 	accountz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
 	accountz.Flag("account", "Retrieve information for a specific account").StringVar(&c.account)
+
+	jsz := req.Command("jetstream", "Show JetStream details").Alias("jsz").Alias("js").Action(c.jsz)
+	jsz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
+	jsz.Flag("account", "Show statistics scoped to a specific account").StringVar(&c.account)
+	jsz.Flag("accounts", "Include details about accounts").BoolVar(&c.includeAccounts)
+	jsz.Flag("streams", "Include details about Streams").BoolVar(&c.includeStreams)
+	jsz.Flag("consumer", "Include details about Consumers").BoolVar(&c.includeConsumers)
+	jsz.Flag("config", "Include details about configuration").BoolVar(&c.includeConfig)
+	jsz.Flag("leader", "Request a response from the Meta-group leader only").BoolVar(&c.leaderOnly)
+	jsz.Flag("all", "Include accounts, streams, consumers and configuration").BoolVar(&c.includeAll)
+}
+
+func (c *SrvRequestCmd) jsz(_ *kingpin.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	opts := server.JszEventOptions{
+		JSzOptions:         server.JSzOptions{Account: c.account, LeaderOnly: c.leaderOnly},
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	if c.includeAccounts || c.includeAll {
+		opts.JSzOptions.Accounts = true
+	}
+	if c.includeStreams || c.includeAll {
+		opts.JSzOptions.Streams = true
+	}
+	if c.includeConsumers || c.includeAll {
+		opts.JSzOptions.Consumer = true
+	}
+	if c.includeConfig || c.includeAll {
+		opts.JSzOptions.Config = true
+	}
+
+	res, err := c.doReq("JSZ", &opts, nc)
+	if err != nil {
+		return err
+	}
+
+	for _, m := range res {
+		fmt.Println(string(m))
+	}
+
+	return nil
 }
 
 func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
@@ -122,7 +176,6 @@ func (c *SrvRequestCmd) accountz(_ *kingpin.ParseContext) error {
 	}
 
 	return nil
-
 }
 
 func (c *SrvRequestCmd) leafz(_ *kingpin.ParseContext) error {
@@ -324,7 +377,10 @@ func (c *SrvRequestCmd) doReq(kind string, req interface{}, nc *nats.Conn) ([][]
 		mu.Lock()
 		defer mu.Unlock()
 
-		resp = append(resp, m.Data)
+		var b bytes.Buffer
+		json.Indent(&b, m.Data, "", "   ")
+
+		resp = append(resp, b.Bytes())
 		ctr++
 
 		if ctr == c.waitFor {
