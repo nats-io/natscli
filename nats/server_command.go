@@ -48,7 +48,7 @@ nats server report accounts
 nats server report accounts --account WEATHER --sort in-msgs --top 10
 
 # To report on JetStream usage by account WEATHER
-nats server report jetstream --acount WEATHER --sort cluster
+nats server report jetstream --account WEATHER --sort cluster
 
 # To generate a NATS Server bcrypt command
 nats server password
