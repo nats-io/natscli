@@ -83,6 +83,9 @@ nats context validate --connect
 
 # Select a new default context
 nats context select
+
+# Connecting using a context
+nats pub --context development subject body
 `
 }
 
