@@ -20,6 +20,7 @@ import (
 	"log"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats-server/v2/server"
@@ -67,6 +68,153 @@ func configureServerReportCommand(srv *kingpin.CmdClause) {
 	acct.Arg("limit", "Limit the responses to a certain amount of servers").Default("1024").IntVar(&c.waitFor)
 	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs,uptime,cid)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs", "uptime", "cid")
 	acct.Flag("top", "Limit results to the top results").IntVar(&c.topk)
+
+	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.reportJetStream)
+	jsz.Arg("limit", "Limit the responses to a certain amount of servers").Default("1024").IntVar(&c.waitFor)
+	jsz.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
+	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
+}
+
+func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	res, err := c.doReq(&server.JSzOptions{Account: c.account}, "$SYS.REQ.SERVER.PING.JSZ", nc)
+	if err != nil {
+		return err
+	}
+
+	type jszr struct {
+		Data   server.JSInfo     `json:"data"`
+		Server server.ServerInfo `json:"server"`
+	}
+
+	var (
+		jszResponses []*jszr
+		apiErr       uint64
+		apiTotal     uint64
+		memory       uint64
+		store        uint64
+		consumers    int
+		streams      int
+		bytes        uint64
+		msgs         uint64
+		cluster      *server.ClusterInfo
+	)
+
+	for _, r := range res {
+		response := jszr{}
+
+		err = json.Unmarshal(r, &response)
+		if err != nil {
+			return err
+		}
+
+		jszResponses = append(jszResponses, &response)
+	}
+
+	sort.Slice(jszResponses, func(i, j int) bool {
+		switch c.sort {
+		case "name":
+			return c.boolReverse(jszResponses[i].Server.Name < jszResponses[j].Server.Name)
+		case "streams":
+			return c.boolReverse(jszResponses[i].Data.StreamCnt < jszResponses[j].Data.StreamCnt)
+		case "consumers":
+			return c.boolReverse(jszResponses[i].Data.StreamCnt < jszResponses[j].Data.StreamCnt)
+		case "msgs":
+			return c.boolReverse(jszResponses[i].Data.MessageCnt < jszResponses[j].Data.MessageCnt)
+		case "mbytes", "bytes":
+			return c.boolReverse(jszResponses[i].Data.MessageBytes < jszResponses[j].Data.MessageBytes)
+		case "mem":
+			return c.boolReverse(jszResponses[i].Data.JetStreamStats.Memory < jszResponses[j].Data.JetStreamStats.Memory)
+		case "store", "file":
+			return c.boolReverse(jszResponses[i].Data.JetStreamStats.Store < jszResponses[j].Data.JetStreamStats.Store)
+		case "api":
+			return c.boolReverse(jszResponses[i].Data.JetStreamStats.API.Total < jszResponses[j].Data.JetStreamStats.API.Total)
+		case "err":
+			return c.boolReverse(jszResponses[i].Data.JetStreamStats.API.Errors < jszResponses[j].Data.JetStreamStats.API.Errors)
+		default:
+			return c.boolReverse(jszResponses[i].Server.Cluster < jszResponses[j].Server.Cluster)
+		}
+	})
+
+	if len(jszResponses) == 0 {
+		return fmt.Errorf("no responses received")
+	}
+
+	table := tablewriter.CreateTable()
+	if c.account != "" {
+		table.AddTitle(fmt.Sprintf("JetStream Summary for Account %s", c.account))
+	} else {
+		table.AddTitle("JetStream Summary")
+	}
+
+	table.AddHeaders("Server", "Cluster", "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "API Err")
+
+	for _, js := range jszResponses {
+		apiErr += js.Data.JetStreamStats.API.Errors
+		apiTotal += js.Data.JetStreamStats.API.Total
+		memory += js.Data.JetStreamStats.Memory
+		store += js.Data.JetStreamStats.Store
+		consumers += js.Data.ConsumerCnt
+		streams += js.Data.StreamCnt
+		bytes += js.Data.MessageBytes
+		msgs += js.Data.MessageCnt
+
+		leader := ""
+		if js.Data.Meta != nil && js.Data.Meta.Leader == js.Server.Name {
+			leader = "*"
+			cluster = js.Data.Meta
+		}
+
+		table.AddRow(
+			js.Server.Name+leader,
+			js.Server.Cluster,
+			humanize.Comma(int64(js.Data.StreamCnt)),
+			humanize.Comma(int64(js.Data.ConsumerCnt)),
+			humanize.Comma(int64(js.Data.MessageCnt)),
+			humanize.IBytes(js.Data.MessageBytes),
+			humanize.IBytes(js.Data.JetStreamStats.Memory),
+			humanize.IBytes(js.Data.JetStreamStats.Store),
+			humanize.Comma(int64(js.Data.JetStreamStats.API.Total)),
+			humanize.Comma(int64(js.Data.JetStreamStats.API.Errors)))
+	}
+	table.AddSeparator()
+	table.AddRow("", "", humanize.Comma(int64(streams)), humanize.Comma(int64(consumers)), humanize.Comma(int64(msgs)), humanize.IBytes(bytes), humanize.IBytes(memory), humanize.IBytes(store), humanize.Comma(int64(apiTotal)), humanize.Comma(int64(apiErr)))
+
+	fmt.Print(table.Render())
+	fmt.Println()
+
+	if cluster != nil {
+		cluster.Replicas = append(cluster.Replicas, &server.PeerInfo{
+			Name:    cluster.Leader,
+			Current: true,
+			Offline: false,
+			Active:  0,
+			Lag:     0,
+		})
+
+		sort.Slice(cluster.Replicas, func(i, j int) bool {
+			return cluster.Replicas[i].Name < cluster.Replicas[j].Name
+		})
+
+		table := tablewriter.CreateTable()
+		table.AddTitle("RAFT Meta Group Information")
+		table.AddHeaders("Name", "Leader", "Current", "Offline", "Active", "Lag")
+		for _, replica := range cluster.Replicas {
+			leader := ""
+			if replica.Name == cluster.Leader {
+				leader = "yes"
+			}
+
+			table.AddRow(replica.Name, leader, replica.Current, replica.Offline, humanizeDuration(replica.Active.Round(time.Millisecond)), humanize.Comma(int64(replica.Lag)))
+		}
+		fmt.Print(table.Render())
+	}
+
+	return nil
 }
 
 func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
