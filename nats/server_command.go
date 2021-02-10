@@ -47,6 +47,9 @@ nats server report connz --top 10 --sort in-msgs
 nats server report accounts
 nats server report accounts --account WEATHER --sort in-msgs --top 10
 
+# To report on JetStream usage by account WEATHER
+nats server report jetstream --acount WEATHER --sort cluster
+
 # To generate a NATS Server bcrypt command
 nats server password
 nats server pass -p 'W#OZwVN-UjMb8nszwvT2LQ'
@@ -61,6 +64,7 @@ nats server req connz --subscriptions --name nats1.example.net
 nats server req gateways --filter-name EAST
 nats server req leafnodes --subscriptions
 nats server req accounts --account WEATHER
+nats server req jsz --leader
 
 # To manage JetStream cluster RAFT membership
 nats server cluster raft step-down
