@@ -67,7 +67,7 @@ type streamCmd struct {
 	maxStreams          int
 	discardPolicy       string
 	validateOnly        bool
-	backupFile          string
+	backupDirectory     string
 	showProgress        bool
 	healthCheck         bool
 	dupeWindow          string
@@ -159,12 +159,6 @@ func configureStreamCommand(app *kingpin.Application) {
 	strView.Flag("since", "Start at a time delta").DurationVar(&c.vwStartDelta)
 	strView.Flag("raw", "Show the raw data received").BoolVar(&c.vwRaw)
 
-	strBackup := str.Command("backup", "Backs up a Stream over the NATS network").Action(c.backupAction)
-	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
-	strBackup.Arg("target", "File to create the backup in").Required().StringVar(&c.backupFile)
-	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
-	strBackup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
-
 	strReport := str.Command("report", "Reports on Stream statistics").Action(c.reportAction)
 	strReport.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	strReport.Flag("consumers", "Sort by number of Consumers").Short('o').BoolVar(&c.reportSortConsumers)
@@ -173,9 +167,15 @@ func configureStreamCommand(app *kingpin.Application) {
 	strReport.Flag("storage", "Sort by Storage type").Short('t').BoolVar(&c.reportSortStorage)
 	strReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.reportRaw)
 
+	strBackup := str.Command("backup", "Backs up a Stream over the NATS network").Action(c.backupAction)
+	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
+	strBackup.Arg("target", "Directory to create the backup in").Required().StringVar(&c.backupDirectory)
+	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
+	strBackup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
+
 	strRestore := str.Command("restore", "Restore a Stream over the NATS network").Action(c.restoreAction)
 	strRestore.Arg("stream", "The name of the Stream to restore").Required().StringVar(&c.stream)
-	strRestore.Arg("file", "The file holding the backup to restore").Required().ExistingFileVar(&c.backupFile)
+	strRestore.Arg("file", "The directory holding the backup to restore").Required().ExistingDirVar(&c.backupDirectory)
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 
 	strCluster := str.Command("cluster", "Manages a clustered Stream").Alias("c")
@@ -428,9 +428,9 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 		opts = append(opts, jsm.SnapshotDebug())
 	}
 
-	fmt.Printf("Starting restore of Stream %q from file %q\n\n", c.stream, c.backupFile)
+	fmt.Printf("Starting restore of Stream %q from file %q\n\n", c.stream, c.backupDirectory)
 
-	fp, _, err := mgr.RestoreSnapshotFromFile(context.Background(), c.stream, c.backupFile, opts...)
+	fp, _, err := mgr.RestoreSnapshotFromDirectory(context.Background(), c.stream, c.backupDirectory, opts...)
 	kingpin.FatalIfError(err, "restore failed")
 	if c.showProgress {
 		progress.Set(int(fp.ChunksSent()))
@@ -464,13 +464,13 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 
 	cb := func(p jsm.SnapshotProgress) {
 		if progress == nil {
-			progress = uiprogress.AddBar(p.BlocksExpected() * p.BlockSize()).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
+			progress = uiprogress.AddBar(int(p.BytesExpected())).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
 				return humanize.IBytes(bps) + "/s"
 			})
 		}
 
 		if first {
-			fmt.Printf("Starting backup of Stream %q with %d data blocks\n\n", c.stream, p.BlocksExpected())
+			fmt.Printf("Starting backup of Stream %q with %s\n\n", c.stream, humanize.IBytes(p.BytesExpected()))
 
 			if p.HealthCheck() {
 				fmt.Printf("Health Check was requested, this can take a long time without progress reports\n\n")
@@ -479,18 +479,12 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 			first = false
 		}
 
-		if !p.HasMetadata() {
-			return
-		}
-
 		bps = p.BytesPerSecond()
+		progress.Set(int(p.BytesReceived()))
 
-		if !p.HasData() {
-			progress.Set(int(p.BlockBytesReceived()))
-		} else {
+		if p.Finished() {
 			pmu.Lock()
 			if inprogress {
-				progress.Set(p.BlocksExpected() * p.BlockSize())
 				uiprogress.Stop()
 				inprogress = false
 			}
@@ -513,19 +507,19 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 		opts = append(opts, jsm.SnapshotHealthCheck())
 	}
 
-	fp, err := stream.SnapshotToFile(context.Background(), c.backupFile, opts...)
+	fp, err := stream.SnapshotToDirectory(context.Background(), c.backupDirectory, opts...)
 	kingpin.FatalIfError(err, "snapshot failed")
 
 	pmu.Lock()
 	if c.showProgress && inprogress {
-		progress.Set(fp.BlocksExpected() * fp.BlockSize())
+		progress.Set(int(fp.BytesReceived()))
 		uiprogress.Stop()
 		inprogress = false
 	}
 	pmu.Unlock()
 
 	fmt.Println()
-	fmt.Printf("Received %s compressed data in %d chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), fp.ChunksReceived(), c.stream, fp.EndTime().Sub(fp.StartTime()).Round(time.Second), humanize.IBytes(fp.BlockBytesReceived()))
+	fmt.Printf("Received %s compressed data in %d chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), fp.ChunksReceived(), c.stream, fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), humanize.IBytes(fp.UncompressedBytesReceived()))
 
 	return nil
 }
