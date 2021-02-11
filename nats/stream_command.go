@@ -652,6 +652,10 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 		Bytes     uint64
 		Storage   string
 		Template  string
+		Cluster   *api.ClusterInfo
+		LostBytes uint64
+		LostMsgs  int
+		Deleted   int
 	}
 
 	if !c.json {
@@ -659,11 +663,20 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	}
 
 	stats := []stat{}
-	mgr.EachStream(func(stream *jsm.Stream) {
+	err = mgr.EachStream(func(stream *jsm.Stream) {
 		info, err := stream.LatestInformation()
 		kingpin.FatalIfError(err, "could not get stream info for %s", stream.Name())
-		stats = append(stats, stat{info.Config.Name, info.State.Consumers, int64(info.State.Msgs), info.State.Bytes, info.Config.Storage.String(), info.Config.Template})
+		s := stat{Name: info.Config.Name, Consumers: info.State.Consumers, Msgs: int64(info.State.Msgs), Bytes: info.State.Bytes, Storage: info.Config.Storage.String(), Template: info.Config.Template, Cluster: info.Cluster, Deleted: len(info.State.Deleted)}
+		if info.State.Lost != nil {
+			s.LostBytes = info.State.Lost.Bytes
+			s.LostMsgs = len(info.State.Lost.Msgs)
+		}
+
+		stats = append(stats, s)
 	})
+	if err != nil {
+		return err
+	}
 
 	if len(stats) == 0 {
 		if !c.json {
@@ -690,13 +703,29 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	}
 
 	table := tablewriter.CreateTable()
-	table.AddHeaders("Stream", "Consumers", "Messages", "Bytes", "Storage", "Template")
+	table.AddHeaders("Stream", "Consumers", "Messages", "Bytes", "Storage", "Lost", "Deleted", "Cluster", "Template")
 
 	for _, s := range stats {
+		var peers []string
+		if s.Cluster != nil {
+			peers = append(peers, s.Cluster.Leader+"*")
+			for _, r := range s.Cluster.Replicas {
+				peers = append(peers, r.Name)
+			}
+			sort.Strings(peers)
+		}
+
+		lost := "0"
 		if c.reportRaw {
-			table.AddRow(s.Name, s.Consumers, s.Msgs, s.Bytes, s.Storage, s.Template)
+			if s.LostMsgs > 0 {
+				lost = fmt.Sprintf("%d (%d)", s.LostMsgs, s.LostBytes)
+			}
+			table.AddRow(s.Name, s.Consumers, s.Msgs, s.Bytes, s.Storage, lost, s.Deleted, strings.Join(peers, ", "), s.Template)
 		} else {
-			table.AddRow(s.Name, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), s.Storage, s.Template)
+			if s.LostMsgs > 0 {
+				lost = fmt.Sprintf("%s (%s)", humanize.Comma(int64(s.LostMsgs)), humanize.IBytes(s.LostBytes))
+			}
+			table.AddRow(s.Name, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), s.Storage, lost, s.Deleted, strings.Join(peers, ", "), s.Template)
 		}
 	}
 
@@ -745,7 +774,7 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.Retention = c.retentionPolicyFromString()
 	}
 
-	if c.maxBytesLimit != -1 {
+	if c.maxBytesLimit != 0 {
 		cfg.MaxBytes = c.maxBytesLimit
 	}
 
