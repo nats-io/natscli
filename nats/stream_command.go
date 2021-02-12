@@ -70,6 +70,7 @@ type streamCmd struct {
 	backupDirectory     string
 	showProgress        bool
 	healthCheck         bool
+	snapShotConsumers   bool
 	dupeWindow          string
 	replicas            int64
 	placementCluster    string
@@ -172,6 +173,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strBackup.Arg("target", "Directory to create the backup in").Required().StringVar(&c.backupDirectory)
 	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	strBackup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
+	strBackup.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
 
 	strRestore := str.Command("restore", "Restore a Stream over the NATS network").Action(c.restoreAction)
 	strRestore.Arg("stream", "The name of the Stream to restore").Required().StringVar(&c.stream)
@@ -461,10 +463,14 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 	pmu := sync.Mutex{}
 	var progress *uiprogress.Bar
 	var bps uint64
+	expected := 1
 
 	cb := func(p jsm.SnapshotProgress) {
 		if progress == nil {
-			progress = uiprogress.AddBar(int(p.BytesExpected())).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
+			if p.BytesExpected() > 0 {
+				expected = int(p.BytesExpected())
+			}
+			progress = uiprogress.AddBar(expected).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
 				return humanize.IBytes(bps) + "/s"
 			})
 		}
@@ -492,8 +498,10 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	opts := []jsm.SnapshotOption{
-		jsm.SnapshotConsumers(),
+	var opts []jsm.SnapshotOption
+
+	if c.snapShotConsumers {
+		opts = append(opts, jsm.SnapshotConsumers())
 	}
 
 	if c.showProgress {
