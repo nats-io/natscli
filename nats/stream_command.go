@@ -167,7 +167,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strReport.Flag("storage", "Sort by Storage type").Short('t').BoolVar(&c.reportSortStorage)
 	strReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.reportRaw)
 
-	strBackup := str.Command("backup", "Backs up a Stream over the NATS network").Action(c.backupAction)
+	strBackup := str.Command("backup", "Creates a backup of a Stream over the NATS network").Alias("snapshot").Action(c.backupAction)
 	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
 	strBackup.Arg("target", "Directory to create the backup in").Required().StringVar(&c.backupDirectory)
 	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)

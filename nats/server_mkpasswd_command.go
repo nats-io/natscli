@@ -79,7 +79,7 @@ func (c *SrvPasswdCmd) askPassword() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not read password: %w", err)
 	}
-
+	fmt.Println()
 	err = survey.AskOne(&survey.Password{Message: "Reenter password", Help: "Enter the same password again"}, &bp2)
 	if err != nil {
 		return "", fmt.Errorf("could not read password: %w", err)
