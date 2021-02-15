@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/nats.go"
 	terminal "golang.org/x/term"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -95,14 +96,14 @@ func (c *pubCmd) prepareMsg(body []byte) (*nats.Msg, error) {
 	return msg, parseStringsToHeader(c.hdrs, 0, msg)
 }
 
-func (c *pubCmd) doReq(nc *nats.Conn) error {
+func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 	if c.cnt < 1 {
 		c.cnt = 1
 	}
 
 	for i := 1; i <= c.cnt; i++ {
 		start := time.Now()
-		if !c.raw {
+		if !c.raw && progress == nil {
 			log.Printf("Sending request on %q\n", c.subject)
 		}
 
@@ -123,11 +124,16 @@ func (c *pubCmd) doReq(nc *nats.Conn) error {
 
 		if c.raw {
 			fmt.Println(string(m.Data))
+			continue
+		}
 
-			return nil
+		if progress != nil {
+			progress.Incr()
+			continue
 		}
 
 		log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
+
 		if len(m.Header) > 0 {
 			for h, vals := range m.Header {
 				for _, val := range vals {
@@ -163,8 +169,18 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 		c.body = string(body)
 	}
 
+	var progress *uiprogress.Bar
+	if c.cnt > 20 && !c.raw {
+		progress = uiprogress.AddBar(c.cnt).PrependFunc(func(b *uiprogress.Bar) string {
+			return fmt.Sprintf("%d / %d", b.Current(), c.cnt)
+		}).AppendElapsed()
+		fmt.Println()
+		uiprogress.Start()
+		defer func() { uiprogress.Stop(); fmt.Println() }()
+	}
+
 	if c.req {
-		return c.doReq(nc)
+		return c.doReq(nc, progress)
 	}
 
 	if c.cnt < 1 {
@@ -193,7 +209,11 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 			return err
 		}
 
-		log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+		if progress == nil {
+			log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+		} else {
+			progress.Incr()
+		}
 	}
 
 	return nil

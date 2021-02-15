@@ -151,6 +151,8 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	nc.Flush()
+
 	ic := make(chan os.Signal, 1)
 	signal.Notify(ic, os.Interrupt)
 
