@@ -26,7 +26,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"syscall"
 	"text/template"
 	"time"
 	"unicode"
@@ -229,7 +228,7 @@ func parseDurationString(dstr string) (dur time.Duration, err error) {
 }
 
 func selectPageSize(count int) int {
-	_, h, err := terminal.GetSize(syscall.Stdin)
+	_, h, err := terminal.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		h = 40
 	}
