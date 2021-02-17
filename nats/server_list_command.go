@@ -15,7 +15,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"regexp"
@@ -66,11 +68,6 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	}
 	defer nc.Close()
 
-	ec, err := nats.NewEncodedConn(nc, nats.JSON_ENCODER)
-	if err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -99,7 +96,19 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		start              = time.Now()
 	)
 
-	sub, err := ec.Subscribe(nc.NewRespInbox(), func(ssm *server.ServerStatsMsg) {
+	sub, err := nc.Subscribe(nc.NewRespInbox(), func(msg *nats.Msg) {
+		if msg.Header != nil && msg.Header.Get("Status") != "" {
+			fmt.Printf("%s status from $SYS.REQ.SERVER.PING, ensure a system account is used with appropriate permissions\n", msg.Header.Get("Status"))
+			os.Exit(1)
+		}
+
+		ssm := &server.ServerStatsMsg{}
+		err = json.Unmarshal(msg.Data, ssm)
+		if err != nil {
+			log.Printf("Could not decode response: %s", err)
+			os.Exit(1)
+		}
+
 		mu.Lock()
 		defer mu.Unlock()
 
