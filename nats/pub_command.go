@@ -174,6 +174,8 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 		progress = uiprogress.AddBar(c.cnt).PrependFunc(func(b *uiprogress.Bar) string {
 			return fmt.Sprintf("%d / %d", b.Current(), c.cnt)
 		}).AppendElapsed()
+		progress.Width = progressWidth()
+
 		fmt.Println()
 		uiprogress.Start()
 		defer func() { uiprogress.Stop(); fmt.Println() }()

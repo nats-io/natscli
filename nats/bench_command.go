@@ -135,6 +135,7 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 	var progress *uiprogress.Bar
 	if c.progress {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
+		progress.Width = progressWidth()
 	} else {
 		log.Printf("Starting publisher, publishing %s messages", humanize.Comma(int64(numMsg)))
 	}
