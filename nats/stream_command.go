@@ -161,7 +161,6 @@ func configureStreamCommand(app *kingpin.Application) {
 	strView.Flag("raw", "Show the raw data received").BoolVar(&c.vwRaw)
 
 	strReport := str.Command("report", "Reports on Stream statistics").Action(c.reportAction)
-	strReport.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	strReport.Flag("consumers", "Sort by number of Consumers").Short('o').BoolVar(&c.reportSortConsumers)
 	strReport.Flag("messages", "Sort by number of Messages").Short('m').BoolVar(&c.reportSortMsgs)
 	strReport.Flag("name", "Sort by Stream name").Short('n').BoolVar(&c.reportSortName)
@@ -693,11 +692,6 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	if c.json {
-		printJSON(stats)
-		return nil
-	}
-
 	if c.reportSortConsumers {
 		sort.Slice(stats, func(i, j int) bool { return stats[i].Consumers < stats[j].Consumers })
 	} else if c.reportSortMsgs {
@@ -711,7 +705,7 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	}
 
 	table := tablewriter.CreateTable()
-	table.AddHeaders("Stream", "Consumers", "Messages", "Bytes", "Storage", "Lost", "Deleted", "Cluster", "Template")
+	table.AddHeaders("Stream", "Storage", "Template", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Cluster")
 
 	for _, s := range stats {
 		lost := "0"
@@ -719,12 +713,12 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%d (%d)", s.LostMsgs, s.LostBytes)
 			}
-			table.AddRow(s.Name, s.Consumers, s.Msgs, s.Bytes, s.Storage, lost, s.Deleted, renderCluster(s.Cluster), s.Template)
+			table.AddRow(s.Name, s.Storage, s.Template, s.Consumers, s.Msgs, s.Bytes, lost, s.Deleted, renderCluster(s.Cluster))
 		} else {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%s (%s)", humanize.Comma(int64(s.LostMsgs)), humanize.IBytes(s.LostBytes))
 			}
-			table.AddRow(s.Name, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), s.Storage, lost, s.Deleted, renderCluster(s.Cluster), s.Template)
+			table.AddRow(s.Name, s.Storage, s.Template, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), lost, s.Deleted, renderCluster(s.Cluster))
 		}
 	}
 
