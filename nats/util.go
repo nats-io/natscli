@@ -229,6 +229,19 @@ func parseDurationString(dstr string) (dur time.Duration, err error) {
 	return dur, nil
 }
 
+func progressWidth() int {
+	w, _, err := terminal.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		w = 80
+	}
+
+	if w-20 <= 20 {
+		return 20
+	}
+
+	return w - 20
+}
+
 func selectPageSize(count int) int {
 	_, h, err := terminal.GetSize(int(os.Stdout.Fd()))
 	if err != nil {

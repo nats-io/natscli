@@ -415,6 +415,7 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 			progress = uiprogress.AddBar(p.ChunksToSend()).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
 				return humanize.IBytes(bps) + "/s"
 			})
+			progress.Width = progressWidth()
 		}
 
 		progress.Set(int(p.ChunksSent()))
@@ -472,6 +473,7 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 			progress = uiprogress.AddBar(expected).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
 				return humanize.IBytes(bps) + "/s"
 			})
+			progress.Width = progressWidth()
 		}
 
 		if first {
