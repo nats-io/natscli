@@ -714,26 +714,17 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	table.AddHeaders("Stream", "Consumers", "Messages", "Bytes", "Storage", "Lost", "Deleted", "Cluster", "Template")
 
 	for _, s := range stats {
-		var peers []string
-		if s.Cluster != nil {
-			peers = append(peers, s.Cluster.Leader+"*")
-			for _, r := range s.Cluster.Replicas {
-				peers = append(peers, r.Name)
-			}
-			sort.Strings(peers)
-		}
-
 		lost := "0"
 		if c.reportRaw {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%d (%d)", s.LostMsgs, s.LostBytes)
 			}
-			table.AddRow(s.Name, s.Consumers, s.Msgs, s.Bytes, s.Storage, lost, s.Deleted, strings.Join(peers, ", "), s.Template)
+			table.AddRow(s.Name, s.Consumers, s.Msgs, s.Bytes, s.Storage, lost, s.Deleted, renderCluster(s.Cluster), s.Template)
 		} else {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%s (%s)", humanize.Comma(int64(s.LostMsgs)), humanize.IBytes(s.LostBytes))
 			}
-			table.AddRow(s.Name, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), s.Storage, lost, s.Deleted, strings.Join(peers, ", "), s.Template)
+			table.AddRow(s.Name, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), s.Storage, lost, s.Deleted, renderCluster(s.Cluster), s.Template)
 		}
 	}
 

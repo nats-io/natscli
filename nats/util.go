@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
 	terminal "golang.org/x/term"
@@ -589,4 +591,20 @@ func fileAccessible(f string) (bool, error) {
 	file.Close()
 
 	return true, nil
+}
+
+func renderCluster(cluster *api.ClusterInfo) string {
+	if cluster == nil {
+		return ""
+	}
+
+	var peers []string
+	for _, r := range cluster.Replicas {
+		peers = append(peers, r.Name)
+	}
+	sort.Strings(peers)
+
+	peers = append([]string{cluster.Leader + "*"}, peers...)
+
+	return strings.Join(peers, ", ")
 }

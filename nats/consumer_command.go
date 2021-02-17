@@ -30,6 +30,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
+	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go"
@@ -130,6 +131,10 @@ func configureConsumerCommand(app *kingpin.Application) {
 	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	conClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterDown.Arg("consumer", "Consumer to act on").StringVar(&c.consumer)
+
+	conReport := cons.Command("report", "Reports on Consmer statistics").Action(c.reportAction)
+	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
+	conReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.raw)
 }
 
 func (c *consumerCmd) leaderStandDown(_ *kingpin.ParseContext) error {
@@ -894,4 +899,53 @@ func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool, opts ...
 			kingpin.FatalIfError(err, "could not select Consumer")
 		}
 	}
+}
+
+func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
+	c.connectAndSetup(true, false)
+
+	s, err := c.mgr.LoadStream(c.stream)
+	if err != nil {
+		return err
+	}
+
+	ss, err := s.State()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Consumer report for %s with %d consumers\n\n", c.stream, ss.Consumers)
+
+	table := tablewriter.CreateTable()
+	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
+	err = s.EachConsumer(func(cons *jsm.Consumer) {
+		cs, err := cons.State()
+		if err != nil {
+			log.Printf("Could not obtain consumer state for %s: %s", cons.Name(), err)
+			return
+		}
+
+		mode := "Push"
+		if cons.IsPullMode() {
+			mode = "Pull"
+		}
+
+		unprocessed := "0"
+		if cs.NumPending > 0 {
+			unprocessed = fmt.Sprintf("%d / %0.0f%%", cs.NumPending, float64(cs.NumPending)/float64(ss.Msgs)*100)
+		}
+
+		if c.raw {
+			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), cons.AckWait(), cs.NumAckPending, cs.NumRedelivered, cs.NumPending, cs.AckFloor.Stream, renderCluster(cs.Cluster))
+		} else {
+			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), humanizeDuration(cons.AckWait()), humanize.Comma(int64(cs.NumAckPending)), humanize.Comma(int64(cs.NumRedelivered)), unprocessed, humanize.Comma(int64(cs.AckFloor.Stream)), renderCluster(cs.Cluster))
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(table.Render())
+
+	return nil
 }
