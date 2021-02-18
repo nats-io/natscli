@@ -229,9 +229,17 @@ func parseDurationString(dstr string) (dur time.Duration, err error) {
 	return dur, nil
 }
 
+// calculates progress bar width for uiprogress:
+//
+// if it cant figure out the width, assume 80
+// if the width is > 80, set to 80 - long progress bars feel weird
+// if the width is too small, set it to 20 and just live with the overflow
+//
+// this ensures a reasonable progress size, ideally we should switch over
+// to a spinner for < 20 rather than cause overflows, but thats for later.
 func progressWidth() int {
 	w, _, err := terminal.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
+	if err != nil || w > 80 {
 		w = 80
 	}
 
@@ -394,7 +402,10 @@ func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, *jsm.Manage
 		return nil, nil, err
 	}
 
-	var jsopts []jsm.Option
+	jsopts := []jsm.Option{
+		jsm.WithAPIPrefix(config.JSAPIPrefix()),
+		jsm.WithEventPrefix(config.JSEventPrefix()),
+	}
 
 	if os.Getenv("NOVALIDATE") == "" {
 		jsopts = append(jsopts, jsm.WithAPIValidation(new(SchemaValidator)))
@@ -574,6 +585,8 @@ func loadContext() error {
 		natscontext.WithCertificate(tlsCert),
 		natscontext.WithKey(tlsKey),
 		natscontext.WithCA(tlsCA),
+		natscontext.WithJSEventPrefix(jsEventPrefix),
+		natscontext.WithJSAPIPrefix(jsApiPrefix),
 	)
 
 	return ctxError

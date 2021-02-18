@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -144,15 +145,15 @@ func (c *eventsCmd) eventsAction(_ *kingpin.ParseContext) error {
 	}
 
 	if c.showJsAdvisories || c.showAll {
-		c.Printf("Listening for Advisories on %s.>\n", api.JSAdvisoryPrefix)
-		nc.Subscribe(fmt.Sprintf("%s.>", api.JSAdvisoryPrefix), func(m *nats.Msg) {
+		c.Printf("Listening for Advisories on %s.>\n", jsm.EventSubject(api.JSAdvisoryPrefix, config.JSEventPrefix()))
+		nc.Subscribe(fmt.Sprintf("%s.>", jsm.EventSubject(api.JSAdvisoryPrefix, config.JSEventPrefix())), func(m *nats.Msg) {
 			c.handleNATSEvent(m)
 		})
 	}
 
 	if c.showJsMetrics || c.showAll {
-		c.Printf("Listening for Metrics on %s.>\n", api.JSMetricPrefix)
-		nc.Subscribe(fmt.Sprintf("%s.>", api.JSMetricPrefix), func(m *nats.Msg) {
+		c.Printf("Listening for Metrics on %s.>\n", jsm.EventSubject(api.JSMetricPrefix, config.JSEventPrefix()))
+		nc.Subscribe(fmt.Sprintf("%s.>", jsm.EventSubject(api.JSMetricPrefix, config.JSEventPrefix())), func(m *nats.Msg) {
 			c.handleNATSEvent(m)
 		})
 	}

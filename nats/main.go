@@ -24,20 +24,22 @@ import (
 )
 
 var (
-	config   *natscontext.Context
-	servers  string
-	creds    string
-	tlsCert  string
-	tlsKey   string
-	tlsCA    string
-	timeout  time.Duration
-	version  string
-	username string
-	password string
-	nkey     string
-	cfgCtx   string
-	ctxError error
-	trace    bool
+	config        *natscontext.Context
+	servers       string
+	creds         string
+	tlsCert       string
+	tlsKey        string
+	tlsCA         string
+	timeout       time.Duration
+	version       string
+	username      string
+	password      string
+	nkey          string
+	jsApiPrefix   string
+	jsEventPrefix string
+	cfgCtx        string
+	ctxError      error
+	trace         bool
 
 	// used during tests
 	skipContexts bool
@@ -75,6 +77,8 @@ See 'nats cheat' for a quick cheatsheet of commands
 	ncli.Flag("tlskey", "TLS private key").Envar("NATS_KEY").PlaceHolder("NATS_KEY").ExistingFileVar(&tlsKey)
 	ncli.Flag("tlsca", "TLS certificate authority chain").Envar("NATS_CA").PlaceHolder("NATS_CA").ExistingFileVar(&tlsCA)
 	ncli.Flag("timeout", "Time to wait on responses from NATS").Default("5s").Envar("NATS_TIMEOUT").PlaceHolder("NATS_TIMEOUT").DurationVar(&timeout)
+	ncli.Flag("js-api-prefix", "Subject prefix for access to JetStream API").PlaceHolder("PREFIX").StringVar(&jsApiPrefix)
+	ncli.Flag("js-event-prefix", "Subject prefix for access to JetStream Advisories").PlaceHolder("PREFIX").StringVar(&jsEventPrefix)
 	ncli.Flag("context", "Configuration context").Envar("NATS_CONTEXT").StringVar(&cfgCtx)
 	ncli.Flag("trace", "Trace API interactions").BoolVar(&trace)
 

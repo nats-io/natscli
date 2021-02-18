@@ -159,7 +159,6 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	if err != nil {
 		return err
 	}
-
 	nc.Flush()
 
 	ic := make(chan os.Signal, 1)
