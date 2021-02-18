@@ -218,17 +218,19 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 	}
 
 	fmt.Printf("NATS Configuration Context %q\n\n", c.name)
-	c.showIfNotEmpty("  Description: %s\n", cfg.Description())
-	c.showIfNotEmpty("  Server URLs: %s\n", cfg.ServerURL())
-	c.showIfNotEmpty("     Username: %s\n", cfg.User())
-	c.showIfNotEmpty("     Password: *********\n", cfg.Password())
-	c.showIfNotEmpty("  Credentials: %s (%s)\n", cfg.Creds(), checkFile(cfg.Creds()))
-	c.showIfNotEmpty("         NKey: %s (%s)\n", cfg.NKey(), checkFile(cfg.NKey()))
-	c.showIfNotEmpty("  Certificate: %s (%s)\n", cfg.Certificate(), checkFile(cfg.Certificate()))
-	c.showIfNotEmpty("          Key: %s (%s)\n", cfg.Key(), checkFile(cfg.Key()))
-	c.showIfNotEmpty("           CA: %s (%s)\n", cfg.CA(), checkFile(cfg.CA()))
-	c.showIfNotEmpty("   NSC Lookup: %s\n", cfg.NscURL())
-	c.showIfNotEmpty("         Path: %s\n", cfg.Path())
+	c.showIfNotEmpty("      Description: %s\n", cfg.Description())
+	c.showIfNotEmpty("      Server URLs: %s\n", cfg.ServerURL())
+	c.showIfNotEmpty("         Username: %s\n", cfg.User())
+	c.showIfNotEmpty("         Password: *********\n", cfg.Password())
+	c.showIfNotEmpty("      Credentials: %s (%s)\n", cfg.Creds(), checkFile(cfg.Creds()))
+	c.showIfNotEmpty("             NKey: %s (%s)\n", cfg.NKey(), checkFile(cfg.NKey()))
+	c.showIfNotEmpty("      Certificate: %s (%s)\n", cfg.Certificate(), checkFile(cfg.Certificate()))
+	c.showIfNotEmpty("              Key: %s (%s)\n", cfg.Key(), checkFile(cfg.Key()))
+	c.showIfNotEmpty("               CA: %s (%s)\n", cfg.CA(), checkFile(cfg.CA()))
+	c.showIfNotEmpty("       NSC Lookup: %s\n", cfg.NscURL())
+	c.showIfNotEmpty("             Path: %s\n", cfg.Path())
+	c.showIfNotEmpty("    JS API Prefix: %s\n", cfg.JSAPIPrefix())
+	c.showIfNotEmpty("  JS Event Prefix: %s\n", cfg.JSEventPrefix())
 
 	checkConn := func() error {
 		opts, err := cfg.NATSOptions()
@@ -288,6 +290,8 @@ func (c *ctxCommand) createCommand(pc *kingpin.ParseContext) error {
 		natscontext.WithCA(tlsCA),
 		natscontext.WithDescription(c.description),
 		natscontext.WithNscUrl(c.nsc),
+		natscontext.WithJSAPIPrefix(jsApiPrefix),
+		natscontext.WithJSEventPrefix(jsEventPrefix),
 	)
 	if err != nil {
 		return err
