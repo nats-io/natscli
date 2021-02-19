@@ -623,14 +623,12 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	if cluster == nil {
 		return ""
 	}
-
-	var peers []string
+	peers := []string{cluster.Leader + "*"}
 	for _, r := range cluster.Replicas {
 		peers = append(peers, r.Name)
 	}
-	sort.Strings(peers)
 
-	peers = append([]string{cluster.Leader + "*"}, peers...)
+	sort.Strings(peers)
 
 	return strings.Join(peers, ", ")
 }
