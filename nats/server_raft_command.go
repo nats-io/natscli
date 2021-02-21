@@ -20,12 +20,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type SrvRaftCmd struct {
-	json bool
+	json             bool
+	placementCluster string
 }
 
 func configureServerRaftCommand(srv *kingpin.CmdClause) {
@@ -33,7 +35,8 @@ func configureServerRaftCommand(srv *kingpin.CmdClause) {
 
 	raft := srv.Command("raft", "Manage JetStream Clustering").Alias("r")
 	raft.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	raft.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDown)
+	sd := raft.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDown)
+	sd.Flag("cluster", "Request placement of the leader in a specific cluster").StringVar(&c.placementCluster)
 }
 
 func (c *SrvRaftCmd) metaLeaderStandDown(_ *kingpin.ParseContext) error {
@@ -93,14 +96,14 @@ func (c *SrvRaftCmd) metaLeaderStandDown(_ *kingpin.ParseContext) error {
 	leader := resp.Meta.Leader
 
 	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(resp.Meta.Replicas)+1)
-	err = mgr.MetaLeaderStandDown()
+	err = mgr.MetaLeaderStandDown(&api.Placement{Cluster: c.placementCluster})
 	if err != nil {
 		return err
 	}
 
 	ctr := 0
 	start := time.Now()
-	for range time.NewTimer(500 * time.Millisecond).C {
+	for range time.NewTicker(500 * time.Millisecond).C {
 		if ctr == 5 {
 			return fmt.Errorf("stream did not elect a new leader in time")
 		}
