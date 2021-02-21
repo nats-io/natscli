@@ -528,7 +528,7 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 
 	if !c.pull && c.delivery == "" {
 		err = survey.AskOne(&survey.Input{
-			Message: "Delivery target",
+			Message: "Delivery target (empty for Pull Consumers)",
 			Help:    "Consumers can be in 'push' or 'pull' mode, in 'push' mode messages are dispatched in real time to a target NATS subject, this is that subject. Leaving this blank creates a 'pull' mode Consumer. Settable using --target and --pull",
 		}, &c.delivery)
 		kingpin.FatalIfError(err, "could not request delivery target")
@@ -732,8 +732,24 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	err = c.mgr.NextMsgRequest(stream, consumer, sub.Subject, req)
 	kingpin.FatalIfError(err, "could not request next message")
 
+	fatalIfNotPull := func() {
+		cons, err := c.mgr.LoadConsumer(stream, consumer)
+		kingpin.FatalIfError(err, "could not load consumer %q", consumer)
+
+		if !cons.IsPullMode() {
+			kingpin.Fatalf("consumer %q is not a Pull consumer", consumer)
+		}
+	}
+
 	msg, err := sub.NextMsg(timeout)
+	if err != nil {
+		fatalIfNotPull()
+	}
 	kingpin.FatalIfError(err, "no message received")
+
+	if msg.Header != nil && msg.Header.Get("Status") == "503" {
+		fatalIfNotPull()
+	}
 
 	if !c.raw {
 		info, err := jsm.ParseJSMsgMetadata(msg)
