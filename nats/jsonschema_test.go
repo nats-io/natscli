@@ -65,12 +65,8 @@ func TestStreamConfiguration(t *testing.T) {
 	cfg.Name = "X.X"
 	validateExpectFailure(t, cfg)
 
-	// empty subject list not allowed but no subject list is allowed
-	cfg = reset()
-	cfg.Subjects = []string{""}
-	validateExpectFailure(t, cfg)
-
 	// valid subject
+	cfg = reset()
 	cfg.Subjects = []string{"bob"}
 	validateExpectSuccess(t, cfg)
 

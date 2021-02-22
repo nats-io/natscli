@@ -76,6 +76,9 @@ type streamCmd struct {
 	placementCluster    string
 	placementTags       []string
 	peerName            string
+	sources             []string
+	syncs               []string
+	mirror              string
 
 	vwStartId    int
 	vwStartDelta time.Duration
@@ -104,6 +107,9 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
 		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
 		f.Flag("tags", "Place the stream on servers that has specific tags").StringsVar(&c.placementTags)
+		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
+		f.Flag("source", "Source data from other Streams, merging into this one").StringsVar(&c.sources)
+		f.Flag("syncs", "Synchronize this Stream into other streams").StringsVar(&c.syncs)
 	}
 
 	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
@@ -818,10 +824,14 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.Placement = nil
 	}
 
+	if c.mirror != "" || len(c.sources) > 0 || len(c.syncs) > 0 {
+		return cfg, fmt.Errorf("editing mirrors, sources or syncs is not supported")
+	}
+
 	return cfg, nil
 }
 
-func (c *streamCmd) editAction(pc *kingpin.ParseContext) error {
+func (c *streamCmd) editAction(_ *kingpin.ParseContext) error {
 	c.connectAndAskStream()
 
 	sourceStream, err := c.mgr.LoadStream(c.stream)
@@ -938,6 +948,17 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 		}
 		fmt.Println()
 	}
+	if cfg.Mirror != "" {
+		fmt.Printf("              Mirror: %s\n", cfg.Mirror)
+	}
+	if len(cfg.Sources) > 0 {
+		sort.Strings(cfg.Sources)
+		fmt.Printf("             Sources: %s\n", strings.Join(cfg.Sources, ", "))
+	}
+	if len(cfg.Syncs) > 0 {
+		sort.Strings(cfg.Syncs)
+		fmt.Printf("              Syncs: %s\n", strings.Join(cfg.Syncs, ", "))
+	}
 }
 
 func (c *streamCmd) showStream(stream *jsm.Stream) error {
@@ -998,6 +1019,30 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 
 		}
 		fmt.Println()
+	}
+
+	showSource := func(s *api.StreamSourceInfo) {
+		fmt.Printf("          Stream Name: %s\n", info.Mirror.Name)
+		fmt.Printf("                  Lag: %s\n", humanize.Comma(int64(info.Mirror.Lag)))
+		fmt.Printf("            Last Seen: %v\n", humanizeDuration(info.Mirror.Active))
+		if info.Mirror.Error != nil {
+			fmt.Printf("                Error: %s\n", info.Mirror.Error.Description)
+		}
+	}
+	if info.Mirror != nil {
+		fmt.Println("Mirror Information:")
+		fmt.Println()
+		showSource(info.Mirror)
+		fmt.Println()
+	}
+
+	if len(info.Sources) > 0 {
+		fmt.Println("Source Information:")
+		fmt.Println()
+		for _, s := range info.Sources {
+			showSource(s)
+			fmt.Println()
+		}
 	}
 
 	fmt.Println("State:")
@@ -1122,18 +1167,24 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
-	if len(c.subjects) == 0 {
-		subjects := ""
-		err = survey.AskOne(&survey.Input{
-			Message: "Subjects to consume",
-			Help:    "Streams consume messages from subjects, this is a space or comma separated list that can include wildcards. Settable using --subjects",
-		}, &subjects, survey.WithValidator(survey.Required))
-		kingpin.FatalIfError(err, "invalid input")
+	if c.mirror == "" {
+		if len(c.subjects) == 0 {
+			subjects := ""
+			err = survey.AskOne(&survey.Input{
+				Message: "Subjects to consume",
+				Help:    "Streams consume messages from subjects, this is a space or comma separated list that can include wildcards. Settable using --subjects",
+			}, &subjects, survey.WithValidator(survey.Required))
+			kingpin.FatalIfError(err, "invalid input")
 
-		c.subjects = splitString(subjects)
+			c.subjects = splitString(subjects)
+		}
+
+		c.subjects = c.splitCLISubjects()
 	}
 
-	c.subjects = c.splitCLISubjects()
+	if c.mirror != "" && len(c.subjects) > 0 {
+		kingpin.Fatalf("mirrors cannot listen for messages on subjects")
+	}
 
 	if c.storage == "" {
 		err = survey.AskOne(&survey.Select{
@@ -1237,6 +1288,9 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		Discard:      c.discardPolicyFromString(),
 		MaxConsumers: -1,
 		Replicas:     int(c.replicas),
+		Mirror:       c.mirror,
+		Sources:      c.sources,
+		Syncs:        c.syncs,
 	}
 
 	if c.placementCluster != "" || len(c.placementTags) > 0 {
