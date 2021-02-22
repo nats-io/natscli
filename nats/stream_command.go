@@ -108,8 +108,8 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
 		f.Flag("tags", "Place the stream on servers that has specific tags").StringsVar(&c.placementTags)
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
-		f.Flag("source", "Source data from other Streams, merging into this one").StringsVar(&c.sources)
-		f.Flag("syncs", "Synchronize this Stream into other streams").StringsVar(&c.syncs)
+		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
+		f.Flag("sync", "Synchronize this Stream into other streams").PlaceHolder("STREAM").StringsVar(&c.syncs)
 	}
 
 	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
@@ -949,15 +949,15 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 		fmt.Println()
 	}
 	if cfg.Mirror != "" {
-		fmt.Printf("              Mirror: %s\n", cfg.Mirror)
+		fmt.Printf("               Mirror: %s\n", cfg.Mirror)
 	}
 	if len(cfg.Sources) > 0 {
 		sort.Strings(cfg.Sources)
-		fmt.Printf("             Sources: %s\n", strings.Join(cfg.Sources, ", "))
+		fmt.Printf("              Sources: %s\n", strings.Join(cfg.Sources, ", "))
 	}
 	if len(cfg.Syncs) > 0 {
 		sort.Strings(cfg.Syncs)
-		fmt.Printf("              Syncs: %s\n", strings.Join(cfg.Syncs, ", "))
+		fmt.Printf("               Syncs: %s\n", strings.Join(cfg.Syncs, ", "))
 	}
 }
 

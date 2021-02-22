@@ -591,7 +591,7 @@ func TestCLIBackupRestore(t *testing.T) {
 	origC1Config := c1.Configuration()
 
 	t1, err := mgr.NewStreamTemplate("t1", 1, jsm.DefaultStream, jsm.Subjects("t1"), jsm.MemoryStorage())
-	checkErr(t, err, "TEST template create failed")
+	checkErr(t, err, "TEST template create failed: %s", err)
 	origT1Config := t1.Configuration()
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' backup '%s'", srv.ClientURL(), target))
