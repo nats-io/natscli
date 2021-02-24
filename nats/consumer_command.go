@@ -718,14 +718,6 @@ func (c *consumerCmd) createAction(_ *kingpin.ParseContext) (err error) {
 func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	req := &api.JSApiConsumerGetNextRequest{Batch: 1, Expires: time.Now().Add(timeout)}
 
-	if trace {
-		jreq, err := json.Marshal(req)
-		kingpin.FatalIfError(err, "could not marshal next request")
-		subj, err := jsm.NextSubject(stream, consumer)
-		kingpin.FatalIfError(err, "could not load next message")
-		log.Printf(">>> %s: %s", subj, jreq)
-	}
-
 	sub, err := c.nc.SubscribeSync(nats.NewInbox())
 	kingpin.FatalIfError(err, "subscribe failed")
 	sub.AutoUnsubscribe(1)
@@ -753,10 +745,6 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	}
 
 	if !c.raw {
-		if trace && msg.Reply != "" {
-			log.Printf("<<< Reply Subject: %s", msg.Reply)
-		}
-
 		info, err := jsm.ParseJSMsgMetadata(msg)
 		if err != nil {
 			if msg.Reply == "" {
