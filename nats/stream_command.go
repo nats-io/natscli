@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"os/signal"
 	"regexp"
@@ -77,7 +78,6 @@ type streamCmd struct {
 	placementTags       []string
 	peerName            string
 	sources             []string
-	syncs               []string
 	mirror              string
 
 	vwStartId    int
@@ -109,7 +109,6 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("tags", "Place the stream on servers that has specific tags").StringsVar(&c.placementTags)
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
-		f.Flag("sync", "Synchronize this Stream into other streams").PlaceHolder("STREAM").StringsVar(&c.syncs)
 	}
 
 	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
@@ -824,8 +823,8 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.Placement = nil
 	}
 
-	if c.mirror != "" || len(c.sources) > 0 || len(c.syncs) > 0 {
-		return cfg, fmt.Errorf("editing mirrors, sources or syncs is not supported")
+	if c.mirror != "" || len(c.sources) > 0 {
+		return cfg, fmt.Errorf("cannot edit sources or mirrors using the CLI, use --config instead")
 	}
 
 	return cfg, nil
@@ -875,7 +874,7 @@ func (c *streamCmd) editAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *streamCmd) cpAction(pc *kingpin.ParseContext) error {
+func (c *streamCmd) cpAction(_ *kingpin.ParseContext) error {
 	if c.stream == c.destination {
 		kingpin.Fatalf("source and destination Stream names cannot be the same")
 	}
@@ -905,7 +904,9 @@ func (c *streamCmd) cpAction(pc *kingpin.ParseContext) error {
 func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	fmt.Println("Configuration:")
 	fmt.Println()
-	fmt.Printf("             Subjects: %s\n", strings.Join(cfg.Subjects, ", "))
+	if len(cfg.Subjects) > 0 {
+		fmt.Printf("             Subjects: %s\n", strings.Join(cfg.Subjects, ", "))
+	}
 	fmt.Printf("     Acknowledgements: %v\n", !cfg.NoAck)
 	fmt.Printf("            Retention: %s - %s\n", cfg.Storage.String(), cfg.Retention.String())
 	fmt.Printf("             Replicas: %d\n", cfg.Replicas)
@@ -948,17 +949,40 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 		}
 		fmt.Println()
 	}
-	if cfg.Mirror != "" {
-		fmt.Printf("               Mirror: %s\n", cfg.Mirror)
+
+	if cfg.Mirror != nil {
+		fmt.Printf("               Mirror: %s\n", c.renderSource(cfg.Mirror))
 	}
 	if len(cfg.Sources) > 0 {
-		sort.Strings(cfg.Sources)
-		fmt.Printf("              Sources: %s\n", strings.Join(cfg.Sources, ", "))
+		fmt.Printf("              Sources: ")
+		sort.Slice(cfg.Sources, func(i, j int) bool {
+			return cfg.Sources[i].Name < cfg.Sources[j].Name
+		})
+
+		for i, source := range cfg.Sources {
+			if i == 0 {
+				fmt.Println(c.renderSource(source))
+			} else {
+				fmt.Printf("                       %s\n", c.renderSource(source))
+			}
+		}
 	}
-	if len(cfg.Syncs) > 0 {
-		sort.Strings(cfg.Syncs)
-		fmt.Printf("               Syncs: %s\n", strings.Join(cfg.Syncs, ", "))
+}
+
+func (c *streamCmd) renderSource(s *api.StreamSource) string {
+	parts := []string{s.Name}
+	if s.OptStartSeq > 0 {
+		parts = append(parts, fmt.Sprintf("Start Seq: %s", humanize.Comma(int64(s.OptStartSeq))))
 	}
+
+	if s.OptStartTime != nil {
+		parts = append(parts, fmt.Sprintf("Start Time: %v", s.OptStartTime))
+	}
+	if s.FilterSubject != "" {
+		parts = append(parts, fmt.Sprintf("Subject: %s", s.FilterSubject))
+	}
+
+	return strings.Join(parts, " ")
 }
 
 func (c *streamCmd) showStream(stream *jsm.Stream) error {
@@ -1002,7 +1026,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 				state = append(state, "OFFLINE")
 			}
 
-			if r.Active > 0 {
+			if r.Active > 0 && r.Active < math.MaxInt64 {
 				state = append(state, fmt.Sprintf("seen %s ago", humanizeDuration(r.Active)))
 			} else {
 				state = append(state, "not seen")
@@ -1010,7 +1034,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 
 			switch {
 			case r.Lag > 1:
-				state = append(state, fmt.Sprintf("%d operations behind", r.Lag))
+				state = append(state, fmt.Sprintf("%s operations behind", humanize.Comma(int64(r.Lag))))
 			case r.Lag == 1:
 				state = append(state, fmt.Sprintf("%d operation behind", r.Lag))
 			}
@@ -1022,11 +1046,15 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	}
 
 	showSource := func(s *api.StreamSourceInfo) {
-		fmt.Printf("          Stream Name: %s\n", info.Mirror.Name)
-		fmt.Printf("                  Lag: %s\n", humanize.Comma(int64(info.Mirror.Lag)))
-		fmt.Printf("            Last Seen: %v\n", humanizeDuration(info.Mirror.Active))
-		if info.Mirror.Error != nil {
-			fmt.Printf("                Error: %s\n", info.Mirror.Error.Description)
+		fmt.Printf("          Stream Name: %s\n", s.Name)
+		fmt.Printf("                  Lag: %s\n", humanize.Comma(int64(s.Lag)))
+		if s.Active > 0 && s.Active < math.MaxInt64 {
+			fmt.Printf("            Last Seen: %v\n", humanizeDuration(s.Active))
+		} else {
+			fmt.Printf("            Last Seen: never\n")
+		}
+		if s.Error != nil {
+			fmt.Printf("                Error: %s\n", s.Error.Description)
 		}
 	}
 	if info.Mirror != nil {
@@ -1251,11 +1279,15 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
+	if c.maxMsgSize == 0 {
+		c.maxMsgSize = -1
+	}
+
 	var dupeWindow time.Duration
 	if c.dupeWindow == "" {
 		err = survey.AskOne(&survey.Input{
 			Message: "Duplicate tracking time window",
-			Default: "",
+			Default: "2m",
 			Help:    "Duplicate messages are identified by the Msg-Id headers and tracked within a window of this size. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --dupe-window.",
 		}, &c.dupeWindow)
 		kingpin.FatalIfError(err, "invalid input")
@@ -1288,9 +1320,6 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		Discard:      c.discardPolicyFromString(),
 		MaxConsumers: -1,
 		Replicas:     int(c.replicas),
-		Mirror:       c.mirror,
-		Sources:      c.sources,
-		Syncs:        c.syncs,
 	}
 
 	if c.placementCluster != "" || len(c.placementTags) > 0 {
@@ -1300,7 +1329,94 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		}
 	}
 
+	if c.mirror != "" {
+		if isJsonString(c.mirror) {
+			cfg.Mirror, err = c.parseStreamSource(c.mirror)
+			kingpin.FatalIfError(err, "invalid mirror")
+		} else {
+			cfg.Mirror = &api.StreamSource{Name: c.mirror}
+			a, err := askOneInt("Mirror Start Sequence", "0", "Start mirroring at a specific sequence")
+			kingpin.FatalIfError(err, "Invalid sequence")
+			cfg.Mirror.OptStartSeq = uint64(a)
+
+			if cfg.Mirror.OptStartSeq == 0 {
+				ts := ""
+				err = survey.AskOne(&survey.Input{
+					Message: "Mirror Start Time (YYYY:MM:DD HH:MM:SS)",
+					Help:    "Start replicating as a specific time stamp in UTC time",
+				}, &ts)
+				kingpin.FatalIfError(err, "could not request start time")
+				if ts != "" {
+					t, err := time.Parse("2006:01:02 15:04:05", ts)
+					kingpin.FatalIfError(err, "invalid time format")
+					cfg.Mirror.OptStartTime = &t
+				}
+			}
+
+			err = survey.AskOne(&survey.Input{
+				Message: "Mirror subject filter",
+				Help:    "Only replicate data matching this subject",
+			}, &cfg.Mirror.FilterSubject)
+			kingpin.FatalIfError(err, "could not request filter")
+		}
+	}
+
+	for _, source := range c.sources {
+		if isJsonString(source) {
+			ss, err := c.parseStreamSource(c.mirror)
+			kingpin.FatalIfError(err, "invalid source")
+			cfg.Sources = append(cfg.Sources, ss)
+		} else {
+			ss := c.askSource(source, fmt.Sprintf("%s Source", source))
+			cfg.Sources = append(cfg.Sources, ss)
+		}
+	}
+
 	return cfg
+}
+
+func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
+	cfg := &api.StreamSource{Name: name}
+	a, err := askOneInt(fmt.Sprintf("%s Start Sequence", prefix), "0", "Start mirroring at a specific sequence")
+	kingpin.FatalIfError(err, "Invalid sequence")
+	cfg.OptStartSeq = uint64(a)
+
+	ts := ""
+	err = survey.AskOne(&survey.Input{
+		Message: fmt.Sprintf("%s UTC Time Stamp (YYYY:MM:DD HH:MM:SS)", prefix),
+		Help:    "Start replicating as a specific time stamp",
+	}, &ts)
+	kingpin.FatalIfError(err, "could not request start time")
+	if ts != "" {
+		t, err := time.Parse("2006:01:02 15:04:05", ts)
+		kingpin.FatalIfError(err, "invalid time format")
+		cfg.OptStartTime = &t
+	}
+
+	err = survey.AskOne(&survey.Input{
+		Message: fmt.Sprintf("%s Filter source by subject", prefix),
+		Help:    "Only replicate data matching this subject",
+	}, &cfg.FilterSubject)
+	kingpin.FatalIfError(err, "could not request filter")
+
+	return cfg
+}
+func (c *streamCmd) parseStreamSource(source string) (*api.StreamSource, error) {
+	ss := &api.StreamSource{}
+	if isJsonString(source) {
+		err := json.Unmarshal([]byte(source), ss)
+		if err != nil {
+			return nil, err
+		}
+
+		if ss.Name == "" {
+			return nil, fmt.Errorf("name is required")
+		}
+	} else {
+		ss.Name = source
+	}
+
+	return ss, nil
 }
 
 func (c *streamCmd) validateCfg(cfg *api.StreamConfig) (bool, []byte, []string, error) {

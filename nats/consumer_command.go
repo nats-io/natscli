@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"regexp"
@@ -309,7 +310,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		fmt.Printf("              Leader: %s\n", state.Cluster.Leader)
 		for _, r := range state.Cluster.Replicas {
 			since := fmt.Sprintf("seen %s ago", humanizeDuration(r.Active))
-			if r.Active == 0 {
+			if r.Active == 0 || r.Active == math.MaxInt64 {
 				since = "not seen"
 			}
 
@@ -752,6 +753,10 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	}
 
 	if !c.raw {
+		if trace && msg.Reply != "" {
+			log.Printf("<<< Reply Subject: %s", msg.Reply)
+		}
+
 		info, err := jsm.ParseJSMsgMetadata(msg)
 		if err != nil {
 			if msg.Reply == "" {

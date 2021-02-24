@@ -619,6 +619,11 @@ func fileAccessible(f string) (bool, error) {
 	return true, nil
 }
 
+func isJsonString(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	return strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}")
+}
+
 func renderCluster(cluster *api.ClusterInfo) string {
 	if cluster == nil {
 		return ""
