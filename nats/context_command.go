@@ -228,9 +228,9 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 	c.showIfNotEmpty("              Key: %s (%s)\n", cfg.Key(), checkFile(cfg.Key()))
 	c.showIfNotEmpty("               CA: %s (%s)\n", cfg.CA(), checkFile(cfg.CA()))
 	c.showIfNotEmpty("       NSC Lookup: %s\n", cfg.NscURL())
-	c.showIfNotEmpty("             Path: %s\n", cfg.Path())
 	c.showIfNotEmpty("    JS API Prefix: %s\n", cfg.JSAPIPrefix())
 	c.showIfNotEmpty("  JS Event Prefix: %s\n", cfg.JSEventPrefix())
+	c.showIfNotEmpty("             Path: %s\n", cfg.Path())
 
 	checkConn := func() error {
 		opts, err := cfg.NATSOptions()
@@ -251,9 +251,9 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 		err = checkConn()
 		if err != nil {
 			c.validateErrors++
-			fmt.Printf("   Connection: %s", color.RedString(err.Error()))
+			fmt.Printf("       Connection: %s\n", color.RedString(err.Error()))
 		} else {
-			fmt.Printf("   Connection: %s", color.GreenString("OK"))
+			fmt.Printf("       Connection: %s\n", color.GreenString("OK"))
 		}
 	}
 

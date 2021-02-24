@@ -80,3 +80,34 @@ func TestParseDurationString(t *testing.T) {
 		t.Fatalf("expected 1.1 hour from 1.1h duration, got %v", d)
 	}
 }
+
+func TestRandomString(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		if len(randomString(1024, 1024)) != 1024 {
+			t.Fatalf("got a !1024 length string")
+		}
+	}
+
+	for i := 0; i < 1000; i++ {
+		n := randomString(2024, 1024)
+		if len(n) > 2024 {
+			t.Fatalf("got a > 2024 length string")
+		}
+
+		if len(n) < 1024 {
+			t.Fatalf("got a < 1024 length string")
+		}
+	}
+
+	for i := 0; i < 1000; i++ {
+		n := randomString(1024, 2024)
+		if len(n) > 2024 {
+			t.Fatalf("got a > 2024 length string")
+		}
+
+		if len(n) < 1024 {
+			t.Fatalf("got a < 1024 length string")
+		}
+	}
+
+}

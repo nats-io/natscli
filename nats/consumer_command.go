@@ -944,7 +944,7 @@ func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
 		} else {
 			unprocessed := "0"
 			if cs.NumPending > 0 {
-				unprocessed = fmt.Sprintf("%s / %0.0f%%", humanize.Comma(int64(cs.NumPending)), float64(cs.NumPending)/float64(ss.Msgs)*100)
+				unprocessed = fmt.Sprintf("%s / %0.0f%%", humanize.Comma(int64(cs.NumPending)), math.Floor(float64(cs.NumPending)/float64(ss.Msgs)*100))
 			}
 
 			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), humanizeDuration(cons.AckWait()), humanize.Comma(int64(cs.NumAckPending)), humanize.Comma(int64(cs.NumRedelivered)), unprocessed, humanize.Comma(int64(cs.AckFloor.Stream)), renderCluster(cs.Cluster))

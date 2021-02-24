@@ -542,9 +542,12 @@ func randomString(shortest uint, longest uint) string {
 	}
 
 	desired := int(shortest)
-	if longest-shortest <= 0 {
+
+	switch {
+	case longest == shortest:
+	case int(longest)-int(shortest) < 0:
 		desired += rand.Intn(int(longest))
-	} else {
+	default:
 		desired += rand.Intn(int(longest - shortest))
 	}
 
