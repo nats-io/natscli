@@ -660,16 +660,19 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	kingpin.FatalIfError(err, "setup failed")
 
 	type stat struct {
-		Name      string
-		Consumers int
-		Msgs      int64
-		Bytes     uint64
-		Storage   string
-		Template  string
-		Cluster   *api.ClusterInfo
-		LostBytes uint64
-		LostMsgs  int
-		Deleted   int
+		Name        string
+		Consumers   int
+		Msgs        int64
+		Bytes       uint64
+		Storage     string
+		Template    string
+		Cluster     *api.ClusterInfo
+		LostBytes   uint64
+		LostMsgs    int
+		Deleted     int
+		Replication string
+		Mirror      *api.StreamSourceInfo
+		Sources     []*api.StreamSourceInfo
 	}
 
 	if !c.json {
@@ -677,13 +680,23 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	}
 
 	stats := []stat{}
+	showReplication := false
+
 	err = mgr.EachStream(func(stream *jsm.Stream) {
 		info, err := stream.LatestInformation()
 		kingpin.FatalIfError(err, "could not get stream info for %s", stream.Name())
-		s := stat{Name: info.Config.Name, Consumers: info.State.Consumers, Msgs: int64(info.State.Msgs), Bytes: info.State.Bytes, Storage: info.Config.Storage.String(), Template: info.Config.Template, Cluster: info.Cluster, Deleted: len(info.State.Deleted)}
+		s := stat{Name: info.Config.Name, Consumers: info.State.Consumers, Msgs: int64(info.State.Msgs), Bytes: info.State.Bytes, Storage: info.Config.Storage.String(), Template: info.Config.Template, Cluster: info.Cluster, Deleted: len(info.State.Deleted), Replication: "", Mirror: info.Mirror, Sources: info.Sources}
 		if info.State.Lost != nil {
 			s.LostBytes = info.State.Lost.Bytes
 			s.LostMsgs = len(info.State.Lost.Msgs)
+		}
+		if len(info.Config.Sources) > 0 {
+			showReplication = true
+			s.Replication = "Sourced"
+		}
+		if info.Config.Mirror != nil {
+			showReplication = true
+			s.Replication = "Mirror"
 		}
 
 		stats = append(stats, s)
@@ -712,7 +725,8 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	}
 
 	table := tablewriter.CreateTable()
-	table.AddHeaders("Stream", "Storage", "Template", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Cluster")
+	table.AddTitle("Stream Report")
+	table.AddHeaders("Stream", "Storage", "Template", "Replication", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Cluster")
 
 	for _, s := range stats {
 		lost := "0"
@@ -720,16 +734,55 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%d (%d)", s.LostMsgs, s.LostBytes)
 			}
-			table.AddRow(s.Name, s.Storage, s.Template, s.Consumers, s.Msgs, s.Bytes, lost, s.Deleted, renderCluster(s.Cluster))
+			table.AddRow(s.Name, s.Storage, s.Template, s.Replication, s.Consumers, s.Msgs, s.Bytes, lost, s.Deleted, renderCluster(s.Cluster))
 		} else {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%s (%s)", humanize.Comma(int64(s.LostMsgs)), humanize.IBytes(s.LostBytes))
 			}
-			table.AddRow(s.Name, s.Storage, s.Template, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), lost, s.Deleted, renderCluster(s.Cluster))
+			table.AddRow(s.Name, s.Storage, s.Template, s.Replication, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), lost, s.Deleted, renderCluster(s.Cluster))
 		}
 	}
 
 	fmt.Println(table.Render())
+
+	if showReplication {
+		table := tablewriter.CreateTable()
+		table.AddTitle("Replication Report")
+		table.AddHeaders("Stream", "Kind", "Source Stream", "Active", "Lag", "Error")
+
+		for _, s := range stats {
+			if len(s.Sources) == 0 && s.Mirror == nil {
+				continue
+			}
+
+			if s.Mirror != nil {
+				apierr := ""
+				if s.Mirror.Error != nil {
+					apierr = s.Mirror.Error.Error()
+				}
+				if c.reportRaw {
+					table.AddRow(s.Name, "Mirror", s.Mirror.Name, s.Mirror.Active, s.Mirror.Lag, apierr)
+				} else {
+					table.AddRow(s.Name, "Mirror", s.Mirror.Name, humanizeDuration(s.Mirror.Active), humanize.Comma(int64(s.Mirror.Lag)), apierr)
+				}
+			}
+
+			for _, source := range s.Sources {
+				apierr := ""
+				if source != nil && source.Error != nil {
+					apierr = source.Error.Error()
+				}
+
+				if c.reportRaw {
+					table.AddRow(s.Name, "Source", source.Name, source.Active, source.Lag, apierr)
+				} else {
+					table.AddRow(s.Name, "Source", source.Name, humanizeDuration(source.Active), humanize.Comma(int64(source.Lag)), apierr)
+				}
+
+			}
+		}
+		fmt.Println(table.Render())
+	}
 
 	return nil
 }
@@ -1195,7 +1248,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
-	if c.mirror == "" {
+	if c.mirror == "" && len(c.sources) == 0 {
 		if len(c.subjects) == 0 {
 			subjects := ""
 			err = survey.AskOne(&survey.Input{

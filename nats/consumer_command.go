@@ -333,9 +333,6 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		fmt.Printf("         Outstanding Acks: %d\n", state.NumAckPending)
 	}
 	fmt.Printf("     Redelivered Messages: %d\n", state.NumRedelivered)
-	if config.DeliverSubject == "" {
-		fmt.Printf("    Waiting Pull Requests: %d\n", state.NumWaiting)
-	}
 	fmt.Printf("     Unprocessed Messages: %d\n", state.NumPending)
 
 	fmt.Println()
