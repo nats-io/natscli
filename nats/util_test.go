@@ -95,7 +95,7 @@ func TestRandomString(t *testing.T) {
 		}
 
 		if len(n) < 1024 {
-			t.Fatalf("got a < 1024 length string")
+			t.Fatalf("got a < 1024 length string (%d)", len(n))
 		}
 	}
 
@@ -106,7 +106,7 @@ func TestRandomString(t *testing.T) {
 		}
 
 		if len(n) < 1024 {
-			t.Fatalf("got a < 1024 length string")
+			t.Fatalf("got a < 1024 length string (%d)", len(n))
 		}
 	}
 

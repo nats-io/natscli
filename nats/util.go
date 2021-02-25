@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/textproto"
@@ -428,6 +429,10 @@ func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, *jsm.Manage
 }
 
 func humanizeDuration(d time.Duration) string {
+	if d == math.MaxInt64 {
+		return "never"
+	}
+
 	tsecs := d / time.Second
 	tmins := tsecs / 60
 	thrs := tmins / 60
@@ -541,14 +546,15 @@ func randomString(shortest uint, longest uint) string {
 		shortest, longest = longest, shortest
 	}
 
-	desired := int(shortest)
+	var desired int
 
 	switch {
-	case longest == shortest:
 	case int(longest)-int(shortest) < 0:
-		desired += rand.Intn(int(longest))
+		desired = int(shortest) + rand.Intn(int(longest))
+	case longest == shortest:
+		desired = int(shortest)
 	default:
-		desired += rand.Intn(int(longest - shortest))
+		desired = int(shortest) + rand.Intn(int(longest-shortest))
 	}
 
 	b := make([]rune, desired)
