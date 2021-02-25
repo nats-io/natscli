@@ -185,7 +185,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 
 	strCluster := str.Command("cluster", "Manages a clustered Stream").Alias("c")
-	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
+	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	strClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 
 	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the JetStream cluster").Alias("pr").Action(c.removePeer)
@@ -1300,7 +1300,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 
 	var maxAge time.Duration
 	if c.maxMsgLimit == 0 {
-		c.maxMsgLimit, err = askOneInt("Message count limit", "-1", "Defines the amount of messages to keep in the store for this Stream, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-msgs")
+		c.maxMsgLimit, err = askOneInt("Stream Messages Limit", "-1", "Defines the amount of messages to keep in the store for this Stream, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-msgs")
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
@@ -1352,7 +1352,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 	}
 
 	if c.replicas == 0 {
-		c.replicas, err = askOneInt("Number of replicas to store", "1", "When clustered, defines how many replicas of the data to store.  Settable using --replicas.")
+		c.replicas, err = askOneInt("Replicas", "1", "When clustered, defines how many replicas of the data to store.  Settable using --replicas.")
 		kingpin.FatalIfError(err, "invalid input")
 	}
 	if c.replicas <= 0 {

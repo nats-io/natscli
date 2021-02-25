@@ -713,7 +713,7 @@ func (c *consumerCmd) createAction(_ *kingpin.ParseContext) (err error) {
 }
 
 func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
-	req := &api.JSApiConsumerGetNextRequest{Batch: 1, Expires: time.Now().Add(timeout)}
+	req := &api.JSApiConsumerGetNextRequest{Batch: 1, Expires: time.Now().UTC().Add(timeout)}
 
 	sub, err := c.nc.SubscribeSync(nats.NewInbox())
 	kingpin.FatalIfError(err, "subscribe failed")
