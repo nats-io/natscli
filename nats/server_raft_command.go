@@ -35,7 +35,7 @@ func configureServerRaftCommand(srv *kingpin.CmdClause) {
 
 	raft := srv.Command("raft", "Manage JetStream Clustering").Alias("r")
 	raft.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	sd := raft.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDown)
+	sd := raft.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDown)
 	sd.Flag("cluster", "Request placement of the leader in a specific cluster").StringVar(&c.placementCluster)
 }
 

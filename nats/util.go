@@ -340,17 +340,12 @@ func natsOpts() []nats.Option {
 	opts, err := config.NATSOptions()
 	kingpin.FatalIfError(err, "configuration error")
 
-	totalWait := 10 * time.Minute
-	reconnectDelay := time.Second
-
 	return append(opts, []nats.Option{
 		nats.Name("NATS CLI Version " + version),
 		nats.MaxReconnects(-1),
-		nats.ReconnectWait(reconnectDelay),
-		nats.MaxReconnects(int(totalWait / reconnectDelay)),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			if err != nil {
-				log.Printf("Disconnected due to: %s, will attempt reconnects for %.0fm", err.Error(), totalWait.Minutes())
+				log.Printf("Disconnected due to: %s, will attempt reconnect", err)
 			}
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
