@@ -725,7 +725,7 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 			}
 			mnode, ok := dg.FindNodeById(info.Config.Mirror.Name)
 			if !ok {
-				node = dg.Node(info.Config.Mirror.Name)
+				mnode = dg.Node(info.Config.Mirror.Name)
 			}
 			dg.Edge(mnode, node).Attr("color", "blue").Label("Mirror")
 		}
@@ -1443,12 +1443,6 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 					cfg.Mirror.OptStartTime = &t
 				}
 			}
-
-			err = survey.AskOne(&survey.Input{
-				Message: "Mirror subject filter",
-				Help:    "Only replicate data matching this subject",
-			}, &cfg.Mirror.FilterSubject)
-			kingpin.FatalIfError(err, "could not request filter")
 		}
 	}
 
