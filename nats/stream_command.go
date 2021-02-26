@@ -1130,6 +1130,9 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	fmt.Println()
 	fmt.Printf("             Messages: %s\n", humanize.Comma(int64(info.State.Msgs)))
 	fmt.Printf("                Bytes: %s\n", humanize.IBytes(info.State.Bytes))
+	if info.State.Lost != nil && len(info.State.Lost.Msgs) > 0 {
+		fmt.Printf("        Lost Messages: %s (%s)\n", humanize.Comma(int64(len(info.State.Lost.Msgs))), humanize.IBytes(info.State.Lost.Bytes))
+	}
 
 	if info.State.FirstTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
 		fmt.Printf("             FirstSeq: %s\n", humanize.Comma(int64(info.State.FirstSeq)))
