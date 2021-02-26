@@ -32,6 +32,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/emicklei/dot"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/jsm.go/api"
@@ -171,6 +172,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strReport.Flag("name", "Sort by Stream name").Short('n').BoolVar(&c.reportSortName)
 	strReport.Flag("storage", "Sort by Storage type").Short('t').BoolVar(&c.reportSortStorage)
 	strReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.reportRaw)
+	strReport.Flag("dot", "Produce a GraphViz graph of replication topology").StringVar(&c.outFile)
 
 	strBackup := str.Command("backup", "Creates a backup of a Stream over the NATS network").Alias("snapshot").Action(c.backupAction)
 	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
@@ -682,6 +684,9 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	stats := []stat{}
 	showReplication := false
 
+	dg := dot.NewGraph(dot.Directed)
+	dg.Label("Stream Replication Structure")
+
 	err = mgr.EachStream(func(stream *jsm.Stream) {
 		info, err := stream.LatestInformation()
 		kingpin.FatalIfError(err, "could not get stream info for %s", stream.Name())
@@ -693,10 +698,36 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 		if len(info.Config.Sources) > 0 {
 			showReplication = true
 			s.Replication = "Sourced"
+
+			node, ok := dg.FindNodeById(info.Config.Name)
+			if !ok {
+				node = dg.Node(info.Config.Name)
+			}
+			for _, source := range info.Config.Sources {
+				snode, ok := dg.FindNodeById(source.Name)
+				if !ok {
+					snode = dg.Node(source.Name)
+				}
+				edge := dg.Edge(snode, node).Attr("color", "green")
+				if source.FilterSubject != "" {
+					edge.Label(source.FilterSubject)
+				}
+			}
 		}
+
 		if info.Config.Mirror != nil {
 			showReplication = true
 			s.Replication = "Mirror"
+
+			node, ok := dg.FindNodeById(info.Config.Name)
+			if !ok {
+				node = dg.Node(info.Config.Name)
+			}
+			mnode, ok := dg.FindNodeById(info.Config.Mirror.Name)
+			if !ok {
+				node = dg.Node(info.Config.Mirror.Name)
+			}
+			dg.Edge(mnode, node).Attr("color", "blue").Label("Mirror")
 		}
 
 		stats = append(stats, s)
@@ -782,6 +813,10 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 			}
 		}
 		fmt.Println(table.Render())
+	}
+
+	if showReplication && c.outFile != "" {
+		ioutil.WriteFile(c.outFile, []byte(dg.String()), 0644)
 	}
 
 	return nil

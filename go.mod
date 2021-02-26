@@ -10,6 +10,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
 	github.com/codahale/hdrhistogram v1.0.1
 	github.com/dustin/go-humanize v1.0.0
+	github.com/emicklei/dot v0.15.0
 	github.com/fatih/color v1.10.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.5.4
