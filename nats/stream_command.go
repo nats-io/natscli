@@ -662,19 +662,18 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	kingpin.FatalIfError(err, "setup failed")
 
 	type stat struct {
-		Name        string
-		Consumers   int
-		Msgs        int64
-		Bytes       uint64
-		Storage     string
-		Template    string
-		Cluster     *api.ClusterInfo
-		LostBytes   uint64
-		LostMsgs    int
-		Deleted     int
-		Replication string
-		Mirror      *api.StreamSourceInfo
-		Sources     []*api.StreamSourceInfo
+		Name      string
+		Consumers int
+		Msgs      int64
+		Bytes     uint64
+		Storage   string
+		Template  string
+		Cluster   *api.ClusterInfo
+		LostBytes uint64
+		LostMsgs  int
+		Deleted   int
+		Mirror    *api.StreamSourceInfo
+		Sources   []*api.StreamSourceInfo
 	}
 
 	if !c.json {
@@ -690,15 +689,13 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	err = mgr.EachStream(func(stream *jsm.Stream) {
 		info, err := stream.LatestInformation()
 		kingpin.FatalIfError(err, "could not get stream info for %s", stream.Name())
-		s := stat{Name: info.Config.Name, Consumers: info.State.Consumers, Msgs: int64(info.State.Msgs), Bytes: info.State.Bytes, Storage: info.Config.Storage.String(), Template: info.Config.Template, Cluster: info.Cluster, Deleted: len(info.State.Deleted), Replication: "", Mirror: info.Mirror, Sources: info.Sources}
+		s := stat{Name: info.Config.Name, Consumers: info.State.Consumers, Msgs: int64(info.State.Msgs), Bytes: info.State.Bytes, Storage: info.Config.Storage.String(), Template: info.Config.Template, Cluster: info.Cluster, Deleted: len(info.State.Deleted), Mirror: info.Mirror, Sources: info.Sources}
 		if info.State.Lost != nil {
 			s.LostBytes = info.State.Lost.Bytes
 			s.LostMsgs = len(info.State.Lost.Msgs)
 		}
 		if len(info.Config.Sources) > 0 {
 			showReplication = true
-			s.Replication = "Sourced"
-
 			node, ok := dg.FindNodeById(info.Config.Name)
 			if !ok {
 				node = dg.Node(info.Config.Name)
@@ -717,8 +714,6 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 
 		if info.Config.Mirror != nil {
 			showReplication = true
-			s.Replication = "Mirror"
-
 			node, ok := dg.FindNodeById(info.Config.Name)
 			if !ok {
 				node = dg.Node(info.Config.Name)
@@ -757,7 +752,7 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 
 	table := tablewriter.CreateTable()
 	table.AddTitle("Stream Report")
-	table.AddHeaders("Stream", "Storage", "Template", "Replication", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Cluster")
+	table.AddHeaders("Stream", "Storage", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Replicas")
 
 	for _, s := range stats {
 		lost := "0"
@@ -765,12 +760,12 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%d (%d)", s.LostMsgs, s.LostBytes)
 			}
-			table.AddRow(s.Name, s.Storage, s.Template, s.Replication, s.Consumers, s.Msgs, s.Bytes, lost, s.Deleted, renderCluster(s.Cluster))
+			table.AddRow(s.Name, s.Storage, s.Consumers, s.Msgs, s.Bytes, lost, s.Deleted, renderCluster(s.Cluster))
 		} else {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%s (%s)", humanize.Comma(int64(s.LostMsgs)), humanize.IBytes(s.LostBytes))
 			}
-			table.AddRow(s.Name, s.Storage, s.Template, s.Replication, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), lost, s.Deleted, renderCluster(s.Cluster))
+			table.AddRow(s.Name, s.Storage, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), lost, s.Deleted, renderCluster(s.Cluster))
 		}
 	}
 
@@ -1425,22 +1420,26 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 			cfg.Mirror, err = c.parseStreamSource(c.mirror)
 			kingpin.FatalIfError(err, "invalid mirror")
 		} else {
-			cfg.Mirror = &api.StreamSource{Name: c.mirror}
-			a, err := askOneInt("Mirror Start Sequence", "0", "Start mirroring at a specific sequence")
-			kingpin.FatalIfError(err, "Invalid sequence")
-			cfg.Mirror.OptStartSeq = uint64(a)
+			ok, err := askConfirmation("Adjust mirror start", false)
+			kingpin.FatalIfError(err, "Could not request mirror details")
+			if ok {
+				cfg.Mirror = &api.StreamSource{Name: c.mirror}
+				a, err := askOneInt("Mirror Start Sequence", "0", "Start mirroring at a specific sequence")
+				kingpin.FatalIfError(err, "Invalid sequence")
+				cfg.Mirror.OptStartSeq = uint64(a)
 
-			if cfg.Mirror.OptStartSeq == 0 {
-				ts := ""
-				err = survey.AskOne(&survey.Input{
-					Message: "Mirror Start Time (YYYY:MM:DD HH:MM:SS)",
-					Help:    "Start replicating as a specific time stamp in UTC time",
-				}, &ts)
-				kingpin.FatalIfError(err, "could not request start time")
-				if ts != "" {
-					t, err := time.Parse("2006:01:02 15:04:05", ts)
-					kingpin.FatalIfError(err, "invalid time format")
-					cfg.Mirror.OptStartTime = &t
+				if cfg.Mirror.OptStartSeq == 0 {
+					ts := ""
+					err = survey.AskOne(&survey.Input{
+						Message: "Mirror Start Time (YYYY:MM:DD HH:MM:SS)",
+						Help:    "Start replicating as a specific time stamp in UTC time",
+					}, &ts)
+					kingpin.FatalIfError(err, "could not request start time")
+					if ts != "" {
+						t, err := time.Parse("2006:01:02 15:04:05", ts)
+						kingpin.FatalIfError(err, "invalid time format")
+						cfg.Mirror.OptStartTime = &t
+					}
 				}
 			}
 		}
@@ -1462,6 +1461,13 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 
 func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 	cfg := &api.StreamSource{Name: name}
+
+	ok, err := askConfirmation(fmt.Sprintf("Adjust source %q start", name), false)
+	kingpin.FatalIfError(err, "Could not request source details")
+	if !ok {
+		return cfg
+	}
+
 	a, err := askOneInt(fmt.Sprintf("%s Start Sequence", prefix), "0", "Start mirroring at a specific sequence")
 	kingpin.FatalIfError(err, "Invalid sequence")
 	cfg.OptStartSeq = uint64(a)
