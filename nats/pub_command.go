@@ -88,12 +88,12 @@ nats request destination.subject "hello world" -H "Content-type:text/plain" --ra
 	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 }
 
-func (c *pubCmd) prepareMsg(body []byte) (*nats.Msg, error) {
+func (c *pubCmd) prepareMsg(body []byte, seq int) (*nats.Msg, error) {
 	msg := nats.NewMsg(c.subject)
 	msg.Reply = c.replyTo
 	msg.Data = body
 
-	return msg, parseStringsToHeader(c.hdrs, 0, msg)
+	return msg, parseStringsToHeader(c.hdrs, seq, msg)
 }
 
 func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
@@ -112,7 +112,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			log.Printf("Could not parse body template: %s", err)
 		}
 
-		msg, err := c.prepareMsg(body)
+		msg, err := c.prepareMsg(body, i)
 		if err != nil {
 			return err
 		}
@@ -195,7 +195,7 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 			log.Printf("Could not parse body template: %s", err)
 		}
 
-		msg, err := c.prepareMsg(body)
+		msg, err := c.prepareMsg(body, i)
 		if err != nil {
 			return err
 		}
