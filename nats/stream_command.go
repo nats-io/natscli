@@ -21,6 +21,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"os/exec"
 	"os/signal"
 	"regexp"
 	"sort"
@@ -80,6 +81,7 @@ type streamCmd struct {
 	peerName            string
 	sources             []string
 	mirror              string
+	interactive         bool
 
 	vwStartId    int
 	vwStartDelta time.Duration
@@ -125,6 +127,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
 	strEdit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	strEdit.Flag("force", "Force edit without prompting").Short('f').BoolVar(&c.force)
+	strEdit.Flag("interactive", "Edit the configuring using your editor").Short('i').BoolVar(&c.interactive)
 	addCreateFlags(strEdit)
 
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
@@ -906,11 +909,59 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.Placement = nil
 	}
 
-	if c.mirror != "" || len(c.sources) > 0 {
-		return cfg, fmt.Errorf("cannot edit sources or mirrors using the CLI, use --config instead")
+	if len(c.sources) > 0 || c.mirror != "" {
+		return cfg, fmt.Errorf("cannot edit mirrors or sources using the CLI, use --config instead")
 	}
 
 	return cfg, nil
+}
+
+func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, error) {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		return api.StreamConfig{}, fmt.Errorf("set EDITOR environment variable to your chosen editor")
+	}
+
+	cj, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
+	}
+
+	tfile, err := ioutil.TempFile("", "")
+	if err != nil {
+		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
+	}
+	defer os.Remove(tfile.Name())
+
+	_, err = fmt.Fprint(tfile, string(cj))
+	if err != nil {
+		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
+	}
+
+	tfile.Close()
+
+	cmd := exec.Command(editor, tfile.Name())
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err = cmd.Run()
+	if err != nil {
+		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
+	}
+
+	njcfg, err := ioutil.ReadFile(tfile.Name())
+	if err != nil {
+		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
+	}
+
+	var ncfg api.StreamConfig
+	err = json.Unmarshal(njcfg, &ncfg)
+	if err != nil {
+		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
+	}
+
+	return ncfg, nil
 }
 
 func (c *streamCmd) editAction(_ *kingpin.ParseContext) error {
@@ -919,8 +970,14 @@ func (c *streamCmd) editAction(_ *kingpin.ParseContext) error {
 	sourceStream, err := c.mgr.LoadStream(c.stream)
 	kingpin.FatalIfError(err, "could not request Stream %s configuration", c.stream)
 
-	cfg, err := c.copyAndEditStream(sourceStream.Configuration())
-	kingpin.FatalIfError(err, "could not create new configuration for Stream %s", c.stream)
+	var cfg api.StreamConfig
+	if c.interactive {
+		cfg, err = c.interactiveEdit(sourceStream.Configuration())
+		kingpin.FatalIfError(err, "could not create new configuration for Stream %s", c.stream)
+	} else {
+		cfg, err = c.copyAndEditStream(sourceStream.Configuration())
+		kingpin.FatalIfError(err, "could not create new configuration for Stream %s", c.stream)
+	}
 
 	// sorts strings to subject lists that only differ in ordering is considered equal
 	sorter := cmp.Transformer("Sort", func(in []string) []string {
