@@ -1420,10 +1420,10 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 			cfg.Mirror, err = c.parseStreamSource(c.mirror)
 			kingpin.FatalIfError(err, "invalid mirror")
 		} else {
+			cfg.Mirror = &api.StreamSource{Name: c.mirror}
 			ok, err := askConfirmation("Adjust mirror start", false)
 			kingpin.FatalIfError(err, "Could not request mirror details")
 			if ok {
-				cfg.Mirror = &api.StreamSource{Name: c.mirror}
 				a, err := askOneInt("Mirror Start Sequence", "0", "Start mirroring at a specific sequence")
 				kingpin.FatalIfError(err, "Invalid sequence")
 				cfg.Mirror.OptStartSeq = uint64(a)
