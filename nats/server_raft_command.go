@@ -96,7 +96,11 @@ func (c *SrvRaftCmd) metaLeaderStandDown(_ *kingpin.ParseContext) error {
 	leader := resp.Meta.Leader
 
 	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(resp.Meta.Replicas)+1)
-	err = mgr.MetaLeaderStandDown(&api.Placement{Cluster: c.placementCluster})
+	if c.placementCluster != "" {
+		err = mgr.MetaLeaderStandDown(&api.Placement{Cluster: c.placementCluster})
+	} else {
+		err = mgr.MetaLeaderStandDown(nil)
+	}
 	if err != nil {
 		return err
 	}

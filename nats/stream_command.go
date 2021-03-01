@@ -1504,7 +1504,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 
 	for _, source := range c.sources {
 		if isJsonString(source) {
-			ss, err := c.parseStreamSource(c.mirror)
+			ss, err := c.parseStreamSource(source)
 			kingpin.FatalIfError(err, "invalid source")
 			cfg.Sources = append(cfg.Sources, ss)
 		} else {
