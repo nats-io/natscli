@@ -16,6 +16,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +29,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 	"unicode"
@@ -640,4 +642,59 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	sort.Strings(peers)
 
 	return strings.Join(peers, ", ")
+}
+
+func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+	jreq := []byte("{}")
+	var err error
+
+	if req != nil {
+		jreq, err = json.MarshalIndent(req, "", "  ")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if trace {
+		log.Printf(">>> %s: %s\n", subj, string(jreq))
+	}
+
+	var resp [][]byte
+	var mu sync.Mutex
+	ctr := 0
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	sub, err := nc.Subscribe(nats.NewInbox(), func(m *nats.Msg) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		if trace {
+			log.Printf("<<< %s", string(m.Data))
+		}
+
+		resp = append(resp, m.Data)
+		ctr++
+
+		if ctr == waitFor {
+			cancel()
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if waitFor > 0 {
+		sub.AutoUnsubscribe(waitFor)
+	}
+
+	err = nc.PublishRequest(subj, sub.Subject, jreq)
+	if err != nil {
+		return nil, err
+	}
+
+	<-ctx.Done()
+
+	return resp, nil
 }
