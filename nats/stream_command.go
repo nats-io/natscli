@@ -193,7 +193,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	strClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 
-	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the JetStream cluster").Alias("pr").Action(c.removePeer)
+	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the Stream cluster").Alias("pr").Action(c.removePeer)
 	strClusterRemovePeer.Arg("stream", "The stream to act on").StringVar(&c.stream)
 	strClusterRemovePeer.Arg("peer", "The name of the peer to remove").StringVar(&c.peerName)
 

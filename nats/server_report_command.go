@@ -14,12 +14,10 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -558,50 +556,10 @@ func (c *SrvReportCmd) getConnz(current []*server.Connz, nc *nats.Conn, level in
 		return c.getConnz(result, nc, level+1)
 	}
 
-	// we shouldnt get here
+	// we shouldn't get here
 	return nil, false, fmt.Errorf("unexpected error resolving connections")
 }
 
 func (c *SrvReportCmd) doReq(req interface{}, subj string, nc *nats.Conn) ([][]byte, error) {
-	jreq, err := json.MarshalIndent(req, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-
-	if trace {
-		log.Printf(">>> %s: %s\n", subj, string(jreq))
-	}
-
-	var resp [][]byte
-	var mu sync.Mutex
-	ctr := 0
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	sub, err := nc.Subscribe(nats.NewInbox(), func(m *nats.Msg) {
-		mu.Lock()
-		defer mu.Unlock()
-
-		resp = append(resp, m.Data)
-		ctr++
-
-		if ctr == c.waitFor {
-			cancel()
-		}
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	sub.AutoUnsubscribe(c.waitFor)
-
-	err = nc.PublishRequest(subj, sub.Subject, jreq)
-	if err != nil {
-		return nil, err
-	}
-
-	<-ctx.Done()
-
-	return resp, nil
+	return doReq(req, subj, c.waitFor, nc)
 }
