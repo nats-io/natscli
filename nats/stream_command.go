@@ -154,18 +154,18 @@ func configureStreamCommand(app *kingpin.Application) {
 
 	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
 	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
-	strGet.Arg("id", "Message ID to retrieve").Int64Var(&c.msgID)
+	strGet.Arg("id", "Message Sequence to retrieve").Int64Var(&c.msgID)
 	strGet.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 	strRmMsg := str.Command("rmm", "Securely removes an individual message from a Stream").Action(c.rmMsgAction)
 	strRmMsg.Arg("stream", "Stream name").StringVar(&c.stream)
-	strRmMsg.Arg("id", "Message ID to remove").Int64Var(&c.msgID)
+	strRmMsg.Arg("id", "Message Sequence to remove").Int64Var(&c.msgID)
 	strRmMsg.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
 	strView := str.Command("view", "View messages in a stream").Action(c.viewAction)
 	strView.Arg("stream", "Stream name").StringVar(&c.stream)
 	strView.Arg("size", "Page size").Default("10").IntVar(&c.vwPageSize)
-	strView.Flag("id", "Start at a specific message ID").IntVar(&c.vwStartId)
+	strView.Flag("id", "Start at a specific message Sequence").IntVar(&c.vwStartId)
 	strView.Flag("since", "Start at a time delta").DurationVar(&c.vwStartDelta)
 	strView.Flag("raw", "Show the raw data received").BoolVar(&c.vwRaw)
 
@@ -1708,7 +1708,7 @@ func (c *streamCmd) rmMsgAction(_ *kingpin.ParseContext) (err error) {
 	if c.msgID == -1 {
 		id := ""
 		err = survey.AskOne(&survey.Input{
-			Message: "Message ID to remove",
+			Message: "Message Sequence to remove",
 		}, &id, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "invalid input")
 
@@ -1739,7 +1739,7 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 	if c.msgID == -1 {
 		id := ""
 		err = survey.AskOne(&survey.Input{
-			Message: "Message ID to retrieve",
+			Message: "Message Sequence to retrieve",
 		}, &id, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "invalid input")
 
