@@ -89,6 +89,8 @@ func (c *SrvRaftCmd) metaPeerRemove(_ *kingpin.ParseContext) error {
 	}
 
 	if !c.force {
+		fmt.Printf("Removing %s can not be reversed, data on this node will be\ninaccessible and another one called %s can not join again.\n\n", c.peer, c.peer)
+
 		remove, err := askConfirmation(fmt.Sprintf("Really remove peer %s", c.peer), false)
 		kingpin.FatalIfError(err, "Could not prompt for confirmation")
 		if !remove {
