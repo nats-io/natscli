@@ -118,13 +118,13 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		case "name":
 			return c.boolReverse(jszResponses[i].Server.Name < jszResponses[j].Server.Name)
 		case "streams":
-			return c.boolReverse(jszResponses[i].Data.StreamCnt < jszResponses[j].Data.StreamCnt)
+			return c.boolReverse(jszResponses[i].Data.Streams < jszResponses[j].Data.Streams)
 		case "consumers":
-			return c.boolReverse(jszResponses[i].Data.StreamCnt < jszResponses[j].Data.StreamCnt)
+			return c.boolReverse(jszResponses[i].Data.Consumers < jszResponses[j].Data.Consumers)
 		case "msgs":
-			return c.boolReverse(jszResponses[i].Data.MessageCnt < jszResponses[j].Data.MessageCnt)
+			return c.boolReverse(jszResponses[i].Data.Messages < jszResponses[j].Data.Messages)
 		case "mbytes", "bytes":
-			return c.boolReverse(jszResponses[i].Data.MessageBytes < jszResponses[j].Data.MessageBytes)
+			return c.boolReverse(jszResponses[i].Data.Bytes < jszResponses[j].Data.Bytes)
 		case "mem":
 			return c.boolReverse(jszResponses[i].Data.JetStreamStats.Memory < jszResponses[j].Data.JetStreamStats.Memory)
 		case "store", "file":
@@ -156,10 +156,10 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		apiTotal += js.Data.JetStreamStats.API.Total
 		memory += js.Data.JetStreamStats.Memory
 		store += js.Data.JetStreamStats.Store
-		consumers += js.Data.ConsumerCnt
-		streams += js.Data.StreamCnt
-		bytes += js.Data.MessageBytes
-		msgs += js.Data.MessageCnt
+		consumers += js.Data.Consumers
+		streams += js.Data.Streams
+		bytes += js.Data.Bytes
+		msgs += js.Data.Messages
 
 		leader := ""
 		if js.Data.Meta != nil && js.Data.Meta.Leader == js.Server.Name {
@@ -170,10 +170,10 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		table.AddRow(
 			js.Server.Name+leader,
 			js.Server.Cluster,
-			humanize.Comma(int64(js.Data.StreamCnt)),
-			humanize.Comma(int64(js.Data.ConsumerCnt)),
-			humanize.Comma(int64(js.Data.MessageCnt)),
-			humanize.IBytes(js.Data.MessageBytes),
+			humanize.Comma(int64(js.Data.Streams)),
+			humanize.Comma(int64(js.Data.Consumers)),
+			humanize.Comma(int64(js.Data.Messages)),
+			humanize.IBytes(js.Data.Bytes),
 			humanize.IBytes(js.Data.JetStreamStats.Memory),
 			humanize.IBytes(js.Data.JetStreamStats.Store),
 			humanize.Comma(int64(js.Data.JetStreamStats.API.Total)),
