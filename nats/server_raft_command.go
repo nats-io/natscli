@@ -20,8 +20,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/dustin/go-humanize"
-	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -56,9 +54,13 @@ func (c *SrvRaftCmd) metaPeerRemove(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	res, err := doReq(nil, "$SYS.REQ.SERVER.PING.JSZ", -1, nc)
+	res, err := doReq(server.JSzOptions{LeaderOnly: true}, "$SYS.REQ.SERVER.PING.JSZ", 1, nc)
 	if err != nil {
 		return err
+	}
+
+	if len(res) != 1 {
+		return fmt.Errorf("did not receive a response from the meta cluster leader")
 	}
 
 	type jszr struct {
@@ -67,35 +69,26 @@ func (c *SrvRaftCmd) metaPeerRemove(_ *kingpin.ParseContext) error {
 	}
 
 	found := false
-	var server *jszr
+	srv := &jszr{}
+	err = json.Unmarshal(res[0], srv)
+	if err != nil {
+		return err
+	}
 
-	for _, r := range res {
-		response := jszr{}
-
-		err = json.Unmarshal(r, &response)
-		if err != nil {
-			return err
-		}
-
-		if response.Server.ID == c.peer {
+	for _, r := range srv.Data.Meta.Replicas {
+		if r.Name == c.peer {
+			if !r.Offline {
+				return fmt.Errorf("can only remove offline nodes")
+			}
 			found = true
-			server = &response
 		}
 	}
 
 	if !found {
-		return fmt.Errorf("did not find a JetStream server with ID %s", c.peer)
+		return fmt.Errorf("did not find a replica named %s", c.peer)
 	}
 
 	if !c.force {
-		bold := color.New(color.Bold)
-		fmt.Printf("Removing server %s (%s) in cluster %s with %s Streams, %s Consumers holding %s data\n", bold.Sprint(server.Server.Name), server.Server.ID, bold.Sprint(server.Server.Cluster), bold.Sprint(humanize.Comma(int64(server.Data.StreamCnt))), bold.Sprint(humanize.Comma(int64(server.Data.ConsumerCnt))), bold.Sprint(humanize.IBytes(server.Data.MessageBytes)))
-		fmt.Println()
-		fmt.Printf("This will disable JetStream on the server:\n\n * All data will become inaccessible\n * Streams with multiple replicas will immediately initiate data synchronization\n * R1 Streams on this server will be lost\n * This might cause short periods of downtime on those Streams and Consumers\n")
-		fmt.Println()
-		bold.Println("Only perform this action on servers that will not intend to return, for normal maintenance just shut the servers down instead.")
-		fmt.Println()
-
 		remove, err := askConfirmation(fmt.Sprintf("Really remove peer %s", c.peer), false)
 		kingpin.FatalIfError(err, "Could not prompt for confirmation")
 		if !remove {
@@ -105,7 +98,7 @@ func (c *SrvRaftCmd) metaPeerRemove(_ *kingpin.ParseContext) error {
 	}
 
 	err = mgr.MetaPeerRemove(c.peer)
-	kingpin.FatalIfError(err, "Could not remove %s: %s", c.peer, err)
+	kingpin.FatalIfError(err, "Could not remove %s", c.peer)
 
 	return nil
 }
