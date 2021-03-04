@@ -1121,8 +1121,12 @@ func (c *streamCmd) renderSource(s *api.StreamSource) string {
 	if s.FilterSubject != "" {
 		parts = append(parts, fmt.Sprintf("Subject: %s", s.FilterSubject))
 	}
+	if s.External != nil {
+		parts = append(parts, fmt.Sprintf("API Prefix: %s", s.External.ApiPrefix))
+		parts = append(parts, fmt.Sprintf("Delivery Prefix: %s", s.External.DeliverPrefix))
+	}
 
-	return strings.Join(parts, " ")
+	return strings.Join(parts, ", ")
 }
 
 func (c *streamCmd) showStream(stream *jsm.Stream) error {
@@ -1521,6 +1525,25 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 		}
 	}
 
+	ok, err = askConfirmation("Import mirror from a different account", false)
+	kingpin.FatalIfError(err, "Could not request mirror details")
+	if !ok {
+		return mirror
+	}
+
+	mirror.External = &api.ExternalStream{}
+	err = survey.AskOne(&survey.Input{
+		Message: "Foreign account API prefix",
+		Help:    "The prefix where the foreign account JetStream API has been imported",
+	}, &mirror.External.ApiPrefix, survey.WithValidator(survey.Required))
+	kingpin.FatalIfError(err, "Could not request mirror details")
+
+	err = survey.AskOne(&survey.Input{
+		Message: "Foreign account delivery prefix",
+		Help:    "The prefix where the foreign account JetStream delivery subjects has been imported",
+	}, &mirror.External.DeliverPrefix, survey.WithValidator(survey.Required))
+	kingpin.FatalIfError(err, "Could not request mirror details")
+
 	return mirror
 }
 
@@ -1529,34 +1552,52 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 
 	ok, err := askConfirmation(fmt.Sprintf("Adjust source %q start", name), false)
 	kingpin.FatalIfError(err, "Could not request source details")
+	if ok {
+		a, err := askOneInt(fmt.Sprintf("%s Start Sequence", prefix), "0", "Start mirroring at a specific sequence")
+		kingpin.FatalIfError(err, "Invalid sequence")
+		cfg.OptStartSeq = uint64(a)
+
+		ts := ""
+		err = survey.AskOne(&survey.Input{
+			Message: fmt.Sprintf("%s UTC Time Stamp (YYYY:MM:DD HH:MM:SS)", prefix),
+			Help:    "Start replicating as a specific time stamp",
+		}, &ts)
+		kingpin.FatalIfError(err, "could not request start time")
+		if ts != "" {
+			t, err := time.Parse("2006:01:02 15:04:05", ts)
+			kingpin.FatalIfError(err, "invalid time format")
+			cfg.OptStartTime = &t
+		}
+
+		err = survey.AskOne(&survey.Input{
+			Message: fmt.Sprintf("%s Filter source by subject", prefix),
+			Help:    "Only replicate data matching this subject",
+		}, &cfg.FilterSubject)
+		kingpin.FatalIfError(err, "could not request filter")
+	}
+
+	ok, err = askConfirmation(fmt.Sprintf("Import %s source from a different account", prefix), false)
+	kingpin.FatalIfError(err, "Could not request mirror details")
 	if !ok {
 		return cfg
 	}
 
-	a, err := askOneInt(fmt.Sprintf("%s Start Sequence", prefix), "0", "Start mirroring at a specific sequence")
-	kingpin.FatalIfError(err, "Invalid sequence")
-	cfg.OptStartSeq = uint64(a)
-
-	ts := ""
+	cfg.External = &api.ExternalStream{}
 	err = survey.AskOne(&survey.Input{
-		Message: fmt.Sprintf("%s UTC Time Stamp (YYYY:MM:DD HH:MM:SS)", prefix),
-		Help:    "Start replicating as a specific time stamp",
-	}, &ts)
-	kingpin.FatalIfError(err, "could not request start time")
-	if ts != "" {
-		t, err := time.Parse("2006:01:02 15:04:05", ts)
-		kingpin.FatalIfError(err, "invalid time format")
-		cfg.OptStartTime = &t
-	}
+		Message: fmt.Sprintf("%s foreign account API prefix", prefix),
+		Help:    "The prefix where the foreign account JetStream API has been imported",
+	}, &cfg.External.ApiPrefix, survey.WithValidator(survey.Required))
+	kingpin.FatalIfError(err, "Could not request mirror details")
 
 	err = survey.AskOne(&survey.Input{
-		Message: fmt.Sprintf("%s Filter source by subject", prefix),
-		Help:    "Only replicate data matching this subject",
-	}, &cfg.FilterSubject)
-	kingpin.FatalIfError(err, "could not request filter")
+		Message: fmt.Sprintf("%s foreign account delivery prefix", prefix),
+		Help:    "The prefix where the foreign account JetStream delivery subjects has been imported",
+	}, &cfg.External.DeliverPrefix, survey.WithValidator(survey.Required))
+	kingpin.FatalIfError(err, "Could not request mirror details")
 
 	return cfg
 }
+
 func (c *streamCmd) parseStreamSource(source string) (*api.StreamSource, error) {
 	ss := &api.StreamSource{}
 	if isJsonString(source) {
@@ -1662,7 +1703,7 @@ func (c *streamCmd) rmAction(_ *kingpin.ParseContext) (err error) {
 	return nil
 }
 
-func (c *streamCmd) purgeAction(pc *kingpin.ParseContext) (err error) {
+func (c *streamCmd) purgeAction(_ *kingpin.ParseContext) (err error) {
 	c.connectAndAskStream()
 
 	if !c.force {
