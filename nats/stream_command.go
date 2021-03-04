@@ -1477,28 +1477,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 			cfg.Mirror, err = c.parseStreamSource(c.mirror)
 			kingpin.FatalIfError(err, "invalid mirror")
 		} else {
-			cfg.Mirror = &api.StreamSource{Name: c.mirror}
-			ok, err := askConfirmation("Adjust mirror start", false)
-			kingpin.FatalIfError(err, "Could not request mirror details")
-			if ok {
-				a, err := askOneInt("Mirror Start Sequence", "0", "Start mirroring at a specific sequence")
-				kingpin.FatalIfError(err, "Invalid sequence")
-				cfg.Mirror.OptStartSeq = uint64(a)
-
-				if cfg.Mirror.OptStartSeq == 0 {
-					ts := ""
-					err = survey.AskOne(&survey.Input{
-						Message: "Mirror Start Time (YYYY:MM:DD HH:MM:SS)",
-						Help:    "Start replicating as a specific time stamp in UTC time",
-					}, &ts)
-					kingpin.FatalIfError(err, "could not request start time")
-					if ts != "" {
-						t, err := time.Parse("2006:01:02 15:04:05", ts)
-						kingpin.FatalIfError(err, "invalid time format")
-						cfg.Mirror.OptStartTime = &t
-					}
-				}
-			}
+			cfg.Mirror = c.askMirror()
 		}
 	}
 
@@ -1514,6 +1493,35 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 	}
 
 	return cfg
+}
+
+func (c *streamCmd) askMirror() *api.StreamSource {
+	mirror := &api.StreamSource{Name: c.mirror}
+	ok, err := askConfirmation("Adjust mirror start", false)
+	kingpin.FatalIfError(err, "Could not request mirror details")
+	if !ok {
+		return mirror
+	}
+
+	a, err := askOneInt("Mirror Start Sequence", "0", "Start mirroring at a specific sequence")
+	kingpin.FatalIfError(err, "Invalid sequence")
+	mirror.OptStartSeq = uint64(a)
+
+	if mirror.OptStartSeq == 0 {
+		ts := ""
+		err = survey.AskOne(&survey.Input{
+			Message: "Mirror Start Time (YYYY:MM:DD HH:MM:SS)",
+			Help:    "Start replicating as a specific time stamp in UTC time",
+		}, &ts)
+		kingpin.FatalIfError(err, "could not request start time")
+		if ts != "" {
+			t, err := time.Parse("2006:01:02 15:04:05", ts)
+			kingpin.FatalIfError(err, "invalid time format")
+			mirror.OptStartTime = &t
+		}
+	}
+
+	return mirror
 }
 
 func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
@@ -1568,13 +1576,21 @@ func (c *streamCmd) parseStreamSource(source string) (*api.StreamSource, error) 
 }
 
 func (c *streamCmd) validateCfg(cfg *api.StreamConfig) (bool, []byte, []string, error) {
+	if os.Getenv("NOVALIDATE") != "" {
+		return true, nil, nil, nil
+	}
+
 	j, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return false, nil, nil, err
 	}
 
-	if os.Getenv("NOVALIDATE") != "" {
-		return true, nil, nil, nil
+	if !cfg.NoAck {
+		for _, subject := range cfg.Subjects {
+			if subject == ">" {
+				return false, j, []string{"subjects cannot be '>' when acknowledgement is enabled"}, nil
+			}
+		}
 	}
 
 	valid, errs := cfg.Validate(new(SchemaValidator))

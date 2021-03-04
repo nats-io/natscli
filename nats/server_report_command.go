@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/fatih/color"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/xlab/tablewriter"
@@ -198,16 +199,21 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 			return cluster.Replicas[i].Name < cluster.Replicas[j].Name
 		})
 
-		table := tablewriter.CreateTable()
+		table = tablewriter.CreateTable()
 		table.AddTitle("RAFT Meta Group Information")
-		table.AddHeaders("Name", "Leader", "Current", "Offline", "Active", "Lag")
+		table.AddHeaders("Name", "Leader", "Current", "Online", "Active", "Lag")
 		for _, replica := range cluster.Replicas {
 			leader := ""
 			if replica.Name == cluster.Leader {
 				leader = "yes"
 			}
 
-			table.AddRow(replica.Name, leader, replica.Current, replica.Offline, humanizeDuration(replica.Active.Round(time.Millisecond)), humanize.Comma(int64(replica.Lag)))
+			online := "true"
+			if !replica.Offline {
+				online = color.New(color.Bold).Sprint("false")
+			}
+
+			table.AddRow(replica.Name, leader, replica.Current, online, humanizeDuration(replica.Active.Round(time.Millisecond)), humanize.Comma(int64(replica.Lag)))
 		}
 		fmt.Print(table.Render())
 	}
