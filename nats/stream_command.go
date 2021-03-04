@@ -1503,25 +1503,23 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 	mirror := &api.StreamSource{Name: c.mirror}
 	ok, err := askConfirmation("Adjust mirror start", false)
 	kingpin.FatalIfError(err, "Could not request mirror details")
-	if !ok {
-		return mirror
-	}
+	if ok {
+		a, err := askOneInt("Mirror Start Sequence", "0", "Start mirroring at a specific sequence")
+		kingpin.FatalIfError(err, "Invalid sequence")
+		mirror.OptStartSeq = uint64(a)
 
-	a, err := askOneInt("Mirror Start Sequence", "0", "Start mirroring at a specific sequence")
-	kingpin.FatalIfError(err, "Invalid sequence")
-	mirror.OptStartSeq = uint64(a)
-
-	if mirror.OptStartSeq == 0 {
-		ts := ""
-		err = survey.AskOne(&survey.Input{
-			Message: "Mirror Start Time (YYYY:MM:DD HH:MM:SS)",
-			Help:    "Start replicating as a specific time stamp in UTC time",
-		}, &ts)
-		kingpin.FatalIfError(err, "could not request start time")
-		if ts != "" {
-			t, err := time.Parse("2006:01:02 15:04:05", ts)
-			kingpin.FatalIfError(err, "invalid time format")
-			mirror.OptStartTime = &t
+		if mirror.OptStartSeq == 0 {
+			ts := ""
+			err = survey.AskOne(&survey.Input{
+				Message: "Mirror Start Time (YYYY:MM:DD HH:MM:SS)",
+				Help:    "Start replicating as a specific time stamp in UTC time",
+			}, &ts)
+			kingpin.FatalIfError(err, "could not request start time")
+			if ts != "" {
+				t, err := time.Parse("2006:01:02 15:04:05", ts)
+				kingpin.FatalIfError(err, "invalid time format")
+				mirror.OptStartTime = &t
+			}
 		}
 	}
 
@@ -1576,7 +1574,7 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 		kingpin.FatalIfError(err, "could not request filter")
 	}
 
-	ok, err = askConfirmation(fmt.Sprintf("Import %s source from a different account", prefix), false)
+	ok, err = askConfirmation(fmt.Sprintf("Import %q from a different account", name), false)
 	kingpin.FatalIfError(err, "Could not request mirror details")
 	if !ok {
 		return cfg
