@@ -209,7 +209,7 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 			}
 
 			online := "true"
-			if !replica.Offline {
+			if replica.Offline {
 				online = color.New(color.Bold).Sprint("false")
 			}
 
