@@ -61,6 +61,7 @@ type consumerCmd struct {
 	delivery      string
 	ephemeral     bool
 	validateOnly  bool
+	idleHeartbeat string
 
 	mgr *jsm.Manager
 	nc  *nats.Conn
@@ -83,6 +84,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 		f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
 		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
+		f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
@@ -300,6 +302,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	if config.MaxAckPending > 0 {
 		fmt.Printf("     Max Ack Pending: %s\n", humanize.Comma(int64(config.MaxAckPending)))
 	}
+	if config.Heartbeat > 0 {
+		fmt.Printf("      Idle Heartbeat: %s\n", humanizeDuration(config.Heartbeat))
+	}
 
 	fmt.Println()
 
@@ -478,6 +483,16 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.MaxAckPending = c.maxAckPending
 	}
 
+	if c.idleHeartbeat != "" && c.idleHeartbeat != "-" {
+		hb, err := parseDurationString(c.idleHeartbeat)
+		kingpin.FatalIfError(err, "Invalid heartbeat duration")
+		cfg.Heartbeat = hb
+	}
+
+	if cfg.DeliverSubject != "" {
+		cfg.Heartbeat = 0
+	}
+
 	consumer, err := c.mgr.NewConsumerFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed")
 
@@ -634,6 +649,27 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 			Help:    "The maximum number of messages without acknowledgement that can be outstanding, once this limit is reached message delivery will be suspended",
 		}, &c.maxAckPending)
 		kingpin.FatalIfError(err, "could not ask for maximum outstanding acknowledgements")
+	}
+
+	if cfg.DeliverSubject != "" {
+		if c.idleHeartbeat == "-1" {
+			cfg.Heartbeat = 0
+		} else if c.idleHeartbeat != "" {
+			cfg.Heartbeat, err = parseDurationString(c.idleHeartbeat)
+			kingpin.FatalIfError(err, "invalid heartbeat duration")
+
+		} else {
+			idle := "0s"
+			err = survey.AskOne(&survey.Input{
+				Message: "Idle Heartbeat",
+				Help:    "When a Push consumer is idle for the given period an empty message with a Status header of 100 will be sent to the delivery subject, settable using --heartbeat",
+				Default: "0s",
+			}, &idle)
+			kingpin.FatalIfError(err, "could not ask for idle heartbeat")
+			cfg.Heartbeat, err = parseDurationString(idle)
+			kingpin.FatalIfError(err, "invalid heartbeat duration")
+
+		}
 	}
 
 	if c.maxAckPending == -1 {
