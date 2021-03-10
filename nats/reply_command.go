@@ -158,6 +158,7 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 			}
 
 			cmd := exec.Command(cmdParts[0], args...)
+			cmd.Env = os.Environ()
 			cmd.Env = append(cmd.Env, fmt.Sprintf("NATS_REQUEST_SUBJECT=%s", m.Subject))
 			cmd.Env = append(cmd.Env, fmt.Sprintf("NATS_REQUEST_BODY=%s", string(m.Data)))
 			msg.Data, err = cmd.CombinedOutput()
