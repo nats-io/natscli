@@ -30,22 +30,33 @@ type subCmd struct {
 	queue   string
 	raw     bool
 	jsAck   bool
+	inbox   bool
 }
 
 func configureSubCommand(app *kingpin.Application) {
 	c := &subCmd{}
 	act := app.Command("sub", "Generic subscription client").Action(c.subscribe)
-	act.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
+	act.Arg("subject", "Subject to subscribe to").StringVar(&c.subject)
 	act.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)
 	act.Flag("raw", "Show the raw data received").Short('r').BoolVar(&c.raw)
 	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
+	act.Flag("inbox", "Subscribes to a generate inbox").BoolVar(&c.inbox)
 
 	cheats["sub"] = `# To subscribe to messages, in a queue group and acknowledge any JetStream ones
 nats sub source.subject --queue work --ack
+
+# To subscribe to a randomly generated inbox
+nats sub --inbox
 `
 }
 
 func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
+	if c.subject == "" && c.inbox {
+		c.subject = nats.NewInbox()
+	} else if c.subject == "" {
+		return fmt.Errorf("subject is required")
+	}
+
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
@@ -103,7 +114,7 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	if !c.raw {
+	if !c.raw || c.inbox {
 		if c.jsAck {
 			log.Printf("Subscribing on %s with acknowledgement of JetStream messages\n", c.subject)
 		} else {
