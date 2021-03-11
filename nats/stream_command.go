@@ -1087,9 +1087,7 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 		if len(cfg.Placement.Tags) > 0 {
 			fmt.Printf("       Placement Tags: %s\n", strings.Join(cfg.Placement.Tags, ", "))
 		}
-		fmt.Println()
 	}
-
 	if cfg.Mirror != nil {
 		fmt.Printf("               Mirror: %s\n", c.renderSource(cfg.Mirror))
 	}
@@ -1107,6 +1105,8 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 			}
 		}
 	}
+
+	fmt.Println()
 }
 
 func (c *streamCmd) renderSource(s *api.StreamSource) string {
