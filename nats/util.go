@@ -634,9 +634,18 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	if cluster == nil {
 		return ""
 	}
-	peers := []string{cluster.Leader + "*"}
+
+	var peers []string
+	if cluster.Leader != "" {
+		peers = append(peers, cluster.Leader+"*")
+	}
+
 	for _, r := range cluster.Replicas {
-		peers = append(peers, r.Name)
+		name := r.Name
+		if r.Offline || !r.Current {
+			name += "!"
+		}
+		peers = append(peers, name)
 	}
 
 	sort.Strings(peers)

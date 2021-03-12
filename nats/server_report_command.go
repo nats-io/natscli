@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"log"
 	"sort"
-	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
@@ -213,7 +212,7 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 				online = color.New(color.Bold).Sprint("false")
 			}
 
-			table.AddRow(replica.Name, leader, replica.Current, online, humanizeDuration(replica.Active.Round(time.Millisecond)), humanize.Comma(int64(replica.Lag)))
+			table.AddRow(replica.Name, leader, replica.Current, online, humanizeDuration(replica.Active), humanize.Comma(int64(replica.Lag)))
 		}
 		fmt.Print(table.Render())
 	}
