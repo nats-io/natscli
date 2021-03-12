@@ -188,6 +188,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strRestore.Arg("stream", "The name of the Stream to restore").Required().StringVar(&c.stream)
 	strRestore.Arg("file", "The directory holding the backup to restore").Required().ExistingDirVar(&c.backupDirectory)
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
+	strRestore.Flag("config", "Load a different configuration when restoring the stream").ExistingFileVar(&c.inputFile)
 
 	strCluster := str.Command("cluster", "Manages a clustered Stream").Alias("c")
 	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
@@ -438,6 +439,15 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 		opts = append(opts, jsm.RestoreNotify(cb))
 	} else {
 		opts = append(opts, jsm.SnapshotDebug())
+	}
+
+	if c.inputFile != "" {
+		cfg, err := c.loadConfigFile(c.inputFile)
+		if err != nil {
+			return err
+		}
+
+		opts = append(opts, jsm.RestoreConfiguration(*cfg))
 	}
 
 	fmt.Printf("Starting restore of Stream %q from file %q\n\n", c.stream, c.backupDirectory)
@@ -820,17 +830,30 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
+func (c *streamCmd) loadConfigFile(file string) (*api.StreamConfig, error) {
+	var cfg api.StreamConfig
+	f, err := ioutil.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(f, &cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.Name == "" {
+		cfg.Name = c.stream
+	}
+
+	return &cfg, nil
+}
+
 func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, error) {
 	var err error
 
 	if c.inputFile != "" {
-		var cfg api.StreamConfig
-		f, err := ioutil.ReadFile(c.inputFile)
-		if err != nil {
-			return api.StreamConfig{}, err
-		}
-
-		err = json.Unmarshal(f, &cfg)
+		cfg, err := c.loadConfigFile(c.inputFile)
 		if err != nil {
 			return api.StreamConfig{}, err
 		}
@@ -839,7 +862,7 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 			cfg.Name = c.stream
 		}
 
-		return cfg, nil
+		return *cfg, nil
 	}
 
 	cfg.NoAck = !c.ack
@@ -950,18 +973,12 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
 	}
 
-	njcfg, err := ioutil.ReadFile(tfile.Name())
+	ncfg, err := c.loadConfigFile(tfile.Name())
 	if err != nil {
 		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
 	}
 
-	var ncfg api.StreamConfig
-	err = json.Unmarshal(njcfg, &ncfg)
-	if err != nil {
-		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
-	}
-
-	return ncfg, nil
+	return *ncfg, nil
 }
 
 func (c *streamCmd) editAction(_ *kingpin.ParseContext) error {
@@ -1310,14 +1327,11 @@ func (c *streamCmd) retentionPolicyFromString() api.RetentionPolicy {
 	}
 }
 
-func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
+func (c *streamCmd) prepareConfig() api.StreamConfig {
 	var err error
 
 	if c.inputFile != "" {
-		f, err := ioutil.ReadFile(c.inputFile)
-		kingpin.FatalIfError(err, "invalid input")
-
-		err = json.Unmarshal(f, &cfg)
+		cfg, err := c.loadConfigFile(c.inputFile)
 		kingpin.FatalIfError(err, "invalid input")
 
 		if c.stream != "" {
@@ -1332,7 +1346,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 			cfg.Subjects = c.subjects
 		}
 
-		return cfg
+		return *cfg
 	}
 
 	if c.stream == "" {
@@ -1453,7 +1467,7 @@ func (c *streamCmd) prepareConfig() (cfg api.StreamConfig) {
 		kingpin.Fatalf("replicas should be >= 1")
 	}
 
-	cfg = api.StreamConfig{
+	cfg := api.StreamConfig{
 		Name:         c.stream,
 		Subjects:     c.subjects,
 		MaxMsgs:      c.maxMsgLimit,
