@@ -1,6 +1,6 @@
 module github.com/nats-io/natscli
 
-go 1.14
+go 1.16
 
 replace github.com/codahale/hdrhistogram => github.com/HdrHistogram/hdrhistogram-go v0.9.0
 
@@ -18,7 +18,7 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/nats-io/jsm.go v0.0.22-0.20210312103850-6c7cd231ce86
+	github.com/nats-io/jsm.go v0.0.22
 	github.com/nats-io/nats-server/v2 v2.1.8-0.20210303153651-16518b58491b
 	github.com/nats-io/nats.go v1.10.1-0.20210228004050-ed743748acac
 	github.com/nats-io/nuid v1.0.1
