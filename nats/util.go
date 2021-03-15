@@ -39,6 +39,7 @@ import (
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
+	"github.com/xlab/tablewriter"
 	terminal "golang.org/x/term"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -706,4 +707,55 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 	<-ctx.Done()
 
 	return resp, nil
+}
+
+type raftLeader struct {
+	name    string
+	cluster string
+	groups  int
+}
+
+func renderRaftLeaders(leaders map[string]*raftLeader, grpTitle string) {
+	table := tablewriter.CreateTable()
+	table.AddTitle("RAFT Leader Report")
+	table.AddHeaders("Server", "Cluster", grpTitle, "Distribution")
+
+	var llist []*raftLeader
+	cstreams := map[string]int{}
+	for _, v := range leaders {
+		llist = append(llist, v)
+		_, ok := cstreams[v.cluster]
+		if !ok {
+			cstreams[v.cluster] = 0
+		}
+		cstreams[v.cluster] += v.groups
+	}
+	sort.SliceStable(llist, func(i, j int) bool {
+		if llist[i].cluster < llist[j].cluster {
+			return true
+		}
+		if llist[i].cluster > llist[j].cluster {
+			return false
+		}
+		return llist[i].groups < llist[j].groups
+	})
+
+	prev := ""
+	for i, l := range llist {
+		if i == 0 {
+			prev = l.cluster
+		}
+
+		if prev != l.cluster {
+			table.AddSeparator()
+			prev = l.cluster
+		}
+
+		dots := int(math.Round((float64(l.groups) / float64(cstreams[l.cluster]) * 100) / 10))
+		if dots <= 0 {
+			dots = 1
+		}
+		table.AddRow(l.name, l.cluster, humanize.Comma(int64(l.groups)), strings.Repeat("*", dots))
+	}
+	fmt.Println(table.Render())
 }

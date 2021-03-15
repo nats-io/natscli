@@ -67,6 +67,8 @@ type streamCmd struct {
 	reportSortName      bool
 	reportSortStorage   bool
 	reportRaw           bool
+	reportLimitCluster  string
+	reportLeaderDistrib bool
 	maxStreams          int
 	discardPolicy       string
 	validateOnly        bool
@@ -90,6 +92,21 @@ type streamCmd struct {
 
 	nc  *nats.Conn
 	mgr *jsm.Manager
+}
+
+type streamStat struct {
+	Name      string
+	Consumers int
+	Msgs      int64
+	Bytes     uint64
+	Storage   string
+	Template  string
+	Cluster   *api.ClusterInfo
+	LostBytes uint64
+	LostMsgs  int
+	Deleted   int
+	Mirror    *api.StreamSourceInfo
+	Sources   []*api.StreamSourceInfo
 }
 
 func configureStreamCommand(app *kingpin.Application) {
@@ -170,12 +187,14 @@ func configureStreamCommand(app *kingpin.Application) {
 	strView.Flag("raw", "Show the raw data received").BoolVar(&c.vwRaw)
 
 	strReport := str.Command("report", "Reports on Stream statistics").Action(c.reportAction)
+	strReport.Flag("cluster", "Limit report to streams within a specific cluster").StringVar(&c.reportLimitCluster)
 	strReport.Flag("consumers", "Sort by number of Consumers").Short('o').BoolVar(&c.reportSortConsumers)
 	strReport.Flag("messages", "Sort by number of Messages").Short('m').BoolVar(&c.reportSortMsgs)
 	strReport.Flag("name", "Sort by Stream name").Short('n').BoolVar(&c.reportSortName)
 	strReport.Flag("storage", "Sort by Storage type").Short('t').BoolVar(&c.reportSortStorage)
 	strReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.reportRaw)
 	strReport.Flag("dot", "Produce a GraphViz graph of replication topology").StringVar(&c.outFile)
+	strReport.Flag("leaders", "Show details about RAFT leaders").Short('l').BoolVar(&c.reportLeaderDistrib)
 
 	strBackup := str.Command("backup", "Creates a backup of a Stream over the NATS network").Alias("snapshot").Action(c.backupAction)
 	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
@@ -674,26 +693,12 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	type stat struct {
-		Name      string
-		Consumers int
-		Msgs      int64
-		Bytes     uint64
-		Storage   string
-		Template  string
-		Cluster   *api.ClusterInfo
-		LostBytes uint64
-		LostMsgs  int
-		Deleted   int
-		Mirror    *api.StreamSourceInfo
-		Sources   []*api.StreamSourceInfo
-	}
-
 	if !c.json {
 		fmt.Print("Obtaining Stream stats\n\n")
 	}
 
-	stats := []stat{}
+	stats := []streamStat{}
+	leaders := make(map[string]*raftLeader)
 	showReplication := false
 
 	dg := dot.NewGraph(dot.Directed)
@@ -702,11 +707,27 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	err = mgr.EachStream(func(stream *jsm.Stream) {
 		info, err := stream.LatestInformation()
 		kingpin.FatalIfError(err, "could not get stream info for %s", stream.Name())
-		s := stat{Name: info.Config.Name, Consumers: info.State.Consumers, Msgs: int64(info.State.Msgs), Bytes: info.State.Bytes, Storage: info.Config.Storage.String(), Template: info.Config.Template, Cluster: info.Cluster, Deleted: len(info.State.Deleted), Mirror: info.Mirror, Sources: info.Sources}
+
+		if info.Cluster != nil {
+			if c.reportLimitCluster != "" && info.Cluster.Name != c.reportLimitCluster {
+				return
+			}
+
+			if info.Cluster.Leader != "" {
+				_, ok := leaders[info.Cluster.Leader]
+				if !ok {
+					leaders[info.Cluster.Leader] = &raftLeader{name: info.Cluster.Leader, cluster: info.Cluster.Name}
+				}
+				leaders[info.Cluster.Leader].groups++
+			}
+		}
+
+		s := streamStat{Name: info.Config.Name, Consumers: info.State.Consumers, Msgs: int64(info.State.Msgs), Bytes: info.State.Bytes, Storage: info.Config.Storage.String(), Template: info.Config.Template, Cluster: info.Cluster, Deleted: len(info.State.Deleted), Mirror: info.Mirror, Sources: info.Sources}
 		if info.State.Lost != nil {
 			s.LostBytes = info.State.Lost.Bytes
 			s.LostMsgs = len(info.State.Lost.Msgs)
 		}
+
 		if len(info.Config.Sources) > 0 {
 			showReplication = true
 			node, ok := dg.FindNodeById(info.Config.Name)
@@ -763,6 +784,63 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 		sort.Slice(stats, func(i, j int) bool { return stats[i].Bytes < stats[j].Bytes })
 	}
 
+	c.renderStreams(stats)
+
+	if showReplication {
+		c.renderReplication(stats)
+
+		if c.outFile != "" {
+			ioutil.WriteFile(c.outFile, []byte(dg.String()), 0644)
+		}
+	}
+
+	if c.reportLeaderDistrib && len(leaders) > 0 {
+		renderRaftLeaders(leaders, "Streams")
+	}
+
+	return nil
+}
+
+func (c *streamCmd) renderReplication(stats []streamStat) {
+	table := tablewriter.CreateTable()
+	table.AddTitle("Replication Report")
+	table.AddHeaders("Stream", "Kind", "Source Stream", "Active", "Lag", "Error")
+
+	for _, s := range stats {
+		if len(s.Sources) == 0 && s.Mirror == nil {
+			continue
+		}
+
+		if s.Mirror != nil {
+			apierr := ""
+			if s.Mirror.Error != nil {
+				apierr = s.Mirror.Error.Error()
+			}
+			if c.reportRaw {
+				table.AddRow(s.Name, "Mirror", s.Mirror.Name, s.Mirror.Active, s.Mirror.Lag, apierr)
+			} else {
+				table.AddRow(s.Name, "Mirror", s.Mirror.Name, humanizeDuration(s.Mirror.Active), humanize.Comma(int64(s.Mirror.Lag)), apierr)
+			}
+		}
+
+		for _, source := range s.Sources {
+			apierr := ""
+			if source != nil && source.Error != nil {
+				apierr = source.Error.Error()
+			}
+
+			if c.reportRaw {
+				table.AddRow(s.Name, "Source", source.Name, source.Active, source.Lag, apierr)
+			} else {
+				table.AddRow(s.Name, "Source", source.Name, humanizeDuration(source.Active), humanize.Comma(int64(source.Lag)), apierr)
+			}
+
+		}
+	}
+	fmt.Println(table.Render())
+}
+
+func (c *streamCmd) renderStreams(stats []streamStat) {
 	table := tablewriter.CreateTable()
 	table.AddTitle("Stream Report")
 	table.AddHeaders("Stream", "Storage", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Replicas")
@@ -783,51 +861,6 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 	}
 
 	fmt.Println(table.Render())
-
-	if showReplication {
-		table := tablewriter.CreateTable()
-		table.AddTitle("Replication Report")
-		table.AddHeaders("Stream", "Kind", "Source Stream", "Active", "Lag", "Error")
-
-		for _, s := range stats {
-			if len(s.Sources) == 0 && s.Mirror == nil {
-				continue
-			}
-
-			if s.Mirror != nil {
-				apierr := ""
-				if s.Mirror.Error != nil {
-					apierr = s.Mirror.Error.Error()
-				}
-				if c.reportRaw {
-					table.AddRow(s.Name, "Mirror", s.Mirror.Name, s.Mirror.Active, s.Mirror.Lag, apierr)
-				} else {
-					table.AddRow(s.Name, "Mirror", s.Mirror.Name, humanizeDuration(s.Mirror.Active), humanize.Comma(int64(s.Mirror.Lag)), apierr)
-				}
-			}
-
-			for _, source := range s.Sources {
-				apierr := ""
-				if source != nil && source.Error != nil {
-					apierr = source.Error.Error()
-				}
-
-				if c.reportRaw {
-					table.AddRow(s.Name, "Source", source.Name, source.Active, source.Lag, apierr)
-				} else {
-					table.AddRow(s.Name, "Source", source.Name, humanizeDuration(source.Active), humanize.Comma(int64(source.Lag)), apierr)
-				}
-
-			}
-		}
-		fmt.Println(table.Render())
-	}
-
-	if showReplication && c.outFile != "" {
-		ioutil.WriteFile(c.outFile, []byte(dg.String()), 0644)
-	}
-
-	return nil
 }
 
 func (c *streamCmd) loadConfigFile(file string) (*api.StreamConfig, error) {

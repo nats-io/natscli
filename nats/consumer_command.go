@@ -48,21 +48,22 @@ type consumerCmd struct {
 	inputFile   string
 	outFile     string
 
-	bpsRateLimit  uint64
-	maxAckPending int
-	maxDeliver    int
-	pull          bool
-	replayPolicy  string
-	startPolicy   string
-	ackPolicy     string
-	ackWait       time.Duration
-	samplePct     int
-	filterSubject string
-	delivery      string
-	ephemeral     bool
-	validateOnly  bool
-	idleHeartbeat string
-	flowControl   *bool
+	bpsRateLimit        uint64
+	maxAckPending       int
+	maxDeliver          int
+	pull                bool
+	replayPolicy        string
+	startPolicy         string
+	ackPolicy           string
+	ackWait             time.Duration
+	samplePct           int
+	filterSubject       string
+	delivery            string
+	ephemeral           bool
+	validateOnly        bool
+	idleHeartbeat       string
+	flowControl         *bool
+	reportLeaderDistrib bool
 
 	mgr *jsm.Manager
 	nc  *nats.Conn
@@ -140,6 +141,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 	conReport := cons.Command("report", "Reports on Consmer statistics").Action(c.reportAction)
 	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
 	conReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.raw)
+	conReport.Flag("leaders", "Show details about the leaders").Short('l').BoolVar(&c.reportLeaderDistrib)
 }
 
 func (c *consumerCmd) leaderStandDown(_ *kingpin.ParseContext) error {
@@ -977,6 +979,8 @@ func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
 
 	fmt.Printf("Consumer report for %s with %d consumers\n\n", c.stream, ss.Consumers)
 
+	leaders := make(map[string]*raftLeader)
+
 	table := tablewriter.CreateTable()
 	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
 	err = s.EachConsumer(func(cons *jsm.Consumer) {
@@ -989,6 +993,16 @@ func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
 		mode := "Push"
 		if cons.IsPullMode() {
 			mode = "Pull"
+		}
+
+		if cs.Cluster != nil {
+			if cs.Cluster.Leader != "" {
+				_, ok := leaders[cs.Cluster.Leader]
+				if !ok {
+					leaders[cs.Cluster.Leader] = &raftLeader{name: cs.Cluster.Leader, cluster: cs.Cluster.Name}
+				}
+				leaders[cs.Cluster.Leader].groups++
+			}
 		}
 
 		if c.raw {
@@ -1007,6 +1021,10 @@ func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
 	}
 
 	fmt.Println(table.Render())
+
+	if c.reportLeaderDistrib && len(leaders) > 0 {
+		renderRaftLeaders(leaders, "Consumers")
+	}
 
 	return nil
 }
