@@ -62,7 +62,6 @@ type consumerCmd struct {
 	ephemeral           bool
 	validateOnly        bool
 	idleHeartbeat       string
-	flowControl         *bool
 	reportLeaderDistrib bool
 
 	mgr *jsm.Manager
@@ -87,7 +86,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
-		f.Flag("flow-control", "Enable Push consumer flow control").BoolVar(c.flowControl)
+		OptionalBoolean(f.Flag("flow-control", "Enable Push consumer flow control"))
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
@@ -309,7 +308,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	if config.Heartbeat > 0 {
 		fmt.Printf("      Idle Heartbeat: %s\n", humanizeDuration(config.Heartbeat))
 	}
-	if config.DeliverSubject == "" {
+	if config.DeliverSubject != "" {
 		fmt.Printf("        Flow Control: %v\n", config.FlowControl)
 	}
 
@@ -431,7 +430,7 @@ func (c *consumerCmd) setStartPolicy(cfg *api.ConsumerConfig, policy string) {
 	}
 }
 
-func (c *consumerCmd) cpAction(_ *kingpin.ParseContext) (err error) {
+func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 	c.connectAndSetup(true, false)
 
 	source, err := c.mgr.LoadConsumer(c.stream, c.consumer)
@@ -496,11 +495,12 @@ func (c *consumerCmd) cpAction(_ *kingpin.ParseContext) (err error) {
 		cfg.Heartbeat = hb
 	}
 
-	if c.flowControl != nil {
-		cfg.FlowControl = *c.flowControl
+	fc := pc.SelectedCommand.GetFlag("flow-control").Model().Value.(*OptionalBoolValue)
+	if fc.IsSetByUser() {
+		cfg.FlowControl = fc.Value()
 	}
 
-	if cfg.DeliverSubject != "" {
+	if cfg.DeliverSubject == "" {
 		cfg.Heartbeat = 0
 		cfg.FlowControl = false
 	}
@@ -519,7 +519,7 @@ func (c *consumerCmd) cpAction(_ *kingpin.ParseContext) (err error) {
 	return nil
 }
 
-func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
+func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.ConsumerConfig, err error) {
 	cfg = c.defaultConsumer()
 
 	if c.inputFile != "" {
@@ -684,13 +684,15 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 		}
 	}
 
-	if cfg.DeliverSubject == "" {
-		if c.flowControl == nil {
+	if cfg.DeliverSubject != "" {
+		fc := pc.SelectedCommand.GetFlag("flow-control").Model().Value.(*OptionalBoolValue)
+		if !fc.IsSetByUser() {
 			flow, err := askConfirmation("Enable Flow Control", false)
 			kingpin.FatalIfError(err, "could not ask flow control")
-			c.flowControl = &flow
+			fc.SetBool(flow)
 		}
-		cfg.FlowControl = *c.flowControl
+
+		cfg.FlowControl = fc.Value()
 	}
 
 	if c.maxAckPending == -1 {
@@ -726,8 +728,8 @@ func (c *consumerCmd) validateCfg(cfg *api.ConsumerConfig) (bool, []byte, []stri
 	return valid, j, errs, nil
 }
 
-func (c *consumerCmd) createAction(_ *kingpin.ParseContext) (err error) {
-	cfg, err := c.prepareConfig()
+func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
+	cfg, err := c.prepareConfig(pc)
 	if err != nil {
 		return err
 	}
