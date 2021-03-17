@@ -438,7 +438,7 @@ func TestCLIConsumerAdd(t *testing.T) {
 	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --max-pending 10 --replay instant --deliver all --target out.push1 --ack explicit --filter '' --max-deliver 20 --bps 1024 --heartbeat=-1", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --max-pending 10 --replay instant --deliver all --target out.push1 --ack explicit --filter '' --max-deliver 20 --bps 1024 --heartbeat=-1 --flow-control", srv.ClientURL()))
 	consumerShouldExist(t, mgr, "mem1", "push1")
 	push1, err := mgr.LoadConsumer("mem1", "push1")
 	checkErr(t, err, "push1 could not be loaded")
@@ -453,6 +453,9 @@ func TestCLIConsumerAdd(t *testing.T) {
 	}
 	if push1.MaxAckPending() != 10 {
 		t.Fatalf("Expected max ack pending 10 but got %v", push1.MaxAckPending())
+	}
+	if !push1.FlowControl() {
+		t.Fatalf("Expected flow control, got false")
 	}
 	push1.Delete()
 
