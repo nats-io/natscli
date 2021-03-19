@@ -636,22 +636,41 @@ func renderCluster(cluster *api.ClusterInfo) string {
 		return ""
 	}
 
+	// first we figure out leader and downs based on the full names and build
+	// peers array which is a list of all the full names
+	leader := -1
+	warn := []int{}
 	var peers []string
+
 	if cluster.Leader != "" {
-		peers = append(peers, cluster.Leader+"*")
+		peers = append(peers, cluster.Leader)
+		leader = 0
 	}
 
-	for _, r := range cluster.Replicas {
+	for i, r := range cluster.Replicas {
 		name := r.Name
 		if r.Offline || !r.Current {
-			name += "!"
+			if leader == 0 {
+				warn = append(warn, i+1)
+			} else {
+				warn = append(warn, i)
+			}
+
 		}
 		peers = append(peers, name)
 	}
 
-	sort.Strings(peers)
+	// now we compact that list of hostnames and apply styling * and ! to the leader and down ones
+	compact := compactStrings(peers)
+	if leader != -1 {
+		compact[0] = compact[0] + "*"
+	}
+	for i := range warn {
+		compact[i] = compact[i] + "!"
+	}
+	sort.Strings(compact)
 
-	return strings.Join(peers, ", ")
+	return strings.Join(compact, ", ")
 }
 
 func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
@@ -758,4 +777,44 @@ func renderRaftLeaders(leaders map[string]*raftLeader, grpTitle string) {
 		table.AddRow(l.name, l.cluster, humanize.Comma(int64(l.groups)), strings.Repeat("*", dots))
 	}
 	fmt.Println(table.Render())
+}
+
+func compactStrings(source []string) []string {
+	hnParts := make([][]string, len(source))
+	shortest := math.MaxInt8
+
+	for i, name := range source {
+		hnParts[i] = strings.Split(name, ".")
+		if len(hnParts[i]) < shortest {
+			shortest = len(hnParts[i])
+		}
+	}
+
+	toRemove := ""
+
+	// we dont chop the 0 item off
+	for i := shortest - 1; i > 0; i-- {
+		s := hnParts[0][i]
+
+		remove := true
+		for _, name := range hnParts {
+			if name[i] != s {
+				remove = false
+				break
+			}
+		}
+
+		if remove {
+			toRemove = "." + s + toRemove
+		} else {
+			break
+		}
+	}
+
+	result := make([]string, len(source))
+	for i, name := range source {
+		result[i] = strings.TrimSuffix(name, toRemove)
+	}
+
+	return result
 }

@@ -40,6 +40,7 @@ type SrvLsCmd struct {
 	filter  string
 	sort    string
 	reverse bool
+	compact bool
 }
 
 type srvListCluster struct {
@@ -58,7 +59,8 @@ func configureServerListCommand(srv *kingpin.CmdClause) {
 	ls.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	ls.Flag("filter", "Regular expression filter on server name").Short('f').StringVar(&c.filter)
 	ls.Flag("sort", "Sort servers by a specific key (conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
-	ls.Flag("reverse", "Reverse sort servers").Short('R').BoolVar(&c.reverse)
+	ls.Flag("reverse", "Reverse sort servers").Short('R').Default("true").BoolVar(&c.reverse)
+	ls.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 }
 
 func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
@@ -79,13 +81,14 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		rtt time.Duration
 	}
 
-	var results []*result
 	filter, err := regexp.Compile(c.filter)
 	if err != nil {
 		return err
 	}
 
 	var (
+		results     []*result
+		names       []string
 		clusters           = make(map[string]*srvListCluster)
 		servers            = 0
 		connections        = 0
@@ -181,10 +184,6 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	table := tablewriter.CreateTable()
-	table.AddTitle("Server Overview")
-	table.AddHeaders("Name", "Cluster", "IP", "Version", "JS", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU", "Slow", "Uptime", "RTT")
-
 	rev := func(v bool) bool {
 		if c.reverse {
 			return !v
@@ -218,12 +217,25 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		}
 	})
 
+	table := tablewriter.CreateTable()
+	table.AddTitle("Server Overview")
+	table.AddHeaders("Name", "Cluster", "IP", "Version", "JS", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU", "Slow", "Uptime", "RTT")
+
+	// here so its after the sort
 	for _, ssm := range results {
+		names = append(names, ssm.Server.Name)
+	}
+	cNames := names
+	if c.compact {
+		cNames = compactStrings(names)
+	}
+
+	for i, ssm := range results {
 		jsEnabled := "no"
 		if ssm.Server.JetStream {
 			jsEnabled = "yes"
 		}
-		table.AddRow(ssm.Server.Name, ssm.Server.Cluster, ssm.Server.Host, ssm.Server.Version, jsEnabled, ssm.Stats.Connections, ssm.Stats.NumSubs, len(ssm.Stats.Routes), len(ssm.Stats.Gateways), humanize.IBytes(uint64(ssm.Stats.Mem)), fmt.Sprintf("%.1f", ssm.Stats.CPU), ssm.Stats.SlowConsumers, humanizeTime(ssm.Stats.Start), ssm.rtt)
+		table.AddRow(cNames[i], ssm.Server.Cluster, ssm.Server.Host, ssm.Server.Version, jsEnabled, ssm.Stats.Connections, ssm.Stats.NumSubs, len(ssm.Stats.Routes), len(ssm.Stats.Gateways), humanize.IBytes(uint64(ssm.Stats.Mem)), fmt.Sprintf("%.1f", ssm.Stats.CPU), ssm.Stats.SlowConsumers, humanizeTime(ssm.Stats.Start), ssm.rtt)
 	}
 
 	table.AddSeparator()

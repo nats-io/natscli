@@ -35,6 +35,7 @@ type SrvReportCmd struct {
 	sort    string
 	topk    int
 	reverse bool
+	compact bool
 }
 
 type srvReportAccountInfo struct {
@@ -53,7 +54,7 @@ func configureServerReportCommand(srv *kingpin.CmdClause) {
 
 	report := srv.Command("report", "Report on various server metrics").Alias("rep")
 	report.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	report.Flag("reverse", "Reverse sort connections").Short('R').BoolVar(&c.reverse)
+	report.Flag("reverse", "Reverse sort connections").Short('R').Default("true").BoolVar(&c.reverse)
 
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnections)
 	conns.Arg("limit", "Limit the responses to a certain amount of servers").Default("1024").IntVar(&c.waitFor)
@@ -71,6 +72,7 @@ func configureServerReportCommand(srv *kingpin.CmdClause) {
 	jsz.Arg("limit", "Limit the responses to a certain amount of servers").Default("1024").IntVar(&c.waitFor)
 	jsz.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
 	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
+	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 }
 
 func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
@@ -90,6 +92,7 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 	}
 
 	var (
+		names        []string
 		jszResponses []*jszr
 		apiErr       uint64
 		apiTotal     uint64
@@ -142,6 +145,17 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("no responses received")
 	}
 
+	// here so its after the sort
+	for _, js := range jszResponses {
+		names = append(names, js.Server.Name)
+	}
+	var cNames []string
+	if c.compact {
+		cNames = compactStrings(names)
+	} else {
+		cNames = names
+	}
+
 	table := tablewriter.CreateTable()
 	if c.account != "" {
 		table.AddTitle(fmt.Sprintf("JetStream Summary for Account %s", c.account))
@@ -151,7 +165,7 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 
 	table.AddHeaders("Server", "Cluster", "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "API Err")
 
-	for _, js := range jszResponses {
+	for i, js := range jszResponses {
 		apiErr += js.Data.JetStreamStats.API.Errors
 		apiTotal += js.Data.JetStreamStats.API.Total
 		memory += js.Data.JetStreamStats.Memory
@@ -168,7 +182,7 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		}
 
 		table.AddRow(
-			js.Server.Name+leader,
+			cNames[i]+leader,
 			js.Server.Cluster,
 			humanize.Comma(int64(js.Data.Streams)),
 			humanize.Comma(int64(js.Data.Consumers)),
@@ -198,10 +212,20 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 			return cluster.Replicas[i].Name < cluster.Replicas[j].Name
 		})
 
+		names := []string{}
+		for _, r := range cluster.Replicas {
+			names = append(names, r.Name)
+		}
+		if c.compact {
+			cNames = compactStrings(names)
+		} else {
+			cNames = names
+		}
+
 		table = tablewriter.CreateTable()
 		table.AddTitle("RAFT Meta Group Information")
 		table.AddHeaders("Name", "Leader", "Current", "Online", "Active", "Lag")
-		for _, replica := range cluster.Replicas {
+		for i, replica := range cluster.Replicas {
 			leader := ""
 			if replica.Name == cluster.Leader {
 				leader = "yes"
@@ -212,7 +236,7 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 				online = color.New(color.Bold).Sprint("false")
 			}
 
-			table.AddRow(replica.Name, leader, replica.Current, online, humanizeDuration(replica.Active), humanize.Comma(int64(replica.Lag)))
+			table.AddRow(cNames[i], leader, replica.Current, online, humanizeDuration(replica.Active), humanize.Comma(int64(replica.Lag)))
 		}
 		fmt.Print(table.Render())
 	}

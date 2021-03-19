@@ -532,7 +532,11 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 		err = json.Unmarshal(f, cfg)
 
 		if cfg.Durable != "" && c.consumer != "" && cfg.Durable != c.consumer {
-			return cfg, fmt.Errorf("non durable consumer name in %s does not match CLI consumer name %s", c.inputFile, c.consumer)
+			return cfg, fmt.Errorf("durable consumer name in %s does not match CLI consumer name %s", c.inputFile, c.consumer)
+		}
+
+		if cfg.DeliverSubject != "" && c.delivery != "" {
+			cfg.DeliverSubject = c.delivery
 		}
 
 		return cfg, err
