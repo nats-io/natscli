@@ -623,41 +623,41 @@ func TestCLIBackupRestore(t *testing.T) {
 	}
 }
 
-// func TestCLIStreamBackupRestore(t *testing.T) {
-// 	srv, nc, mgr := setupConsTest(t)
-// 	defer srv.Shutdown()
-//
-// 	dir, err := ioutil.TempDir("", "")
-// 	checkErr(t, err, "temp dir failed")
-// 	defer os.RemoveAll(dir)
-// 	target := filepath.Join(dir, "backup.tgz")
-//
-// 	stream, err := mgr.NewStreamFromDefault("file1", file1Stream())
-// 	checkErr(t, err, "could not create stream: %v", err)
-// 	streamShouldExist(t, mgr, "file1")
-//
-// 	for i := 0; i < 1024; i++ {
-// 		_, err = nc.Request("js.file.1", []byte(fmt.Sprintf("message %d", i)), time.Second)
-// 		checkErr(t, err, "publish failed")
-// 	}
-//
-// 	runNatsCli(t, fmt.Sprintf("--server='%s' stream backup file1 %s", srv.ClientURL(), target))
-//
-// 	err = stream.Delete()
-// 	checkErr(t, err, "delete failed")
-// 	streamShouldNotExist(t, mgr, "file1")
-//
-// 	runNatsCli(t, fmt.Sprintf("--server='%s' stream restore file1 %s", srv.ClientURL(), target))
-// 	streamShouldExist(t, mgr, "file1")
-//
-// 	stream, err = mgr.LoadStream("file1")
-// 	checkErr(t, err, "load failed")
-// 	state, err := stream.State()
-// 	checkErr(t, err, "state failed")
-// 	if state.LastSeq != 1024 {
-// 		t.Fatalf("expected 1024 messages got %d", state.LastSeq)
-// 	}
-// }
+func TestCLIStreamBackupRestore(t *testing.T) {
+	srv, nc, mgr := setupConsTest(t)
+	defer srv.Shutdown()
+
+	dir, err := ioutil.TempDir("", "")
+	checkErr(t, err, "temp dir failed")
+	defer os.RemoveAll(dir)
+	target := filepath.Join(dir, "backup.tgz")
+
+	stream, err := mgr.NewStreamFromDefault("file1", file1Stream())
+	checkErr(t, err, "could not create stream: %v", err)
+	streamShouldExist(t, mgr, "file1")
+
+	for i := 0; i < 1024; i++ {
+		_, err = nc.Request("js.file.1", []byte(fmt.Sprintf("message %d", i)), time.Second)
+		checkErr(t, err, "publish failed")
+	}
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' stream backup file1 %s", srv.ClientURL(), target))
+
+	err = stream.Delete()
+	checkErr(t, err, "delete failed")
+	streamShouldNotExist(t, mgr, "file1")
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' stream restore file1 %s", srv.ClientURL(), target))
+	streamShouldExist(t, mgr, "file1")
+
+	stream, err = mgr.LoadStream("file1")
+	checkErr(t, err, "load failed")
+	state, err := stream.State()
+	checkErr(t, err, "state failed")
+	if state.LastSeq != 1024 {
+		t.Fatalf("expected 1024 messages got %d", state.LastSeq)
+	}
+}
 
 func TestCLIBackupRestore_UpdateStream(t *testing.T) {
 	srv, _, mgr := setupConsTest(t)
@@ -731,4 +731,38 @@ func TestCLIMessageRm(t *testing.T) {
 	if err == nil {
 		t.Fatalf("loading delete message did not fail")
 	}
+}
+
+func TestHostnameCompactor(t *testing.T) {
+	names := []string{
+		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local",
+		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local",
+		"broker-broker-1.broker-broker-ss.choria.svc.cluster.local",
+	}
+
+	result := compactStrings(names)
+	if !cmp.Equal(result, []string{"broker-broker-2", "broker-broker-0", "broker-broker-1"}) {
+		t.Fatalf("Recevied %#v", result)
+	}
+
+	names = []string{
+		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local1",
+		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local2",
+		"broker-broker-1.broker-broker-ss.choria.svc.cluster.local3",
+	}
+	result = compactStrings(names)
+	if !cmp.Equal(result, names) {
+		t.Fatalf("Recevied %#v", result)
+	}
+
+	names = []string{
+		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local",
+		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local",
+		"broker-broker-1.broker-broker-ss.other.svc.cluster.local",
+	}
+	result = compactStrings(names)
+	if !cmp.Equal(result, []string{"broker-broker-2.broker-broker-ss.choria", "broker-broker-0.broker-broker-ss.choria", "broker-broker-1.broker-broker-ss.other"}) {
+		t.Fatalf("Recevied %#v", result)
+	}
+
 }
