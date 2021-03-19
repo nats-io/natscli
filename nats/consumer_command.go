@@ -424,7 +424,7 @@ func (c *consumerCmd) setStartPolicy(cfg *api.ConsumerConfig, policy string) {
 	} else {
 		d, err := parseDurationString(policy)
 		kingpin.FatalIfError(err, "could not parse starting delta")
-		t := time.Now().Add(-d)
+		t := time.Now().UTC().Add(-d)
 		cfg.DeliverPolicy = api.DeliverByStartTime
 		cfg.OptStartTime = &t
 	}
