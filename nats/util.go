@@ -665,7 +665,7 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	if leader != -1 {
 		compact[0] = compact[0] + "*"
 	}
-	for i := range warn {
+	for _, i := range warn {
 		compact[i] = compact[i] + "!"
 	}
 	sort.Strings(compact)
