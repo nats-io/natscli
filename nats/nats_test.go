@@ -732,37 +732,3 @@ func TestCLIMessageRm(t *testing.T) {
 		t.Fatalf("loading delete message did not fail")
 	}
 }
-
-func TestHostnameCompactor(t *testing.T) {
-	names := []string{
-		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local",
-		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local",
-		"broker-broker-1.broker-broker-ss.choria.svc.cluster.local",
-	}
-
-	result := compactStrings(names)
-	if !cmp.Equal(result, []string{"broker-broker-2", "broker-broker-0", "broker-broker-1"}) {
-		t.Fatalf("Recevied %#v", result)
-	}
-
-	names = []string{
-		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local1",
-		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local2",
-		"broker-broker-1.broker-broker-ss.choria.svc.cluster.local3",
-	}
-	result = compactStrings(names)
-	if !cmp.Equal(result, names) {
-		t.Fatalf("Recevied %#v", result)
-	}
-
-	names = []string{
-		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local",
-		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local",
-		"broker-broker-1.broker-broker-ss.other.svc.cluster.local",
-	}
-	result = compactStrings(names)
-	if !cmp.Equal(result, []string{"broker-broker-2.broker-broker-ss.choria", "broker-broker-0.broker-broker-ss.choria", "broker-broker-1.broker-broker-ss.other"}) {
-		t.Fatalf("Recevied %#v", result)
-	}
-
-}
