@@ -89,6 +89,7 @@ type streamCmd struct {
 	vwStartDelta time.Duration
 	vwPageSize   int
 	vwRaw        bool
+	vwSubject    string
 
 	nc  *nats.Conn
 	mgr *jsm.Manager
@@ -185,6 +186,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strView.Flag("id", "Start at a specific message Sequence").IntVar(&c.vwStartId)
 	strView.Flag("since", "Start at a time delta").DurationVar(&c.vwStartDelta)
 	strView.Flag("raw", "Show the raw data received").BoolVar(&c.vwRaw)
+	strView.Flag("subject", "Filter the stream using a subject").StringVar(&c.vwSubject)
 
 	strReport := str.Command("report", "Reports on Stream statistics").Action(c.reportAction)
 	strReport.Flag("cluster", "Limit report to streams within a specific cluster").StringVar(&c.reportLimitCluster)
@@ -353,6 +355,10 @@ func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {
 		pops = append(pops, jsm.PagerStartDelta(c.vwStartDelta))
 	case c.vwStartId > 0:
 		pops = append(pops, jsm.PagerStartId(c.vwStartId))
+	}
+
+	if c.vwSubject != "" {
+		pops = append(pops, jsm.PagerFilterSubject(c.vwSubject))
 	}
 
 	pgr, err := str.PageContents(pops...)
