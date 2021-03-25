@@ -36,7 +36,7 @@ jobs:
           PATH=$PATH:$GOPATH/bin
           GO_LIST=$(go list ./...)
           $(exit $(go fmt $GO_LIST | wc -l))
-          go vet $GO_LIST
+          go vet -composites=false $GO_LIST
           find . -type f -name "*.go" | xargs misspell -error -locale US
           staticcheck -f stylish $GO_LIST
 

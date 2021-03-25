@@ -15,10 +15,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -30,6 +34,16 @@ type SrvCheckCmd struct {
 	rttCritical     time.Duration
 	reqWarning      time.Duration
 	reqCritical     time.Duration
+
+	sourcesStream       string
+	sourcesLagCritical  uint64
+	sourcesSeenCritical time.Duration
+	sourcesMinSources   int
+	sourcesMaxSources   int
+
+	raftExpect       int
+	raftLagCritical  uint64
+	raftSeenCritical time.Duration
 }
 
 func configureServerCheckCommand(srv *kingpin.CmdClause) {
@@ -37,87 +51,313 @@ func configureServerCheckCommand(srv *kingpin.CmdClause) {
 
 	help := `Nagios protocol health check for NATS servers
 
-Once connected a full round trip request-reply test is done
-against the server using subjects in .INBOX.>
+   connection  - connects and does a request-reply check
+   stream      - checks JetStream streams for source, mirror and cluster health
+   meta        - JetStream Meta Cluster health
 `
-	check := srv.Command("check", help).Action(c.check)
-	check.Flag("connect-warn", "Warning threshold to allow for establishing connections").Default("500ms").DurationVar(&c.connectWarning)
-	check.Flag("connect-critical", "Critical threshold to allow for establishing connections").Default("1s").DurationVar(&c.connectCritical)
-	check.Flag("rtt-warn", "Warning threshold to allow for server RTT").Default("500ms").DurationVar(&c.rttWarning)
-	check.Flag("rtt-critical", "Critical threshold to allow for server RTT").Default("1s").DurationVar(&c.rttCritical)
-	check.Flag("req-warn", "Warning threshold to allow for full round trip test").Default("500ms").DurationVar(&c.reqWarning)
-	check.Flag("req-critical", "Critical threshold to allow for full round trip test").Default("1s").DurationVar(&c.reqCritical)
+	check := srv.Command("check", help)
+
+	conn := check.Command("connection", "Checks basic server connection").Alias("conn").Default().Action(c.checkConnection)
+	conn.Flag("connect-warn", "Warning threshold to allow for establishing connections").Default("500ms").PlaceHolder("DURATION").DurationVar(&c.connectWarning)
+	conn.Flag("connect-critical", "Critical threshold to allow for establishing connections").Default("1s").PlaceHolder("DURATION").DurationVar(&c.connectCritical)
+	conn.Flag("rtt-warn", "Warning threshold to allow for server RTT").Default("500ms").PlaceHolder("DURATION").DurationVar(&c.rttWarning)
+	conn.Flag("rtt-critical", "Critical threshold to allow for server RTT").Default("1s").PlaceHolder("DURATION").DurationVar(&c.rttCritical)
+	conn.Flag("req-warn", "Warning threshold to allow for full round trip test").PlaceHolder("DURATION").Default("500ms").DurationVar(&c.reqWarning)
+	conn.Flag("req-critical", "Critical threshold to allow for full round trip test").PlaceHolder("DURATION").Default("1s").DurationVar(&c.reqCritical)
+
+	replication := check.Command("stream", "Checks the health of mirrored streams, streams with sources or clustered streams").Action(c.checkStream)
+	replication.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
+	replication.Flag("lag-critical", "Critical threshold to allow for lag on any source or mirror").PlaceHolder("MSGS").Uint64Var(&c.sourcesLagCritical)
+	replication.Flag("seen-critical", "Critical threshold for how long ago the source or mirror should have been seen").PlaceHolder("DURATION").DurationVar(&c.sourcesSeenCritical)
+	replication.Flag("min-sources", "Minimum number of sources to expect").PlaceHolder("SOURCES").Default("1").IntVar(&c.sourcesMinSources)
+	replication.Flag("max-sources", "Maximum number of sources to expect").PlaceHolder("SOURCES").Default("1").IntVar(&c.sourcesMaxSources)
+	replication.Flag("peer-expect", "Number of cluster replicas to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
+	replication.Flag("peer-lag-critical", "Critical threshold to allow for cluster peer lag").PlaceHolder("OPS").Uint64Var(&c.raftLagCritical)
+	replication.Flag("peer-seen-critical", "Critical threshold for how long ago a cluster peer should have been seen").PlaceHolder("DURATION").DurationVar(&c.raftSeenCritical)
+
+	meta := check.Command("meta", "Check JetStream cluster state").Alias("raft").Action(c.checkRaft)
+	meta.Flag("expect", "Number of servers to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
+	meta.Flag("lag-critical", "Critical threshold to allow for lag").PlaceHolder("OPS").Required().Uint64Var(&c.raftLagCritical)
+	meta.Flag("seen-critical", "Critical threshold for how long ago a peer should have been seen").Required().PlaceHolder("DURATION").DurationVar(&c.raftSeenCritical)
 }
 
-func (c *SrvCheckCmd) check(_ *kingpin.ParseContext) error {
+func (c *SrvCheckCmd) ok(format string, a ...interface{}) {
+	fmt.Printf("OK: "+format, a...)
+	fmt.Println()
+	os.Exit(0)
+}
+
+func (c *SrvCheckCmd) warning(format string, a ...interface{}) {
+	fmt.Printf("WARNING: "+format, a...)
+	fmt.Println()
+	os.Exit(1)
+}
+
+func (c *SrvCheckCmd) critical(format string, a ...interface{}) {
+	fmt.Printf("CRITICAL: "+format, a...)
+	fmt.Println()
+	os.Exit(2)
+}
+
+func (c *SrvCheckCmd) criticalIfErr(err error, format string, a ...interface{}) {
+	if err == nil {
+		return
+	}
+
+	c.critical(format, a...)
+}
+
+func (c *SrvCheckCmd) checkRaft(_ *kingpin.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	c.criticalIfErr(err, "connection failed: %s", err)
+
+	res, err := doReq(&server.JSzOptions{LeaderOnly: true}, "$SYS.REQ.SERVER.PING.JSZ", 1, nc)
+	c.criticalIfErr(err, "JSZ API request failed: %s", err)
+
+	if len(res) != 1 {
+		c.critical("JSZ API request returned %d results", len(res))
+	}
+
+	type jszr struct {
+		Data   server.JSInfo     `json:"data"`
+		Server server.ServerInfo `json:"server"`
+	}
+
+	jszresp := &jszr{}
+	err = json.Unmarshal(res[0], jszresp)
+	c.criticalIfErr(err, "invalid result received: %s", err)
+
+	criticals, pd, err := c.checkClusterInfo(jszresp.Data.Meta)
+	c.criticalIfErr(err, "invalid result received: %s", err)
+
+	if len(criticals) > 0 {
+		c.critical("JetStream Cluster %s | %s", strings.Join(criticals, ", "), pd)
+	}
+
+	c.ok("JetStream Cluster with %d peers led by %s | %s", len(jszresp.Data.Meta.Replicas)+1, jszresp.Data.Meta.Leader, pd)
+
+	return nil
+}
+
+func (c *SrvCheckCmd) checkClusterInfo(ci *server.ClusterInfo) (criticals []string, pd string, err error) {
+	if ci == nil {
+		return []string{"no cluster information"}, "", nil
+	}
+
+	if ci.Leader == "" {
+		return []string{"No leader"}, "", nil
+	}
+
+	pd = fmt.Sprintf("peers=%d;%d;%d ", len(ci.Replicas)+1, c.raftExpect, c.raftExpect)
+	if len(ci.Replicas)+1 != c.raftExpect {
+		criticals = append(criticals, fmt.Sprintf("%d peers of expected %d", len(ci.Replicas)+1, c.raftExpect))
+	}
+
+	notCurrent := 0
+	inactive := 0
+	offline := 0
+	lagged := 0
+	for _, peer := range ci.Replicas {
+		if !peer.Current {
+			notCurrent++
+		}
+		if peer.Offline {
+			offline++
+		}
+		if peer.Active > c.raftSeenCritical {
+			inactive++
+		}
+		if peer.Lag > c.raftLagCritical {
+			lagged++
+		}
+	}
+
+	pd = fmt.Sprintf("%s offline=%d not_current=%d inactive=%d lagged=%d", pd, offline, notCurrent, inactive, lagged)
+	if notCurrent > 0 {
+		criticals = append(criticals, fmt.Sprintf("%d not current", notCurrent))
+	}
+	if inactive > 0 {
+		criticals = append(criticals, fmt.Sprintf("%d inactive more than %s", inactive, c.raftSeenCritical))
+	}
+	if offline > 0 {
+		criticals = append(criticals, fmt.Sprintf("%d offline", offline))
+	}
+	if lagged > 0 {
+		criticals = append(criticals, fmt.Sprintf("%d lagged more than %d ops", lagged, c.raftLagCritical))
+	}
+
+	return criticals, pd, nil
+}
+
+func (c *SrvCheckCmd) checkStream(_ *kingpin.ParseContext) error {
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	c.criticalIfErr(err, "connection failed: %s", err)
+
+	stream, err := mgr.LoadStream(c.sourcesStream)
+	c.criticalIfErr(err, "could not load stream %s: %s", c.sourcesStream, err)
+
+	info, err := stream.LatestInformation()
+	c.criticalIfErr(err, "could not load stream %s info: %s", c.sourcesStream, err)
+
+	var (
+		criticals []string
+		pd        string
+		msg       string
+		cmsg      string
+	)
+
+	if info.Cluster != nil {
+		var sci server.ClusterInfo
+		cij, _ := json.Marshal(info.Cluster)
+		json.Unmarshal(cij, &sci)
+		criticals, pd, err = c.checkClusterInfo(&sci)
+		c.criticalIfErr(err, "Invalid cluster data: %s", err)
+
+		pd = strings.TrimSpace(pd)
+		if len(criticals) == 0 {
+			cmsg = fmt.Sprintf(", %d replicas", len(info.Cluster.Replicas)+1)
+		}
+	} else if c.raftExpect > 0 {
+		criticals = append(criticals, fmt.Sprintf("not clustered expected %d peers", c.raftExpect))
+	}
+
+	switch {
+	case stream.IsMirror():
+		mcrit, mpd, err := c.checkMirror(info)
+		c.criticalIfErr(err, "Invalid mirror data: %s", err)
+
+		criticals = append(criticals, mcrit...)
+		pd = pd + " " + mpd
+
+		if len(criticals) == 0 {
+			msg = fmt.Sprintf("%s mirror of %s is %d lagged, last seen %s ago%s | %s", c.sourcesStream, info.Mirror.Name, info.Mirror.Lag, info.Mirror.Active.Round(time.Millisecond), cmsg, pd)
+		}
+
+	case stream.IsSourced():
+		scrit, spd, err := c.checkSources(info)
+		c.criticalIfErr(err, "Invalid source data: %s", err)
+
+		criticals = append(criticals, scrit...)
+		pd = pd + " " + spd
+
+		if len(criticals) == 0 {
+			msg = fmt.Sprintf("%s with %d sources%s | %s", c.sourcesStream, len(info.Sources), cmsg, pd)
+		}
+	}
+
+	if len(criticals) == 0 {
+		c.ok(msg)
+	}
+
+	c.critical("%s %s | %s", c.sourcesStream, strings.Join(criticals, ", "), pd)
+
+	return nil
+}
+
+func (c *SrvCheckCmd) checkMirror(info *api.StreamInfo) (criticals []string, pd string, err error) {
+	if info.Mirror == nil {
+		return []string{"not mirrored"}, "", nil
+	}
+
+	pd = fmt.Sprintf("lag=%d;;%d active=%fs;;%.2f", info.Mirror.Lag, c.sourcesLagCritical, info.Mirror.Active.Seconds(), c.sourcesSeenCritical.Seconds())
+
+	if c.sourcesLagCritical > 0 && info.Mirror.Lag > c.sourcesLagCritical {
+		criticals = append(criticals, fmt.Sprintf("%d messages behind", info.Mirror.Lag))
+	}
+
+	if c.sourcesSeenCritical > 0 && info.Mirror.Active > c.sourcesSeenCritical {
+		criticals = append(criticals, fmt.Sprintf("last active %s", info.Mirror.Active))
+	}
+
+	return criticals, pd, nil
+}
+
+func (c *SrvCheckCmd) checkSources(info *api.StreamInfo) (criticals []string, pd string, err error) {
+	pd = fmt.Sprintf("sources=%d;%d;%d; ", len(info.Sources), c.sourcesMinSources, c.sourcesMaxSources)
+
+	if len(info.Sources) == 0 {
+		return []string{"no sources defined"}, "", nil
+	}
+
+	lagged := 0
+	inactive := 0
+
+	for _, s := range info.Sources {
+		if c.sourcesLagCritical > 0 && s.Lag > c.sourcesLagCritical {
+			lagged++
+		}
+
+		if c.sourcesSeenCritical > 0 && s.Active > c.sourcesSeenCritical {
+			inactive++
+		}
+	}
+
+	pd = pd + fmt.Sprintf("lagged=%d inactive=%d", lagged, inactive)
+
+	if lagged > 0 {
+		criticals = append(criticals, fmt.Sprintf("%d lagged sources", lagged))
+	}
+	if inactive > 0 {
+		criticals = append(criticals, fmt.Sprintf("%d inactive sources", inactive))
+	}
+	if len(info.Sources) < c.sourcesMinSources {
+		criticals = append(criticals, fmt.Sprintf("%d sources of min expected %d", len(info.Sources), c.sourcesMinSources))
+	}
+	if len(info.Sources) > c.sourcesMaxSources {
+		criticals = append(criticals, fmt.Sprintf("%d sources of max expected %d", len(info.Sources), c.sourcesMaxSources))
+	}
+
+	return criticals, pd, nil
+}
+
+func (c *SrvCheckCmd) checkConnection(_ *kingpin.ParseContext) error {
 	connStart := time.Now()
 	nc, _, err := prepareHelper("", natsOpts()...)
-	if err != nil {
-		fmt.Printf("CRITICAL: connection failed: %s\n", err)
-		os.Exit(2)
-	}
+	c.criticalIfErr(err, "connection failed")
 
 	ct := time.Since(connStart)
 	pd := fmt.Sprintf("connect_time=%fs;%.2f;%.2f ", ct.Seconds(), c.connectWarning.Seconds(), c.connectCritical.Seconds())
 
 	if ct >= c.connectCritical {
-		fmt.Printf("CRITICAL: connected to %s, connect time exceeded %v | %s\n", nc.ConnectedUrl(), c.connectCritical, pd)
-		os.Exit(2)
+		c.critical("connected to %s, connect time exceeded %v | %s", nc.ConnectedUrl(), c.connectCritical, pd)
 	} else if ct >= c.connectWarning {
-		fmt.Printf("WARNING: connected to %s, connect time exceeded %v | %s\n", nc.ConnectedUrl(), c.connectWarning, pd)
-		os.Exit(1)
+		c.warning("connected to %s, connect time exceeded %v | %s", nc.ConnectedUrl(), c.connectWarning, pd)
 	}
 
 	rtt, err := nc.RTT()
-	if err != nil {
-		fmt.Printf("CRITICAL: connected to %s, rtt failed | %s\n", nc.ConnectedUrl(), pd)
-		os.Exit(2)
-	}
+	c.criticalIfErr(err, "connected to %s, rtt failed | %s", nc.ConnectedUrl(), pd)
 
 	pd += fmt.Sprintf("rtt=%fs;%.2f;%.2f ", rtt.Seconds(), c.rttWarning.Seconds(), c.rttCritical.Seconds())
 	if rtt >= c.rttCritical {
-		fmt.Printf("CRITICAL: connect time exceeded %v | %s\n", c.connectCritical, pd)
-		os.Exit(2)
+		c.critical("connect time exceeded %v | %s", c.connectCritical, pd)
 	} else if rtt >= c.rttWarning {
-		fmt.Printf("WARNING: rtt time exceeded %v | %s\n", c.connectCritical, pd)
-		os.Exit(1)
+		c.warning("rtt time exceeded %v | %s", c.connectCritical, pd)
 	}
 
 	msg := []byte(randomPassword(100))
 	ib := nats.NewInbox()
 	sub, err := nc.SubscribeSync(ib)
-	if err != nil {
-		fmt.Printf("CRITICAL: could not subscribe to %s: %s | %s\n", ib, err, pd)
-		os.Exit(2)
-	}
+	c.criticalIfErr(err, "could not subscribe to %s: %s | %s", ib, err, pd)
 	sub.AutoUnsubscribe(1)
 
 	start := time.Now()
 	err = nc.Publish(ib, msg)
-	if err != nil {
-		fmt.Printf("CRITICAL: could not publish to %s: %s | %s\n", ib, err, pd)
-		os.Exit(2)
-	}
+	c.criticalIfErr(err, "could not publish to %s: %s | %s", ib, err, pd)
 
 	received, err := sub.NextMsg(timeout)
-	if err != nil {
-		fmt.Printf("CRITICAL: did not receive from %s: %s | %s\n", ib, err, pd)
-		os.Exit(2)
-	}
+	c.criticalIfErr(err, "did not receive from %s: %s | %s", ib, err, pd)
 
 	reqt := time.Since(start)
 	pd += fmt.Sprintf("request_time=%fs;%.2f;%.2f", reqt.Seconds(), c.reqWarning.Seconds(), c.reqCritical.Seconds())
 
 	if !bytes.Equal(received.Data, msg) {
-		fmt.Printf("CRITICAL: did not receive expected message on %s | %s\n", nc.ConnectedUrl(), pd)
+		c.critical("did not receive expected message on %s | %s", nc.ConnectedUrl(), pd)
 	}
 
 	if reqt >= c.reqCritical {
-		fmt.Printf("CRITICAL: round trip request took %f | %s", reqt.Seconds(), pd)
-		os.Exit(2)
+		c.critical("round trip request took %f | %s", reqt.Seconds(), pd)
 	} else if reqt >= c.reqWarning {
-		fmt.Printf("WARNING: round trip request took %f | %s", reqt.Seconds(), pd)
-		os.Exit(1)
+		c.warning("round trip request took %f | %s", reqt.Seconds(), pd)
 	}
 
 	fmt.Printf("OK: connected to %s | %s\n", nc.ConnectedUrl(), pd)
