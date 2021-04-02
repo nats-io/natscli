@@ -48,6 +48,8 @@ type consumerCmd struct {
 	inputFile   string
 	outFile     string
 
+	selectedConsumer *jsm.Consumer
+
 	bpsRateLimit        uint64
 	maxAckPending       int
 	maxDeliver          int
@@ -151,7 +153,7 @@ func (c *consumerCmd) leaderStandDown(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	info, err := consumer.State()
+	info, err := consumer.LatestState()
 	if err != nil {
 		return err
 	}
@@ -246,7 +248,7 @@ func (c *consumerCmd) lsAction(pc *kingpin.ParseContext) error {
 
 func (c *consumerCmd) showConsumer(consumer *jsm.Consumer) {
 	config := consumer.Configuration()
-	state, err := consumer.State()
+	state, err := consumer.LatestState()
 	kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
 
 	c.showInfo(config, state)
@@ -349,11 +351,15 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	fmt.Println()
 }
 
-func (c *consumerCmd) infoAction(pc *kingpin.ParseContext) error {
+func (c *consumerCmd) infoAction(_ *kingpin.ParseContext) error {
 	c.connectAndSetup(true, true)
 
-	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
-	kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
+	var err error
+	consumer := c.selectedConsumer
+	if consumer == nil {
+		consumer, err = c.mgr.LoadConsumer(c.stream, c.consumer)
+		kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
+	}
 
 	c.showConsumer(consumer)
 
@@ -964,7 +970,7 @@ func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool, opts ...
 		kingpin.FatalIfError(err, "could not select Stream")
 
 		if askConsumer {
-			c.consumer, err = selectConsumer(c.mgr, c.stream, c.consumer, c.force)
+			c.consumer, c.selectedConsumer, err = selectConsumer(c.mgr, c.stream, c.consumer, c.force)
 			kingpin.FatalIfError(err, "could not select Consumer")
 		}
 	}
@@ -978,7 +984,7 @@ func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	ss, err := s.State()
+	ss, err := s.LatestState()
 	if err != nil {
 		return err
 	}
@@ -990,7 +996,7 @@ func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
 	table := tablewriter.CreateTable()
 	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
 	err = s.EachConsumer(func(cons *jsm.Consumer) {
-		cs, err := cons.State()
+		cs, err := cons.LatestState()
 		if err != nil {
 			log.Printf("Could not obtain consumer state for %s: %s", cons.Name(), err)
 			return

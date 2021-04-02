@@ -48,30 +48,26 @@ import (
 	"github.com/nats-io/jsm.go/natscontext"
 )
 
-func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool) (string, error) {
+func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool) (string, *jsm.Consumer, error) {
 	if consumer != "" {
-		known, err := mgr.IsKnownConsumer(stream, consumer)
-		if err != nil {
-			return "", err
-		}
-
-		if known {
-			return consumer, nil
+		c, err := mgr.LoadConsumer(stream, consumer)
+		if err == nil {
+			return c.Name(), c, err
 		}
 	}
 
 	if force {
-		return "", fmt.Errorf("unknown consumer %q > %q", stream, consumer)
+		return "", nil, fmt.Errorf("unknown consumer %q > %q", stream, consumer)
 	}
 
 	consumers, err := mgr.ConsumerNames(stream)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	switch len(consumers) {
 	case 0:
-		return "", fmt.Errorf("no Consumers are defined for Stream %s", stream)
+		return "", nil, fmt.Errorf("no Consumers are defined for Stream %s", stream)
 	default:
 		c := ""
 
@@ -81,10 +77,10 @@ func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool
 			PageSize: selectPageSize(len(consumers)),
 		}, &c)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 
-		return c, nil
+		return c, nil, nil
 	}
 }
 
