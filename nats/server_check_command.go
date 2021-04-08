@@ -40,6 +40,8 @@ type SrvCheckCmd struct {
 	sourcesSeenCritical time.Duration
 	sourcesMinSources   int
 	sourcesMaxSources   int
+	sourcesMessagesWarn uint64
+	sourcesMessagesCrit uint64
 
 	raftExpect       int
 	raftLagCritical  uint64
@@ -65,15 +67,17 @@ func configureServerCheckCommand(srv *kingpin.CmdClause) {
 	conn.Flag("req-warn", "Warning threshold to allow for full round trip test").PlaceHolder("DURATION").Default("500ms").DurationVar(&c.reqWarning)
 	conn.Flag("req-critical", "Critical threshold to allow for full round trip test").PlaceHolder("DURATION").Default("1s").DurationVar(&c.reqCritical)
 
-	replication := check.Command("stream", "Checks the health of mirrored streams, streams with sources or clustered streams").Action(c.checkStream)
-	replication.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
-	replication.Flag("lag-critical", "Critical threshold to allow for lag on any source or mirror").PlaceHolder("MSGS").Uint64Var(&c.sourcesLagCritical)
-	replication.Flag("seen-critical", "Critical threshold for how long ago the source or mirror should have been seen").PlaceHolder("DURATION").DurationVar(&c.sourcesSeenCritical)
-	replication.Flag("min-sources", "Minimum number of sources to expect").PlaceHolder("SOURCES").Default("1").IntVar(&c.sourcesMinSources)
-	replication.Flag("max-sources", "Maximum number of sources to expect").PlaceHolder("SOURCES").Default("1").IntVar(&c.sourcesMaxSources)
-	replication.Flag("peer-expect", "Number of cluster replicas to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
-	replication.Flag("peer-lag-critical", "Critical threshold to allow for cluster peer lag").PlaceHolder("OPS").Uint64Var(&c.raftLagCritical)
-	replication.Flag("peer-seen-critical", "Critical threshold for how long ago a cluster peer should have been seen").PlaceHolder("DURATION").DurationVar(&c.raftSeenCritical)
+	stream := check.Command("stream", "Checks the health of mirrored streams, streams with sources or clustered streams").Action(c.checkStream)
+	stream.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
+	stream.Flag("lag-critical", "Critical threshold to allow for lag on any source or mirror").PlaceHolder("MSGS").Uint64Var(&c.sourcesLagCritical)
+	stream.Flag("seen-critical", "Critical threshold for how long ago the source or mirror should have been seen").PlaceHolder("DURATION").DurationVar(&c.sourcesSeenCritical)
+	stream.Flag("min-sources", "Minimum number of sources to expect").PlaceHolder("SOURCES").Default("1").IntVar(&c.sourcesMinSources)
+	stream.Flag("max-sources", "Maximum number of sources to expect").PlaceHolder("SOURCES").Default("1").IntVar(&c.sourcesMaxSources)
+	stream.Flag("peer-expect", "Number of cluster replicas to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
+	stream.Flag("peer-lag-critical", "Critical threshold to allow for cluster peer lag").PlaceHolder("OPS").Uint64Var(&c.raftLagCritical)
+	stream.Flag("peer-seen-critical", "Critical threshold for how long ago a cluster peer should have been seen").PlaceHolder("DURATION").Default("10s").DurationVar(&c.raftSeenCritical)
+	stream.Flag("msgs-warn", "Warn if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesWarn)
+	stream.Flag("msgs-crit", "Critical if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesCrit)
 
 	meta := check.Command("meta", "Check JetStream cluster state").Alias("raft").Action(c.checkRaft)
 	meta.Flag("expect", "Number of servers to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
@@ -201,6 +205,7 @@ func (c *SrvCheckCmd) checkStream(_ *kingpin.ParseContext) error {
 
 	var (
 		criticals []string
+		warnings  []string
 		pd        string
 		msg       string
 		cmsg      string
@@ -215,11 +220,26 @@ func (c *SrvCheckCmd) checkStream(_ *kingpin.ParseContext) error {
 
 		pd = strings.TrimSpace(pd)
 		if len(criticals) == 0 {
-			cmsg = fmt.Sprintf(", %d replicas", len(info.Cluster.Replicas)+1)
+			cmsg = fmt.Sprintf(", %d current replicas", len(info.Cluster.Replicas)+1)
 		}
 	} else if c.raftExpect > 0 {
 		criticals = append(criticals, fmt.Sprintf("not clustered expected %d peers", c.raftExpect))
 	}
+
+	mpd := fmt.Sprintf("messages=%d", info.State.Msgs)
+	if c.sourcesMessagesWarn > 0 && info.State.Msgs <= c.sourcesMessagesWarn {
+		warnings = append(warnings, fmt.Sprintf("%d messages", info.State.Msgs))
+		mpd += fmt.Sprintf(";%d", c.sourcesMessagesWarn)
+	} else {
+		mpd += ";"
+	}
+	if c.sourcesMessagesCrit > 0 && info.State.Msgs <= c.sourcesMessagesCrit {
+		criticals = append(criticals, fmt.Sprintf("%d messages", info.State.Msgs))
+		mpd += fmt.Sprintf(";%d", c.sourcesMessagesCrit)
+	} else {
+		mpd += ";"
+	}
+	pd += " " + mpd
 
 	switch {
 	case stream.IsMirror():
@@ -243,13 +263,19 @@ func (c *SrvCheckCmd) checkStream(_ *kingpin.ParseContext) error {
 		if len(criticals) == 0 {
 			msg = fmt.Sprintf("%s with %d sources%s | %s", c.sourcesStream, len(info.Sources), cmsg, pd)
 		}
+
+	default:
+		msg = fmt.Sprintf("%s%s | %s", c.sourcesStream, cmsg, pd)
 	}
 
-	if len(criticals) == 0 {
+	switch {
+	case len(criticals) > 0:
+		c.critical("%s %s%s | %s", c.sourcesStream, strings.Join(criticals, ", "), cmsg, pd)
+	case len(warnings) > 0:
+		c.warning("%s %s%s | %s", c.sourcesStream, strings.Join(warnings, ", "), cmsg, pd)
+	default:
 		c.ok(msg)
 	}
-
-	c.critical("%s %s | %s", c.sourcesStream, strings.Join(criticals, ", "), pd)
 
 	return nil
 }

@@ -59,7 +59,7 @@ func configureServerListCommand(srv *kingpin.CmdClause) {
 	ls.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	ls.Flag("filter", "Regular expression filter on server name").Short('f').StringVar(&c.filter)
 	ls.Flag("sort", "Sort servers by a specific key (conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
-	ls.Flag("reverse", "Reverse sort servers").Short('R').Default("true").BoolVar(&c.reverse)
+	ls.Flag("reverse", "Reverse sort servers").Short('R').Default("false").BoolVar(&c.reverse)
 	ls.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 }
 
@@ -184,8 +184,10 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
+	// we reverse sort by default now, setting reverse=true means
+	// do not reverse, so this function seems really weird but its right
 	rev := func(v bool) bool {
-		if c.reverse {
+		if !c.reverse {
 			return !v
 		}
 		return v

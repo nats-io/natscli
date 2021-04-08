@@ -54,7 +54,7 @@ func configureServerReportCommand(srv *kingpin.CmdClause) {
 
 	report := srv.Command("report", "Report on various server metrics").Alias("rep")
 	report.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	report.Flag("reverse", "Reverse sort connections").Short('R').Default("true").BoolVar(&c.reverse)
+	report.Flag("reverse", "Reverse sort connections").Short('R').Default("false").BoolVar(&c.reverse)
 
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnections)
 	conns.Arg("limit", "Limit the responses to a certain amount of servers").Default("1024").IntVar(&c.waitFor)
@@ -399,7 +399,7 @@ func (c *SrvReportCmd) reportConnections(_ *kingpin.ParseContext) error {
 }
 
 func (c *SrvReportCmd) boolReverse(v bool) bool {
-	if c.reverse {
+	if !c.reverse {
 		return !v
 	}
 

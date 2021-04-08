@@ -937,7 +937,7 @@ func (c *consumerCmd) subAction(_ *kingpin.ParseContext) error {
 	c.connectAndSetup(true, true, nats.UseOldRequestStyle())
 
 	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
-	kingpin.FatalIfError(err, "could not get Consumer info")
+	kingpin.FatalIfError(err, "could not load Consumer")
 
 	if consumer.AckPolicy() == api.AckNone {
 		c.ack = false
