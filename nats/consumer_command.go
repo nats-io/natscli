@@ -201,6 +201,8 @@ func (c *consumerCmd) leaderStandDown(_ *kingpin.ParseContext) error {
 func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
 	c.connectAndSetup(true, true)
 
+	var err error
+
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really delete Consumer %s > %s", c.stream, c.consumer), false)
 		kingpin.FatalIfError(err, "could not obtain confirmation")
@@ -210,10 +212,12 @@ func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
-	kingpin.FatalIfError(err, "could not load Consumer")
+	if c.selectedConsumer == nil {
+		c.selectedConsumer, err = c.mgr.LoadConsumer(c.stream, c.consumer)
+		kingpin.FatalIfError(err, "could not load Consumer")
+	}
 
-	return consumer.Delete()
+	return c.selectedConsumer.Delete()
 }
 
 func (c *consumerCmd) lsAction(pc *kingpin.ParseContext) error {

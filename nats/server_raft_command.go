@@ -42,8 +42,8 @@ func configureServerRaftCommand(srv *kingpin.CmdClause) {
 	sd.Flag("cluster", "Request placement of the leader in a specific cluster").StringVar(&c.placementCluster)
 
 	rm := raft.Command("peer-remove", "Removes a server from a JetStream cluster").Alias("rm").Alias("pr").Action(c.metaPeerRemove)
-	rm.Arg("id", "The Server ID to remove from the JetStream cluster").StringVar(&c.peer)
-	rm.Flag("f", "Force removal without prompting").BoolVar(&c.force)
+	rm.Arg("name", "The Server Name to remove from the JetStream cluster").StringVar(&c.peer)
+	rm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 }
 
 func (c *SrvRaftCmd) metaPeerRemove(_ *kingpin.ParseContext) error {
