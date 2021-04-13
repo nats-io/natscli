@@ -728,7 +728,12 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 			}
 		}
 
-		s := streamStat{Name: info.Config.Name, Consumers: info.State.Consumers, Msgs: int64(info.State.Msgs), Bytes: info.State.Bytes, Storage: info.Config.Storage.String(), Template: info.Config.Template, Cluster: info.Cluster, Deleted: len(info.State.Deleted), Mirror: info.Mirror, Sources: info.Sources}
+		deleted := info.State.NumDeleted
+		// backward compat with servers that predate the num_deleted response
+		if len(info.State.Deleted) > 0 {
+			deleted = len(info.State.Deleted)
+		}
+		s := streamStat{Name: info.Config.Name, Consumers: info.State.Consumers, Msgs: int64(info.State.Msgs), Bytes: info.State.Bytes, Storage: info.Config.Storage.String(), Template: info.Config.Template, Cluster: info.Cluster, Deleted: deleted, Mirror: info.Mirror, Sources: info.Sources}
 		if info.State.Lost != nil {
 			s.LostBytes = info.State.Lost.Bytes
 			s.LostMsgs = len(info.State.Lost.Msgs)
@@ -1293,8 +1298,10 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		fmt.Printf("              LastSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.LastSeq)), info.State.LastTime.Format("2006-01-02T15:04:05"))
 	}
 
-	if len(info.State.Deleted) > 0 {
+	if len(info.State.Deleted) > 0 { // backwards compat with older servers
 		fmt.Printf("     Deleted Messages: %d\n", len(info.State.Deleted))
+	} else if info.State.NumDeleted > 0 {
+		fmt.Printf("     Deleted Messages: %d\n", info.State.NumDeleted)
 	}
 
 	fmt.Printf("     Active Consumers: %d\n", info.State.Consumers)
