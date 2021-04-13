@@ -69,8 +69,8 @@ github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b/go.mod h1:01TrycV0kFyex
 github.com/minio/highwayhash v1.0.0/go.mod h1:xQboMTeM9nY9v/LlAOxFctujiv5+Aq2hR5dxBpaMbdc=
 github.com/minio/highwayhash v1.0.1 h1:dZ6IIu8Z14VlC0VpfKofAhCy74wu/Qb5gcn52yWoz/0=
 github.com/minio/highwayhash v1.0.1/go.mod h1:BQskDq+xkJ12lmlUUi7U0M5Swg3EWR+dLTk+kldvVxY=
-github.com/nats-io/jsm.go v0.0.23-0.20210402095416-9a4c6b80a8cb h1:f3faN0BUZkud/N31ha26l0q59OLiAy9HZ//2aA7It9I=
-github.com/nats-io/jsm.go v0.0.23-0.20210402095416-9a4c6b80a8cb/go.mod h1:wK8T0Tl8rbbcZYHTtwEhxcGRziEMq7nw8BXzHLmJ/lA=
+github.com/nats-io/jsm.go v0.0.23-0.20210413151721-6e5211771ee9 h1:DSeCqqwzkKQWF3qB4DpkisTpePPYVmOyOVGpcu3ZEZw=
+github.com/nats-io/jsm.go v0.0.23-0.20210413151721-6e5211771ee9/go.mod h1:wK8T0Tl8rbbcZYHTtwEhxcGRziEMq7nw8BXzHLmJ/lA=
 github.com/nats-io/jwt v0.3.2/go.mod h1:/euKqTS1ZD+zzjYrY7pseZrTtWQSjujC7xjPc8wL6eU=
 github.com/nats-io/jwt v0.3.3-0.20200519195258-f2bf5ce574c7/go.mod h1:n3cvmLfBfnpV4JJRN7lRYCyZnw48ksGsbThGXEk4w9M=
 github.com/nats-io/jwt v1.1.0/go.mod h1:n3cvmLfBfnpV4JJRN7lRYCyZnw48ksGsbThGXEk4w9M=
