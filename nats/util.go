@@ -776,6 +776,10 @@ func renderRaftLeaders(leaders map[string]*raftLeader, grpTitle string) {
 }
 
 func compactStrings(source []string) []string {
+	if len(source) == 0 {
+		return source
+	}
+
 	hnParts := make([][]string, len(source))
 	shortest := math.MaxInt8
 

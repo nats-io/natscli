@@ -127,6 +127,10 @@ func TestRenderCluster(t *testing.T) {
 	if result := renderCluster(cluster); result != "S1!, S2*, S3!" {
 		t.Fatalf("invalid result: %s", result)
 	}
+
+	if result := renderCluster(&api.ClusterInfo{Name: "test"}); result != "" {
+		t.Fatalf("invalid result: %q", result)
+	}
 }
 
 func TestHostnameCompactor(t *testing.T) {
