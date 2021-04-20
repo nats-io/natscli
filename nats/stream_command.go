@@ -1780,6 +1780,8 @@ func (c *streamCmd) purgeAction(_ *kingpin.ParseContext) (err error) {
 	err = stream.Purge()
 	kingpin.FatalIfError(err, "could not purge Stream")
 
+	stream.Reset()
+
 	c.showStream(stream)
 
 	return nil
