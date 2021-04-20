@@ -124,10 +124,15 @@ func selectStreamTemplate(mgr *jsm.Manager, template string, force bool) (string
 	}
 }
 
-func selectStream(mgr *jsm.Manager, stream string, force bool) (string, error) {
+func selectStream(mgr *jsm.Manager, stream string, force bool) (string, *jsm.Stream, error) {
+	s, err := mgr.LoadStream(stream)
+	if err == nil {
+		return s.Name(), s, nil
+	}
+
 	streams, err := mgr.StreamNames(nil)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	known := false
@@ -139,16 +144,16 @@ func selectStream(mgr *jsm.Manager, stream string, force bool) (string, error) {
 	}
 
 	if known {
-		return stream, nil
+		return stream, nil, nil
 	}
 
 	if force {
-		return "", fmt.Errorf("unknown stream %q", stream)
+		return "", nil, fmt.Errorf("unknown stream %q", stream)
 	}
 
 	switch len(streams) {
 	case 0:
-		return "", errors.New("no Streams are defined")
+		return "", nil, errors.New("no Streams are defined")
 	default:
 		s := ""
 
@@ -158,10 +163,10 @@ func selectStream(mgr *jsm.Manager, stream string, force bool) (string, error) {
 			PageSize: selectPageSize(len(streams)),
 		}, &s)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 
-		return s, nil
+		return s, nil, nil
 	}
 }
 
