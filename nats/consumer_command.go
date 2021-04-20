@@ -969,8 +969,15 @@ func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool, opts ...
 	c.nc, c.mgr, err = prepareHelper("", append(natsOpts(), opts...)...)
 	kingpin.FatalIfError(err, "setup failed")
 
+	if c.stream != "" && c.consumer != "" {
+		c.selectedConsumer, err = c.mgr.LoadConsumer(c.stream, c.consumer)
+		if err == nil {
+			return
+		}
+	}
+
 	if askStream {
-		c.stream, err = selectStream(c.mgr, c.stream, c.force)
+		c.stream, _, err = selectStream(c.mgr, c.stream, c.force)
 		kingpin.FatalIfError(err, "could not select Stream")
 
 		if askConsumer {

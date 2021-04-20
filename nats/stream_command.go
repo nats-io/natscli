@@ -91,8 +91,9 @@ type streamCmd struct {
 	vwRaw        bool
 	vwSubject    string
 
-	nc  *nats.Conn
-	mgr *jsm.Manager
+	selectedStream *jsm.Stream
+	nc             *nats.Conn
+	mgr            *jsm.Manager
 }
 
 type streamStat struct {
@@ -238,10 +239,18 @@ func configureStreamCommand(app *kingpin.Application) {
 	strTRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 }
 
+func (c *streamCmd) loadStream(stream string) (*jsm.Stream, error) {
+	if c.selectedStream != nil && c.selectedStream.Name() == stream {
+		return c.selectedStream, nil
+	}
+
+	return c.mgr.LoadStream(stream)
+}
+
 func (c *streamCmd) leaderStandDown(_ *kingpin.ParseContext) error {
 	c.connectAndAskStream()
 
-	stream, err := c.mgr.LoadStream(c.stream)
+	stream, err := c.loadStream(c.stream)
 	if err != nil {
 		return err
 	}
@@ -293,7 +302,7 @@ func (c *streamCmd) leaderStandDown(_ *kingpin.ParseContext) error {
 func (c *streamCmd) removePeer(_ *kingpin.ParseContext) error {
 	c.connectAndAskStream()
 
-	stream, err := c.mgr.LoadStream(c.stream)
+	stream, err := c.loadStream(c.stream)
 	if err != nil {
 		return err
 	}
@@ -341,7 +350,7 @@ func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {
 
 	c.connectAndAskStream()
 
-	str, err := c.mgr.LoadStream(c.stream)
+	str, err := c.loadStream(c.stream)
 	if err != nil {
 		return err
 	}
@@ -498,11 +507,15 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
-	_, mgr, err := prepareHelper("", natsOpts()...)
+	var err error
+
+	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	stream, err := mgr.LoadStream(c.stream)
-	kingpin.FatalIfError(err, "could not load stream")
+	stream, err := c.loadStream(c.stream)
+	if err != nil {
+		return err
+	}
 
 	first := true
 	inprogress := true
@@ -1029,7 +1042,7 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 func (c *streamCmd) editAction(_ *kingpin.ParseContext) error {
 	c.connectAndAskStream()
 
-	sourceStream, err := c.mgr.LoadStream(c.stream)
+	sourceStream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not request Stream %s configuration", c.stream)
 
 	var cfg api.StreamConfig
@@ -1083,7 +1096,7 @@ func (c *streamCmd) cpAction(_ *kingpin.ParseContext) error {
 
 	c.connectAndAskStream()
 
-	sourceStream, err := c.mgr.LoadStream(c.stream)
+	sourceStream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not request Stream %s configuration", c.stream)
 
 	cfg, err := c.copyAndEditStream(sourceStream.Configuration())
@@ -1311,7 +1324,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 func (c *streamCmd) infoAction(_ *kingpin.ParseContext) error {
 	c.connectAndAskStream()
 
-	stream, err := c.mgr.LoadStream(c.stream)
+	stream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not request Stream info")
 	err = c.showStream(stream)
 	kingpin.FatalIfError(err, "could not show stream")
@@ -1753,7 +1766,7 @@ func (c *streamCmd) rmAction(_ *kingpin.ParseContext) (err error) {
 		}
 	}
 
-	stream, err := c.mgr.LoadStream(c.stream)
+	stream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not remove Stream")
 
 	err = stream.Delete()
@@ -1774,7 +1787,7 @@ func (c *streamCmd) purgeAction(_ *kingpin.ParseContext) (err error) {
 		}
 	}
 
-	stream, err := c.mgr.LoadStream(c.stream)
+	stream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not purge Stream")
 
 	err = stream.Purge()
@@ -1836,7 +1849,7 @@ func (c *streamCmd) rmMsgAction(_ *kingpin.ParseContext) (err error) {
 		c.msgID = int64(idint)
 	}
 
-	stream, err := c.mgr.LoadStream(c.stream)
+	stream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not load Stream %s", c.stream)
 
 	if !c.force {
@@ -1867,7 +1880,7 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 		c.msgID = int64(idint)
 	}
 
-	stream, err := c.mgr.LoadStream(c.stream)
+	stream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not load Stream %s", c.stream)
 
 	item, err := stream.ReadMessage(int(c.msgID))
@@ -1904,6 +1917,6 @@ func (c *streamCmd) connectAndAskStream() {
 	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	c.stream, err = selectStream(c.mgr, c.stream, c.force)
+	c.stream, c.selectedStream, err = selectStream(c.mgr, c.stream, c.force)
 	kingpin.FatalIfError(err, "could not pick a Stream to operate on")
 }
