@@ -505,6 +505,7 @@ func pubReplyBodyTemplate(body string, ctr int) ([]byte, error) {
 		"UnixNano":  func() int64 { return now.UnixNano() },
 		"TimeStamp": func() string { return now.Format(time.RFC3339) },
 		"Time":      func() string { return now.Format(time.Kitchen) },
+		"ID":        func() string { return nuid.Next() },
 	}
 
 	templ, err := template.New("body").Funcs(funcMap).Parse(body)
