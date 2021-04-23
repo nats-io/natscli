@@ -701,7 +701,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	if cfg.DeliverSubject != "" {
 		fc := pc.SelectedCommand.GetFlag("flow-control").Model().Value.(*OptionalBoolValue)
 		if !fc.IsSetByUser() {
-			flow, err := askConfirmation("Enable Flow Control", false)
+			flow, err := askConfirmation("Enable Flow Control, ie --flow-control", false)
 			kingpin.FatalIfError(err, "could not ask flow control")
 			fc.SetBool(flow)
 		}
