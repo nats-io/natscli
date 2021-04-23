@@ -570,8 +570,8 @@ func TestCLIConsumerCopy(t *testing.T) {
 		t.Fatalf("Expected pull1 to be pull-based, got %v", pull1.Configuration())
 	}
 
-	if pull1.MaxAckPending() != 0 {
-		t.Fatalf("Expected pull1 to have 0 Ack outstanding, got %v", pull1.MaxAckPending())
+	if pull1.MaxAckPending() != 20000 {
+		t.Fatalf("Expected pull1 to have 20000 Ack outstanding, got %v", pull1.MaxAckPending())
 	}
 }
 
