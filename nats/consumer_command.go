@@ -672,7 +672,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 		err = survey.AskOne(&survey.Input{
 			Message: "Maximum Acknowledgements Pending",
 			Default: "0",
-			Help:    "The maximum number of messages without acknowledgement that can be outstanding, once this limit is reached message delivery will be suspended",
+			Help:    "The maximum number of messages without acknowledgement that can be outstanding, once this limit is reached message delivery will be suspended. Settable using --max-pending.",
 		}, &c.maxAckPending)
 		kingpin.FatalIfError(err, "could not ask for maximum outstanding acknowledgements")
 	}
