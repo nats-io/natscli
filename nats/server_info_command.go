@@ -120,7 +120,7 @@ func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
 	}
 
 	fmt.Println()
-	if varz.JetStream.Config.StoreDir != "" {
+	if varz.JetStream.Config != nil && varz.JetStream.Config.StoreDir != "" {
 		js := varz.JetStream
 		fmt.Printf("%s\n\n", bold("JetStream:"))
 		if len(varz.Tags) > 0 {
