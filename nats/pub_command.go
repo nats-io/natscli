@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -35,6 +36,7 @@ type pubCmd struct {
 	raw     bool
 	hdrs    []string
 	cnt     int
+	sleep   time.Duration
 }
 
 func configurePubCommand(app *kingpin.Application) {
@@ -68,6 +70,7 @@ Available template functions are:
 	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
 	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
+	pub.Flag("sleep", "When publishing multiple messages, sleep between publishes").DurationVar(&c.sleep)
 
 	cheats["pub"] = `# To publish 100 messages with a random body between 100 and 1000 characters
 nats pub destination.subject "{{ Random 100 1000 }}" -H Count:{{ Count }} --count 100
@@ -97,10 +100,6 @@ func (c *pubCmd) prepareMsg(body []byte, seq int) (*nats.Msg, error) {
 }
 
 func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
-	if c.cnt < 1 {
-		c.cnt = 1
-	}
-
 	for i := 1; i <= c.cnt; i++ {
 		start := time.Now()
 		if !c.raw && progress == nil {
@@ -160,6 +159,10 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 	}
 	defer nc.Close()
 
+	if c.cnt < 1 {
+		c.cnt = math.MaxInt16
+	}
+
 	if c.body == "!nil!" && terminal.IsTerminal(int(os.Stdout.Fd())) {
 		log.Println("Reading payload from STDIN")
 		body, err := ioutil.ReadAll(os.Stdin)
@@ -185,10 +188,6 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 		return c.doReq(nc, progress)
 	}
 
-	if c.cnt < 1 {
-		c.cnt = 1
-	}
-
 	for i := 1; i <= c.cnt; i++ {
 		body, err := pubReplyBodyTemplate(c.body, i)
 		if err != nil {
@@ -209,6 +208,10 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 		err = nc.LastError()
 		if err != nil {
 			return err
+		}
+
+		if c.cnt > 1 && c.sleep > 0 {
+			time.Sleep(c.sleep)
 		}
 
 		if progress == nil {
