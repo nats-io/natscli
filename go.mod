@@ -20,7 +20,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/nats-io/jsm.go v0.0.23
 	github.com/nats-io/nats-server/v2 v2.2.2
-	github.com/nats-io/nats.go v1.10.1-0.20210419223411-20527524c393
+	github.com/nats-io/nats.go v1.10.1-0.20210427145106-109f3dd25f10
 	github.com/nats-io/nuid v1.0.1
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20180430173243-73b8d31ba571
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
