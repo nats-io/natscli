@@ -165,7 +165,7 @@ func (c *trafficCmd) monitor(_ *kingpin.ParseContext) error {
 
 			table := tablewriter.CreateTable()
 			table.AddTitle("Raft Traffic")
-			table.AddHeaders("Proposal", "Vote", "Append", "Remove Peer", "Reply", "Messages")
+			table.AddHeaders("Proposal", "Vote", "Append", "Remove Peer", "Reply", "Total Messages")
 			for i := range raftRows {
 				table.AddRow(raftRows[i]...)
 			}
@@ -180,7 +180,7 @@ func (c *trafficCmd) monitor(_ *kingpin.ParseContext) error {
 
 			table := tablewriter.CreateTable()
 			table.AddTitle("Cluster Traffic")
-			table.AddHeaders("JSA Update", "Stream Info", "Consumer Info", "Stream Sync", "Reply", "Messages")
+			table.AddHeaders("JSA Update", "Stream Info", "Consumer Info", "Stream Sync", "Reply", "Total Messages")
 			for i := range raftRows {
 				table.AddRow(clusterRows[i]...)
 			}
@@ -194,7 +194,7 @@ func (c *trafficCmd) monitor(_ *kingpin.ParseContext) error {
 
 		table := tablewriter.CreateTable()
 		table.AddTitle("General Traffic")
-		table.AddHeaders("Requests", "JS API", "JS ACK", "System", "Rest", "Bytes", "Messages")
+		table.AddHeaders("Requests", "JS API", "JS ACK", "System", "Rest", "Total Bytes", "Total Messages")
 		for i := range genRows {
 			table.AddRow(genRows[i]...)
 		}
