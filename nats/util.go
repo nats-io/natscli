@@ -269,7 +269,15 @@ func selectPageSize(count int) int {
 	return ps
 }
 
+func isTerminal() bool {
+	return terminal.IsTerminal(int(os.Stdin.Fd()))
+}
+
 func askConfirmation(prompt string, dflt bool) (bool, error) {
+	if !isTerminal() {
+		return false, fmt.Errorf("cannot ask for confirmation without a terminal")
+	}
+
 	ans := dflt
 
 	err := survey.AskOne(&survey.Confirm{
@@ -281,6 +289,10 @@ func askConfirmation(prompt string, dflt bool) (bool, error) {
 }
 
 func askOneBytes(prompt string, dflt string, help string) (int64, error) {
+	if !isTerminal() {
+		return 0, fmt.Errorf("cannot ask for confirmation without a terminal")
+	}
+
 	val := ""
 	err := survey.AskOne(&survey.Input{
 		Message: prompt,
@@ -304,6 +316,10 @@ func askOneBytes(prompt string, dflt string, help string) (int64, error) {
 }
 
 func askOneInt(prompt string, dflt string, help string) (int64, error) {
+	if !isTerminal() {
+		return 0, fmt.Errorf("cannot ask for confirmation without a terminal")
+	}
+
 	val := ""
 	err := survey.AskOne(&survey.Input{
 		Message: prompt,
