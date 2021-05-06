@@ -93,7 +93,12 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		}
 
 		if info == nil {
-			fmt.Printf("[#%d] Received on %q\n", i, m.Subject)
+			if m.Reply != "" {
+				fmt.Printf("[#%d] Received on %q with reply %q\n", i, m.Subject, m.Reply)
+			} else {
+				fmt.Printf("[#%d] Received on %q\n", i, m.Subject)
+			}
+
 		} else {
 			fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d / ack: %v\n", i, info.Stream(), info.Consumer(), m.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), c.jsAck)
 		}
