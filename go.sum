@@ -70,8 +70,8 @@ github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b h1:j7+1HpAFS1zy5+Q4qx1f
 github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b/go.mod h1:01TrycV0kFyexm33Z7vhZRXopbI8J3TDReVlkTgMUxE=
 github.com/minio/highwayhash v1.0.1 h1:dZ6IIu8Z14VlC0VpfKofAhCy74wu/Qb5gcn52yWoz/0=
 github.com/minio/highwayhash v1.0.1/go.mod h1:BQskDq+xkJ12lmlUUi7U0M5Swg3EWR+dLTk+kldvVxY=
-github.com/nats-io/jsm.go v0.0.24-0.20210507085357-a06e26faf41c h1:rSEapBecD076qerqlbXE3rk2qiOViYy0KR0DE5h8MDM=
-github.com/nats-io/jsm.go v0.0.24-0.20210507085357-a06e26faf41c/go.mod h1:b6RpAeMZM5Dr9LoqWO9f7bOrY3QM3gnwtRVOGxGVLv0=
+github.com/nats-io/jsm.go v0.0.24-0.20210507182532-2c7dc6444b20 h1:wlATPDejoe7cnslzgkPGa2vBInF8+vpUCdwn11WQGwM=
+github.com/nats-io/jsm.go v0.0.24-0.20210507182532-2c7dc6444b20/go.mod h1:b6RpAeMZM5Dr9LoqWO9f7bOrY3QM3gnwtRVOGxGVLv0=
 github.com/nats-io/jwt v1.2.2 h1:w3GMTO969dFg+UOKTmmyuu7IGdusK+7Ytlt//OYH/uU=
 github.com/nats-io/jwt v1.2.2/go.mod h1:/xX356yQA6LuXI9xWW7mZNpxgF2mBmGecH+Fj34sP5Q=
 github.com/nats-io/jwt/v2 v2.0.1/go.mod h1:VRP+deawSXyhNjXmxPCHskrR6Mq50BqpEI5SEcNiGlY=
