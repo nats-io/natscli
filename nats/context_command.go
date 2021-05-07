@@ -143,6 +143,18 @@ func (c *ctxCommand) editCommand(pc *kingpin.ParseContext) error {
 		return err
 	}
 
+	// we load and save here so that any fields added to the context
+	// structure after this context was initially created would also
+	// appear in the editor as empty fields
+	ctx, err := natscontext.New(c.name, true)
+	if err != nil {
+		return err
+	}
+	err = ctx.Save(c.name)
+	if err != nil {
+		return err
+	}
+
 	cmd := exec.Command(editor, path)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -230,6 +242,7 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 	c.showIfNotEmpty("       NSC Lookup: %s\n", cfg.NscURL())
 	c.showIfNotEmpty("    JS API Prefix: %s\n", cfg.JSAPIPrefix())
 	c.showIfNotEmpty("  JS Event Prefix: %s\n", cfg.JSEventPrefix())
+	c.showIfNotEmpty("        JS Domain: %s\n", cfg.JSDomain())
 	c.showIfNotEmpty("             Path: %s\n", cfg.Path())
 
 	checkConn := func() error {
@@ -292,6 +305,7 @@ func (c *ctxCommand) createCommand(pc *kingpin.ParseContext) error {
 		natscontext.WithNscUrl(c.nsc),
 		natscontext.WithJSAPIPrefix(jsApiPrefix),
 		natscontext.WithJSEventPrefix(jsEventPrefix),
+		natscontext.WithJSDomain(jsDomain),
 	)
 	if err != nil {
 		return err
