@@ -37,6 +37,7 @@ var (
 	nkey          string
 	jsApiPrefix   string
 	jsEventPrefix string
+	jsDomain      string
 	cfgCtx        string
 	ctxError      error
 	trace         bool
@@ -79,6 +80,8 @@ See 'nats cheat' for a quick cheatsheet of commands
 	ncli.Flag("timeout", "Time to wait on responses from NATS").Default("5s").Envar("NATS_TIMEOUT").PlaceHolder("NATS_TIMEOUT").DurationVar(&timeout)
 	ncli.Flag("js-api-prefix", "Subject prefix for access to JetStream API").PlaceHolder("PREFIX").StringVar(&jsApiPrefix)
 	ncli.Flag("js-event-prefix", "Subject prefix for access to JetStream Advisories").PlaceHolder("PREFIX").StringVar(&jsEventPrefix)
+	ncli.Flag("js-domain", "JetStream domain to access").PlaceHolder("PREFIX").PlaceHolder("DOMAIN").StringVar(&jsDomain)
+	ncli.Flag("domain", "JetStream domain to access").PlaceHolder("PREFIX").PlaceHolder("DOMAIN").Hidden().StringVar(&jsDomain)
 	ncli.Flag("context", "Configuration context").Envar("NATS_CONTEXT").StringVar(&cfgCtx)
 	ncli.Flag("trace", "Trace API interactions").BoolVar(&trace)
 

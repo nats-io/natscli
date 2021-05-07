@@ -421,6 +421,7 @@ func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, *jsm.Manage
 	jsopts := []jsm.Option{
 		jsm.WithAPIPrefix(config.JSAPIPrefix()),
 		jsm.WithEventPrefix(config.JSEventPrefix()),
+		jsm.WithDomain(config.JSDomain()),
 	}
 
 	if os.Getenv("NOVALIDATE") == "" {
@@ -612,6 +613,7 @@ func loadContext() error {
 		natscontext.WithCA(tlsCA),
 		natscontext.WithJSEventPrefix(jsEventPrefix),
 		natscontext.WithJSAPIPrefix(jsApiPrefix),
+		natscontext.WithJSDomain(jsDomain),
 	)
 
 	return ctxError
