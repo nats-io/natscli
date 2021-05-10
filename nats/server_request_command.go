@@ -396,7 +396,7 @@ func (c *SrvRequestCmd) doReq(kind string, req interface{}, nc *nats.Conn) ([][]
 
 	err = nc.PublishRequest(subj, sub.Subject, jreq)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions: %s", err)
 	}
 
 	<-ctx.Done()

@@ -62,7 +62,7 @@ func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
 
 	resp, err := nc.Request(subj, body, timeout)
 	if err != nil {
-		return err
+		return fmt.Errorf("no results received, ensure the account used has system privileges and appropriate permissions")
 	}
 	if trace {
 		log.Printf("<<< %q", resp.Data)
@@ -126,6 +126,7 @@ func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
 		if len(varz.Tags) > 0 {
 			fmt.Printf("         Server Tags: %s\n", strings.Join(varz.Tags, ", "))
 		}
+		fmt.Printf("              Domain: %s\n", js.Config.Domain)
 		fmt.Printf("   Storage Directory: %s\n", js.Config.StoreDir)
 		fmt.Printf("          Max Memory: %s\n", humanize.IBytes(uint64(js.Config.MaxMemory)))
 		fmt.Printf("            Max File: %s\n", humanize.IBytes(uint64(js.Config.MaxStore)))
