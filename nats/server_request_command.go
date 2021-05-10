@@ -152,6 +152,7 @@ func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
 		Host:    c.host,
 		Cluster: c.cluster,
 		Tags:    c.tags,
+		Domain:  config.JSDomain(),
 	}
 }
 
