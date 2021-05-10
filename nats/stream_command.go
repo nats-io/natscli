@@ -1505,7 +1505,7 @@ func (c *streamCmd) prepareConfig() api.StreamConfig {
 	}
 
 	var dupeWindow time.Duration
-	if c.dupeWindow == "" {
+	if c.dupeWindow == "" && c.mirror == "" {
 		err = survey.AskOne(&survey.Input{
 			Message: "Duplicate tracking time window",
 			Default: "2m",
