@@ -67,8 +67,17 @@ func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
 	fmt.Println()
 	switch err {
 	case nil:
-		fmt.Printf("           Memory: %s of %s\n", humanize.IBytes(info.Memory), humanize.IBytes(uint64(info.Limits.MaxMemory)))
-		fmt.Printf("          Storage: %s of %s\n", humanize.IBytes(info.Store), humanize.IBytes(uint64(info.Limits.MaxStore)))
+		if info.Limits.MaxMemory == -1 {
+			fmt.Printf("           Memory: %s of Unlimited\n", humanize.IBytes(info.Memory))
+		} else {
+			fmt.Printf("           Memory: %s of %s\n", humanize.IBytes(info.Memory), humanize.IBytes(uint64(info.Limits.MaxMemory)))
+		}
+
+		if info.Limits.MaxMemory == -1 {
+			fmt.Printf("          Storage: %s of Unlimited\n", humanize.IBytes(info.Store))
+		} else {
+			fmt.Printf("          Storage: %s of %s\n", humanize.IBytes(info.Store), humanize.IBytes(uint64(info.Limits.MaxStore)))
+		}
 
 		if info.Limits.MaxStreams == -1 {
 			fmt.Printf("          Streams: %s of Unlimited\n", humanize.Comma(int64(info.Streams)))
