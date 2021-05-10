@@ -19,7 +19,7 @@ require (
 	github.com/guptarohit/asciigraph v0.5.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/nats-io/jsm.go v0.0.24-0.20210507182532-2c7dc6444b20
-	github.com/nats-io/nats-server/v2 v2.2.3-0.20210507031311-6ecfda8d9cc9
+	github.com/nats-io/nats-server/v2 v2.2.3
 	github.com/nats-io/nats.go v1.11.0
 	github.com/nats-io/nuid v1.0.1
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20180430173243-73b8d31ba571
