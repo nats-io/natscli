@@ -60,7 +60,7 @@ func (c *SrvRaftCmd) metaPeerRemove(_ *kingpin.ParseContext) error {
 	}
 
 	if len(res) != 1 {
-		return fmt.Errorf("did not receive a response from the meta cluster leader")
+		return fmt.Errorf("did not receive a response from the meta leader, ensure the account used has system privileges and appropriate permissions")
 	}
 
 	type jszr struct {

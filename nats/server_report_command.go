@@ -105,12 +105,17 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		cluster      *server.ClusterInfo
 	)
 
+	renderDomain := false
 	for _, r := range res {
 		response := jszr{}
 
 		err = json.Unmarshal(r, &response)
 		if err != nil {
 			return err
+		}
+
+		if response.Data.Config.Domain != "" {
+			renderDomain = true
 		}
 
 		jszResponses = append(jszResponses, &response)
@@ -142,7 +147,7 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 	})
 
 	if len(jszResponses) == 0 {
-		return fmt.Errorf("no responses received")
+		return fmt.Errorf("no results received, ensure the account used has system privileges and appropriate permissions")
 	}
 
 	// here so its after the sort
@@ -163,7 +168,11 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		table.AddTitle("JetStream Summary")
 	}
 
-	table.AddHeaders("Server", "Cluster", "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "API Err")
+	if renderDomain {
+		table.AddHeaders("Server", "Cluster", "Domain", "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "API Err")
+	} else {
+		table.AddHeaders("Server", "Cluster", "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "API Err")
+	}
 
 	for i, js := range jszResponses {
 		apiErr += js.Data.JetStreamStats.API.Errors
@@ -181,9 +190,11 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 			cluster = js.Data.Meta
 		}
 
-		table.AddRow(
-			cNames[i]+leader,
-			js.Server.Cluster,
+		row := []interface{}{cNames[i] + leader, js.Server.Cluster}
+		if renderDomain {
+			row = append(row, js.Data.Config.Domain)
+		}
+		row = append(row,
 			humanize.Comma(int64(js.Data.Streams)),
 			humanize.Comma(int64(js.Data.Consumers)),
 			humanize.Comma(int64(js.Data.Messages)),
@@ -192,9 +203,17 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 			humanize.IBytes(js.Data.JetStreamStats.Store),
 			humanize.Comma(int64(js.Data.JetStreamStats.API.Total)),
 			humanize.Comma(int64(js.Data.JetStreamStats.API.Errors)))
+
+		table.AddRow(row...)
 	}
+
 	table.AddSeparator()
-	table.AddRow("", "", humanize.Comma(int64(streams)), humanize.Comma(int64(consumers)), humanize.Comma(int64(msgs)), humanize.IBytes(bytes), humanize.IBytes(memory), humanize.IBytes(store), humanize.Comma(int64(apiTotal)), humanize.Comma(int64(apiErr)))
+	row := []interface{}{"", ""}
+	if renderDomain {
+		row = append(row, "")
+	}
+	row = append(row, humanize.Comma(int64(streams)), humanize.Comma(int64(consumers)), humanize.Comma(int64(msgs)), humanize.IBytes(bytes), humanize.IBytes(memory), humanize.IBytes(store), humanize.Comma(int64(apiTotal)), humanize.Comma(int64(apiErr)))
+	table.AddRow(row...)
 
 	fmt.Print(table.Render())
 	fmt.Println()
