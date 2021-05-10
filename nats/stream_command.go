@@ -1597,6 +1597,26 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 		}
 	}
 
+	ok, err = askConfirmation("Import mirror from a different JetStream domain", false)
+	kingpin.FatalIfError(err, "Could not request mirror details")
+	if ok {
+		mirror.External = &api.ExternalStream{}
+		domainName := ""
+		err = survey.AskOne(&survey.Input{
+			Message: "Foreign JetStream domain name",
+			Help:    "The domain name from where to import the JetStream API",
+		}, &domainName, survey.WithValidator(survey.Required))
+		kingpin.FatalIfError(err, "Could not request mirror details")
+		mirror.External.ApiPrefix = fmt.Sprintf("$JS.%s.API", domainName)
+
+		err = survey.AskOne(&survey.Input{
+			Message: "Delivery prefix",
+			Help:    "Optional prefix of the delivery subject",
+		}, &mirror.External.DeliverPrefix)
+		kingpin.FatalIfError(err, "Could not request mirror details")
+		return mirror
+	}
+
 	ok, err = askConfirmation("Import mirror from a different account", false)
 	kingpin.FatalIfError(err, "Could not request mirror details")
 	if !ok {
@@ -1648,8 +1668,28 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 		kingpin.FatalIfError(err, "could not request filter")
 	}
 
+	ok, err = askConfirmation(fmt.Sprintf("Import %q from a different JetStream domain", name), false)
+	kingpin.FatalIfError(err, "Could not request source details")
+	if ok {
+		cfg.External = &api.ExternalStream{}
+		domainName := ""
+		err = survey.AskOne(&survey.Input{
+			Message: fmt.Sprintf("%s foreign JetStream domain name", prefix),
+			Help:    "The domain name from where to import the JetStream API",
+		}, &domainName, survey.WithValidator(survey.Required))
+		kingpin.FatalIfError(err, "Could not request source details")
+		cfg.External.ApiPrefix = fmt.Sprintf("$JS.%s.API", domainName)
+
+		err = survey.AskOne(&survey.Input{
+			Message: fmt.Sprintf("%s foreign JetStream domain delivery prefix", prefix),
+			Help:    "Optional prefix of the delivery subject",
+		}, &cfg.External.DeliverPrefix)
+		kingpin.FatalIfError(err, "Could not request source details")
+		return cfg
+	}
+
 	ok, err = askConfirmation(fmt.Sprintf("Import %q from a different account", name), false)
-	kingpin.FatalIfError(err, "Could not request mirror details")
+	kingpin.FatalIfError(err, "Could not request source details")
 	if !ok {
 		return cfg
 	}
@@ -1659,13 +1699,13 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 		Message: fmt.Sprintf("%s foreign account API prefix", prefix),
 		Help:    "The prefix where the foreign account JetStream API has been imported",
 	}, &cfg.External.ApiPrefix, survey.WithValidator(survey.Required))
-	kingpin.FatalIfError(err, "Could not request mirror details")
+	kingpin.FatalIfError(err, "Could not request source details")
 
 	err = survey.AskOne(&survey.Input{
 		Message: fmt.Sprintf("%s foreign account delivery prefix", prefix),
 		Help:    "The prefix where the foreign account JetStream delivery subjects has been imported",
 	}, &cfg.External.DeliverPrefix, survey.WithValidator(survey.Required))
-	kingpin.FatalIfError(err, "Could not request mirror details")
+	kingpin.FatalIfError(err, "Could not request source details")
 
 	return cfg
 }
