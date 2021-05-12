@@ -81,7 +81,8 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	res, err := c.doReq(&server.JszEventOptions{server.JSzOptions{Account: c.account}, c.reqFilter()}, "$SYS.REQ.SERVER.PING.JSZ", nc)
+	req := &server.JszEventOptions{JSzOptions: server.JSzOptions{Account: c.account}, EventFilterOptions: c.reqFilter()}
+	res, err := c.doReq(req, "$SYS.REQ.SERVER.PING.JSZ", nc)
 	if err != nil {
 		return err
 	}
@@ -500,15 +501,16 @@ func (c *SrvReportCmd) getConnz(current []*server.Connz, nc *nats.Conn, level in
 	if len(current) == 0 {
 		var initial []*server.Connz
 
-		res, err := c.doReq(&server.ConnzEventOptions{
-			server.ConnzOptions{
+		req := &server.ConnzEventOptions{
+			ConnzOptions: server.ConnzOptions{
 				Subscriptions:       true,
 				SubscriptionsDetail: false,
 				Username:            true,
 				Account:             c.account,
 			},
-			c.reqFilter(),
-		}, "$SYS.REQ.SERVER.PING.CONNZ", nc)
+			EventFilterOptions: c.reqFilter(),
+		}
+		res, err := c.doReq(req, "$SYS.REQ.SERVER.PING.CONNZ", nc)
 		if err != nil {
 			return nil, false, err
 		}
@@ -582,17 +584,20 @@ func (c *SrvReportCmd) getConnz(current []*server.Connz, nc *nats.Conn, level in
 	// We are here because we have only incomplete ones in the current set, get their next page and recurse
 	if len(incomplete) == len(current) {
 		for _, conn := range current {
-			res, err := c.doReq(&server.ConnzEventOptions{
-				server.ConnzOptions{
+			req := &server.ConnzEventOptions{
+				ConnzOptions: server.ConnzOptions{
 					Subscriptions:       true,
 					SubscriptionsDetail: false,
 					Account:             c.account,
 					Username:            true,
 					Offset:              conn.Offset + 1,
 				},
-				c.reqFilter(),
-			}, fmt.Sprintf("$SYS.REQ.SERVER.%s.CONNZ", conn.ID), nc)
-			if err != nil {
+				EventFilterOptions: c.reqFilter(),
+			}
+			res, err := c.doReq(req, fmt.Sprintf("$SYS.REQ.SERVER.%s.CONNZ", conn.ID), nc)
+			if err == nats.ErrNoResponders {
+				return nil, false, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
+			} else if err != nil {
 				return nil, false, err
 			}
 

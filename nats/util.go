@@ -708,19 +708,30 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 		log.Printf(">>> %s: %s\n", subj, string(jreq))
 	}
 
-	var resp [][]byte
-	var mu sync.Mutex
-	ctr := 0
+	var (
+		resp [][]byte
+		mu   sync.Mutex
+		ctr  = 0
+	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	errs := make(chan error)
 	sub, err := nc.Subscribe(nats.NewInbox(), func(m *nats.Msg) {
 		mu.Lock()
 		defer mu.Unlock()
 
 		if trace {
-			log.Printf("<<< %s", string(m.Data))
+			log.Printf("<<< (%dB) %s", len(m.Data), string(m.Data))
+			if m.Header != nil {
+				log.Printf("<<< Header: %+v", m.Header)
+			}
+		}
+
+		if m.Header.Get("Status") == "503" {
+			errs <- nats.ErrNoResponders
+			return
 		}
 
 		resp = append(resp, m.Data)
@@ -733,6 +744,7 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 	if err != nil {
 		return nil, err
 	}
+	defer sub.Unsubscribe()
 
 	if waitFor > 0 {
 		sub.AutoUnsubscribe(waitFor)
@@ -743,9 +755,16 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 		return nil, err
 	}
 
-	<-ctx.Done()
+	select {
+	case err = <-errs:
+		if err == nats.ErrNoResponders {
+			return nil, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
+		}
+		return nil, err
+	case <-ctx.Done():
+	}
 
-	return resp, nil
+	return resp, err
 }
 
 type raftLeader struct {
