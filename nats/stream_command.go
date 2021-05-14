@@ -827,7 +827,7 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 
 func (c *streamCmd) renderReplication(stats []streamStat) {
 	table := newTableWriter("Replication Report")
-	table.AddHeaders("Stream", "Kind", "Source Stream", "Active", "Lag", "Error")
+	table.AddHeaders("Stream", "Kind", "API Prefix", "Source Stream", "Active", "Lag", "Error")
 
 	for _, s := range stats {
 		if len(s.Sources) == 0 && s.Mirror == nil {
@@ -840,9 +840,9 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 				apierr = s.Mirror.Error.Error()
 			}
 			if c.reportRaw {
-				table.AddRow(s.Name, "Mirror", s.Mirror.Name, s.Mirror.Active, s.Mirror.Lag, apierr)
+				table.AddRow(s.Name, "Mirror", s.Mirror.External.ApiPrefix, s.Mirror.Name, s.Mirror.Active, s.Mirror.Lag, apierr)
 			} else {
-				table.AddRow(s.Name, "Mirror", s.Mirror.Name, humanizeDuration(s.Mirror.Active), humanize.Comma(int64(s.Mirror.Lag)), apierr)
+				table.AddRow(s.Name, "Mirror", s.Mirror.External.ApiPrefix, s.Mirror.Name, humanizeDuration(s.Mirror.Active), humanize.Comma(int64(s.Mirror.Lag)), apierr)
 			}
 		}
 
@@ -853,9 +853,9 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 			}
 
 			if c.reportRaw {
-				table.AddRow(s.Name, "Source", source.Name, source.Active, source.Lag, apierr)
+				table.AddRow(s.Name, "Source", source.External.ApiPrefix, source.Name, source.Active, source.Lag, apierr)
 			} else {
-				table.AddRow(s.Name, "Source", source.Name, humanizeDuration(source.Active), humanize.Comma(int64(source.Lag)), apierr)
+				table.AddRow(s.Name, "Source", source.External.ApiPrefix, source.Name, humanizeDuration(source.Active), humanize.Comma(int64(source.Lag)), apierr)
 			}
 
 		}
