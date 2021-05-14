@@ -38,7 +38,6 @@ import (
 	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
-	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go"
@@ -827,8 +826,7 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *streamCmd) renderReplication(stats []streamStat) {
-	table := tablewriter.CreateTable()
-	table.AddTitle("Replication Report")
+	table := newTableWriter("Replication Report")
 	table.AddHeaders("Stream", "Kind", "Source Stream", "Active", "Lag", "Error")
 
 	for _, s := range stats {
@@ -866,8 +864,7 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 }
 
 func (c *streamCmd) renderStreams(stats []streamStat) {
-	table := tablewriter.CreateTable()
-	table.AddTitle("Stream Report")
+	table := newTableWriter("Stream Report")
 	table.AddHeaders("Stream", "Storage", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Replicas")
 
 	for _, s := range stats {

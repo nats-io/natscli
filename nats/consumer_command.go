@@ -31,7 +31,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
-	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go"
@@ -1018,11 +1017,9 @@ func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	fmt.Printf("Consumer report for %s with %d consumers\n\n", c.stream, ss.Consumers)
-
 	leaders := make(map[string]*raftLeader)
 
-	table := tablewriter.CreateTable()
+	table := newTableWriter(fmt.Sprintf("Consumer report for %s with %d consumers", c.stream, ss.Consumers))
 	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
 	err = s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
