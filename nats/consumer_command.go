@@ -50,21 +50,22 @@ type consumerCmd struct {
 
 	selectedConsumer *jsm.Consumer
 
-	bpsRateLimit        uint64
-	maxAckPending       int
-	maxDeliver          int
-	pull                bool
-	replayPolicy        string
-	startPolicy         string
 	ackPolicy           string
 	ackWait             time.Duration
-	samplePct           int
-	filterSubject       string
+	bpsRateLimit        uint64
 	delivery            string
 	ephemeral           bool
-	validateOnly        bool
+	filterSubject       string
 	idleHeartbeat       string
+	maxAckPending       int
+	maxDeliver          int
+	maxWaiting          int
+	pull                bool
+	replayPolicy        string
 	reportLeaderDistrib bool
+	samplePct           int
+	startPolicy         string
+	validateOnly        bool
 
 	mgr *jsm.Manager
 	nc  *nats.Conn
@@ -87,6 +88,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 		f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
 		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
+		f.Flag("max-waiting", "Maximum number of outstanding pulls allowed").IntVar(&c.maxWaiting)
 		f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
 		OptionalBoolean(f.Flag("flow-control", "Enable Push consumer flow control"))
 	}
@@ -311,6 +313,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	if config.MaxAckPending > 0 {
 		fmt.Printf("     Max Ack Pending: %s\n", humanize.Comma(int64(config.MaxAckPending)))
 	}
+	if config.MaxWaiting > 0 {
+		fmt.Printf("   Max Waiting Pulls: %s\n", humanize.Comma(int64(config.MaxWaiting)))
+	}
 	if config.Heartbeat > 0 {
 		fmt.Printf("      Idle Heartbeat: %s\n", humanizeDuration(config.Heartbeat))
 	}
@@ -351,6 +356,14 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	}
 	fmt.Printf("     Redelivered Messages: %d\n", state.NumRedelivered)
 	fmt.Printf("     Unprocessed Messages: %d\n", state.NumPending)
+	if config.DeliverSubject == "" {
+		if config.MaxWaiting > 0 {
+			fmt.Printf("            Waiting Pulls: %d of maximum %d\n", state.NumWaiting, config.MaxWaiting)
+		} else {
+			fmt.Printf("            Waiting Pulls: %d of unlimited\n", state.NumWaiting)
+		}
+
+	}
 
 	fmt.Println()
 }
@@ -473,6 +486,7 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 	if c.pull {
 		cfg.DeliverSubject = ""
 		c.ackPolicy = "explicit"
+		cfg.MaxWaiting = c.maxWaiting
 	}
 
 	if c.ackPolicy != "" {
@@ -714,6 +728,10 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 
 	cfg.MaxAckPending = c.maxAckPending
+
+	if cfg.DeliverSubject == "" {
+		cfg.MaxWaiting = c.maxWaiting
+	}
 
 	if c.maxDeliver != 0 && cfg.AckPolicy != api.AckNone {
 		cfg.MaxDeliver = c.maxDeliver
