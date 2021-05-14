@@ -162,11 +162,11 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		cNames = names
 	}
 
-	table := tablewriter.CreateTable()
+	var table *tablewriter.Table
 	if c.account != "" {
-		table.AddTitle(fmt.Sprintf("JetStream Summary for Account %s", c.account))
+		table = newTableWriter(fmt.Sprintf("JetStream Summary for Account %s", c.account))
 	} else {
-		table.AddTitle("JetStream Summary")
+		table = newTableWriter("JetStream Summary")
 	}
 
 	if renderDomain {
@@ -242,8 +242,7 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 			cNames = names
 		}
 
-		table = tablewriter.CreateTable()
-		table.AddTitle("RAFT Meta Group Information")
+		table := newTableWriter("RAFT Meta Group Information")
 		table.AddHeaders("Name", "Leader", "Current", "Online", "Active", "Lag")
 		for i, replica := range cluster.Replicas {
 			leader := ""
@@ -339,8 +338,7 @@ func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	table := tablewriter.CreateTable()
-	table.AddTitle(fmt.Sprintf("%d Accounts Overview", len(accounts)))
+	table := newTableWriter(fmt.Sprintf("%d Accounts Overview", len(accounts)))
 	table.AddHeaders("Account", "Connections", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
 
 	for _, acct := range accounts {
@@ -448,8 +446,7 @@ func (c *SrvReportCmd) sortConnections(conns []*server.ConnInfo) {
 }
 
 func (c *SrvReportCmd) renderConnections(report []*server.ConnInfo) {
-	table := tablewriter.CreateTable()
-	table.AddTitle(fmt.Sprintf("%d Connections Overview", len(report)))
+	table := newTableWriter(fmt.Sprintf("%d Connections Overview", len(report)))
 	table.AddHeaders("CID", "Name", "IP", "Account", "Uptime", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
 
 	if c.json {

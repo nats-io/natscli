@@ -861,3 +861,13 @@ func compactStrings(source []string) []string {
 
 	return result
 }
+
+func newTableWriter(title string) *tablewriter.Table {
+	table := tablewriter.CreateTable()
+	table.UTF8Box()
+	if title != "" {
+		table.AddTitle(title)
+	}
+
+	return table
+}

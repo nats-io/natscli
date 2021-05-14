@@ -30,7 +30,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -219,8 +218,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		}
 	})
 
-	table := tablewriter.CreateTable()
-	table.AddTitle("Server Overview")
+	table := newTableWriter("Server Overview")
 	table.AddHeaders("Name", "Cluster", "IP", "Version", "JS", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU", "Slow", "Uptime", "RTT")
 
 	// here so its after the sort
@@ -257,8 +255,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 
 func (c *SrvLsCmd) showClusters(cl map[string]*srvListCluster) {
 	fmt.Println()
-	table := tablewriter.CreateTable()
-	table.AddTitle("Cluster Overview")
+	table := newTableWriter("Cluster Overview")
 	table.AddHeaders("Cluster", "Node Count", "Outgoing Gateways", "Incoming Gateways", "Connections")
 
 	var clusters []*srvListCluster

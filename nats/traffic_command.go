@@ -9,7 +9,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats.go"
-	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -163,8 +162,7 @@ func (c *trafficCmd) monitor(_ *kingpin.ParseContext) error {
 			}
 			raftRows = append(raftRows, []interface{}{c.raftProp.Comma(), c.raftVote.Comma(), c.raftAppend.Comma(), c.raftRemovePeer.Comma(), c.raftReply.Comma(), c.raftC.Comma()})
 
-			table := tablewriter.CreateTable()
-			table.AddTitle("Raft Traffic")
+			table := newTableWriter("Raft Traffic")
 			table.AddHeaders("Proposal", "Vote", "Append", "Remove Peer", "Reply", "Total Messages")
 			for i := range raftRows {
 				table.AddRow(raftRows[i]...)
@@ -178,8 +176,7 @@ func (c *trafficCmd) monitor(_ *kingpin.ParseContext) error {
 			}
 			clusterRows = append(clusterRows, []interface{}{c.clusterJSAUpdate.Comma(), c.clusterStreamInfo.Comma(), c.clusterConsumerInfo.Comma(), c.clusterStreamSync.Comma(), c.clusterReply.Comma(), c.clusterC.Comma()})
 
-			table := tablewriter.CreateTable()
-			table.AddTitle("Cluster Traffic")
+			table := newTableWriter("Cluster Traffic")
 			table.AddHeaders("JSA Update", "Stream Info", "Consumer Info", "Stream Sync", "Reply", "Total Messages")
 			for i := range raftRows {
 				table.AddRow(clusterRows[i]...)
@@ -192,8 +189,7 @@ func (c *trafficCmd) monitor(_ *kingpin.ParseContext) error {
 		}
 		genRows = append(genRows, []interface{}{c.requests.Comma(), c.jsAPI.Comma(), c.jsAck.Comma(), c.systemMsg.Comma(), c.msgs.Comma(), c.size.IBytes(), c.genC.Comma()})
 
-		table := tablewriter.CreateTable()
-		table.AddTitle("General Traffic")
+		table := newTableWriter("General Traffic")
 		table.AddHeaders("Requests", "JS API", "JS ACK", "System", "Rest", "Total Bytes", "Total Messages")
 		for i := range genRows {
 			table.AddRow(genRows[i]...)
