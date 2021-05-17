@@ -1260,7 +1260,6 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		}
 		fmt.Println()
 	}
-
 	showSource := func(s *api.StreamSourceInfo) {
 		fmt.Printf("          Stream Name: %s\n", s.Name)
 		fmt.Printf("                  Lag: %s\n", humanize.Comma(int64(s.Lag)))
@@ -1268,6 +1267,12 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 			fmt.Printf("            Last Seen: %v\n", humanizeDuration(s.Active))
 		} else {
 			fmt.Printf("            Last Seen: never\n")
+		}
+		if s.External != nil {
+			fmt.Printf("      Ext. API Prefix: %s\n", s.External.ApiPrefix)
+			if s.External.DeliverPrefix != "" {
+				fmt.Printf(" Ext. Delivery Prefix: %s\n", s.External.DeliverPrefix)
+			}
 		}
 		if s.Error != nil {
 			fmt.Printf("                Error: %s\n", s.Error.Description)
