@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
@@ -39,14 +40,15 @@ type SrvReportCmd struct {
 }
 
 type srvReportAccountInfo struct {
-	Account     string             `json:"account"`
-	Connections int                `json:"connections"`
-	ConnInfo    []*server.ConnInfo `json:"connection_info"`
-	InMsgs      int64              `json:"in_msgs"`
-	OutMsgs     int64              `json:"out_msgs"`
-	InBytes     int64              `json:"in_bytes"`
-	OutBytes    int64              `json:"out_bytes"`
-	Subs        int                `json:"subscriptions"`
+	Account     string               `json:"account"`
+	Connections int                  `json:"connections"`
+	ConnInfo    []connInfo           `json:"connection_info"`
+	InMsgs      int64                `json:"in_msgs"`
+	OutMsgs     int64                `json:"out_msgs"`
+	InBytes     int64                `json:"in_bytes"`
+	OutBytes    int64                `json:"out_bytes"`
+	Subs        int                  `json:"subscriptions"`
+	Server      []*server.ServerInfo `json:"server"`
 }
 
 func configureServerReportCommand(srv *kingpin.CmdClause) {
@@ -285,7 +287,7 @@ func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
 	if c.account != "" {
 		accounts := c.accountInfo(connz)
 		if len(accounts) != 1 {
-			return fmt.Errorf("received results for multiple accounts")
+			return fmt.Errorf("received results for multiple accounts, expected %v", c.account)
 		}
 
 		account, ok := accounts[c.account]
@@ -339,10 +341,15 @@ func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
 	}
 
 	table := newTableWriter(fmt.Sprintf("%d Accounts Overview", len(accounts)))
-	table.AddHeaders("Account", "Connections", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
+	table.AddHeaders("Account", "Server / Cluster", "Connections", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
 
 	for _, acct := range accounts {
-		table.AddRow(acct.Account, humanize.Comma(int64(acct.Connections)), humanize.Comma(acct.InMsgs), humanize.Comma(acct.OutMsgs), humanize.IBytes(uint64(acct.InBytes)), humanize.IBytes(uint64(acct.OutBytes)), humanize.Comma(int64(acct.Subs)))
+		server := []string{}
+		for _, s := range acct.Server {
+			server = append(server, fmt.Sprintf("%s / %s", s.Name, s.Cluster))
+		}
+
+		table.AddRow(acct.Account, strings.Join(server, ", "), humanize.Comma(int64(acct.Connections)), humanize.Comma(acct.InMsgs), humanize.Comma(acct.OutMsgs), humanize.IBytes(uint64(acct.InBytes)), humanize.IBytes(uint64(acct.OutBytes)), humanize.Comma(int64(acct.Subs)))
 	}
 
 	fmt.Print(table.Render())
@@ -350,28 +357,45 @@ func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *SrvReportCmd) accountInfo(connz []*server.Connz) map[string]*srvReportAccountInfo {
+func (c *SrvReportCmd) accountInfo(connz connzList) map[string]*srvReportAccountInfo {
 	result := make(map[string]*srvReportAccountInfo)
 
 	for _, conn := range connz {
-		for _, info := range conn.Conns {
+		for _, info := range conn.Connz.Conns {
 			account, ok := result[info.Account]
 			if !ok {
 				result[info.Account] = &srvReportAccountInfo{Account: info.Account}
 				account = result[info.Account]
 			}
 
-			account.ConnInfo = append(account.ConnInfo, info)
+			account.ConnInfo = append(account.ConnInfo, connInfo{info, conn.ServerInfo})
 			account.Connections++
 			account.InBytes += info.InBytes
 			account.OutBytes += info.OutBytes
 			account.InMsgs += info.InMsgs
 			account.OutMsgs += info.OutMsgs
 			account.Subs += len(info.Subs)
+
+			// make sure we only store one server info per unique server
+			found := false
+			for _, s := range account.Server {
+				if s.ID == conn.ServerInfo.ID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				account.Server = append(account.Server, conn.ServerInfo)
+			}
 		}
 	}
 
 	return result
+}
+
+type connInfo struct {
+	*server.ConnInfo
+	Info *server.ServerInfo `json:"server"`
 }
 
 func (c *SrvReportCmd) reportConnections(_ *kingpin.ParseContext) error {
@@ -393,11 +417,7 @@ func (c *SrvReportCmd) reportConnections(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("did not get results from any servers")
 	}
 
-	var conns []*server.ConnInfo
-
-	for _, conn := range connz {
-		conns = append(conns, conn.Conns...)
-	}
+	conns := connz.flatConnInfo()
 
 	c.sortConnections(conns)
 
@@ -424,7 +444,7 @@ func (c *SrvReportCmd) boolReverse(v bool) bool {
 	return v
 }
 
-func (c *SrvReportCmd) sortConnections(conns []*server.ConnInfo) {
+func (c *SrvReportCmd) sortConnections(conns []connInfo) {
 	sort.Slice(conns, func(i int, j int) bool {
 		switch c.sort {
 		case "in-bytes":
@@ -445,9 +465,9 @@ func (c *SrvReportCmd) sortConnections(conns []*server.ConnInfo) {
 	})
 }
 
-func (c *SrvReportCmd) renderConnections(report []*server.ConnInfo) {
+func (c *SrvReportCmd) renderConnections(report []connInfo) {
 	table := newTableWriter(fmt.Sprintf("%d Connections Overview", len(report)))
-	table.AddHeaders("CID", "Name", "IP", "Account", "Uptime", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
+	table.AddHeaders("CID", "Name", "Server", "Cluster", "IP", "Account", "Uptime", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
 
 	if c.json {
 		printJSON(report)
@@ -472,31 +492,92 @@ func (c *SrvReportCmd) renderConnections(report []*server.ConnInfo) {
 		iBytes += info.InBytes
 		subs += info.NumSubs
 
-		table.AddRow(info.Cid, name, info.IP, info.Account, info.Uptime, humanize.Comma(info.InMsgs), humanize.Comma(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), len(info.Subs))
+		srvName := info.Info.Name
+		cluster := info.Info.Cluster
+
+		acc := info.Account[0:10] + ".." + info.Account[46:]
+
+		table.AddRow(info.Cid, name, srvName, cluster, info.IP, acc, info.Uptime, humanize.Comma(info.InMsgs), humanize.Comma(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), len(info.Subs))
 	}
 
 	if len(report) > 1 {
 		table.AddSeparator()
-		table.AddRow("", "", "", "", "", humanize.Comma(iMsgs), humanize.Comma(oMsgs), humanize.IBytes(uint64(iBytes)), humanize.IBytes(uint64(oBytes)), humanize.Comma(int64(subs)))
+		table.AddRow("", "", "", "", "", "", "", humanize.Comma(iMsgs), humanize.Comma(oMsgs), humanize.IBytes(uint64(iBytes)), humanize.IBytes(uint64(oBytes)), humanize.Comma(int64(subs)))
 	}
 
 	fmt.Print(table.Render())
 }
 
+type connz struct {
+	Connz      *server.Connz
+	ServerInfo *server.ServerInfo
+}
+
+type connzList []connz
+
+func (c connzList) flatConnInfo() []connInfo {
+	var conns []connInfo
+	for _, conn := range c {
+		for _, c := range conn.Connz.Conns {
+			conns = append(conns, connInfo{c, conn.ServerInfo})
+		}
+	}
+	return conns
+}
+
+func parseConnzResp(resp []byte) (connz, error) {
+	reqresp := map[string]json.RawMessage{}
+
+	err := json.Unmarshal(resp, &reqresp)
+	if err != nil {
+		return connz{}, err
+	}
+
+	errresp, ok := reqresp["error"]
+	if ok {
+		return connz{}, fmt.Errorf("invalid response received: %#v", errresp)
+	}
+
+	data, ok := reqresp["data"]
+	if !ok {
+		return connz{}, fmt.Errorf("no data received in response: %#v", reqresp)
+	}
+
+	c := connz{
+		Connz:      &server.Connz{},
+		ServerInfo: &server.ServerInfo{},
+	}
+
+	s, ok := reqresp["server"]
+	if !ok {
+		return connz{}, fmt.Errorf("no server data received in response: %#v", reqresp)
+	}
+	err = json.Unmarshal(s, c.ServerInfo)
+	if err != nil {
+		return connz{}, err
+	}
+
+	err = json.Unmarshal(data, c.Connz)
+	if err != nil {
+		return connz{}, err
+	}
+	return c, nil
+}
+
 // recursively fetches connz from the fleet till all paged results is complete
-func (c *SrvReportCmd) getConnz(current []*server.Connz, nc *nats.Conn, level int) (result []*server.Connz, all bool, err error) {
+func (c *SrvReportCmd) getConnz(current []connz, nc *nats.Conn, level int) (result connzList, all bool, err error) {
 	// warn every 5 levels that we're still recursing...
 	if level != 0 && level%5 == 0 {
 		log.Printf("Recursing into %d servers to resolve all pages of connection info", len(current))
 	}
 
 	if current == nil {
-		current = []*server.Connz{}
+		current = []connz{}
 	}
 
 	// get the initial result from all nodes as one req and then recursively fetch all that has more pages
 	if len(current) == 0 {
-		var initial []*server.Connz
+		var initial []connz
 
 		req := &server.ConnzEventOptions{
 			ConnzOptions: server.ConnzOptions{
@@ -513,30 +594,11 @@ func (c *SrvReportCmd) getConnz(current []*server.Connz, nc *nats.Conn, level in
 		}
 
 		for _, c := range res {
-			reqresp := map[string]json.RawMessage{}
-
-			err = json.Unmarshal(c, &reqresp)
+			co, err := parseConnzResp(c)
 			if err != nil {
 				return nil, false, err
 			}
-
-			errresp, ok := reqresp["error"]
-			if ok {
-				return nil, false, fmt.Errorf("invalid response received: %#v", errresp)
-			}
-
-			data, ok := reqresp["data"]
-			if !ok {
-				return nil, false, fmt.Errorf("no data received in response: %#v", reqresp)
-			}
-
-			connz := &server.Connz{}
-			err = json.Unmarshal(data, &connz)
-			if err != nil {
-				return nil, false, err
-			}
-
-			initial = append(initial, connz)
+			initial = append(initial, co)
 		}
 
 		// recursively fetch...
@@ -550,9 +612,9 @@ func (c *SrvReportCmd) getConnz(current []*server.Connz, nc *nats.Conn, level in
 	}
 
 	// find ones in the current list that's incomplete
-	var incomplete []*server.Connz
+	var incomplete []connz
 	for _, conn := range current {
-		if (conn.Offset+1)*conn.Limit < conn.Total {
+		if (conn.Connz.Offset+1)*conn.Connz.Limit < conn.Connz.Total {
 			incomplete = append(incomplete, conn)
 		}
 	}
@@ -587,11 +649,11 @@ func (c *SrvReportCmd) getConnz(current []*server.Connz, nc *nats.Conn, level in
 					SubscriptionsDetail: false,
 					Account:             c.account,
 					Username:            true,
-					Offset:              conn.Offset + 1,
+					Offset:              conn.Connz.Offset + 1,
 				},
 				EventFilterOptions: c.reqFilter(),
 			}
-			res, err := c.doReq(req, fmt.Sprintf("$SYS.REQ.SERVER.%s.CONNZ", conn.ID), nc)
+			res, err := c.doReq(req, fmt.Sprintf("$SYS.REQ.SERVER.%s.CONNZ", conn.Connz.ID), nc)
 			if err == nats.ErrNoResponders {
 				return nil, false, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
 			} else if err != nil {
@@ -599,13 +661,11 @@ func (c *SrvReportCmd) getConnz(current []*server.Connz, nc *nats.Conn, level in
 			}
 
 			for _, c := range res {
-				connz := &server.Connz{}
-				err = json.Unmarshal(c, connz)
+				co, err := parseConnzResp(c)
 				if err != nil {
 					return nil, false, err
 				}
-
-				result = append(result, connz)
+				result = append(result, co)
 			}
 		}
 
