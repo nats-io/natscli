@@ -839,10 +839,16 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 			if s.Mirror.Error != nil {
 				apierr = s.Mirror.Error.Error()
 			}
+
+			eApiPrefix := ""
+			if s.Mirror.External != nil {
+				eApiPrefix = s.Mirror.External.ApiPrefix
+			}
+
 			if c.reportRaw {
-				table.AddRow(s.Name, "Mirror", s.Mirror.External.ApiPrefix, s.Mirror.Name, s.Mirror.Active, s.Mirror.Lag, apierr)
+				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, s.Mirror.Active, s.Mirror.Lag, apierr)
 			} else {
-				table.AddRow(s.Name, "Mirror", s.Mirror.External.ApiPrefix, s.Mirror.Name, humanizeDuration(s.Mirror.Active), humanize.Comma(int64(s.Mirror.Lag)), apierr)
+				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, humanizeDuration(s.Mirror.Active), humanize.Comma(int64(s.Mirror.Lag)), apierr)
 			}
 		}
 
@@ -852,10 +858,15 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 				apierr = source.Error.Error()
 			}
 
+			eApiPrefix := ""
+			if source.External != nil {
+				eApiPrefix = source.External.ApiPrefix
+			}
+
 			if c.reportRaw {
-				table.AddRow(s.Name, "Source", source.External.ApiPrefix, source.Name, source.Active, source.Lag, apierr)
+				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, source.Active, source.Lag, apierr)
 			} else {
-				table.AddRow(s.Name, "Source", source.External.ApiPrefix, source.Name, humanizeDuration(source.Active), humanize.Comma(int64(source.Lag)), apierr)
+				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, humanizeDuration(source.Active), humanize.Comma(int64(source.Lag)), apierr)
 			}
 
 		}
