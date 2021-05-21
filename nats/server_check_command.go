@@ -46,6 +46,15 @@ type SrvCheckCmd struct {
 	raftExpect       int
 	raftLagCritical  uint64
 	raftSeenCritical time.Duration
+
+	jsMemWarn           int
+	jsMemCritical       int
+	jsStoreWarn         int
+	jsStoreCritical     int
+	jsStreamsWarn       int
+	jsStreamsCritical   int
+	jsConsumersWarn     int
+	jsConsumersCritical int
 }
 
 func configureServerCheckCommand(srv *kingpin.CmdClause) {
@@ -77,12 +86,23 @@ func configureServerCheckCommand(srv *kingpin.CmdClause) {
 	stream.Flag("peer-lag-critical", "Critical threshold to allow for cluster peer lag").PlaceHolder("OPS").Uint64Var(&c.raftLagCritical)
 	stream.Flag("peer-seen-critical", "Critical threshold for how long ago a cluster peer should have been seen").PlaceHolder("DURATION").Default("10s").DurationVar(&c.raftSeenCritical)
 	stream.Flag("msgs-warn", "Warn if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesWarn)
-	stream.Flag("msgs-crit", "Critical if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesCrit)
+	stream.Flag("msgs-critical", "Critical if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesCrit)
 
 	meta := check.Command("meta", "Check JetStream cluster state").Alias("raft").Action(c.checkRaft)
 	meta.Flag("expect", "Number of servers to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
 	meta.Flag("lag-critical", "Critical threshold to allow for lag").PlaceHolder("OPS").Required().Uint64Var(&c.raftLagCritical)
 	meta.Flag("seen-critical", "Critical threshold for how long ago a peer should have been seen").Required().PlaceHolder("DURATION").DurationVar(&c.raftSeenCritical)
+
+	js := check.Command("jetstream", "Check JetStream account state").Alias("js").Action(c.checkJS)
+	js.Flag("mem-warn", "Warning threshold for memory storage, in percent").Default("75").IntVar(&c.jsMemWarn)
+	js.Flag("mem-critical", "Critical threshold for memory storage, in percent").Default("90").IntVar(&c.jsMemCritical)
+	js.Flag("store-warn", "Warning threshold for disk storage, in percent").Default("75").IntVar(&c.jsStoreWarn)
+	js.Flag("store-critical", "Critical threshold for memory storage, in percent").Default("90").IntVar(&c.jsStoreCritical)
+	js.Flag("streams-warn", "Warning threshold for number of streams used, in percent").Default("-1").IntVar(&c.jsStreamsWarn)
+	js.Flag("streams-critical", "Critical threshold for number of streams used, in percent").Default("-1").IntVar(&c.jsStreamsCritical)
+	js.Flag("consumers-warn", "Warning threshold for number of consumers used, in percent").Default("-1").IntVar(&c.jsConsumersWarn)
+	js.Flag("consumers-critical", "Critical threshold for number of consumers used, in percent").Default("-1").IntVar(&c.jsConsumersCritical)
+
 }
 
 func (c *SrvCheckCmd) ok(format string, a ...interface{}) {
@@ -109,6 +129,79 @@ func (c *SrvCheckCmd) criticalIfErr(err error, format string, a ...interface{}) 
 	}
 
 	c.critical(format, a...)
+}
+
+func (c *SrvCheckCmd) checkJS(_ *kingpin.ParseContext) error {
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	c.criticalIfErr(err, "connection failed: %s", err)
+
+	info, err := mgr.JetStreamAccountInfo()
+	c.criticalIfErr(err, "JetStream not available: %s", err)
+
+	warns, crits, pd, err := c.checkAccountInfo(info)
+	c.criticalIfErr(err, "JetStream not available: %s", err)
+
+	switch {
+	case len(crits) > 0:
+		c.critical("JetStream %s | %s", strings.Join(crits, ", "), pd)
+	case len(warns) > 0:
+		c.warning("JetStream %s | %s", strings.Join(crits, ", "), pd)
+	default:
+		c.ok("JetStream | %s", pd)
+	}
+
+	return nil
+}
+
+func (c *SrvCheckCmd) checkAccountInfo(info *api.JetStreamAccountStats) (warns []string, crits []string, pd string, err error) {
+	if info == nil {
+		return nil, nil, "", fmt.Errorf("invalid account status")
+	}
+
+	check := func(item string, unit string, warn int, crit int, max int64, current uint64) {
+		pct := 0
+		if max > 0 {
+			pct = int(float64(current) / float64(max) * 100)
+		}
+
+		if unit == "" {
+			pd = fmt.Sprintf("%s %s=%d", strings.TrimSpace(pd), item, current)
+		} else {
+			pd = fmt.Sprintf("%s %s=%d%s", strings.TrimSpace(pd), item, current, unit)
+		}
+
+		if warn >= 0 && crit >= 0 {
+			pd = fmt.Sprintf("%s %s_pct=%d%%;%d;%d", strings.TrimSpace(pd), item, pct, warn, crit)
+		} else {
+			pd = fmt.Sprintf("%s %s_pct=%d%%", strings.TrimSpace(pd), item, pct)
+		}
+
+		if warn != -1 && crit != -1 && warn >= crit {
+			crits = append(crits, fmt.Sprintf("%s: invalid thresholds", item))
+			return
+		}
+
+		if pct > 100 {
+			crits = append(crits, fmt.Sprintf("%s: exceed server limits", item))
+			return
+		}
+
+		if warn >= 0 && crit >= 0 {
+			switch {
+			case pct > crit:
+				crits = append(crits, fmt.Sprintf("%d%% %s", pct, item))
+			case pct > warn:
+				warns = append(warns, fmt.Sprintf("%d%% %s", pct, item))
+			}
+		}
+	}
+
+	check("memory", "B", c.jsMemWarn, c.jsMemCritical, info.Limits.MaxMemory, info.Memory)
+	check("storage", "B", c.jsStoreWarn, c.jsStoreCritical, info.Limits.MaxStore, info.Store)
+	check("streams", "", c.jsStreamsWarn, c.jsStreamsCritical, int64(info.Limits.MaxStreams), uint64(info.Streams))
+	check("consumers", "", c.jsConsumersWarn, c.jsConsumersCritical, int64(info.Limits.MaxConsumers), uint64(info.Consumers))
+
+	return warns, crits, strings.TrimSpace(pd), nil
 }
 
 func (c *SrvCheckCmd) checkRaft(_ *kingpin.ParseContext) error {
