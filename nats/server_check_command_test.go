@@ -9,6 +9,143 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 )
 
+func TestCheckAccountInfo(t *testing.T) {
+	setDefaults := func() (*SrvCheckCmd, *api.JetStreamAccountStats) {
+		// cli defaults
+		cmd := &SrvCheckCmd{
+			jsConsumersCritical: -1,
+			jsConsumersWarn:     -1,
+			jsStreamsCritical:   -1,
+			jsStreamsWarn:       -1,
+			jsStoreCritical:     90,
+			jsStoreWarn:         75,
+			jsMemCritical:       90,
+			jsMemWarn:           75,
+		}
+
+		info := &api.JetStreamAccountStats{
+			Store:     1024,
+			Memory:    128,
+			Streams:   10,
+			Consumers: 100,
+			Limits: api.JetStreamAccountLimits{
+				MaxMemory:    1024,
+				MaxStore:     20480,
+				MaxStreams:   200,
+				MaxConsumers: 1000,
+			},
+		}
+
+		return cmd, info
+	}
+
+	t.Run("No info", func(t *testing.T) {
+		cmd, _ := setDefaults()
+		_, _, _, err := cmd.checkAccountInfo(nil)
+		if err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("No limits, default thresholds", func(t *testing.T) {
+		cmd, info := setDefaults()
+
+		info.Limits = api.JetStreamAccountLimits{}
+		warns, crits, pd, err := cmd.checkAccountInfo(info)
+		checkErr(t, err, "unexpected error")
+		if len(crits) > 0 {
+			t.Fatalf("unexpected crits: %v", crits)
+		}
+		if len(warns) > 0 {
+			t.Fatalf("unexpected warns: %v", warns)
+		}
+		if pd != "memory=128B memory_pct=0%;75;90 storage=1024B storage_pct=0%;75;90 streams=10 streams_pct=0% consumers=100 consumers_pct=0%" {
+			t.Fatalf("unexpected pd: %s", pd)
+		}
+	})
+
+	t.Run("Limits, default thresholds", func(t *testing.T) {
+		cmd, info := setDefaults()
+
+		warns, crits, pd, err := cmd.checkAccountInfo(info)
+		checkErr(t, err, "unexpected error")
+		if len(crits) > 0 {
+			t.Fatalf("unexpected crits: %v", crits)
+		}
+		if len(warns) > 0 {
+			t.Fatalf("unexpected warns: %v", warns)
+		}
+		if pd != "memory=128B memory_pct=12%;75;90 storage=1024B storage_pct=5%;75;90 streams=10 streams_pct=5% consumers=100 consumers_pct=10%" {
+			t.Fatalf("unexpected pd: %s", pd)
+		}
+	})
+
+	t.Run("Limits, Thresholds", func(t *testing.T) {
+		cmd, info := setDefaults()
+
+		t.Run("Usage exceeds max", func(t *testing.T) {
+			info.Streams = 300
+			warns, crits, pd, err := cmd.checkAccountInfo(info)
+			checkErr(t, err, "unexpected error")
+			if !cmp.Equal(crits, []string{"streams: exceed server limits"}) {
+				t.Fatalf("unexpected crits: %v", crits)
+			}
+			if len(warns) > 0 {
+				t.Fatalf("unexpected warns: %v", warns)
+			}
+			if pd != "memory=128B memory_pct=12%;75;90 storage=1024B storage_pct=5%;75;90 streams=300 streams_pct=150% consumers=100 consumers_pct=10%" {
+				t.Fatalf("unexpected pd: %s", pd)
+			}
+		})
+
+		t.Run("Invalid thresholds", func(t *testing.T) {
+			cmd, info := setDefaults()
+
+			cmd.jsMemWarn = 90
+			cmd.jsMemCritical = 80
+			_, crits, _, err := cmd.checkAccountInfo(info)
+			checkErr(t, err, "unexpected error")
+			if !cmp.Equal(crits, []string{"memory: invalid thresholds"}) {
+				t.Fatalf("unexpected crits: %v", crits)
+			}
+		})
+
+		t.Run("Exceeds warning threshold", func(t *testing.T) {
+			cmd, info := setDefaults()
+
+			info.Memory = 800
+			warns, crits, pd, err := cmd.checkAccountInfo(info)
+			checkErr(t, err, "unexpected error")
+			if pd != "memory=800B memory_pct=78%;75;90 storage=1024B storage_pct=5%;75;90 streams=10 streams_pct=5% consumers=100 consumers_pct=10%" {
+				t.Fatalf("unexpected pd: %s", pd)
+			}
+			if len(crits) > 0 {
+				t.Fatalf("unexpected crits: %v", crits)
+			}
+			if !cmp.Equal(warns, []string{"78% memory"}) {
+				t.Fatalf("unexpected warns: %v", warns)
+			}
+		})
+
+		t.Run("Exceeds critical threshold", func(t *testing.T) {
+			cmd, info := setDefaults()
+
+			info.Memory = 960
+			warns, crits, pd, err := cmd.checkAccountInfo(info)
+			checkErr(t, err, "unexpected error")
+			if pd != "memory=960B memory_pct=93%;75;90 storage=1024B storage_pct=5%;75;90 streams=10 streams_pct=5% consumers=100 consumers_pct=10%" {
+				t.Fatalf("unexpected pd: %s", pd)
+			}
+			if !cmp.Equal(crits, []string{"93% memory"}) {
+				t.Fatalf("unexpected crits: %v", crits)
+			}
+			if len(warns) > 0 {
+				t.Fatalf("unexpected warns: %v", warns)
+			}
+		})
+	})
+}
+
 func TestCheckMirror(t *testing.T) {
 	cmd := &SrvCheckCmd{}
 	info := &api.StreamInfo{}
