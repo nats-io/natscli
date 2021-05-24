@@ -602,10 +602,8 @@ func parseStringsToHeader(hdrs []string, seq int, msg *nats.Msg) error {
 }
 
 func loadContext() error {
-	config, ctxError = natscontext.New(cfgCtx, !skipContexts,
+	opts := []natscontext.Option{
 		natscontext.WithServerURL(servers),
-		natscontext.WithUser(username),
-		natscontext.WithPassword(password),
 		natscontext.WithCreds(creds),
 		natscontext.WithNKey(nkey),
 		natscontext.WithCertificate(tlsCert),
@@ -614,7 +612,15 @@ func loadContext() error {
 		natscontext.WithJSEventPrefix(jsEventPrefix),
 		natscontext.WithJSAPIPrefix(jsApiPrefix),
 		natscontext.WithJSDomain(jsDomain),
-	)
+	}
+
+	if username != "" && password == "" {
+		opts = append(opts, natscontext.WithToken(username))
+	} else {
+		opts = append(opts, natscontext.WithUser(username), natscontext.WithPassword(password))
+	}
+
+	config, ctxError = natscontext.New(cfgCtx, !skipContexts, opts...)
 
 	return ctxError
 }
