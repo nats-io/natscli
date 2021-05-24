@@ -234,6 +234,7 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 	c.showIfNotEmpty("      Server URLs: %s\n", cfg.ServerURL())
 	c.showIfNotEmpty("         Username: %s\n", cfg.User())
 	c.showIfNotEmpty("         Password: *********\n", cfg.Password())
+	c.showIfNotEmpty("            Token: %s\n", cfg.Token())
 	c.showIfNotEmpty("      Credentials: %s (%s)\n", cfg.Creds(), checkFile(cfg.Creds()))
 	c.showIfNotEmpty("             NKey: %s (%s)\n", cfg.NKey(), checkFile(cfg.NKey()))
 	c.showIfNotEmpty("      Certificate: %s (%s)\n", cfg.Certificate(), checkFile(cfg.Certificate()))
@@ -296,6 +297,7 @@ func (c *ctxCommand) createCommand(pc *kingpin.ParseContext) error {
 		natscontext.WithServerURL(servers),
 		natscontext.WithUser(username),
 		natscontext.WithPassword(password),
+		natscontext.WithToken(username),
 		natscontext.WithCreds(creds),
 		natscontext.WithNKey(nkey),
 		natscontext.WithCertificate(tlsCert),
