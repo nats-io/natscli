@@ -96,6 +96,7 @@ See 'nats cheat' for a quick cheatsheet of commands
 	configureBenchCommand(ncli)
 	configureConsumerCommand(ncli)
 	configureCtxCommand(ncli)
+	configureErrCommand(ncli)
 	configureEventsCommand(ncli)
 	configureLatencyCommand(ncli)
 	configurePubCommand(ncli)
