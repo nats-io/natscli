@@ -37,6 +37,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
 	"github.com/xlab/tablewriter"
@@ -876,4 +877,23 @@ func newTableWriter(title string) *tablewriter.Table {
 	}
 
 	return table
+}
+
+func determineServerTopology(nc *nats.Conn) (uint32, error) {
+	res, err := nc.Request("$SYS.REQ.SERVER.PING", nil, time.Second)
+	if err != nil {
+		return 0, err
+	}
+
+	var sz server.ServerStatsMsg
+	err = json.Unmarshal(res.Data, &sz)
+	if err != nil {
+		return 0, err
+	}
+
+	if sz.Stats.ActiveServers <= 0 {
+		sz.Stats.ActiveServers = 0
+	}
+
+	return uint32(sz.Stats.ActiveServers), nil
 }

@@ -73,10 +73,14 @@ func (c *SrvPingCmd) ping(_ *kingpin.ParseContext) error {
 			os.Exit(1)
 		}
 
-		last := atomic.AddUint32(&seen, 1)
-
 		mu.Lock()
 		defer mu.Unlock()
+
+		last := atomic.AddUint32(&seen, 1)
+
+		if c.expect == 0 && ssm.Stats.ActiveServers > 0 && last == 1 {
+			c.expect = uint32(ssm.Stats.ActiveServers)
+		}
 
 		since := time.Since(start)
 		rtt := since.Milliseconds()

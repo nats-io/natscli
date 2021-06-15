@@ -59,19 +59,19 @@ func configureServerReportCommand(srv *kingpin.CmdClause) {
 	report.Flag("reverse", "Reverse sort connections").Short('R').Default("false").BoolVar(&c.reverse)
 
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnections)
-	conns.Arg("limit", "Limit the responses to a certain amount of servers").Default("1024").IntVar(&c.waitFor)
+	conns.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	conns.Flag("account", "Limit report to a specific account").StringVar(&c.account)
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").IntVar(&c.topk)
 
 	acct := report.Command("accounts", "Report on account activity").Alias("acct").Action(c.reportAccount)
 	acct.Arg("account", "Account to produce a report for").StringVar(&c.account)
-	acct.Arg("limit", "Limit the responses to a certain amount of servers").Default("1024").IntVar(&c.waitFor)
+	acct.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs,uptime,cid)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs", "uptime", "cid")
 	acct.Flag("top", "Limit results to the top results").IntVar(&c.topk)
 
 	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.reportJetStream)
-	jsz.Arg("limit", "Limit the responses to a certain amount of servers").Default("1024").IntVar(&c.waitFor)
+	jsz.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	jsz.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
 	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
 	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
@@ -677,6 +677,16 @@ func (c *SrvReportCmd) getConnz(current []connz, nc *nats.Conn, level int) (resu
 }
 
 func (c *SrvReportCmd) doReq(req interface{}, subj string, nc *nats.Conn) ([][]byte, error) {
+	if c.waitFor <= 0 {
+		wf, err := determineServerTopology(nc)
+		if err == nil {
+			c.waitFor = int(wf)
+			log.Printf("Set waitfor : %d", c.waitFor)
+		} else {
+			log.Printf("wait for check failed: %s", err)
+		}
+	}
+
 	return doReq(req, subj, c.waitFor, nc)
 }
 

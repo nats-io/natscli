@@ -11,15 +11,15 @@ require (
 	github.com/codahale/hdrhistogram v1.1.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/emicklei/dot v0.15.0
-	github.com/fatih/color v1.10.0
+	github.com/fatih/color v1.12.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.5.5
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/nats-io/jsm.go v0.0.24-0.20210528144848-9e8c0cb91b50
-	github.com/nats-io/nats-server/v2 v2.2.7-0.20210528143016-82eb6b6d5eca
+	github.com/nats-io/jsm.go v0.0.24-0.20210615120801-d992e86f57f6
+	github.com/nats-io/nats-server/v2 v2.2.7-0.20210612181831-f4e34092c618
 	github.com/nats-io/nats.go v1.11.0
 	github.com/nats-io/nuid v1.0.1
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20180430173243-73b8d31ba571
