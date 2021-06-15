@@ -681,9 +681,6 @@ func (c *SrvReportCmd) doReq(req interface{}, subj string, nc *nats.Conn) ([][]b
 		wf, err := determineServerTopology(nc)
 		if err == nil {
 			c.waitFor = int(wf)
-			log.Printf("Set waitfor : %d", c.waitFor)
-		} else {
-			log.Printf("wait for check failed: %s", err)
 		}
 	}
 
