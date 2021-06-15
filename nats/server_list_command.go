@@ -72,9 +72,6 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	seen := uint32(0)
-	mu := sync.Mutex{}
-
 	type result struct {
 		*server.ServerStatsMsg
 		rtt time.Duration
@@ -88,14 +85,16 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	var (
 		results     []*result
 		names       []string
-		clusters           = make(map[string]*srvListCluster)
-		servers            = 0
-		connections        = 0
-		memory      int64  = 0
-		slow        int64  = 0
-		subs        uint32 = 0
-		js                 = 0
-		start              = time.Now()
+		clusters    = make(map[string]*srvListCluster)
+		servers     int
+		connections int
+		memory      int64
+		slow        int64
+		subs        uint32
+		js          int
+		start       = time.Now()
+		seen        uint32
+		mu          sync.Mutex
 	)
 
 	sub, err := nc.Subscribe(nc.NewRespInbox(), func(msg *nats.Msg) {
@@ -113,6 +112,10 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 
 		mu.Lock()
 		defer mu.Unlock()
+
+		if c.expect == 0 && ssm.Stats.ActiveServers > 0 && servers == 0 {
+			c.expect = uint32(ssm.Stats.ActiveServers)
+		}
 
 		last := atomic.AddUint32(&seen, 1)
 
