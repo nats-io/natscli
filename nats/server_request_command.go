@@ -35,7 +35,7 @@ type SrvRequestCmd struct {
 
 	limit   int
 	offset  int
-	waitFor int
+	waitFor uint32
 
 	includeAccounts  bool
 	includeStreams   bool
@@ -57,7 +57,7 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	c := &SrvRequestCmd{}
 
 	req := srv.Command("request", "Request monitoring data from a specific server").Alias("req")
-	req.Flag("limit", "Limit the responses to a certain amount of records").Default("1024").IntVar(&c.limit)
+	req.Flag("limit", "Limit the responses to a certain amount of records").Default("2048").IntVar(&c.limit)
 	req.Flag("offset", "Start at a certain record").Default("0").IntVar(&c.offset)
 	req.Flag("name", "Limit to servers matching a server name").StringVar(&c.name)
 	req.Flag("host", "Limit to servers matching a server host name").StringVar(&c.host)
@@ -65,15 +65,15 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	req.Flag("tags", "Limit to servers with these configured tags").StringsVar(&c.tags)
 
 	subz := req.Command("subscriptions", "Show subscription information").Alias("sub").Alias("subsz").Action(c.subs)
-	subz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
+	subz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	subz.Flag("detail", "Include detail about all subscriptions").Default("false").BoolVar(&c.detail)
 	subz.Flag("filter-account", "Filter on a specific account").StringVar(&c.accountFilter)
 
 	varz := req.Command("variables", "Show runtime variables").Alias("var").Alias("varz").Action(c.varz)
-	varz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
+	varz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 
 	connz := req.Command("connections", "Show connection details").Alias("conn").Alias("connz").Action(c.conns)
-	connz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
+	connz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	connz.Flag("sort", "Sort by a specific property").Default("cid").EnumVar(&c.sortOpt, "cid", "start", "subs", "pending", "msgs_to", "msgs_from", "bytes_to", "bytes_from", "last", "idle", "uptime", "stop", "reason")
 	connz.Flag("subscriptions", "Show subscriptions").Default("false").BoolVar(&c.detail)
 	connz.Flag("filter-cid", "Filter on a specific CID").Uint64Var(&c.cidFilter)
@@ -82,25 +82,25 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	connz.Flag("filter-account", "Filter on a specific account").StringVar(&c.accountFilter)
 
 	routez := req.Command("routes", "Show route details").Alias("route").Alias("routez").Action(c.routez)
-	routez.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
+	routez.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	routez.Flag("subscriptions", "Show subscription detail").Default("false").BoolVar(&c.detail)
 
 	gwyz := req.Command("gateways", "Show gateway details").Alias("gateway").Alias("gwy").Alias("gatewayz").Action(c.gwyz)
-	gwyz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
+	gwyz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	gwyz.Arg("filter-name", "Filter results on gateway name").StringVar(&c.nameFilter)
 	gwyz.Flag("filter-account", "Show only a certain account in account detail").StringVar(&c.accountFilter)
 	gwyz.Flag("accounts", "Show account detail").Default("false").BoolVar(&c.detail)
 
 	leafz := req.Command("leafnodes", "Show leafnode details").Alias("leaf").Alias("leafz").Action(c.leafz)
-	leafz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
+	leafz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	leafz.Flag("subscriptions", "Show subscription detail").Default("false").BoolVar(&c.detail)
 
 	accountz := req.Command("accounts", "Show account details").Alias("accountz").Alias("acct").Action(c.accountz)
-	accountz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
+	accountz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	accountz.Flag("account", "Retrieve information for a specific account").StringVar(&c.account)
 
 	jsz := req.Command("jetstream", "Show JetStream details").Alias("jsz").Alias("js").Action(c.jsz)
-	jsz.Arg("wait", "Wait for a certain number of responses").Default("1").IntVar(&c.waitFor)
+	jsz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	jsz.Flag("account", "Show statistics scoped to a specific account").StringVar(&c.account)
 	jsz.Flag("accounts", "Include details about accounts").BoolVar(&c.includeAccounts)
 	jsz.Flag("streams", "Include details about Streams").BoolVar(&c.includeStreams)
@@ -361,6 +361,17 @@ func (c *SrvRequestCmd) doReq(kind string, req interface{}, nc *nats.Conn) ([][]
 		return nil, err
 	}
 
+	if (c.name != "" || c.host != "") && c.waitFor == 0 {
+		c.waitFor = 1
+	}
+
+	if c.waitFor == 0 {
+		c.waitFor, err = determineServerTopology(nc)
+		if err != nil {
+			c.waitFor = 1
+		}
+	}
+
 	subj := fmt.Sprintf("$SYS.REQ.SERVER.PING.%s", kind)
 
 	if trace {
@@ -369,7 +380,7 @@ func (c *SrvRequestCmd) doReq(kind string, req interface{}, nc *nats.Conn) ([][]
 
 	var resp [][]byte
 	var mu sync.Mutex
-	ctr := 0
+	ctr := uint32(0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -392,7 +403,7 @@ func (c *SrvRequestCmd) doReq(kind string, req interface{}, nc *nats.Conn) ([][]
 		return nil, err
 	}
 
-	sub.AutoUnsubscribe(c.waitFor)
+	sub.AutoUnsubscribe(int(c.waitFor))
 
 	err = nc.PublishRequest(subj, sub.Subject, jreq)
 	if err != nil {
