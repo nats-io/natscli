@@ -41,6 +41,7 @@ var (
 	cfgCtx        string
 	ctxError      error
 	trace         bool
+	tlsDumpCerts  bool
 
 	// used during tests
 	skipContexts bool
@@ -84,6 +85,7 @@ See 'nats cheat' for a quick cheatsheet of commands
 	ncli.Flag("domain", "JetStream domain to access").PlaceHolder("PREFIX").PlaceHolder("DOMAIN").Hidden().StringVar(&jsDomain)
 	ncli.Flag("context", "Configuration context").Envar("NATS_CONTEXT").StringVar(&cfgCtx)
 	ncli.Flag("trace", "Trace API interactions").BoolVar(&trace)
+	ncli.Flag("tls-dump-certs", "Dump TLS first certificate chain for server").BoolVar(&tlsDumpCerts)
 
 	ncli.PreAction(prepareConfig)
 
