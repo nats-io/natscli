@@ -53,36 +53,37 @@ type streamCmd struct {
 	outFile          string
 	filterSubject    string
 
-	destination         string
-	subjects            []string
-	ack                 bool
-	storage             string
-	maxMsgLimit         int64
-	maxBytesLimit       int64
-	maxAgeLimit         string
-	maxMsgSize          int64
-	reportSortConsumers bool
-	reportSortMsgs      bool
-	reportSortName      bool
-	reportSortStorage   bool
-	reportRaw           bool
-	reportLimitCluster  string
-	reportLeaderDistrib bool
-	maxStreams          int
-	discardPolicy       string
-	validateOnly        bool
-	backupDirectory     string
-	showProgress        bool
-	healthCheck         bool
-	snapShotConsumers   bool
-	dupeWindow          string
-	replicas            int64
-	placementCluster    string
-	placementTags       []string
-	peerName            string
-	sources             []string
-	mirror              string
-	interactive         bool
+	destination           string
+	subjects              []string
+	ack                   bool
+	storage               string
+	maxMsgLimit           int64
+	maxMsgPerSubjectLimit int64
+	maxBytesLimit         int64
+	maxAgeLimit           string
+	maxMsgSize            int64
+	reportSortConsumers   bool
+	reportSortMsgs        bool
+	reportSortName        bool
+	reportSortStorage     bool
+	reportRaw             bool
+	reportLimitCluster    string
+	reportLeaderDistrib   bool
+	maxStreams            int
+	discardPolicy         string
+	validateOnly          bool
+	backupDirectory       string
+	showProgress          bool
+	healthCheck           bool
+	snapShotConsumers     bool
+	dupeWindow            string
+	replicas              int64
+	placementCluster      string
+	placementTags         []string
+	peerName              string
+	sources               []string
+	mirror                string
+	interactive           bool
 
 	vwStartId    int
 	vwStartDelta time.Duration
@@ -117,6 +118,7 @@ func configureStreamCommand(app *kingpin.Application) {
 		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
 		f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
 		f.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
+		f.Flag("max-msgs-per-subject", "Maximum amount of messages to keep per subject").Default("0").Int64Var(&c.maxMsgPerSubjectLimit)
 		f.Flag("max-bytes", "Maximum bytes to keep").Int64Var(&c.maxBytesLimit)
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
 		f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
@@ -957,6 +959,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.MaxMsgs = c.maxMsgLimit
 	}
 
+	if c.maxMsgPerSubjectLimit != 0 {
+		cfg.MaxMsgsPer = c.maxMsgPerSubjectLimit
+	}
+
 	if c.maxAgeLimit != "" {
 		cfg.MaxAge, err = parseDurationString(c.maxAgeLimit)
 		if err != nil {
@@ -1139,6 +1145,9 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 		fmt.Println("     Maximum Messages: unlimited")
 	} else {
 		fmt.Printf("     Maximum Messages: %s\n", humanize.Comma(cfg.MaxMsgs))
+	}
+	if cfg.MaxMsgsPer > 0 {
+		fmt.Printf("  Maximum Per Subject: %s\n", humanize.Comma(cfg.MaxMsgsPer))
 	}
 	if cfg.MaxBytes == -1 {
 		fmt.Println("        Maximum Bytes: unlimited")
@@ -1479,12 +1488,23 @@ func (c *streamCmd) prepareConfig() api.StreamConfig {
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
-	var maxAge time.Duration
 	if c.maxMsgLimit == 0 {
 		c.maxMsgLimit, err = askOneInt("Stream Messages Limit", "-1", "Defines the amount of messages to keep in the store for this Stream, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-msgs")
 		kingpin.FatalIfError(err, "invalid input")
+		if c.maxMsgLimit <= 0 {
+			c.maxMsgLimit = -1
+		}
 	}
 
+	if c.maxMsgPerSubjectLimit == 0 && (len(c.subjects) > 0 || strings.Contains(c.subjects[0], "*") || strings.Contains(c.subjects[0], ">")) {
+		c.maxMsgPerSubjectLimit, err = askOneInt("Per Subject Messages Limit", "-1", "Defines the amount of messages to keep in the store for this Stream per unique subject, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-msgs-per-subject")
+		kingpin.FatalIfError(err, "invalid input")
+		if c.maxMsgPerSubjectLimit <= 0 {
+			c.maxMsgPerSubjectLimit = -1
+		}
+	}
+
+	var maxAge time.Duration
 	if c.maxBytesLimit == 0 {
 		c.maxBytesLimit, err = askOneBytes("Message size limit", "-1", "Defines the combined size of all messages in a Stream, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-bytes")
 		kingpin.FatalIfError(err, "invalid input")
@@ -1544,6 +1564,7 @@ func (c *streamCmd) prepareConfig() api.StreamConfig {
 		Name:         c.stream,
 		Subjects:     c.subjects,
 		MaxMsgs:      c.maxMsgLimit,
+		MaxMsgsPer:   c.maxMsgPerSubjectLimit,
 		MaxBytes:     c.maxBytesLimit,
 		MaxMsgSize:   int32(c.maxMsgSize),
 		Duplicates:   dupeWindow,
