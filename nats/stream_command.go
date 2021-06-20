@@ -84,6 +84,9 @@ type streamCmd struct {
 	sources               []string
 	mirror                string
 	interactive           bool
+	purgeKeep             uint64
+	purgeSubject          string
+	purgeSequence         uint64
 
 	vwStartId    int
 	vwStartDelta time.Duration
@@ -166,6 +169,9 @@ func configureStreamCommand(app *kingpin.Application) {
 	strPurge.Arg("stream", "Stream name").StringVar(&c.stream)
 	strPurge.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	strPurge.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+	strPurge.Flag("subject", "Limits the purge to a specific subject").PlaceHolder("SUBJECT").StringVar(&c.purgeSubject)
+	strPurge.Flag("seq", "Purge up to but not including a specific message sequence").PlaceHolder("SEQUENCE").Uint64Var(&c.purgeSequence)
+	strPurge.Flag("keep", "Keeps a certain number of messages after the purge").PlaceHolder("MESSAGES").Uint64Var(&c.purgeKeep)
 
 	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another").Alias("cp").Action(c.cpAction)
 	strCopy.Arg("source", "Source Stream to copy").Required().StringVar(&c.stream)
@@ -1864,7 +1870,20 @@ func (c *streamCmd) purgeAction(_ *kingpin.ParseContext) (err error) {
 	stream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not purge Stream")
 
-	err = stream.Purge()
+	var req *api.JSApiStreamPurgeRequest
+	if c.purgeKeep > 0 || c.purgeSubject != "" || c.purgeSequence > 0 {
+		if c.purgeSequence > 0 && c.purgeKeep > 0 {
+			return fmt.Errorf("sequence and keep cannot be combined when purghing")
+		}
+
+		req = &api.JSApiStreamPurgeRequest{
+			Sequence: c.purgeSequence,
+			Subject:  c.purgeSubject,
+			Keep:     c.purgeKeep,
+		}
+	}
+
+	err = stream.Purge(req)
 	kingpin.FatalIfError(err, "could not purge Stream")
 
 	stream.Reset()

@@ -292,21 +292,33 @@ func TestCLIStreamPurge(t *testing.T) {
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, mgr, "mem1")
 
-	_, err = nc.Request("js.mem.1", []byte("hello"), time.Second)
-	checkErr(t, err, "could not publish message: %v", err)
-
-	i, err := stream.Information()
-	checkErr(t, err, "could not get message stream info: %v", err)
-	if i.State.Msgs != 1 {
-		t.Fatalf("expected 1 message but got %d", i.State.Msgs)
+	for i := 0; i < 10; i++ {
+		_, err = nc.Request("js.mem.1", []byte("hello"), time.Second)
+		checkErr(t, err, "could not publish message: %v", err)
 	}
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str purge mem1 -f", srv.ClientURL()))
-	i, err = stream.Information()
-	checkErr(t, err, "could not get message stream info: %v", err)
-	if i.State.Msgs != 0 {
-		t.Fatalf("expected 0 messages but got %d", i.State.Msgs)
+	checkMsgs := func(t *testing.T, c uint64) {
+		t.Helper()
+		i, err := stream.Information()
+		checkErr(t, err, "could not get message stream info: %v", err)
+		if i.State.Msgs != c {
+			t.Fatalf("expected %d message(s) but got %d", c, i.State.Msgs)
+		}
 	}
+
+	checkMsgs(t, 10)
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' str purge mem1 -f --subject js.mem.2", srv.ClientURL()))
+	checkMsgs(t, 10)
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' str purge mem1 -f --subject js.mem.1 --seq 2", srv.ClientURL()))
+	checkMsgs(t, 7)
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' str purge mem1 -f --subject js.mem.1 --keep 2", srv.ClientURL()))
+	checkMsgs(t, 2)
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' str purge mem1 -f --subject js.mem.1", srv.ClientURL()))
+	checkMsgs(t, 0)
 }
 
 func TestCLIStreamGet(t *testing.T) {
