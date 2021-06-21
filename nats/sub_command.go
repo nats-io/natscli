@@ -15,8 +15,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -31,6 +34,7 @@ type subCmd struct {
 	raw     bool
 	jsAck   bool
 	inbox   bool
+	dump    string
 }
 
 func configureSubCommand(app *kingpin.Application) {
@@ -41,12 +45,19 @@ func configureSubCommand(app *kingpin.Application) {
 	act.Flag("raw", "Show the raw data received").Short('r').BoolVar(&c.raw)
 	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
 	act.Flag("inbox", "Subscribes to a generate inbox").Short('i').BoolVar(&c.inbox)
+	act.Flag("dump", "Dump received messages to files, 1 file per message. Specify - for null terminated STDOUT for use with xargs -0").PlaceHolder("DIRECTORY").StringVar(&c.dump)
 
 	cheats["sub"] = `# To subscribe to messages, in a queue group and acknowledge any JetStream ones
 nats sub source.subject --queue work --ack
 
 # To subscribe to a randomly generated inbox
 nats sub --inbox
+
+# To dump all messages to files, 1 file per message
+nats sub --inbox --dump /tmp/archive
+
+# To process all messages using xargs 1 message at a time through a shell command
+nats sub subject --dump=- | xargs -0 -n 1 -I "{}" sh -c "echo '{}' | wc -c"
 `
 }
 
@@ -65,6 +76,12 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 
 	i := 0
 	mu := sync.Mutex{}
+	dump := c.dump != ""
+	ctr := 0
+
+	if c.dump == "-" && c.inbox {
+		return fmt.Errorf("generating inboxes is not compatible with dumping to stdout using null terminated strings")
+	}
 
 	handler := func(m *nats.Msg) {
 		mu.Lock()
@@ -80,14 +97,60 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		if c.jsAck && info != nil {
 			defer func() {
 				err = m.Respond(nil)
-				if err != nil {
+				if err != nil && !dump && !c.raw {
 					log.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
 				}
-
 			}()
 		}
 
-		if c.raw {
+		// flow control and keep-alives
+		if m.Header.Get("Status") == "100" {
+			if m.Reply != "" {
+				m.Respond(nil)
+			}
+
+			return
+		}
+
+		ctr++
+		if dump {
+			stdout := c.dump == "-"
+			outFile := ""
+			if !stdout {
+				if info == nil {
+					outFile = filepath.Join(c.dump, fmt.Sprintf("%d.json", ctr))
+				} else {
+					outFile = filepath.Join(c.dump, fmt.Sprintf("%d.json", info.StreamSequence()))
+				}
+			}
+
+			// dont want sub etc
+			msg := nats.NewMsg(m.Subject)
+			msg.Header = m.Header
+			msg.Data = m.Data
+			msg.Reply = m.Reply
+
+			jm, err := json.Marshal(msg)
+			if err != nil {
+				log.Printf("Could not JSON encode message: %s", err)
+				return
+			}
+
+			if stdout {
+				os.Stdout.WriteString(fmt.Sprintf("%s\000", jm))
+			} else {
+				err = os.WriteFile(outFile, jm, 0600)
+				if err != nil {
+					log.Printf("Could not save message: %s", err)
+				}
+
+				if ctr%100 == 0 {
+					fmt.Print(".")
+				}
+			}
+
+			return
+		} else if c.raw {
 			fmt.Println(string(m.Data))
 			return
 		}
@@ -119,7 +182,7 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	if !c.raw || c.inbox {
+	if (!c.raw && c.dump == "") || c.inbox {
 		if c.jsAck {
 			log.Printf("Subscribing on %s with acknowledgement of JetStream messages\n", c.subject)
 		} else {
