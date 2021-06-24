@@ -312,7 +312,7 @@ func TestCLIStreamPurge(t *testing.T) {
 	checkMsgs(t, 10)
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' str purge mem1 -f --subject js.mem.1 --seq 2", srv.ClientURL()))
-	checkMsgs(t, 7)
+	checkMsgs(t, 9)
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' str purge mem1 -f --subject js.mem.1 --keep 2", srv.ClientURL()))
 	checkMsgs(t, 2)
