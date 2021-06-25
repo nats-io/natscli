@@ -62,6 +62,7 @@ type streamCmd struct {
 	maxBytesLimit         int64
 	maxAgeLimit           string
 	maxMsgSize            int64
+	maxConsumers          int
 	reportSortConsumers   bool
 	reportSortMsgs        bool
 	reportSortName        bool
@@ -120,14 +121,15 @@ func configureStreamCommand(app *kingpin.Application) {
 	addCreateFlags := func(f *kingpin.CmdClause) {
 		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
 		f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
+		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
+		f.Flag("max-bytes", "Maximum bytes to keep").Int64Var(&c.maxBytesLimit)
+		f.Flag("max-consumers", "Maximum number of consumers to allow").Default("-1").IntVar(&c.maxConsumers)
+		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int64Var(&c.maxMsgSize)
 		f.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
 		f.Flag("max-msgs-per-subject", "Maximum amount of messages to keep per subject").Default("0").Int64Var(&c.maxMsgPerSubjectLimit)
-		f.Flag("max-bytes", "Maximum bytes to keep").Int64Var(&c.maxBytesLimit)
-		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
 		f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
-		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int64Var(&c.maxMsgSize)
 		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
 		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
@@ -980,6 +982,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.MaxMsgSize = int32(c.maxMsgSize)
 	}
 
+	if c.maxConsumers != -1 {
+		cfg.MaxConsumers = c.maxConsumers
+	}
+
 	if c.dupeWindow != "" {
 		dw, err := parseDurationString(c.dupeWindow)
 		if err != nil {
@@ -1579,7 +1585,7 @@ func (c *streamCmd) prepareConfig() api.StreamConfig {
 		NoAck:        !c.ack,
 		Retention:    c.retentionPolicyFromString(),
 		Discard:      c.discardPolicyFromString(),
-		MaxConsumers: -1,
+		MaxConsumers: c.maxConsumers,
 		Replicas:     int(c.replicas),
 	}
 
