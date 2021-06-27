@@ -108,6 +108,7 @@ See 'nats cheat' for a quick cheatsheet of commands
 	configureStreamCommand(ncli)
 	configureSubCommand(ncli)
 	configureTrafficCommand(ncli)
+	configureGovernorCommand(ncli)
 	configureCheatCommand(ncli)
 
 	kingpin.MustParse(ncli.Parse(os.Args[1:]))

@@ -1945,6 +1945,9 @@ func (c *streamCmd) rmMsgAction(_ *kingpin.ParseContext) (err error) {
 		idint, err := strconv.Atoi(id)
 		kingpin.FatalIfError(err, "invalid number")
 
+		if idint <= 0 {
+			return fmt.Errorf("positive message ID required")
+		}
 		c.msgID = int64(idint)
 	}
 
@@ -1960,7 +1963,7 @@ func (c *streamCmd) rmMsgAction(_ *kingpin.ParseContext) (err error) {
 		}
 	}
 
-	return stream.DeleteMessage(int(c.msgID))
+	return stream.DeleteMessage(uint64(c.msgID))
 }
 
 func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
