@@ -29,7 +29,24 @@ type govCmd struct {
 
 func configureGovernorCommand(app *kingpin.Application) {
 	c := &govCmd{}
-	gov := app.Command("governor", "Controls the concurrency of distributed command executions").Alias("gov")
+
+	help := `Controls the concurrency of distributed command executions
+
+A Governor controls the execution of commands by creating a stack
+of limited size. Before a command is executed a slot on the stack
+should be successfully gained. Once gained the command runs and
+afterward the slot is freed.
+
+If the command takes too long to run - or crashed - the slot will
+be released after a prior.
+
+This command allow for creation, viewing, management and execution
+of Governors.
+
+JetStream is required to use this feature
+`
+
+	gov := app.Command("governor", help).Alias("gov")
 
 	add := gov.Command("add", "Adds a new Governor to JetStream").Action(c.addCommand)
 	add.Arg("name", "Governor name").Required().StringVar(&c.name)
