@@ -267,7 +267,7 @@ func (c *SrvLsCmd) showClusters(cl map[string]*srvListCluster) {
 	}
 
 	sort.Slice(clusters, func(i, j int) bool {
-		return len(clusters[i].nodes) > len(clusters[j].nodes)
+		return clusters[i].conns < clusters[j].conns
 	})
 
 	in := 0
