@@ -1508,7 +1508,7 @@ func (c *streamCmd) prepareConfig() api.StreamConfig {
 		}
 	}
 
-	if c.maxMsgPerSubjectLimit == 0 && (len(c.subjects) > 0 || strings.Contains(c.subjects[0], "*") || strings.Contains(c.subjects[0], ">")) {
+	if c.maxMsgPerSubjectLimit == 0 && len(c.subjects) > 0 && (len(c.subjects) > 0 || strings.Contains(c.subjects[0], "*") || strings.Contains(c.subjects[0], ">")) {
 		c.maxMsgPerSubjectLimit, err = askOneInt("Per Subject Messages Limit", "-1", "Defines the amount of messages to keep in the store for this Stream per unique subject, when exceeded oldest messages are removed, -1 for unlimited. Settable using --max-msgs-per-subject")
 		kingpin.FatalIfError(err, "invalid input")
 		if c.maxMsgPerSubjectLimit <= 0 {
