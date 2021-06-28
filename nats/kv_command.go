@@ -24,6 +24,7 @@ type kvCommand struct {
 	replicas uint
 	force    bool
 	keep     int
+	cluster  string
 }
 
 func configureKVCommand(app *kingpin.Application) {
@@ -58,6 +59,7 @@ NOTE: This is an experimental feature.
 	add.Flag("history", "How many historic values to keep per key").Default("1").UintVar(&c.history)
 	add.Flag("ttl", "How long to keep values for").DurationVar(&c.ttl)
 	add.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
+	add.Flag("cluster", "Place the bucket in a specific cluster").StringVar(&c.cluster)
 
 	status := kv.Command("status", "View the status of a KV store").Alias("view").Action(c.statusAction)
 	status.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -107,7 +109,7 @@ func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	store, err := kv.NewBucket(nc, c.bucket, kv.WithTTL(c.ttl), kv.WithHistory(c.history), kv.WithReplicas(c.replicas))
+	store, err := kv.NewBucket(nc, c.bucket, kv.WithTTL(c.ttl), kv.WithHistory(c.history), kv.WithReplicas(c.replicas), kv.WithPlacementCluster(c.cluster))
 	if err != nil {
 		return err
 	}
