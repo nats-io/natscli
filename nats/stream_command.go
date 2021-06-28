@@ -1985,7 +1985,7 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 	stream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not load Stream %s", c.stream)
 
-	item, err := stream.ReadMessage(int(c.msgID))
+	item, err := stream.ReadMessage(uint64(c.msgID))
 	kingpin.FatalIfError(err, "could not retrieve %s#%d", c.stream, c.msgID)
 
 	if c.json {

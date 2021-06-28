@@ -43,35 +43,37 @@ be released after a prior.
 This command allow for creation, viewing, management and execution
 of Governors.
 
-JetStream is required to use this feature
+JetStream is required to use this feature.
+
+NOTE: This is an experimental feature.
 `
 
 	gov := app.Command("governor", help).Alias("gov")
 
-	add := gov.Command("add", "Adds a new Governor to JetStream").Action(c.addCommand)
+	add := gov.Command("add", "Adds a new Governor to JetStream").Action(c.addAction)
 	add.Arg("name", "Governor name").Required().StringVar(&c.name)
 	add.Arg("limit", "Maximum executions allowed").Required().Uint64Var(&c.limit)
 	add.Arg("age", "Maximum time a entry can stay before being timed out").Required().DurationVar(&c.age)
 	add.Flag("replicas", "Stream replica level").Default("1").UintVar(&c.replicas)
 	add.Flag("force", "Force the create/update without prompting").BoolVar(&c.force)
 
-	view := gov.Command("view", "Views the status of the Governor").Action(c.viewCommand)
+	view := gov.Command("view", "Views the status of the Governor").Action(c.viewAction)
 	view.Arg("name", "Governor name").Required().StringVar(&c.name)
 
-	reset := gov.Command("reset", "Resets the Governor by removing all entries").Action(c.resetCommand)
+	reset := gov.Command("reset", "Resets the Governor by removing all entries").Action(c.resetAction)
 	reset.Arg("name", "Governor name").Required().StringVar(&c.name)
 	reset.Flag("force", "Force reset without prompting").BoolVar(&c.force)
 
-	evict := gov.Command("evict", "Removes a entry from the Governor").Action(c.evictCommand)
+	evict := gov.Command("evict", "Removes a entry from the Governor").Action(c.evictAction)
 	evict.Arg("name", "Governor name").Required().StringVar(&c.name)
 	evict.Arg("id", "The ID to remove").Uint64Var(&c.id)
 	evict.Flag("force", "Force eviction without prompting").BoolVar(&c.force)
 
-	rm := gov.Command("rm", "Removes a Governor").Action(c.rmCommand)
+	rm := gov.Command("rm", "Removes a Governor").Action(c.rmAction)
 	rm.Arg("name", "Governor name").Required().StringVar(&c.name)
 	rm.Flag("force", "Force eviction without prompting").BoolVar(&c.force)
 
-	run := gov.Command("run", "Runs a command limited by the Governor").Action(c.runCommand)
+	run := gov.Command("run", "Runs a command limited by the Governor").Action(c.runAction)
 	run.Arg("name", "Governor name").Required().StringVar(&c.name)
 	run.Arg("identity", "Identity to record in the Governor").Required().StringVar(&c.ident)
 	run.Arg("command", "Command to execute").Required().StringVar(&c.command)
@@ -92,7 +94,7 @@ nats governor run cron $(hostname -f) --max-wait 20m long-job.sh'
 `
 }
 
-func (c *govCmd) rmCommand(_ *kingpin.ParseContext) error {
+func (c *govCmd) rmAction(_ *kingpin.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -116,7 +118,7 @@ func (c *govCmd) rmCommand(_ *kingpin.ParseContext) error {
 	return stream.Delete()
 }
 
-func (c *govCmd) addCommand(pc *kingpin.ParseContext) error {
+func (c *govCmd) addAction(pc *kingpin.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -146,10 +148,10 @@ func (c *govCmd) addCommand(pc *kingpin.ParseContext) error {
 		}
 	}
 
-	return c.viewCommand(pc)
+	return c.viewAction(pc)
 }
 
-func (c *govCmd) viewCommand(_ *kingpin.ParseContext) error {
+func (c *govCmd) viewAction(_ *kingpin.ParseContext) error {
 	nc, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -209,7 +211,7 @@ func (c *govCmd) viewCommand(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *govCmd) resetCommand(pc *kingpin.ParseContext) error {
+func (c *govCmd) resetAction(pc *kingpin.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -233,7 +235,7 @@ func (c *govCmd) resetCommand(pc *kingpin.ParseContext) error {
 	return stream.Purge()
 }
 
-func (c *govCmd) evictCommand(pc *kingpin.ParseContext) error {
+func (c *govCmd) evictAction(pc *kingpin.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -254,7 +256,7 @@ func (c *govCmd) evictCommand(pc *kingpin.ParseContext) error {
 	}
 
 	if !c.force {
-		err = c.viewCommand(pc)
+		err = c.viewAction(pc)
 		if err != nil {
 			return err
 		}
@@ -273,7 +275,7 @@ func (c *govCmd) evictCommand(pc *kingpin.ParseContext) error {
 	return mgr.DeleteStreamMessage(governor.StreamName(c.name), c.id, true)
 }
 
-func (c *govCmd) runCommand(_ *kingpin.ParseContext) error {
+func (c *govCmd) runAction(_ *kingpin.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
