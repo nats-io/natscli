@@ -94,10 +94,13 @@ See 'nats cheat' for a quick cheatsheet of commands
 	configureActCommand(ncli)
 	configureBackupCommand(ncli)
 	configureBenchCommand(ncli)
+	configureCheatCommand(ncli)
 	configureConsumerCommand(ncli)
 	configureCtxCommand(ncli)
 	configureErrCommand(ncli)
 	configureEventsCommand(ncli)
+	configureGovernorCommand(ncli)
+	configureKVCommand(ncli)
 	configureLatencyCommand(ncli)
 	configurePubCommand(ncli)
 	configureRTTCommand(ncli)
@@ -108,8 +111,6 @@ See 'nats cheat' for a quick cheatsheet of commands
 	configureStreamCommand(ncli)
 	configureSubCommand(ncli)
 	configureTrafficCommand(ncli)
-	configureGovernorCommand(ncli)
-	configureCheatCommand(ncli)
 
 	kingpin.MustParse(ncli.Parse(os.Args[1:]))
 }
