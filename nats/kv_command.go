@@ -54,6 +54,11 @@ NOTE: This is an experimental feature.
 	put.Arg("value", "The value to store, when empty reads STDIN").StringVar(&c.val)
 	put.Flag("share", "Store client details in the value").Default("true").BoolVar(&c.share)
 
+	del := kv.Command("del", "Deletes a key from the bucket").Action(c.deleteAction)
+	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+	del.Arg("key", "The key to act on").Required().StringVar(&c.key)
+	del.Flag("force", "Act without confirmation").BoolVar(&c.force)
+
 	add := kv.Command("add", "Adds a new KV store").Alias("new").Action(c.addAction)
 	add.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	add.Flag("history", "How many historic values to keep per key").Default("1").UintVar(&c.history)
@@ -101,6 +106,27 @@ nats kv dump CONFIG
 # to see the bucket status
 nats kv status CONFIG
 `
+}
+
+func (c *kvCommand) deleteAction(_ *kingpin.ParseContext) error {
+	_, store, err := c.loadBucket()
+	if err != nil {
+		return err
+	}
+
+	if !c.force {
+		ok, err := askConfirmation(fmt.Sprintf("Delete key %s from bucket %s", c.key, c.bucket), false)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			fmt.Println("Skipping delete")
+			return nil
+		}
+	}
+
+	return store.Delete(c.key)
 }
 
 func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
