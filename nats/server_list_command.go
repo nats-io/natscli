@@ -20,7 +20,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -36,7 +35,6 @@ import (
 type SrvLsCmd struct {
 	expect  uint32
 	json    bool
-	filter  string
 	sort    string
 	reverse bool
 	compact bool
@@ -56,7 +54,6 @@ func configureServerListCommand(srv *kingpin.CmdClause) {
 	ls := srv.Command("list", "List known servers").Alias("ls").Action(c.list)
 	ls.Arg("expect", "How many servers to expect").Uint32Var(&c.expect)
 	ls.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	ls.Flag("filter", "Regular expression filter on server name").Short('f').StringVar(&c.filter)
 	ls.Flag("sort", "Sort servers by a specific key (conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
 	ls.Flag("reverse", "Reverse sort servers").Short('R').Default("false").BoolVar(&c.reverse)
 	ls.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
@@ -75,11 +72,6 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	type result struct {
 		*server.ServerStatsMsg
 		rtt time.Duration
-	}
-
-	filter, err := regexp.Compile(c.filter)
-	if err != nil {
-		return err
 	}
 
 	var (
@@ -103,6 +95,8 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 			os.Exit(1)
 		}
 
+		last := atomic.AddUint32(&seen, 1)
+
 		ssm := &server.ServerStatsMsg{}
 		err = json.Unmarshal(msg.Data, ssm)
 		if err != nil {
@@ -115,12 +109,6 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 
 		if c.expect == 0 && ssm.Stats.ActiveServers > 0 && servers == 0 {
 			c.expect = uint32(ssm.Stats.ActiveServers)
-		}
-
-		last := atomic.AddUint32(&seen, 1)
-
-		if !filter.MatchString(ssm.Server.Name) {
-			return
 		}
 
 		servers++
@@ -245,8 +233,10 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	table.AddRow("", fmt.Sprintf("%d Clusters", len(clusters)), fmt.Sprintf("%d Servers", servers), "", js, connections, subs, "", "", humanize.IBytes(uint64(memory)), "", slow, "", "")
 	fmt.Print(table.Render())
 
-	if c.expect != 0 && c.expect != seen {
-		fmt.Printf("\nMissing %d server(s)\n", c.expect-atomic.LoadUint32(&seen))
+	lseen := atomic.LoadUint32(&seen)
+	missing := c.expect - lseen
+	if c.expect != 0 && missing > 0 && c.expect > lseen {
+		fmt.Printf("\nMissing %d server(s)\n", missing)
 	}
 
 	if len(clusters) > 0 {
