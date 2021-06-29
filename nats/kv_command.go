@@ -59,6 +59,10 @@ NOTE: This is an experimental feature.
 	del.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	del.Flag("force", "Act without confirmation").BoolVar(&c.force)
 
+	history := kv.Command("history", "Shows the full history for a key").Action(c.historyAction)
+	history.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+	history.Arg("key", "The key to act on").Required().StringVar(&c.key)
+
 	add := kv.Command("add", "Adds a new KV store").Alias("new").Action(c.addAction)
 	add.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	add.Flag("history", "How many historic values to keep per key").Default("1").UintVar(&c.history)
@@ -106,6 +110,28 @@ nats kv dump CONFIG
 # to see the bucket status
 nats kv status CONFIG
 `
+}
+
+func (c *kvCommand) historyAction(_ *kingpin.ParseContext) error {
+	_, store, err := c.loadBucket()
+	if err != nil {
+		return err
+	}
+
+	history, err := store.History(context.Background(), c.key)
+	if err != nil {
+		return err
+	}
+
+	table := newTableWriter(fmt.Sprintf("History for %s.%s", c.bucket, c.key))
+	table.AddHeaders("Seq", "Created", "Value")
+	for _, r := range history {
+		table.AddRow(r.Sequence(), r.Created().Format(time.RFC822), r.Value())
+	}
+
+	fmt.Println(table.Render())
+
+	return nil
 }
 
 func (c *kvCommand) deleteAction(_ *kingpin.ParseContext) error {
@@ -199,6 +225,7 @@ func (c *kvCommand) loadBucket() (*nats.Conn, kv.KV, error) {
 
 	return nc, store, err
 }
+
 func (c *kvCommand) statusAction(_ *kingpin.ParseContext) error {
 	_, store, err := c.loadBucket()
 	if err != nil {
