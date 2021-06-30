@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go/kv"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -23,7 +25,6 @@ type kvCommand struct {
 	ttl      time.Duration
 	replicas uint
 	force    bool
-	keep     int
 	cluster  string
 }
 
@@ -45,7 +46,7 @@ NOTE: This is an experimental feature.
 
 	get := kv.Command("get", "Gets a value for a key").Action(c.getAction)
 	get.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	get.Arg("key", "The key to act on").Required().StringVar(&c.key)
+	get.Arg("key", "The key to act on").StringVar(&c.key)
 	get.Flag("raw", "Show only the value string").BoolVar(&c.raw)
 
 	put := kv.Command("put", "Puts a value into a key").Action(c.putAction)
@@ -56,12 +57,13 @@ NOTE: This is an experimental feature.
 
 	del := kv.Command("del", "Deletes a key from the bucket").Action(c.deleteAction)
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	del.Arg("key", "The key to act on").Required().StringVar(&c.key)
-	del.Flag("force", "Act without confirmation").BoolVar(&c.force)
+	del.Arg("key", "The key to act on").StringVar(&c.key)
+	del.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	history := kv.Command("history", "Shows the full history for a key").Action(c.historyAction)
 	history.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	history.Arg("key", "The key to act on").Required().StringVar(&c.key)
+	history.Arg("key", "The key to act on").StringVar(&c.key)
+	history.Flag("json", "JSON format output").Short('j').BoolVar(&c.asJson)
 
 	add := kv.Command("add", "Adds a new KV store").Alias("new").Action(c.addAction)
 	add.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -72,7 +74,6 @@ NOTE: This is an experimental feature.
 
 	status := kv.Command("status", "View the status of a KV store").Alias("view").Action(c.statusAction)
 	status.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	status.Flag("json", "Shows the status in JSON format").BoolVar(&c.asJson)
 
 	watch := kv.Command("watch", "Watch the bucket or a specific key for updated").Action(c.watchAction)
 	watch.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -83,17 +84,11 @@ NOTE: This is an experimental feature.
 
 	purge := kv.Command("purge", "Removes values from the bucket").Action(c.purgeAction)
 	purge.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	purge.Flag("force", "Act without confirmation").BoolVar(&c.force)
+	purge.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	rm := kv.Command("rm", "Removes a bucket").Action(c.rmAction)
 	rm.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	rm.Flag("force", "Act without confirmation").BoolVar(&c.force)
-
-	compact := kv.Command("compact", "Compacts a key, keeping only some history").Action(c.compactAction)
-	compact.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	compact.Arg("key", "The key to act on").Required().StringVar(&c.key)
-	compact.Arg("keep", "How many messages to keep, 1 by default").Default("1").IntVar(&c.keep)
-	compact.Flag("force", "Act without confirmation").BoolVar(&c.force)
+	rm.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	cheats["kv"] = `# to create a replicated KV bucket
 nats kv add CONFIG --replicas 3
@@ -118,15 +113,30 @@ func (c *kvCommand) historyAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	history, err := store.History(context.Background(), c.key)
+	bucket, key, err := c.bucketAndKey()
 	if err != nil {
 		return err
 	}
 
-	table := newTableWriter(fmt.Sprintf("History for %s.%s", c.bucket, c.key))
-	table.AddHeaders("Seq", "Created", "Value")
+	history, err := store.History(context.Background(), key)
+	if err != nil {
+		return err
+	}
+
+	if c.asJson {
+		printJSON(history)
+		return nil
+	}
+
+	table := newTableWriter(fmt.Sprintf("History for %s.%s", bucket, key))
+	table.AddHeaders("Seq", "Op", "Created", "Value")
 	for _, r := range history {
-		table.AddRow(r.Sequence(), r.Created().Format(time.RFC822), r.Value())
+		val := r.Value()
+		if len(val) > 40 {
+			val = val[0:15] + "..." + val[len(val)-15:]
+		}
+
+		table.AddRow(r.Sequence(), r.Operation(), r.Created().Format(time.RFC822), val)
 	}
 
 	fmt.Println(table.Render())
@@ -140,8 +150,13 @@ func (c *kvCommand) deleteAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	bucket, key, err := c.bucketAndKey()
+	if err != nil {
+		return err
+	}
+
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Delete key %s from bucket %s", c.key, c.bucket), false)
+		ok, err := askConfirmation(fmt.Sprintf("Delete key %s.%s?", bucket, key), false)
 		if err != nil {
 			return err
 		}
@@ -152,7 +167,7 @@ func (c *kvCommand) deleteAction(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	return store.Delete(c.key)
+	return store.Delete(key)
 }
 
 func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
@@ -161,7 +176,12 @@ func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	store, err := kv.NewBucket(nc, c.bucket, kv.WithTTL(c.ttl), kv.WithHistory(c.history), kv.WithReplicas(c.replicas), kv.WithPlacementCluster(c.cluster))
+	bucket, _, err := c.bucketAndKey()
+	if err != nil {
+		return err
+	}
+
+	store, err := kv.NewBucket(nc, bucket, kv.WithTTL(c.ttl), kv.WithHistory(c.history), kv.WithReplicas(c.replicas), kv.WithPlacementCluster(c.cluster))
 	if err != nil {
 		return err
 	}
@@ -175,7 +195,12 @@ func (c *kvCommand) getAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	res, err := store.Get(c.key)
+	_, key, err := c.bucketAndKey()
+	if err != nil {
+		return err
+	}
+
+	res, err := store.Get(key)
 	if err != nil {
 		return err
 	}
@@ -207,18 +232,27 @@ func (c *kvCommand) putAction(_ *kingpin.ParseContext) error {
 	}
 
 	_, err = store.Put(c.key, c.val)
+	if err != nil {
+		return err
+	}
 
 	fmt.Println(c.val)
+
 	return err
 }
 
 func (c *kvCommand) loadBucket() (*nats.Conn, kv.KV, error) {
+	bucket, _, err := c.bucketAndKey()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	store, err := kv.NewBucket(nc, c.bucket)
+	store, err := kv.NewBucket(nc, bucket)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -236,6 +270,11 @@ func (c *kvCommand) statusAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *kvCommand) watchAction(_ *kingpin.ParseContext) error {
+	_, key, err := c.bucketAndKey()
+	if err != nil {
+		return err
+	}
+
 	_, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -243,7 +282,7 @@ func (c *kvCommand) watchAction(_ *kingpin.ParseContext) error {
 
 	var watch kv.Watch
 	if c.key != "" {
-		watch, err = store.Watch(context.Background(), c.key)
+		watch, err = store.Watch(context.Background(), key)
 	} else {
 		watch, err = store.WatchBucket(context.Background())
 	}
@@ -254,7 +293,11 @@ func (c *kvCommand) watchAction(_ *kingpin.ParseContext) error {
 
 	for res := range watch.Channel() {
 		if res != nil {
-			fmt.Printf("[%s] %s.%s: %s\n", res.Created().Format("2006-01-02 15:04:05"), res.Bucket(), res.Key(), res.Value())
+			if res.Operation() == kv.DeleteOperation {
+				fmt.Printf("[%s] %s %s.%s\n", res.Created().Format("2006-01-02 15:04:05"), color.RedString("DEL"), res.Bucket(), res.Key())
+			} else {
+				fmt.Printf("[%s] %s %s.%s: %s\n", res.Created().Format("2006-01-02 15:04:05"), color.GreenString("PUT"), res.Bucket(), res.Key(), res.Value())
+			}
 		}
 	}
 
@@ -279,7 +322,7 @@ func (c *kvCommand) dumpAction(_ *kingpin.ParseContext) error {
 
 func (c *kvCommand) purgeAction(_ *kingpin.ParseContext) error {
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Purge bucket %s", c.bucket), false)
+		ok, err := askConfirmation(fmt.Sprintf("Purge bucket %s?", c.bucket), false)
 		if err != nil {
 			return err
 		}
@@ -300,7 +343,7 @@ func (c *kvCommand) purgeAction(_ *kingpin.ParseContext) error {
 
 func (c *kvCommand) rmAction(_ *kingpin.ParseContext) error {
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Deleted bucket %s", c.bucket), false)
+		ok, err := askConfirmation(fmt.Sprintf("Deleted bucket %s?", c.bucket), false)
 		if err != nil {
 			return err
 		}
@@ -319,35 +362,15 @@ func (c *kvCommand) rmAction(_ *kingpin.ParseContext) error {
 	return store.Destroy()
 }
 
-func (c *kvCommand) compactAction(_ *kingpin.ParseContext) error {
-	if c.keep < 0 {
-		c.keep = 1
-	}
-
-	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Compact %s.%s to %d history values", c.bucket, c.key, c.keep), false)
-		if err != nil {
-			return err
-		}
-
-		if !ok {
-			fmt.Println("Skipping compact")
-			return nil
-		}
-	}
-
-	_, store, err := c.loadBucket()
-	if err != nil {
-		return err
-	}
-
-	return store.Compact(c.key, uint64(c.keep))
-}
-
 func (c *kvCommand) showStatus(store kv.KV) error {
 	status, err := store.Status()
 	if err != nil {
 		return err
+	}
+
+	if c.asJson {
+		printJSON(status)
+		return nil
 	}
 
 	fmt.Println("Key-Value Store Status")
@@ -364,4 +387,21 @@ func (c *kvCommand) showStatus(store kv.KV) error {
 	fmt.Printf(" Backing Store Name: %s\n", status.BackingStore())
 
 	return nil
+}
+
+func (c *kvCommand) bucketAndKey() (string, string, error) {
+	if c.bucket == "" {
+		return "", "", fmt.Errorf("bucket is required")
+	}
+
+	if c.key == "" && strings.Contains(c.bucket, ".") {
+		parts := strings.Split(c.bucket, ".")
+		if len(parts) != 2 {
+			return "", "", fmt.Errorf("could not extract key from bucket name")
+		}
+
+		return parts[0], parts[1], nil
+	}
+
+	return c.bucket, c.key, nil
 }
