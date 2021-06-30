@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go/kv"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -23,7 +24,6 @@ type kvCommand struct {
 	ttl      time.Duration
 	replicas uint
 	force    bool
-	keep     int
 	cluster  string
 }
 
@@ -89,12 +89,6 @@ NOTE: This is an experimental feature.
 	rm.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	rm.Flag("force", "Act without confirmation").BoolVar(&c.force)
 
-	compact := kv.Command("compact", "Compacts a key, keeping only some history").Action(c.compactAction)
-	compact.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	compact.Arg("key", "The key to act on").Required().StringVar(&c.key)
-	compact.Arg("keep", "How many messages to keep, 1 by default").Default("1").IntVar(&c.keep)
-	compact.Flag("force", "Act without confirmation").BoolVar(&c.force)
-
 	cheats["kv"] = `# to create a replicated KV bucket
 nats kv add CONFIG --replicas 3
 
@@ -124,9 +118,9 @@ func (c *kvCommand) historyAction(_ *kingpin.ParseContext) error {
 	}
 
 	table := newTableWriter(fmt.Sprintf("History for %s.%s", c.bucket, c.key))
-	table.AddHeaders("Seq", "Created", "Value")
+	table.AddHeaders("Seq / Op", "Created", "Value")
 	for _, r := range history {
-		table.AddRow(r.Sequence(), r.Created().Format(time.RFC822), r.Value())
+		table.AddRow(fmt.Sprintf("%d / %s", r.Sequence(), r.Operation()), r.Created().Format(time.RFC822), r.Value())
 	}
 
 	fmt.Println(table.Render())
@@ -254,7 +248,11 @@ func (c *kvCommand) watchAction(_ *kingpin.ParseContext) error {
 
 	for res := range watch.Channel() {
 		if res != nil {
-			fmt.Printf("[%s] %s.%s: %s\n", res.Created().Format("2006-01-02 15:04:05"), res.Bucket(), res.Key(), res.Value())
+			if res.Operation() == kv.DeleteOperation {
+				fmt.Printf("[%s] %s %s.%s\n", res.Created().Format("2006-01-02 15:04:05"), color.RedString("DEL"), res.Bucket(), res.Key())
+			} else {
+				fmt.Printf("[%s] %s %s.%s: %s\n", res.Created().Format("2006-01-02 15:04:05"), color.GreenString("PUT"), res.Bucket(), res.Key(), res.Value())
+			}
 		}
 	}
 
@@ -317,31 +315,6 @@ func (c *kvCommand) rmAction(_ *kingpin.ParseContext) error {
 	}
 
 	return store.Destroy()
-}
-
-func (c *kvCommand) compactAction(_ *kingpin.ParseContext) error {
-	if c.keep < 0 {
-		c.keep = 1
-	}
-
-	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Compact %s.%s to %d history values", c.bucket, c.key, c.keep), false)
-		if err != nil {
-			return err
-		}
-
-		if !ok {
-			fmt.Println("Skipping compact")
-			return nil
-		}
-	}
-
-	_, store, err := c.loadBucket()
-	if err != nil {
-		return err
-	}
-
-	return store.Compact(c.key, uint64(c.keep))
 }
 
 func (c *kvCommand) showStatus(store kv.KV) error {
