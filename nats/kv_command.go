@@ -15,17 +15,19 @@ import (
 )
 
 type kvCommand struct {
-	bucket   string
-	key      string
-	val      string
-	raw      bool
-	asJson   bool
-	share    bool
-	history  uint
-	ttl      time.Duration
-	replicas uint
-	force    bool
-	cluster  string
+	bucket        string
+	key           string
+	val           string
+	raw           bool
+	asJson        bool
+	share         bool
+	history       uint64
+	ttl           time.Duration
+	replicas      uint
+	force         bool
+	maxValueSize  int32
+	maxBucketSize int64
+	cluster       string
 }
 
 func configureKVCommand(app *kingpin.Application) {
@@ -67,10 +69,12 @@ NOTE: This is an experimental feature.
 
 	add := kv.Command("add", "Adds a new KV store").Alias("new").Action(c.addAction)
 	add.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	add.Flag("history", "How many historic values to keep per key").Default("1").UintVar(&c.history)
+	add.Flag("history", "How many historic values to keep per key").Default("1").Uint64Var(&c.history)
 	add.Flag("ttl", "How long to keep values for").DurationVar(&c.ttl)
 	add.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
 	add.Flag("cluster", "Place the bucket in a specific cluster").StringVar(&c.cluster)
+	add.Flag("max-value-size", "Maximum size for any single value").Int32Var(&c.maxValueSize)
+	add.Flag("max-bucket-size", "Maximum size for the bucket").Int64Var(&c.maxBucketSize)
 
 	status := kv.Command("status", "View the status of a KV store").Alias("view").Action(c.statusAction)
 	status.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -176,12 +180,14 @@ func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	bucket, _, err := c.bucketAndKey()
-	if err != nil {
-		return err
-	}
-
-	store, err := kv.NewBucket(nc, bucket, kv.WithTTL(c.ttl), kv.WithHistory(c.history), kv.WithReplicas(c.replicas), kv.WithPlacementCluster(c.cluster))
+	store, err := kv.NewBucket(nc, c.bucket,
+		kv.WithTTL(c.ttl),
+		kv.WithHistory(c.history),
+		kv.WithReplicas(c.replicas),
+		kv.WithPlacementCluster(c.cluster),
+		kv.WithMaxBucketSize(c.maxBucketSize),
+		kv.WithMaxValueSize(c.maxValueSize),
+	)
 	if err != nil {
 		return err
 	}
@@ -373,18 +379,25 @@ func (c *kvCommand) showStatus(store kv.KV) error {
 		return nil
 	}
 
-	fmt.Println("Key-Value Store Status")
+	fmt.Printf("%s Key-Value Store Status\n", c.bucket)
 	fmt.Println()
-	fmt.Printf("        Bucket Name: %s\n", c.bucket)
-	fmt.Printf("       History Kept: %d\n", status.History())
-
-	ok, failed := status.Replicas()
-	fmt.Printf("      Data Replicas: ok %d failed: %d\n", ok, failed)
-	if status.Cluster() != "" {
-		fmt.Printf("            Cluster: %s\n", status.Cluster())
+	fmt.Printf("         Bucket Name: %s\n", c.bucket)
+	fmt.Printf("        History Kept: %d\n", status.History())
+	if status.MaxBucketSize() == -1 {
+		fmt.Printf(" Maximum Bucket Size: unlimited\n")
+	} else {
+		fmt.Printf(" Maximum Bucket Size: %d\n", status.MaxBucketSize())
 	}
-	fmt.Printf("      Values Stored: %d\n", status.Values())
-	fmt.Printf(" Backing Store Name: %s\n", status.BackingStore())
+	if status.MaxValueSize() == -1 {
+		fmt.Printf("  Maximum Value Size: unlimited\n")
+	} else {
+		fmt.Printf("  Maximum Value Size: %d\n", status.MaxValueSize())
+	}
+	if status.Cluster() != "" {
+		fmt.Printf("             Cluster: %s\n", status.Cluster())
+	}
+	fmt.Printf("       Values Stored: %d\n", status.Values())
+	fmt.Printf("  Backing Store Name: %s\n", status.BackingStore())
 
 	return nil
 }
