@@ -17,6 +17,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -896,4 +897,21 @@ func determineServerTopology(nc *nats.Conn) (uint32, error) {
 	}
 
 	return uint32(sz.Stats.ActiveServers), nil
+}
+
+func isPrintable(s string) bool {
+	for _, r := range s {
+		if r > unicode.MaxASCII || !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func base64IfNotPrintable(val []byte) string {
+	if isPrintable(string(val)) {
+		return string(val)
+	}
+
+	return base64.StdEncoding.EncodeToString(val)
 }
