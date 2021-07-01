@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go/kv"
 	"github.com/nats-io/nats.go"
@@ -133,14 +135,14 @@ func (c *kvCommand) historyAction(_ *kingpin.ParseContext) error {
 	}
 
 	table := newTableWriter(fmt.Sprintf("History for %s.%s", bucket, key))
-	table.AddHeaders("Seq", "Op", "Created", "Value")
+	table.AddHeaders("Seq", "Op", "Created", "Length", "Value")
 	for _, r := range history {
-		val := r.Value()
+		val := base64IfNotPrintable(r.Value())
 		if len(val) > 40 {
-			val = val[0:15] + "..." + val[len(val)-15:]
+			val = fmt.Sprintf("%s...%s", val[0:15], val[len(val)-15:])
 		}
 
-		table.AddRow(r.Sequence(), r.Operation(), r.Created().Format(time.RFC822), val)
+		table.AddRow(r.Sequence(), r.Operation(), r.Created().Format(time.RFC822), humanize.Comma(int64(len(r.Value()))), val)
 	}
 
 	fmt.Println(table.Render())
@@ -212,32 +214,42 @@ func (c *kvCommand) getAction(_ *kingpin.ParseContext) error {
 	}
 
 	if c.raw {
-		fmt.Println(res.Value())
+		os.Stdout.Write(res.Value())
 		return nil
 	}
 
 	fmt.Printf("%s.%s created @ %s\n", res.Bucket(), res.Key(), res.Created().Format(time.RFC822))
 	fmt.Println()
-	fmt.Println(res.Value())
+	pv := base64IfNotPrintable(res.Value())
+	lpv := len(pv)
+	if len(pv) > 120 {
+		fmt.Printf("Showing first 120 bytes of %s, use --raw for full data\n\n", humanize.Comma(int64(lpv)))
+		fmt.Println(pv[:120])
+	} else {
+		fmt.Println(base64IfNotPrintable(res.Value()))
+	}
+
+	fmt.Println()
 
 	return nil
 }
 
 func (c *kvCommand) putAction(_ *kingpin.ParseContext) error {
-	if c.val == "" {
-		val, err := ioutil.ReadAll(os.Stdin)
-		if err != nil {
-			return err
-		}
-		c.val = string(val)
-	}
-
 	_, store, err := c.loadBucket()
 	if err != nil {
 		return err
 	}
 
-	_, err = store.Put(c.key, c.val)
+	if c.val == "" {
+		var val []byte
+		val, err = ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		_, err = store.Put(c.key, val)
+	} else {
+		_, err = store.Put(c.key, []byte(c.val))
+	}
 	if err != nil {
 		return err
 	}
@@ -316,7 +328,30 @@ func (c *kvCommand) dumpAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	j, err := store.JSON(context.Background())
+	vals := make(map[string]kv.Result)
+	watch, err := store.WatchBucket(context.Background())
+	if err != nil {
+		return err
+	}
+
+	for val := range watch.Channel() {
+		if val == nil {
+			break
+		}
+
+		switch val.Operation() {
+		case kv.PutOperation:
+			vals[val.Key()] = val
+		case kv.DeleteOperation:
+			delete(vals, val.Key())
+		}
+
+		if val.Delta() == 0 {
+			break
+		}
+	}
+
+	j, err := json.MarshalIndent(vals, "", "  ")
 	if err != nil {
 		return err
 	}

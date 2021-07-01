@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -29,7 +30,7 @@ func createTestBucket(t *testing.T, nc *nats.Conn, opts ...kv.Option) kv.KV {
 func mustPut(t *testing.T, store kv.KV, key string, value string) uint64 {
 	t.Helper()
 
-	seq, err := store.Put(key, value)
+	seq, err := store.Put(key, []byte(value))
 	if err != nil {
 		t.Fatalf("put failed: %s", err)
 	}
@@ -65,7 +66,7 @@ func TestCLIKVPut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get failed: %s", err)
 	}
-	if val.Value() != "VAL" {
+	if !bytes.Equal(val.Value(), []byte("VAL")) {
 		t.Fatalf("invalid value saved: %s", val.Value())
 	}
 }
@@ -135,10 +136,10 @@ func TestCLIDump(t *testing.T) {
 	if len(dumped) != 2 {
 		t.Fatalf("expected 2 entries got %d", len(dumped))
 	}
-	if dumped["X"].Key != "X" && dumped["X"].Val != "VALX" {
+	if dumped["X"].Key != "X" && !bytes.Equal(dumped["X"].Val, []byte("VALX")) {
 		t.Fatalf("did not get right res: %+v", dumped["X"])
 	}
-	if dumped["Y"].Key != "Y" && dumped["Y"].Val != "VALY" {
+	if dumped["Y"].Key != "Y" && !bytes.Equal(dumped["Y"].Val, []byte("VALY")) {
 		t.Fatalf("did not get right res: %+v", dumped["Y"])
 	}
 }
