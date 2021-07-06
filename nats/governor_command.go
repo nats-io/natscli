@@ -57,7 +57,7 @@ NOTE: This is an experimental feature.
 	add.Flag("replicas", "Stream replica level").Default("1").UintVar(&c.replicas)
 	add.Flag("force", "Force the create/update without prompting").BoolVar(&c.force)
 
-	view := gov.Command("view", "Views the status of the Governor").Action(c.viewAction)
+	view := gov.Command("view", "Views the status of the Governor").Alias("info").Alias("v").Action(c.viewAction)
 	view.Arg("name", "Governor name").Required().StringVar(&c.name)
 
 	reset := gov.Command("reset", "Resets the Governor by removing all entries").Action(c.resetAction)
@@ -100,7 +100,7 @@ func (c *govCmd) rmAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	stream, err := mgr.LoadStream(governor.StreamName(c.name))
+	gmgr, err := governor.NewJSGovernorManager(c.name, c.limit, c.age, c.replicas, mgr, false)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (c *govCmd) rmAction(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	return stream.Delete()
+	return gmgr.Stream().Delete()
 }
 
 func (c *govCmd) addAction(pc *kingpin.ParseContext) error {
@@ -157,15 +157,28 @@ func (c *govCmd) viewAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	stream, err := mgr.LoadStream(governor.StreamName(c.name))
+	gmgr, err := governor.NewJSGovernorManager(c.name, c.limit, c.age, c.replicas, mgr, false)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("                 Name: %s\n", c.name)
-	fmt.Printf(" Active Process Limit: %d\n", stream.MaxMsgs())
-	fmt.Printf("      Process Timeout: %v\n", stream.MaxAge())
+	fmt.Printf("                 Name: %s\n", gmgr.Name())
+	fmt.Printf("      Process Timeout: %v\n", gmgr.MaxAge())
+	fmt.Printf("             Replicas: %d\n", gmgr.Replicas())
 
+	act, err := gmgr.LastActive()
+	if err != nil {
+		return err
+	}
+	if act.IsZero() {
+		fmt.Printf("           Last Entry: never\n")
+	} else {
+		fmt.Printf("           Last Entry: %v ago\n", time.Since(act).Round(time.Second))
+	}
+
+	fmt.Printf(" Active Process Limit: %d\n", gmgr.Limit())
+
+	stream := gmgr.Stream()
 	nfo, err := stream.LatestInformation()
 	if err != nil {
 		return err
@@ -217,11 +230,6 @@ func (c *govCmd) resetAction(pc *kingpin.ParseContext) error {
 		return err
 	}
 
-	stream, err := mgr.LoadStream(governor.StreamName(c.name))
-	if err != nil {
-		return err
-	}
-
 	if !c.force {
 		ok, err := askConfirmation("Reset the Governor?", false)
 		if err != nil {
@@ -232,7 +240,12 @@ func (c *govCmd) resetAction(pc *kingpin.ParseContext) error {
 		}
 	}
 
-	return stream.Purge()
+	gmgr, err := governor.NewJSGovernorManager(c.name, c.limit, c.age, c.replicas, mgr, false)
+	if err != nil {
+		return err
+	}
+
+	return gmgr.Reset()
 }
 
 func (c *govCmd) evictAction(pc *kingpin.ParseContext) error {
@@ -241,17 +254,16 @@ func (c *govCmd) evictAction(pc *kingpin.ParseContext) error {
 		return err
 	}
 
-	stream, err := mgr.LoadStream(governor.StreamName(c.name))
+	gmgr, err := governor.NewJSGovernorManager(c.name, c.limit, c.age, c.replicas, mgr, false)
 	if err != nil {
 		return err
 	}
 
-	nfo, err := stream.LatestInformation()
+	active, err := gmgr.Active()
 	if err != nil {
 		return err
 	}
-
-	if nfo.State.Msgs == 0 {
+	if active == 0 {
 		return fmt.Errorf("no slots in use")
 	}
 
@@ -272,7 +284,7 @@ func (c *govCmd) evictAction(pc *kingpin.ParseContext) error {
 		}
 	}
 
-	return mgr.DeleteStreamMessage(governor.StreamName(c.name), c.id, true)
+	return gmgr.Evict(c.id)
 }
 
 func (c *govCmd) runAction(_ *kingpin.ParseContext) error {
