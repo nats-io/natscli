@@ -284,7 +284,8 @@ func (c *govCmd) evictAction(pc *kingpin.ParseContext) error {
 		}
 	}
 
-	return gmgr.Evict(c.id)
+	_, err = gmgr.Evict(c.id)
+	return err
 }
 
 func (c *govCmd) runAction(_ *kingpin.ParseContext) error {
@@ -318,7 +319,7 @@ func (c *govCmd) runAction(_ *kingpin.ParseContext) error {
 	defer cancel()
 
 	gov := governor.NewJSGovernor(c.name, mgr, governor.WithInterval(c.interval))
-	finisher, err := gov.Start(ctx, c.ident)
+	finisher, _, err := gov.Start(ctx, c.ident)
 	if err != nil {
 		return fmt.Errorf("could not get a execution slot: %s", err)
 	}
