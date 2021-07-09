@@ -328,7 +328,7 @@ func (c *kvCommand) dumpAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	vals := make(map[string]kv.Result)
+	vals := make(map[string]kv.Entry)
 	watch, err := store.WatchBucket(context.Background())
 	if err != nil {
 		return err
@@ -428,8 +428,8 @@ func (c *kvCommand) showStatus(store kv.KV) error {
 	} else {
 		fmt.Printf("  Maximum Value Size: %d\n", status.MaxValueSize())
 	}
-	if status.Cluster() != "" {
-		fmt.Printf("             Cluster: %s\n", status.Cluster())
+	if status.BucketLocation() != "" {
+		fmt.Printf("     Bucket Location: %s\n", status.BucketLocation())
 	}
 	fmt.Printf("       Values Stored: %d\n", status.Values())
 	fmt.Printf("  Backing Store Name: %s\n", status.BackingStore())

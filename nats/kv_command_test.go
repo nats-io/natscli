@@ -127,7 +127,7 @@ func TestCLIDump(t *testing.T) {
 	mustPut(t, store, "Y", "VALY")
 
 	out := runNatsCli(t, fmt.Sprintf("--server='%s' kv dump T", srv.ClientURL()))
-	var dumped map[string]kv.GenericResult
+	var dumped map[string]kv.GenericEntry
 	err := json.Unmarshal(out, &dumped)
 	if err != nil {
 		t.Fatalf("json unmarshal failed: %s", err)
