@@ -362,7 +362,7 @@ func natsOpts() []nats.Option {
 	opts, err := config.NATSOptions()
 	kingpin.FatalIfError(err, "configuration error")
 
-	return append(opts, []nats.Option{
+	opts = append(opts, []nats.Option{
 		nats.Name("NATS CLI Version " + version),
 		nats.MaxReconnects(-1),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
@@ -382,6 +382,12 @@ func natsOpts() []nats.Option {
 			}
 		}),
 	}...)
+
+	if tlsDumpCerts {
+		opts = append(opts, enableTLSDebug)
+	}
+
+	return opts
 }
 
 func newNatsConn(servers string, opts ...nats.Option) (*nats.Conn, error) {
