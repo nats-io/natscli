@@ -22,7 +22,6 @@ type kvCommand struct {
 	val           string
 	raw           bool
 	asJson        bool
-	share         bool
 	history       uint64
 	ttl           time.Duration
 	replicas      uint
@@ -57,7 +56,6 @@ NOTE: This is an experimental feature.
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	put.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	put.Arg("value", "The value to store, when empty reads STDIN").StringVar(&c.val)
-	put.Flag("share", "Store client details in the value").Default("true").BoolVar(&c.share)
 
 	del := kv.Command("del", "Deletes a key from the bucket").Action(c.deleteAction)
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -78,7 +76,7 @@ NOTE: This is an experimental feature.
 	add.Flag("max-value-size", "Maximum size for any single value").Int32Var(&c.maxValueSize)
 	add.Flag("max-bucket-size", "Maximum size for the bucket").Int64Var(&c.maxBucketSize)
 
-	status := kv.Command("status", "View the status of a KV store").Alias("view").Action(c.statusAction)
+	status := kv.Command("status", "View the status of a KV store").Alias("view").Alias("info").Action(c.statusAction)
 	status.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 
 	watch := kv.Command("watch", "Watch the bucket or a specific key for updated").Action(c.watchAction)
