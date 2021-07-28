@@ -65,6 +65,7 @@ type consumerCmd struct {
 	samplePct           int
 	startPolicy         string
 	validateOnly        bool
+	description         string
 
 	mgr *jsm.Manager
 	nc  *nats.Conn
@@ -74,22 +75,23 @@ func configureConsumerCommand(app *kingpin.Application) {
 	c := &consumerCmd{}
 
 	addCreateFlags := func(f *kingpin.CmdClause) {
-		f.Flag("target", "Push based delivery target subject").StringVar(&c.delivery)
-		f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
-		f.Flag("replay", "Replay Policy (instant, original)").EnumVar(&c.replayPolicy, "instant", "original")
-		f.Flag("deliver", "Start policy (all, new, last, 1h, msg sequence)").StringVar(&c.startPolicy)
 		f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
-		f.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
-		f.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
-		f.Flag("ephemeral", "Create an ephemeral Consumer").Default("false").BoolVar(&c.ephemeral)
-		f.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
-		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").IntVar(&c.maxDeliver)
 		f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
-		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
-		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
-		f.Flag("max-waiting", "Maximum number of outstanding pulls allowed").IntVar(&c.maxWaiting)
-		f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
+		f.Flag("deliver", "Start policy (all, new, last, 1h, msg sequence)").StringVar(&c.startPolicy)
+		f.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
+		f.Flag("ephemeral", "Create an ephemeral Consumer").Default("false").BoolVar(&c.ephemeral)
+		f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
 		OptionalBoolean(f.Flag("flow-control", "Enable Push consumer flow control"))
+		f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
+		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").IntVar(&c.maxDeliver)
+		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
+		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
+		f.Flag("max-waiting", "Maximum number of outstanding pulls allowed").IntVar(&c.maxWaiting)
+		f.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
+		f.Flag("replay", "Replay Policy (instant, original)").EnumVar(&c.replayPolicy, "instant", "original")
+		f.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
+		f.Flag("target", "Push based delivery target subject").StringVar(&c.delivery)
+		f.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
@@ -271,6 +273,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	fmt.Println()
 	if config.Durable != "" {
 		fmt.Printf("        Durable Name: %s\n", config.Durable)
+	}
+	if config.Description != "" {
+		fmt.Printf("     Description: %s\n", config.Description)
 	}
 	if config.DeliverSubject != "" {
 		fmt.Printf("    Delivery Subject: %s\n", config.DeliverSubject)
@@ -518,6 +523,10 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.Heartbeat = hb
 	}
 
+	if c.description != "" {
+		cfg.Description = c.description
+	}
+
 	fc := pc.SelectedCommand.GetFlag("flow-control").Model().Value.(*OptionalBoolValue)
 	if fc.IsSetByUser() {
 		cfg.FlowControl = fc.Value()
@@ -544,6 +553,7 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 
 func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.ConsumerConfig, err error) {
 	cfg = c.defaultConsumer()
+	cfg.Description = c.description
 
 	if c.inputFile != "" {
 		f, err := ioutil.ReadFile(c.inputFile)
