@@ -88,6 +88,7 @@ type streamCmd struct {
 	purgeKeep             uint64
 	purgeSubject          string
 	purgeSequence         uint64
+	description           string
 
 	vwStartId    int
 	vwStartDelta time.Duration
@@ -119,24 +120,25 @@ func configureStreamCommand(app *kingpin.Application) {
 	c := &streamCmd{msgID: -1}
 
 	addCreateFlags := func(f *kingpin.CmdClause) {
-		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
 		f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
+		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
+		f.Flag("description", "Sets a contextual description for the stream").StringVar(&c.description)
+		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
+		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
+		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
 		f.Flag("max-bytes", "Maximum bytes to keep").Int64Var(&c.maxBytesLimit)
 		f.Flag("max-consumers", "Maximum number of consumers to allow").Default("-1").IntVar(&c.maxConsumers)
 		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int64Var(&c.maxMsgSize)
 		f.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
 		f.Flag("max-msgs-per-subject", "Maximum amount of messages to keep per subject").Default("0").Int64Var(&c.maxMsgPerSubjectLimit)
-		f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
-		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
-		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
-		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
-		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
-		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
-		f.Flag("tags", "Place the stream on servers that has specific tags").StringsVar(&c.placementTags)
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
+		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
+		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
+		f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
+		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
+		f.Flag("tags", "Place the stream on servers that has specific tags").StringsVar(&c.placementTags)
 	}
 
 	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
@@ -1020,6 +1022,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		return cfg, fmt.Errorf("cannot edit mirrors or sources using the CLI, use --config instead")
 	}
 
+	if c.description != "" {
+		cfg.Description = c.description
+	}
+
 	return cfg, nil
 }
 
@@ -1145,6 +1151,9 @@ func (c *streamCmd) cpAction(_ *kingpin.ParseContext) error {
 func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	fmt.Println("Configuration:")
 	fmt.Println()
+	if cfg.Description != "" {
+		fmt.Printf("      Description: %s\n", cfg.Description)
+	}
 	if len(cfg.Subjects) > 0 {
 		fmt.Printf("             Subjects: %s\n", strings.Join(cfg.Subjects, ", "))
 	}
@@ -1574,6 +1583,7 @@ func (c *streamCmd) prepareConfig() api.StreamConfig {
 
 	cfg := api.StreamConfig{
 		Name:         c.stream,
+		Description:  c.description,
 		Subjects:     c.subjects,
 		MaxMsgs:      c.maxMsgLimit,
 		MaxMsgsPer:   c.maxMsgPerSubjectLimit,

@@ -171,9 +171,13 @@ func TestCLIStreamCreate(t *testing.T) {
 	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m --max-msgs-per-subject=10 --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new --dupe-window 1h --replicas 1", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m --max-msgs-per-subject=10 --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new --dupe-window 1h --replicas 1 --description 'test suite'", srv.ClientURL()))
 	streamShouldExist(t, mgr, "mem1")
 	info := streamInfo(t, mgr, "mem1")
+
+	if info.Config.Description != "test suite" {
+		t.Fatalf("invalid descroption %q", info.Config.Description)
+	}
 
 	if len(info.Config.Subjects) != 2 {
 		t.Fatalf("expected 2 subjects in the message stream, got %v", info.Config.Subjects)
@@ -453,10 +457,15 @@ func TestCLIConsumerAdd(t *testing.T) {
 	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --max-pending 10 --replay instant --deliver all --target out.push1 --ack explicit --filter '' --max-deliver 20 --bps 1024 --heartbeat=-1 --flow-control", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --max-pending 10 --replay instant --deliver all --target out.push1 --ack explicit --filter '' --max-deliver 20 --bps 1024 --heartbeat=-1 --flow-control --description 'test suite'", srv.ClientURL()))
 	consumerShouldExist(t, mgr, "mem1", "push1")
 	push1, err := mgr.LoadConsumer("mem1", "push1")
 	checkErr(t, err, "push1 could not be loaded")
+
+	if push1.Description() != "test suite" {
+		t.Fatalf("invalid description %q", push1.Description())
+	}
+
 	if push1.RateLimit() != 1024 {
 		t.Fatalf("Expected rate limit of 1024 but got %v", push1.RateLimit())
 	}
@@ -513,13 +522,17 @@ func TestCLIStreamEdit(t *testing.T) {
 	checkErr(t, err, "could not create stream: %v", err)
 	streamShouldExist(t, mgr, "mem1")
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str edit mem1 --subjects other -f", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str edit mem1 --subjects other -f --description 'test suite'", srv.ClientURL()))
 
 	err = mem1.Reset()
 	checkErr(t, err, "could not reset stream: %v", err)
 
 	if len(mem1.Subjects()) != 1 {
 		t.Fatalf("expected [other] got %v", mem1.Subjects())
+	}
+
+	if mem1.Description() != "test suite" {
+		t.Fatalf("invalid description: %s", mem1.Description())
 	}
 
 	if mem1.Subjects()[0] != "other" {
