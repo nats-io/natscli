@@ -77,7 +77,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 	addCreateFlags := func(f *kingpin.CmdClause) {
 		f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
 		f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
-		f.Flag("deliver", "Start policy (all, new, last, 1h, msg sequence)").StringVar(&c.startPolicy)
+		f.Flag("deliver", "Start policy (all, new, last, subject, 1h, msg sequence)").StringVar(&c.startPolicy)
 		f.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
 		f.Flag("ephemeral", "Create an ephemeral Consumer").Default("false").BoolVar(&c.ephemeral)
 		f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
@@ -444,6 +444,8 @@ func (c *consumerCmd) setStartPolicy(cfg *api.ConsumerConfig, policy string) {
 		cfg.DeliverPolicy = api.DeliverLast
 	} else if policy == "new" || policy == "next" {
 		cfg.DeliverPolicy = api.DeliverNew
+	} else if policy == "subject" || policy == "last_per_subject" {
+		cfg.DeliverPolicy = api.DeliverLastPerSubject
 	} else if ok, _ := regexp.MatchString("^\\d+$", policy); ok {
 		seq, _ := strconv.Atoi(policy)
 		cfg.DeliverPolicy = api.DeliverByStartSequence
@@ -609,8 +611,8 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 
 	if c.startPolicy == "" {
 		err = survey.AskOne(&survey.Input{
-			Message: "Start policy (all, new, last, 1h, msg sequence)",
-			Help:    "This controls how the Consumer starts out, does it make all messages available, only the latest, ones after a certain time or time sequence. Settable using --deliver",
+			Message: "Start policy (all, new, last, subject, 1h, msg sequence)",
+			Help:    "This controls how the Consumer starts out, does it make all messages available, only the latest, latest per subject, ones after a certain time or time sequence. Settable using --deliver",
 		}, &c.startPolicy, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "could not request start policy")
 	}

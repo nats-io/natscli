@@ -486,6 +486,13 @@ func TestCLIConsumerAdd(t *testing.T) {
 	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 pull1 --config testdata/mem1_pull1_consumer.json", srv.ClientURL()))
 	consumerShouldExist(t, mgr, "mem1", "pull1")
 
+	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --filter 'js.mem.>' --max-pending 10 --replay instant --deliver subject --target out.push1 --ack explicit --max-deliver 20 --bps 1024 --heartbeat=-1 --flow-control --description 'test suite'", srv.ClientURL()))
+	consumerShouldExist(t, mgr, "mem1", "push1")
+	push1, err = mgr.LoadConsumer("mem1", "push1")
+	checkErr(t, err, "push1 could not be loaded")
+	if push1.DeliverPolicy() != api.DeliverLastPerSubject {
+		t.Fatalf("expected subject delivery policy got %v", push1.DeliverPolicy())
+	}
 }
 
 func TestCLIConsumerNext(t *testing.T) {
