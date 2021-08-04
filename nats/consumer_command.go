@@ -291,14 +291,19 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	if config.OptStartTime != nil && config.OptStartTime.Second() != 0 {
 		fmt.Printf("          Start Time: %v\n", config.OptStartTime)
 	}
-	if config.DeliverPolicy == api.DeliverAll {
-		fmt.Printf("         Deliver All: true\n")
-	}
-	if config.DeliverPolicy == api.DeliverLast {
-		fmt.Printf("        Deliver Last: true\n")
-	}
-	if config.DeliverPolicy == api.DeliverNew {
-		fmt.Printf("        Deliver Next: true\n")
+	switch config.DeliverPolicy {
+	case api.DeliverAll:
+		fmt.Printf("      Deliver Policy: All\n")
+	case api.DeliverLast:
+		fmt.Printf("      Deliver Policy: Last\n")
+	case api.DeliverNew:
+		fmt.Printf("      Deliver Policy: Next\n")
+	case api.DeliverLastPerSubject:
+		fmt.Printf("      Deliver Policy: Last Per Subject\n")
+	case api.DeliverByStartTime:
+		fmt.Printf("      Deliver Policy: Since %v\n", config.OptStartTime)
+	case api.DeliverByStartSequence:
+		fmt.Printf("      Deliver Policy: From Sequence %d\n", config.OptStartSeq)
 	}
 	fmt.Printf("          Ack Policy: %s\n", config.AckPolicy.String())
 	if config.AckPolicy != api.AckNone {
@@ -683,6 +688,9 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 		kingpin.FatalIfError(err, "could not ask for filtering subject")
 	}
 	cfg.FilterSubject = c.filterSubject
+	if cfg.FilterSubject == "" && cfg.DeliverPolicy == api.DeliverLastPerSubject {
+		cfg.FilterSubject = ">"
+	}
 
 	if c.maxDeliver == 0 && cfg.AckPolicy != api.AckNone {
 		err = survey.AskOne(&survey.Input{
