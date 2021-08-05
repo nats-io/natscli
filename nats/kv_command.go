@@ -296,12 +296,7 @@ func (c *kvCommand) watchAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	var watch kv.Watch
-	if c.key != "" {
-		watch, err = store.Watch(context.Background(), key)
-	} else {
-		watch, err = store.WatchBucket(context.Background())
-	}
+	watch, err := store.Watch(context.Background(), key)
 	if err != nil {
 		return err
 	}
@@ -327,7 +322,7 @@ func (c *kvCommand) dumpAction(_ *kingpin.ParseContext) error {
 	}
 
 	vals := make(map[string]kv.Entry)
-	watch, err := store.WatchBucket(context.Background())
+	watch, err := store.Watch(context.Background(), "")
 	if err != nil {
 		return err
 	}
