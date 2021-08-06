@@ -268,7 +268,7 @@ func (c *kvCommand) loadBucket() (*nats.Conn, kv.KV, error) {
 		return nil, nil, err
 	}
 
-	store, err := kv.NewBucket(nc, bucket)
+	store, err := kv.NewClient(nc, bucket)
 	if err != nil {
 		return nil, nil, err
 	}
