@@ -24,7 +24,6 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"net/http"
 	"net/textproto"
 	"os"
 	"sort"
@@ -484,21 +483,69 @@ const (
 	hdrLine   = "NATS/1.0\r\n"
 	crlf      = "\r\n"
 	hdrPreEnd = len(hdrLine) - len(crlf)
+	statusLen = 3
+	statusHdr = "Status"
+	descrHdr  = "Description"
 )
 
-// decodeHeadersMsg will decode and headers.
-func decodeHeadersMsg(data []byte) (http.Header, error) {
+// copied from nats.go
+func decodeHeadersMsg(data []byte) (nats.Header, error) {
 	tp := textproto.NewReader(bufio.NewReader(bytes.NewReader(data)))
-	if l, err := tp.ReadLine(); err != nil || l != hdrLine[:hdrPreEnd] {
-		return nil, fmt.Errorf("could not decode headers")
+	l, err := tp.ReadLine()
+	if err != nil || len(l) < hdrPreEnd || l[:hdrPreEnd] != hdrLine[:hdrPreEnd] {
+		return nil, nats.ErrBadHeaderMsg
 	}
 
-	mh, err := tp.ReadMIMEHeader()
+	mh, err := readMIMEHeader(tp)
 	if err != nil {
-		return nil, fmt.Errorf("could not decode headers")
+		return nil, err
 	}
 
-	return http.Header(mh), nil
+	// Check if we have an inlined status.
+	if len(l) > hdrPreEnd {
+		var description string
+		status := strings.TrimSpace(l[hdrPreEnd:])
+		if len(status) != statusLen {
+			description = strings.TrimSpace(status[statusLen:])
+			status = status[:statusLen]
+		}
+		mh.Add(statusHdr, status)
+		if len(description) > 0 {
+			mh.Add(descrHdr, description)
+		}
+	}
+	return nats.Header(mh), nil
+}
+
+// copied from nats.go
+func readMIMEHeader(tp *textproto.Reader) (textproto.MIMEHeader, error) {
+	m := make(textproto.MIMEHeader)
+	for {
+		kv, err := tp.ReadLine()
+		if len(kv) == 0 {
+			return m, err
+		}
+
+		// Process key fetching original case.
+		i := bytes.IndexByte([]byte(kv), ':')
+		if i < 0 {
+			return nil, nats.ErrBadHeaderMsg
+		}
+		key := kv[:i]
+		if key == "" {
+			// Skip empty keys.
+			continue
+		}
+		i++
+		for i < len(kv) && (kv[i] == ' ' || kv[i] == '\t') {
+			i++
+		}
+		value := string(kv[i:])
+		m[key] = append(m[key], value)
+		if err != nil {
+			return m, err
+		}
+	}
 }
 
 type pubData struct {
