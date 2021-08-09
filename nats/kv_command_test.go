@@ -43,9 +43,9 @@ func TestCLIKVGet(t *testing.T) {
 	defer srv.Shutdown()
 
 	store := createTestBucket(t, nc)
-	mustPut(t, store, "X", "Y")
+	mustPut(t, store, "X.Y", "Y")
 
-	out := runNatsCli(t, fmt.Sprintf("--server='%s' kv get T.X --raw", srv.ClientURL()))
+	out := runNatsCli(t, fmt.Sprintf("--server='%s' kv get T X.Y --raw", srv.ClientURL()))
 	if strings.TrimSpace(string(out)) != "Y" {
 		t.Fatalf("get failed: %s != Y", string(out))
 	}
@@ -78,7 +78,7 @@ func TestCLIKVDel(t *testing.T) {
 	store := createTestBucket(t, nc)
 	mustPut(t, store, "X", "VAL")
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' kv del T.X -f", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' kv del T X -f", srv.ClientURL()))
 
 	_, err := store.Get("X")
 	if err != kv.ErrUnknownKey {
