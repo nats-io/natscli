@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -49,7 +48,7 @@ NOTE: This is an experimental feature.
 
 	get := kv.Command("get", "Gets a value for a key").Action(c.getAction)
 	get.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	get.Arg("key", "The key to act on").StringVar(&c.key)
+	get.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	get.Flag("raw", "Show only the value string").BoolVar(&c.raw)
 
 	put := kv.Command("put", "Puts a value into a key").Action(c.putAction)
@@ -59,12 +58,12 @@ NOTE: This is an experimental feature.
 
 	del := kv.Command("del", "Deletes a key from the bucket").Action(c.deleteAction)
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	del.Arg("key", "The key to act on").StringVar(&c.key)
+	del.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	del.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	history := kv.Command("history", "Shows the full history for a key").Action(c.historyAction)
 	history.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	history.Arg("key", "The key to act on").StringVar(&c.key)
+	history.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	history.Flag("json", "JSON format output").Short('j').BoolVar(&c.asJson)
 
 	add := kv.Command("add", "Adds a new KV store").Alias("new").Action(c.addAction)
@@ -117,12 +116,7 @@ func (c *kvCommand) historyAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	bucket, key, err := c.bucketAndKey()
-	if err != nil {
-		return err
-	}
-
-	history, err := store.History(context.Background(), key)
+	history, err := store.History(context.Background(), c.key)
 	if err != nil {
 		return err
 	}
@@ -132,7 +126,7 @@ func (c *kvCommand) historyAction(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	table := newTableWriter(fmt.Sprintf("History for %s.%s", bucket, key))
+	table := newTableWriter(fmt.Sprintf("History for %s > %s", c.bucket, c.key))
 	table.AddHeaders("Seq", "Op", "Created", "Length", "Value")
 	for _, r := range history {
 		val := base64IfNotPrintable(r.Value())
@@ -154,13 +148,8 @@ func (c *kvCommand) deleteAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	bucket, key, err := c.bucketAndKey()
-	if err != nil {
-		return err
-	}
-
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Delete key %s.%s?", bucket, key), false)
+		ok, err := askConfirmation(fmt.Sprintf("Delete key %s > %s?", c.bucket, c.key), false)
 		if err != nil {
 			return err
 		}
@@ -171,7 +160,7 @@ func (c *kvCommand) deleteAction(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	return store.Delete(key)
+	return store.Delete(c.key)
 }
 
 func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
@@ -201,12 +190,7 @@ func (c *kvCommand) getAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	_, key, err := c.bucketAndKey()
-	if err != nil {
-		return err
-	}
-
-	res, err := store.Get(key)
+	res, err := store.Get(c.key)
 	if err != nil {
 		return err
 	}
@@ -216,7 +200,7 @@ func (c *kvCommand) getAction(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	fmt.Printf("%s.%s created @ %s\n", res.Bucket(), res.Key(), res.Created().Format(time.RFC822))
+	fmt.Printf("%s > %s created @ %s\n", res.Bucket(), res.Key(), res.Created().Format(time.RFC822))
 	fmt.Println()
 	pv := base64IfNotPrintable(res.Value())
 	lpv := len(pv)
@@ -258,17 +242,12 @@ func (c *kvCommand) putAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *kvCommand) loadBucket() (*nats.Conn, kv.KV, error) {
-	bucket, _, err := c.bucketAndKey()
-	if err != nil {
-		return nil, nil, err
-	}
-
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	store, err := kv.NewClient(nc, bucket)
+	store, err := kv.NewClient(nc, c.bucket)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -286,17 +265,12 @@ func (c *kvCommand) statusAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *kvCommand) watchAction(_ *kingpin.ParseContext) error {
-	_, key, err := c.bucketAndKey()
-	if err != nil {
-		return err
-	}
-
 	_, store, err := c.loadBucket()
 	if err != nil {
 		return err
 	}
 
-	watch, err := store.Watch(context.Background(), key)
+	watch, err := store.Watch(context.Background(), c.key)
 	if err != nil {
 		return err
 	}
@@ -305,9 +279,9 @@ func (c *kvCommand) watchAction(_ *kingpin.ParseContext) error {
 	for res := range watch.Channel() {
 		if res != nil {
 			if res.Operation() == kv.DeleteOperation {
-				fmt.Printf("[%s] %s %s.%s\n", res.Created().Format("2006-01-02 15:04:05"), color.RedString("DEL"), res.Bucket(), res.Key())
+				fmt.Printf("[%s] %s %s > %s\n", res.Created().Format("2006-01-02 15:04:05"), color.RedString("DEL"), res.Bucket(), res.Key())
 			} else {
-				fmt.Printf("[%s] %s %s.%s: %s\n", res.Created().Format("2006-01-02 15:04:05"), color.GreenString("PUT"), res.Bucket(), res.Key(), res.Value())
+				fmt.Printf("[%s] %s %s > %s: %s\n", res.Created().Format("2006-01-02 15:04:05"), color.GreenString("PUT"), res.Bucket(), res.Key(), res.Value())
 			}
 		}
 	}
@@ -428,21 +402,4 @@ func (c *kvCommand) showStatus(store kv.KV) error {
 	fmt.Printf("  Backing Store Name: %s\n", status.BackingStore())
 
 	return nil
-}
-
-func (c *kvCommand) bucketAndKey() (string, string, error) {
-	if c.bucket == "" {
-		return "", "", fmt.Errorf("bucket is required")
-	}
-
-	if c.key == "" && strings.Contains(c.bucket, ".") {
-		parts := strings.Split(c.bucket, ".")
-		if len(parts) != 2 {
-			return "", "", fmt.Errorf("could not extract key from bucket name")
-		}
-
-		return parts[0], parts[1], nil
-	}
-
-	return c.bucket, c.key, nil
 }
