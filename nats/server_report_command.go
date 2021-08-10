@@ -16,7 +16,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 
@@ -56,19 +55,19 @@ func configureServerReportCommand(srv *kingpin.CmdClause) {
 
 	report := srv.Command("report", "Report on various server metrics").Alias("rep")
 	report.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	report.Flag("reverse", "Reverse sort connections").Short('R').Default("false").BoolVar(&c.reverse)
+	report.Flag("reverse", "Reverse sort connections").Short('R').Default("true").BoolVar(&c.reverse)
 
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnections)
 	conns.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	conns.Flag("account", "Limit report to a specific account").StringVar(&c.account)
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
-	conns.Flag("top", "Limit results to the top results").IntVar(&c.topk)
+	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 
 	acct := report.Command("accounts", "Report on account activity").Alias("acct").Action(c.reportAccount)
 	acct.Arg("account", "Account to produce a report for").StringVar(&c.account)
 	acct.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs,uptime,cid)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs", "uptime", "cid")
-	acct.Flag("top", "Limit results to the top results").IntVar(&c.topk)
+	acct.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 
 	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.reportJetStream)
 	jsz.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
@@ -271,13 +270,9 @@ func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	connz, all, err := c.getConnz(nil, nc, 0)
+	connz, err := c.getConnz(0, nc)
 	if err != nil {
 		return err
-	}
-
-	if !all {
-		return fmt.Errorf("expected all servers but did not fully converge")
 	}
 
 	if len(connz) == 0 {
@@ -307,7 +302,7 @@ func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
 			}
 
 			c.sortConnections(report)
-			c.renderConnections(report)
+			c.renderConnections(int64(len(account.ConnInfo)), report)
 		}
 		return nil
 	}
@@ -404,13 +399,9 @@ func (c *SrvReportCmd) reportConnections(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	connz, all, err := c.getConnz(nil, nc, 0)
+	connz, err := c.getConnz(0, nc)
 	if err != nil {
 		return err
-	}
-
-	if !all {
-		return fmt.Errorf("expected all servers but did not fully converge")
 	}
 
 	if len(connz) == 0 {
@@ -423,7 +414,11 @@ func (c *SrvReportCmd) reportConnections(_ *kingpin.ParseContext) error {
 
 	report := conns
 	if c.topk > 0 && c.topk <= len(conns) {
-		report = conns[len(conns)-c.topk:]
+		if c.reverse {
+			report = conns[len(conns)-c.topk:]
+		} else {
+			report = conns[:c.topk]
+		}
 	}
 
 	if c.json {
@@ -431,7 +426,7 @@ func (c *SrvReportCmd) reportConnections(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	c.renderConnections(report)
+	c.renderConnections(int64(len(conns)), report)
 
 	return nil
 }
@@ -465,14 +460,9 @@ func (c *SrvReportCmd) sortConnections(conns []connInfo) {
 	})
 }
 
-func (c *SrvReportCmd) renderConnections(report []connInfo) {
-	table := newTableWriter(fmt.Sprintf("%d Connections Overview", len(report)))
+func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
+	table := newTableWriter(fmt.Sprintf("Top %d Connections out of %s by %s", len(report), humanize.Comma(total), c.sort))
 	table.AddHeaders("CID", "Name", "Server", "Cluster", "IP", "Account", "Uptime", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
-
-	if c.json {
-		printJSON(report)
-		return
-	}
 
 	var oMsgs int64
 	var iMsgs int64
@@ -567,116 +557,110 @@ func parseConnzResp(resp []byte) (connz, error) {
 	return c, nil
 }
 
-// recursively fetches connz from the fleet till all paged results is complete
-func (c *SrvReportCmd) getConnz(current []connz, nc *nats.Conn, level int) (result connzList, all bool, err error) {
-	// warn every 5 levels that we're still recursing...
-	if level != 0 && level%5 == 0 {
-		log.Printf("Recursing into %d servers to resolve all pages of connection info", len(current))
+func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
+	result := connzList{}
+	found := 0
+
+	req := &server.ConnzEventOptions{
+		ConnzOptions: server.ConnzOptions{
+			Subscriptions:       true,
+			SubscriptionsDetail: false,
+			Username:            true,
+			Account:             c.account,
+		},
+		EventFilterOptions: c.reqFilter(),
+	}
+	res, err := c.doReq(req, "$SYS.REQ.SERVER.PING.CONNZ", nc)
+	if err != nil {
+		return nil, err
 	}
 
-	if current == nil {
-		current = []connz{}
-	}
-
-	// get the initial result from all nodes as one req and then recursively fetch all that has more pages
-	if len(current) == 0 {
-		var initial []connz
-
-		req := &server.ConnzEventOptions{
-			ConnzOptions: server.ConnzOptions{
-				Subscriptions:       true,
-				SubscriptionsDetail: false,
-				Username:            true,
-				Account:             c.account,
-			},
-			EventFilterOptions: c.reqFilter(),
-		}
-		res, err := c.doReq(req, "$SYS.REQ.SERVER.PING.CONNZ", nc)
+	for _, c := range res {
+		co, err := parseConnzResp(c)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
-
-		for _, c := range res {
-			co, err := parseConnzResp(c)
-			if err != nil {
-				return nil, false, err
-			}
-			initial = append(initial, co)
-		}
-
-		// recursively fetch...
-		recursed, all, err := c.getConnz(initial, nc, level+1)
-		if !all {
-			return nil, false, fmt.Errorf("could not fetch all connections")
-		}
-
-		result = append(result, recursed...)
-		return result, all, err
+		result = append(result, co)
+		found += len(co.Connz.Conns)
 	}
 
-	// find ones in the current list that's incomplete
-	var incomplete []connz
-	for _, conn := range current {
-		if (conn.Connz.Offset+1)*conn.Connz.Limit < conn.Connz.Total {
-			incomplete = append(incomplete, conn)
+	if limit != 0 && found > limit {
+		return result[:limit], nil
+	}
+
+	incomplete := []connz{}
+	for _, con := range result {
+		if con.Connz.Offset+con.Connz.Limit < con.Connz.Total {
+			incomplete = append(incomplete, con)
 		}
 	}
 
-	// no more to fetch, we have some results already and none are incomplete
-	if len(current) > 0 && len(incomplete) == 0 {
-		return current, true, nil
-	}
+	c.waitFor = 1
 
-	// we have some incomplete ones, and it's not the entire set, recuse into the subset that need resolving
-	if len(incomplete) > 0 && len(incomplete) != len(current) {
-		new, all, err := c.getConnz(incomplete, nc, level+1)
-		if err != nil {
-			return nil, false, err
+	if len(incomplete) > 0 && !c.json {
+		fmt.Print("Gathering paged connection information")
+	}
+	for {
+		if len(incomplete) == 0 {
+			break
 		}
 
-		if !all {
-			return nil, false, fmt.Errorf("could not fetch all connections")
+		if limit != 0 && found > limit {
+			break
 		}
 
-		result = append(result, new...)
+		fmt.Print(".")
 
-		return result, true, nil
-	}
+		getList := incomplete[0:]
+		incomplete = []connz{}
 
-	// We are here because we have only incomplete ones in the current set, get their next page and recurse
-	if len(incomplete) == len(current) {
-		for _, conn := range current {
+		for _, conn := range getList {
 			req := &server.ConnzEventOptions{
 				ConnzOptions: server.ConnzOptions{
 					Subscriptions:       true,
 					SubscriptionsDetail: false,
 					Account:             c.account,
 					Username:            true,
-					Offset:              conn.Connz.Offset + 1,
+					Offset:              conn.Connz.Offset + conn.Connz.Limit + 1,
 				},
 				EventFilterOptions: c.reqFilter(),
 			}
+
 			res, err := c.doReq(req, fmt.Sprintf("$SYS.REQ.SERVER.%s.CONNZ", conn.Connz.ID), nc)
 			if err == nats.ErrNoResponders {
-				return nil, false, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
+				return nil, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
 			} else if err != nil {
-				return nil, false, err
+				return nil, err
+			}
+
+			if len(res) != 1 {
+				return nil, fmt.Errorf("received %d responses from server %s expcting exactly 1", len(res), conn.Connz.ID)
 			}
 
 			for _, c := range res {
 				co, err := parseConnzResp(c)
 				if err != nil {
-					return nil, false, err
+					return nil, err
 				}
 				result = append(result, co)
+				found += len(co.Connz.Conns)
+
+				if co.Connz.Offset+co.Connz.Limit < co.Connz.Total {
+					incomplete = append(incomplete, co)
+				}
 			}
 		}
-
-		return c.getConnz(result, nc, level+1)
 	}
 
-	// we shouldn't get here
-	return nil, false, fmt.Errorf("unexpected error resolving connections")
+	if !c.json {
+		fmt.Println()
+	}
+
+	if limit > 0 {
+		result = result[:limit]
+	}
+
+	return result, nil
 }
 
 func (c *SrvReportCmd) doReq(req interface{}, subj string, nc *nats.Conn) ([][]byte, error) {
