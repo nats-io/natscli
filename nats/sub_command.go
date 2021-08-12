@@ -107,9 +107,8 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		if m.Header.Get("Status") == "100" {
 			if m.Reply != "" {
 				m.Respond(nil)
+				log.Printf("Responding to Flow Control message")
 			}
-
-			return
 		}
 
 		ctr++

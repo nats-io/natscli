@@ -159,6 +159,17 @@ func file1Stream() api.StreamConfig {
 
 func pull1Cons() api.ConsumerConfig {
 	return api.ConsumerConfig{
+		DeliverSubject: nats.NewInbox(),
+		Durable:        "pull1",
+		DeliverPolicy:  api.DeliverAll,
+		AckPolicy:      api.AckExplicit,
+		ReplayPolicy:   api.ReplayOriginal,
+		MaxAckPending:  1000,
+	}
+}
+
+func push1Cons() api.ConsumerConfig {
+	return api.ConsumerConfig{
 		Durable:       "push1",
 		DeliverPolicy: api.DeliverAll,
 		AckPolicy:     api.AckExplicit,
@@ -402,15 +413,15 @@ func TestCLIConsumerInfo(t *testing.T) {
 
 	_, err := mgr.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
-	consumerShouldExist(t, mgr, "mem1", "push1")
+	consumerShouldExist(t, mgr, "mem1", "pull1")
 
-	out := runNatsCli(t, fmt.Sprintf("--server='%s' con info mem1 push1 -j", srv.ClientURL()))
+	out := runNatsCli(t, fmt.Sprintf("--server='%s' con info mem1 pull1 -j", srv.ClientURL()))
 	var info server.ConsumerInfo
 	err = json.Unmarshal(out, &info)
 	checkErr(t, err, "could not parse output: %v", err)
 
-	if info.Config.Durable != "push1" {
-		t.Fatalf("did not find into for push1 in cli output: %v", string(out))
+	if info.Config.Durable != "pull1" {
+		t.Fatalf("did not find into for pull1 in cli output: %v", string(out))
 	}
 }
 
@@ -420,7 +431,7 @@ func TestCLIConsumerLs(t *testing.T) {
 
 	_, err := mgr.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
-	consumerShouldExist(t, mgr, "mem1", "push1")
+	consumerShouldExist(t, mgr, "mem1", "pull1")
 
 	out := runNatsCli(t, fmt.Sprintf("--server='%s' con ls mem1 -j", srv.ClientURL()))
 	var info []string
@@ -431,8 +442,8 @@ func TestCLIConsumerLs(t *testing.T) {
 		t.Fatalf("expected 1 item in output received %d", len(info))
 	}
 
-	if info[0] != "push1" {
-		t.Fatalf("did not find into for push1 in cli output: %v", string(out))
+	if info[0] != "pull1" {
+		t.Fatalf("did not find into for pull1 in cli output: %v", string(out))
 	}
 }
 
@@ -442,12 +453,12 @@ func TestCLIConsumerDelete(t *testing.T) {
 
 	_, err := mgr.NewConsumerFromDefault("mem1", pull1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
-	consumerShouldExist(t, mgr, "mem1", "push1")
+	consumerShouldExist(t, mgr, "mem1", "pull1")
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' con rm mem1 push1 -f", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' con rm mem1 pull1 -f", srv.ClientURL()))
 
 	list, err := mgr.ConsumerNames("mem1")
-	checkErr(t, err, "could not check cnsumer: %v", err)
+	checkErr(t, err, "could not check consumer: %v", err)
 	if len(list) != 0 {
 		t.Fatalf("Expected no consumer, got %v", list)
 	}
@@ -499,7 +510,7 @@ func TestCLIConsumerNext(t *testing.T) {
 	srv, nc, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	push1, err := mgr.NewConsumerFromDefault("mem1", pull1Cons())
+	push1, err := mgr.NewConsumerFromDefault("mem1", push1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, mgr, "mem1", "push1")
 
@@ -584,7 +595,7 @@ func TestCLIConsumerCopy(t *testing.T) {
 	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	_, err := mgr.NewConsumerFromDefault("mem1", pull1Cons())
+	_, err := mgr.NewConsumerFromDefault("mem1", push1Cons())
 	checkErr(t, err, "could not create consumer: %v", err)
 	consumerShouldExist(t, mgr, "mem1", "push1")
 
