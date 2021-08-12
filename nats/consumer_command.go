@@ -275,7 +275,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		fmt.Printf("        Durable Name: %s\n", config.Durable)
 	}
 	if config.Description != "" {
-		fmt.Printf("     Description: %s\n", config.Description)
+		fmt.Printf("         Description: %s\n", config.Description)
 	}
 	if config.DeliverSubject != "" {
 		fmt.Printf("    Delivery Subject: %s\n", config.DeliverSubject)
@@ -284,12 +284,6 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	}
 	if config.FilterSubject != "" {
 		fmt.Printf("      Filter Subject: %s\n", config.FilterSubject)
-	}
-	if config.OptStartSeq != 0 {
-		fmt.Printf("      Start Sequence: %d\n", config.OptStartSeq)
-	}
-	if config.OptStartTime != nil && config.OptStartTime.Second() != 0 {
-		fmt.Printf("          Start Time: %v\n", config.OptStartTime)
 	}
 	switch config.DeliverPolicy {
 	case api.DeliverAll:
@@ -371,7 +365,16 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		} else {
 			fmt.Printf("            Waiting Pulls: %d of unlimited\n", state.NumWaiting)
 		}
-
+	} else {
+		if state.Active != nil {
+			if state.Active.Queue != "" {
+				fmt.Printf("          Active Interest: Subject %s in Queue Group %s", state.Active.Subject, state.Active.Queue)
+			} else {
+				fmt.Printf("          Active Interest: Subject %s", state.Active.Subject)
+			}
+		} else {
+			fmt.Printf("          Active Interest: No interest")
+		}
 	}
 
 	fmt.Println()
