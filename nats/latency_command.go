@@ -27,7 +27,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/codahale/hdrhistogram"
+	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/nats-io/nats.go"
 	histwriter "github.com/tylertreat/hdrhistogram-writer"
 	"gopkg.in/alecthomas/kingpin.v2"
