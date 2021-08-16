@@ -103,12 +103,10 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 			}()
 		}
 
-		// flow control and keep-alives
-		if m.Header.Get("Status") == "100" {
-			if m.Reply != "" {
-				m.Respond(nil)
-				log.Printf("Responding to Flow Control message")
-			}
+		// flow control
+		if len(m.Data) == 0 && m.Reply != "" && m.Header.Get("Status") == "100" {
+			m.Respond(nil)
+			log.Printf("Responding to Flow Control message")
 		}
 
 		ctr++

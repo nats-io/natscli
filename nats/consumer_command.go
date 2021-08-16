@@ -59,6 +59,7 @@ type consumerCmd struct {
 	maxAckPending       int
 	maxDeliver          int
 	maxWaiting          int
+	deliveryGroup       string
 	pull                bool
 	replayPolicy        string
 	reportLeaderDistrib bool
@@ -77,20 +78,21 @@ func configureConsumerCommand(app *kingpin.Application) {
 	addCreateFlags := func(f *kingpin.CmdClause) {
 		f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
 		f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
-		f.Flag("deliver", "Start policy (all, new, last, subject, 1h, msg sequence)").StringVar(&c.startPolicy)
+		f.Flag("deliver", "Start policy (all, new, last, subject, 1h, msg sequence)").PlaceHolder("POLICY").StringVar(&c.startPolicy)
+		f.Flag("deliver-group", "Delivers push messages only to subscriptions matching this group").Default("_unset_").PlaceHolder("GROUP").StringVar(&c.deliveryGroup)
 		f.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
 		f.Flag("ephemeral", "Create an ephemeral Consumer").Default("false").BoolVar(&c.ephemeral)
 		f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
 		OptionalBoolean(f.Flag("flow-control", "Enable Push consumer flow control"))
 		f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
-		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").IntVar(&c.maxDeliver)
+		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").PlaceHolder("TRIES").IntVar(&c.maxDeliver)
 		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
-		f.Flag("max-waiting", "Maximum number of outstanding pulls allowed").IntVar(&c.maxWaiting)
+		f.Flag("max-waiting", "Maximum number of outstanding pulls allowed").PlaceHolder("PULLS").IntVar(&c.maxWaiting)
 		f.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
-		f.Flag("replay", "Replay Policy (instant, original)").EnumVar(&c.replayPolicy, "instant", "original")
+		f.Flag("replay", "Replay Policy (instant, original)").PlaceHolder("POLICY").EnumVar(&c.replayPolicy, "instant", "original")
 		f.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
-		f.Flag("target", "Push based delivery target subject").StringVar(&c.delivery)
+		f.Flag("target", "Push based delivery target subject").PlaceHolder("SUBJECT").StringVar(&c.delivery)
 		f.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
 	}
 
@@ -299,6 +301,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	case api.DeliverByStartSequence:
 		fmt.Printf("      Deliver Policy: From Sequence %d\n", config.OptStartSeq)
 	}
+	if config.DeliverGroup != "" {
+		fmt.Printf(" Deliver Queue Group: %s\n", config.DeliverGroup)
+	}
 	fmt.Printf("          Ack Policy: %s\n", config.AckPolicy.String())
 	if config.AckPolicy != api.AckNone {
 		fmt.Printf("            Ack Wait: %v\n", config.AckWait)
@@ -350,14 +355,26 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 
 	fmt.Println("State:")
 	fmt.Println()
-	fmt.Printf("   Last Delivered Message: Consumer sequence: %d Stream sequence: %d\n", state.Delivered.Consumer, state.Delivered.Stream)
-	fmt.Printf("     Acknowledgment floor: Consumer sequence: %d Stream sequence: %d\n", state.AckFloor.Consumer, state.AckFloor.Stream)
-	if config.MaxAckPending > 0 {
-		fmt.Printf("         Outstanding Acks: %d out of maximum %d\n", state.NumAckPending, config.MaxAckPending)
+	if state.Delivered.Last == nil {
+		fmt.Printf("   Last Delivered Message: Consumer sequence: %d Stream sequence: %d\n", state.Delivered.Consumer, state.Delivered.Stream)
 	} else {
-		fmt.Printf("         Outstanding Acks: %d\n", state.NumAckPending)
+		fmt.Printf("   Last Delivered Message: Consumer sequence: %d Stream sequence: %d Last delivery: %s ago\n", state.Delivered.Consumer, state.Delivered.Stream, humanizeDuration(time.Since(*state.Delivered.Last)))
 	}
-	fmt.Printf("     Redelivered Messages: %d\n", state.NumRedelivered)
+
+	if config.AckPolicy != api.AckNone {
+		if state.AckFloor.Last == nil {
+			fmt.Printf("     Acknowledgment floor: Consumer sequence: %d Stream sequence: %d\n", state.AckFloor.Consumer, state.AckFloor.Stream)
+		} else {
+			fmt.Printf("     Acknowledgment floor: Consumer sequence: %d Stream sequence: %d Last Ack: %s ago\n", state.AckFloor.Consumer, state.AckFloor.Stream, humanizeDuration(time.Since(*state.AckFloor.Last)))
+		}
+		if config.MaxAckPending > 0 {
+			fmt.Printf("         Outstanding Acks: %d out of maximum %d\n", state.NumAckPending, config.MaxAckPending)
+		} else {
+			fmt.Printf("         Outstanding Acks: %d\n", state.NumAckPending)
+		}
+		fmt.Printf("     Redelivered Messages: %d\n", state.NumRedelivered)
+	}
+
 	fmt.Printf("     Unprocessed Messages: %d\n", state.NumPending)
 	if config.DeliverSubject == "" {
 		if config.MaxWaiting > 0 {
@@ -366,11 +383,11 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 			fmt.Printf("            Waiting Pulls: %d of unlimited\n", state.NumWaiting)
 		}
 	} else {
-		if state.Active != nil {
-			if state.Active.Queue != "" {
-				fmt.Printf("          Active Interest: Subject %s in Queue Group %s", state.Active.Subject, state.Active.Queue)
+		if state.PushBound {
+			if config.DeliverGroup != "" {
+				fmt.Printf("          Active Interest: Active using Queue Group %s", config.DeliverGroup)
 			} else {
-				fmt.Printf("          Active Interest: Subject %s", state.Active.Subject)
+				fmt.Printf("          Active Interest: Active")
 			}
 		} else {
 			fmt.Printf("          Active Interest: No interest")
@@ -547,6 +564,14 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.FlowControl = false
 	}
 
+	if c.deliveryGroup != "_unset_" {
+		cfg.DeliverGroup = c.deliveryGroup
+	}
+
+	if c.delivery == "" {
+		cfg.DeliverGroup = ""
+	}
+
 	consumer, err := c.mgr.NewConsumerFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed")
 
@@ -611,7 +636,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 
 	if c.ephemeral && c.delivery == "" {
-		kingpin.Fatalf("ephemeral Consumers has to be push-based.")
+		kingpin.Fatalf("ephemeral Consumers has to be push-based")
 	}
 
 	cfg.DeliverSubject = c.delivery
@@ -620,6 +645,15 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	if c.delivery == "" {
 		c.ackPolicy = "explicit"
 	}
+
+	if cfg.DeliverSubject != "" && c.deliveryGroup == "_unset_" {
+		err = survey.AskOne(&survey.Input{
+			Message: "Delivery Queue Group",
+			Help:    "When set push consumers will only deliver messages to subscriptions matching this queue group",
+		}, &c.deliveryGroup)
+		kingpin.FatalIfError(err, "could not request delivery group")
+	}
+	cfg.DeliverGroup = c.deliveryGroup
 
 	if c.startPolicy == "" {
 		err = survey.AskOne(&survey.Input{
@@ -723,7 +757,6 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 		} else if c.idleHeartbeat != "" {
 			cfg.Heartbeat, err = parseDurationString(c.idleHeartbeat)
 			kingpin.FatalIfError(err, "invalid heartbeat duration")
-
 		} else {
 			idle := "0s"
 			err = survey.AskOne(&survey.Input{
@@ -734,7 +767,6 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			kingpin.FatalIfError(err, "could not ask for idle heartbeat")
 			cfg.Heartbeat, err = parseDurationString(idle)
 			kingpin.FatalIfError(err, "invalid heartbeat duration")
-
 		}
 	}
 
