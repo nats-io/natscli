@@ -185,6 +185,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
 	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
 	strGet.Arg("id", "Message Sequence to retrieve").Int64Var(&c.msgID)
+	strGet.Flag("last-for", "Retrieves the message for a specific subject").Short('S').PlaceHolder("SUBJECT").StringVar(&c.filterSubject)
 	strGet.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 	strRmMsg := str.Command("rmm", "Securely removes an individual message from a Stream").Action(c.rmMsgAction)
@@ -1979,7 +1980,7 @@ func (c *streamCmd) rmMsgAction(_ *kingpin.ParseContext) (err error) {
 func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 	c.connectAndAskStream()
 
-	if c.msgID == -1 {
+	if c.msgID == -1 && c.filterSubject == "" {
 		id := ""
 		err = survey.AskOne(&survey.Input{
 			Message: "Message Sequence to retrieve",
@@ -1995,7 +1996,14 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 	stream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not load Stream %s", c.stream)
 
-	item, err := stream.ReadMessage(uint64(c.msgID))
+	var item *api.StoredMsg
+	if c.msgID > -1 {
+		item, err = stream.ReadMessage(uint64(c.msgID))
+	} else if c.filterSubject != "" {
+		item, err = stream.ReadLastMessageForSubject(c.filterSubject)
+	} else {
+		return fmt.Errorf("no ID or subject specified")
+	}
 	kingpin.FatalIfError(err, "could not retrieve %s#%d", c.stream, c.msgID)
 
 	if c.json {
@@ -2003,7 +2011,7 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 		return nil
 	}
 
-	fmt.Printf("Item: %s#%d received %v on Subject %s\n\n", c.stream, c.msgID, item.Time, item.Subject)
+	fmt.Printf("Item: %s#%d received %v on Subject %s\n\n", c.stream, item.Sequence, item.Time, item.Subject)
 
 	if len(item.Header) > 0 {
 		fmt.Println("Headers:")
