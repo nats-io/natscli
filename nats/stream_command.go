@@ -1984,6 +1984,7 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 		id := ""
 		err = survey.AskOne(&survey.Input{
 			Message: "Message Sequence to retrieve",
+			Default: "-1",
 		}, &id, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "invalid input")
 
@@ -1991,6 +1992,13 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 		kingpin.FatalIfError(err, "invalid number")
 
 		c.msgID = int64(idint)
+
+		if c.msgID == -1 {
+			err = survey.AskOne(&survey.Input{
+				Message: "Subject to retrieve last message for",
+			}, &c.filterSubject)
+			kingpin.FatalIfError(err, "invalid subject")
+		}
 	}
 
 	stream, err := c.loadStream(c.stream)
