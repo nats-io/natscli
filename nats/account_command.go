@@ -22,20 +22,41 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-type actCmd struct{}
+type actCmd struct {
+	sort string
+	topk int
+}
 
 func configureActCommand(app *kingpin.Application) {
 	c := &actCmd{}
 	act := app.Command("account", "Account information and status").Alias("a")
 	act.Command("info", "Account information").Alias("nfo").Action(c.infoAction)
 
+	report := act.Command("report", "Report on account metrics").Alias("rep")
+	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnectionsAction)
+	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
+	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
+
 	cheats["account"] = `# To view account information and connection
 nats account info
+
+# To report connections for your command
+nats account report connections
+
 `
 
 }
 
-func (c *actCmd) infoAction(pc *kingpin.ParseContext) error {
+func (c *actCmd) reportConnectionsAction(pc *kingpin.ParseContext) error {
+	cmd := SrvReportCmd{
+		topk: c.topk,
+		sort: c.sort,
+	}
+
+	return cmd.reportConnections(pc)
+}
+
+func (c *actCmd) infoAction(_ *kingpin.ParseContext) error {
 	nc, mgr, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
