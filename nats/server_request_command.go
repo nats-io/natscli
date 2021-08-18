@@ -14,12 +14,7 @@
 package main
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
-	"log"
-	"sync"
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -356,61 +351,5 @@ func (c *SrvRequestCmd) subs(_ *kingpin.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) doReq(kind string, req interface{}, nc *nats.Conn) ([][]byte, error) {
-	jreq, err := json.MarshalIndent(req, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-
-	if (c.name != "" || c.host != "") && c.waitFor == 0 {
-		c.waitFor = 1
-	}
-
-	if c.waitFor == 0 {
-		c.waitFor, err = determineServerTopology(nc)
-		if err != nil {
-			c.waitFor = 1
-		}
-	}
-
-	subj := fmt.Sprintf("$SYS.REQ.SERVER.PING.%s", kind)
-
-	if trace {
-		log.Printf(">>> %s: %s\n", subj, string(jreq))
-	}
-
-	var resp [][]byte
-	var mu sync.Mutex
-	ctr := uint32(0)
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	sub, err := nc.Subscribe(nats.NewInbox(), func(m *nats.Msg) {
-		mu.Lock()
-		defer mu.Unlock()
-
-		var b bytes.Buffer
-		json.Indent(&b, m.Data, "", "   ")
-
-		resp = append(resp, b.Bytes())
-		ctr++
-
-		if ctr == c.waitFor {
-			cancel()
-		}
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	sub.AutoUnsubscribe(int(c.waitFor))
-
-	err = nc.PublishRequest(subj, sub.Subject, jreq)
-	if err != nil {
-		return nil, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions: %s", err)
-	}
-
-	<-ctx.Done()
-
-	return resp, nil
+	return doReq(req, fmt.Sprintf("$SYS.REQ.SERVER.PING.%s", kind), int(c.waitFor), nc)
 }
