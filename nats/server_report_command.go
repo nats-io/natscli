@@ -473,7 +473,7 @@ func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
 	for _, info := range report {
 		name := info.Name
 		if len(info.Name) > 30 {
-			name = info.Name[:30] + "..."
+			name = info.Name[:30] + " .."
 		}
 
 		oMsgs += info.OutMsgs
@@ -487,7 +487,7 @@ func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
 
 		acc := info.Account
 		if len(info.Account) > 46 {
-			acc = info.Account[0:10] + ".." + info.Account[46:]
+			acc = info.Account[0:20] + " .."
 		}
 
 		table.AddRow(info.Cid, name, srvName, cluster, info.IP, acc, info.Uptime, humanize.Comma(info.InMsgs), humanize.Comma(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), len(info.Subs))
@@ -664,13 +664,6 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 }
 
 func (c *SrvReportCmd) doReq(req interface{}, subj string, nc *nats.Conn) ([][]byte, error) {
-	if c.waitFor <= 0 {
-		wf, err := determineServerTopology(nc)
-		if err == nil {
-			c.waitFor = int(wf)
-		}
-	}
-
 	return doReq(req, subj, c.waitFor, nc)
 }
 
