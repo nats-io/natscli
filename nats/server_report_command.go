@@ -83,7 +83,7 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 	}
 
 	req := &server.JszEventOptions{JSzOptions: server.JSzOptions{Account: c.account}, EventFilterOptions: c.reqFilter()}
-	res, err := c.doReq(req, "$SYS.REQ.SERVER.PING.JSZ", nc)
+	res, err := doReq(req, "$SYS.REQ.SERVER.PING.JSZ", c.waitFor, nc)
 	if err != nil {
 		return err
 	}
@@ -570,7 +570,7 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		},
 		EventFilterOptions: c.reqFilter(),
 	}
-	res, err := c.doReq(req, "$SYS.REQ.SERVER.PING.CONNZ", nc)
+	res, err := doReq(req, "$SYS.REQ.SERVER.PING.CONNZ", c.waitFor, nc)
 	if err != nil {
 		return nil, err
 	}
@@ -595,11 +595,10 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		}
 	}
 
-	c.waitFor = 1
-
 	if len(incomplete) > 0 && !c.json {
 		fmt.Print("Gathering paged connection information")
 	}
+
 	for {
 		if len(incomplete) == 0 {
 			break
@@ -626,7 +625,7 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 				EventFilterOptions: c.reqFilter(),
 			}
 
-			res, err := c.doReq(req, fmt.Sprintf("$SYS.REQ.SERVER.%s.CONNZ", conn.Connz.ID), nc)
+			res, err := doReq(req, fmt.Sprintf("$SYS.REQ.SERVER.%s.CONNZ", conn.Connz.ID), 1, nc)
 			if err == nats.ErrNoResponders {
 				return nil, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
 			} else if err != nil {
@@ -661,10 +660,6 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 	}
 
 	return result, nil
-}
-
-func (c *SrvReportCmd) doReq(req interface{}, subj string, nc *nats.Conn) ([][]byte, error) {
-	return doReq(req, subj, c.waitFor, nc)
 }
 
 func (c *SrvReportCmd) reqFilter() server.EventFilterOptions {
