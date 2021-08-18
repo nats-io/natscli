@@ -472,8 +472,8 @@ func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
 
 	for _, info := range report {
 		name := info.Name
-		if len(info.Name) > 30 {
-			name = info.Name[:30] + " .."
+		if len(info.Name) > 40 {
+			name = info.Name[:40] + " .."
 		}
 
 		oMsgs += info.OutMsgs
@@ -487,7 +487,7 @@ func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
 
 		acc := info.Account
 		if len(info.Account) > 46 {
-			acc = info.Account[0:10] + " .."
+			acc = info.Account[0:12] + " .."
 		}
 
 		table.AddRow(info.Cid, name, srvName, cluster, info.IP, acc, info.Uptime, humanize.Comma(info.InMsgs), humanize.Comma(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), len(info.Subs))
