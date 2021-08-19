@@ -36,6 +36,7 @@ type SrvReportCmd struct {
 	topk    int
 	reverse bool
 	compact bool
+	subject string
 }
 
 type srvReportAccountInfo struct {
@@ -62,6 +63,7 @@ func configureServerReportCommand(srv *kingpin.CmdClause) {
 	conns.Flag("account", "Limit report to a specific account").StringVar(&c.account)
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
+	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
 
 	acct := report.Command("accounts", "Report on account activity").Alias("acct").Action(c.reportAccount)
 	acct.Arg("account", "Account to produce a report for").StringVar(&c.account)
@@ -490,7 +492,12 @@ func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
 			acc = info.Account[0:12] + " .."
 		}
 
-		table.AddRow(info.Cid, name, srvName, cluster, info.IP, acc, info.Uptime, humanize.Comma(info.InMsgs), humanize.Comma(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), len(info.Subs))
+		cid := fmt.Sprintf("%d", info.Cid)
+		if info.Kind != "Client" {
+			cid = fmt.Sprintf("%s%d", string(info.Kind[0]), info.Cid)
+		}
+
+		table.AddRow(cid, name, srvName, cluster, info.IP, acc, info.Uptime, humanize.Comma(info.InMsgs), humanize.Comma(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), len(info.Subs))
 	}
 
 	if len(report) > 1 {
@@ -567,6 +574,7 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 			SubscriptionsDetail: false,
 			Username:            true,
 			Account:             c.account,
+			FilterSubject:       c.subject,
 		},
 		EventFilterOptions: c.reqFilter(),
 	}

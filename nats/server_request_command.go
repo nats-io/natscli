@@ -45,6 +45,7 @@ type SrvRequestCmd struct {
 	stateFilter   string
 	userFilter    string
 	accountFilter string
+	subjectFilter string
 	nameFilter    string
 }
 
@@ -75,6 +76,7 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	connz.Flag("filter-state", "Filter on a specific account state (open, closed, all)").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
 	connz.Flag("filter-user", "Filter on a specific username").StringVar(&c.userFilter)
 	connz.Flag("filter-account", "Filter on a specific account").StringVar(&c.accountFilter)
+	connz.Flag("filter-subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subjectFilter)
 
 	routez := req.Command("routes", "Show route details").Alias("route").Alias("routez").Action(c.routez)
 	routez.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
@@ -266,6 +268,7 @@ func (c *SrvRequestCmd) conns(_ *kingpin.ParseContext) error {
 			CID:                 c.cidFilter,
 			User:                c.userFilter,
 			Account:             c.accountFilter,
+			FilterSubject:       c.subjectFilter,
 		},
 		EventFilterOptions: c.reqFilter(),
 	}
