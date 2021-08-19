@@ -23,8 +23,9 @@ import (
 )
 
 type actCmd struct {
-	sort string
-	topk int
+	sort    string
+	subject string
+	topk    int
 }
 
 func configureActCommand(app *kingpin.Application) {
@@ -36,6 +37,7 @@ func configureActCommand(app *kingpin.Application) {
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnectionsAction)
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
+	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
 
 	cheats["account"] = `# To view account information and connection
 nats account info
@@ -49,8 +51,9 @@ nats account report connections
 
 func (c *actCmd) reportConnectionsAction(pc *kingpin.ParseContext) error {
 	cmd := SrvReportCmd{
-		topk: c.topk,
-		sort: c.sort,
+		topk:    c.topk,
+		sort:    c.sort,
+		subject: c.subject,
 	}
 
 	return cmd.reportConnections(pc)
