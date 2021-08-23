@@ -1,4 +1,4 @@
-## The NATS Command Line Interface 
+## The NATS Command Line Interface
 
 A command line utility to interact with and manage NATS.
 
@@ -7,14 +7,14 @@ and support full JetStream management.
 
 ### Features
 
- * JetStream management
- * JetStream data and configuration backup
- * Message publish and subscribe
- * Service requests and creation
- * Benchmarking and Latency testing
- * Super Cluster observation
- * Configuration context maintenance
- * NATS eco system schema registry
+* JetStream management
+* JetStream data and configuration backup
+* Message publish and subscribe
+* Service requests and creation
+* Benchmarking and Latency testing
+* Super Cluster observation
+* Configuration context maintenance
+* NATS eco system schema registry
 
 ### Installation
 
@@ -82,7 +82,7 @@ The `nats` CLI can publish messages and subscribe to subjects.
 #### Basic Behaviours
 
 We will subscribe to the `cli.demo` subject:
- 
+
 ```
 $ nats sub cli.demo 
 12:30:25 Subscribing on cli.demo
@@ -243,30 +243,62 @@ $ nats bench test --msgs=10000000 --pub 5 --sub 2
   min 1,523,030 | avg 1,523,030 | max 1,523,030 | stddev 0 msgs
 ```
 
-JetStream testing can be done by adding the `--ack` flag which will publish messages and wait for acknowledgements
-from JetStream that a message was successfully saved. Without the `--ack` publishing to a JetStream subject would
-just send the messages as fast as possible.
+JetStream testing can be done by adding the `--js` flag. You can for example measure first the speed of publishing into a stream
 
 ```
-$ nats bench js.in.bench --msgs=100000 --pub 5 --ack                                                                                                                                                                                                                                                                                                                                                       <13:06:00
-13:07:52 Starting benchmark [msgs=100,000, msgsize=128 B, pubs=5, subs=0]
-13:07:52 Disabling progress bars in request mode
-13:07:52 Starting publisher, publishing 20,000 messages
-13:07:52 Starting publisher, publishing 20,000 messages
-13:07:52 Starting publisher, publishing 20,000 messages
-13:07:52 Starting publisher, publishing 20,000 messages
-13:07:52 Starting publisher, publishing 20,000 messages
+$ nats bench js.bench --js --pub 1 --no-delete --no-purge
+14:54:44 Starting benchmark [msgs=100,000, msgsize=128 B, pubs=1, subs=0, js=true, storage=memory, syncpub=false, pubbatch=100, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, nopurge=true, nodelete=true]
+   0s [==========================================================] 100%
 
-Pub stats: 55,290 msgs/sec ~ 6.75 MB/sec
- [1] 11,092 msgs/sec ~ 1.35 MB/sec (20000 msgs)
- [2] 11,086 msgs/sec ~ 1.35 MB/sec (20000 msgs)
- [3] 11,073 msgs/sec ~ 1.35 MB/sec (20000 msgs)
- [4] 11,066 msgs/sec ~ 1.35 MB/sec (20000 msgs)
- [5] 11,067 msgs/sec ~ 1.35 MB/sec (20000 msgs)
- min 11,066 | avg 11,076 | max 11,092 | stddev 10 msgs
+Pub stats: 299,196 msgs/sec ~ 36.52 MB/sec
+```
+And then you can for example measure the speed of receiving (i.e. replay) the messages from the stream
+```
+$ nats bench js.bench --js --sub 1 --no-delete --no-purge
+14:54:51 Starting benchmark [msgs=100,000, msgsize=128 B, pubs=0, subs=1, js=true, storage=memory, syncpub=false, pubbatch=100, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, nopurge=true, nodelete=true]
+14:54:51 Starting subscriber, expecting 100,000 messages
+
+Sub stats: 840,742 msgs/sec ~ 102.63 MB/sec
 ```
 
-There are numerous other flags that can be set to configure size of messages, number of workers and more, see `nats bench --help`.
+Similarily you can benchmark synchronous request/reply type of interactions using the `--request` and `--reply` flags. For example you can first start one (or more) replier(s)
+
+```
+$ nats bench test --sub 2 --reply
+```
+
+And then run a benchmark with one (or more) synchronous requester(s)
+
+```
+$ nats bench test --pub 10 --request 
+15:11:15 Starting benchmark [msgs=100,000, msgsize=128 B, pubs=10, subs=0, js=false, storage=memory, syncpub=false, pubbatch=100, pull=false, pullbatch=100, request=true, reply=false, noqueue=false, maxackpending=-1, replicas=1, nopurge=false, nodelete=false]
+15:11:15 Benchmark in request/reply mode
+   2s [==========================================================] 100%
+   2s [==========================================================] 100%
+   2s [==========================================================] 100%
+   2s [==========================================================] 100%
+   2s [==========================================================] 100%
+   2s [==========================================================] 100%
+   2s [==========================================================] 100%
+   2s [==========================================================] 100%
+   2s [==========================================================] 100%
+   2s [==========================================================] 100%
+
+Pub stats: 38,341 msgs/sec ~ 4.68 MB/sec
+ [1] 3,861 msgs/sec ~ 482.66 KB/sec (10000 msgs)
+ [2] 3,857 msgs/sec ~ 482.20 KB/sec (10000 msgs)
+ [3] 3,851 msgs/sec ~ 481.46 KB/sec (10000 msgs)
+ [4] 3,845 msgs/sec ~ 480.73 KB/sec (10000 msgs)
+ [5] 3,847 msgs/sec ~ 480.94 KB/sec (10000 msgs)
+ [6] 3,843 msgs/sec ~ 480.44 KB/sec (10000 msgs)
+ [7] 3,846 msgs/sec ~ 480.78 KB/sec (10000 msgs)
+ [8] 3,842 msgs/sec ~ 480.28 KB/sec (10000 msgs)
+ [9] 3,839 msgs/sec ~ 479.92 KB/sec (10000 msgs)
+ [10] 3,839 msgs/sec ~ 479.96 KB/sec (10000 msgs)
+ min 3,839 | avg 3,847 | max 3,861 | stddev 6 msgs
+```
+
+There are numerous other flags that can be set to configure size of messages, using push or pull JetStream consumers and much more, see `nats bench --help`.
 
 ### Latency
 
@@ -364,7 +396,7 @@ Here one can see a client connected and disconnected shortly after, several othe
 If an account is running JetStream the `nats event` tool can also be used to look at JetStream advisories by passing
 `--js-metric --js-advisory`
 
-These events are JSON messages and can be viewed raw using `--json` or in Cloud Events format with `--cloudevent`, 
+These events are JSON messages and can be viewed raw using `--json` or in Cloud Events format with `--cloudevent`,
 finally a short version of the messages can be shown:
 
 ```
@@ -487,10 +519,10 @@ Super Cluster:
                   c3
 ```
 
-Additional to this various reports can be generated using `nats server report`, this allows one to list all connections and 
+Additional to this various reports can be generated using `nats server report`, this allows one to list all connections and
 subscriptions across the entire cluster with filtering to limit the results by account etc.
 
-Additional raw information in JSON format can be retrieved using the `nats server request` commands. 
+Additional raw information in JSON format can be retrieved using the `nats server request` commands.
 
 ### Schema Registry
 
