@@ -65,26 +65,26 @@ func configureBenchCommand(app *kingpin.Application) {
 	bench.Flag("msgs", "Number of messages to publish").Default("100000").IntVar(&c.numMsg)
 	bench.Flag("size", "Size of the test messages").Default("128").IntVar(&c.msgSize)
 	bench.Flag("csv", "Save benchmark data to CSV file").StringVar(&c.csvFile)
-	bench.Flag("noprogress", "Disable progress bar while publishing").Default("false").BoolVar(&c.noProgress)
+	bench.Flag("no-progress", "Disable progress bar while publishing").Default("false").BoolVar(&c.noProgress)
 	bench.Flag("syncpub", "Synchronously publish to the stream").Default("false").BoolVar(&c.syncPub)
 	bench.Flag("request", "Request/Reply mode: publishers send requests waits for a reply").Default("false").BoolVar(&c.request)
 	bench.Flag("reply", "Request/Reply mode: subscribers send replies").Default("false").BoolVar(&c.reply)
-	bench.Flag("noqueue", "Request/Reply mode: repliers do not join a queue group ").Default("false").BoolVar(&c.noQueueGroup)
+	bench.Flag("no-queue", "Request/Reply mode: repliers do not join a queue group ").Default("false").BoolVar(&c.noQueueGroup)
 	bench.Flag("js", "Use JetStream streaming").Default("false").BoolVar(&c.js)
 	bench.Flag("pubbatch", "Sets the batch size for JS asynchronous publishing").Default("100").IntVar(&c.pubBatch)
 	bench.Flag("storage", "JetStream storage (memory/file)").Default("memory").StringVar(&c.storage)
 	bench.Flag("pull", "Uses a JetStream pull consumer rather than an ordered push consumer").Default("false").BoolVar(&c.pull)
 	bench.Flag("pullbatch", "Sets the batch size for the JS pull consumer").Default("100").IntVar(&c.pullBatch)
 	bench.Flag("replicas", "Number of stream replicas").Default("1").IntVar(&c.replicas)
-	bench.Flag("nopurge", "Do not purge the stream before running").Default("false").BoolVar(&c.noPurge)
-	bench.Flag("nodelete", "Do not delete the stream at the end of the run").Default("false").BoolVar(&c.noDeleteStream)
+	bench.Flag("no-purge", "Do not purge the stream before running").Default("false").BoolVar(&c.noPurge)
+	bench.Flag("no-delete", "Do not delete the stream at the end of the run").Default("false").BoolVar(&c.noDeleteStream)
 	bench.Flag("maxackpending", "Max acks pending for JS consumer").Default("-1").IntVar(&c.maxAckPending)
 
 	cheats["bench"] = `# benchmark core nats publish and subscribe with 10 publishers and subscribers
 nats bench testsubject --pub 10 --sub 10 --msgs 10000 --size 512
 
 # benchmark core nats request/reply without subscribers using a queue
-nats bench testsubject --pub 1 --sub 1 --msgs 10000 --noqueue
+nats bench testsubject --pub 1 --sub 1 --msgs 10000 --no-queue
 
 # benchmark core nats request/reply with queuing
 nats bench testsubject --sub 4 --reply
@@ -93,18 +93,17 @@ nats bench testsubject --pub 4 --request --msgs 20000
 # benchmark JetStream acknowledged publishes
 nats bench testsubject --js --syncpub --pub 10  --msgs 10000
 
-
 # benchmark JS publish and push consumers at the same time
 nats bench testsubject --pub 4 --sub 4 --js
 
 # benchmark JS stream purge and async batched publish into the stream
-nats bench testsubject --pub 4 --js --nodelete 
+nats bench testsubject --pub 4 --js --no-delete 
 
 # benchmark JS stream do not purge and get replay from the stream using a push consumer
-nats bench testsubject --sub 4 --js --nodelete --nopurge
+nats bench testsubject --sub 4 --js --no-delete --no-purge
 
 # benchmark JS stream do not purge and get replay from the stream using a pull consumer
-nats bench testsubject --sub 4 --js --nodelete --nopurge --pull
+nats bench testsubject --sub 4 --js --no-delete --no-purge --pull
 `
 }
 
@@ -120,7 +119,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	}
 
 	if c.js && c.maxAckPending != -1 && c.maxAckPending < c.numMsg && c.numSubs > 0 {
-		log.Printf("WARNING: max acks pending is smaller than the mumber of messages and the subscribers are not set to ack, use --ack or you run the risk of the consumers not receiving all the messages")
+		log.Fatalf("max acks pending is smaller than the mumber of messages and the subscribers are not set to ack, use --ack or you run the risk of the consumers not receiving all the messages")
 	}
 
 	bm := bench.NewBenchmark("NATS", c.numSubs, c.numPubs)
@@ -131,7 +130,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	var js nats.JetStreamContext
 
 	if (c.request || c.reply) && c.js {
-		log.Fatalf("Request/Reply mode is not applicable to streams")
+		log.Fatalf("Request/Reply mode is not applicable to JetStream benchmarking")
 	} else if !c.js {
 		if c.request || c.reply {
 			log.Printf("Benchmark in request/reply mode")
@@ -148,8 +147,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		// create the stream for the benchmark (and purge it)
 		nc, err := nats.Connect(config.ServerURL(), natsOpts()...)
 		if err != nil {
-			log.Fatalf("NATS connection failed: %s", err)
-			return err
+			log.Fatalf("nats connection failed: %s", err)
 		}
 
 		js, err = nc.JetStream()
@@ -159,8 +157,11 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 
 		// First delete any prior stream unless no delete
 		if !c.noDeleteStream {
-			log.Printf("Deleting any existing stream")
-			js.DeleteStream(JS_STREAM_NAME)
+			log.Printf("Deleting any existing %s stream", JS_STREAM_NAME)
+			err = js.DeleteStream(JS_STREAM_NAME)
+			if err != nil && err != nats.ErrStreamNotFound {
+				log.Fatalf("Couldn't delete stream %s: %v", JS_STREAM_NAME, err)
+			}
 		}
 
 		storageType := func() nats.StorageType {
@@ -184,7 +185,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		}
 
 		if !c.noDeleteStream {
-			log.Printf("Will delete the stream at the end of the run")
+			log.Printf("Will delete the stream %s at the end of the run", JS_STREAM_NAME)
 			defer js.DeleteStream(JS_STREAM_NAME)
 		}
 
@@ -205,7 +206,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	for i := 0; i < c.numSubs; i++ {
 		nc, err := nats.Connect(config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("NATS connection %d failed: %s", i, err)
+			return fmt.Errorf("nats connection %d failed: %s", i, err)
 		}
 		defer nc.Close()
 
@@ -229,7 +230,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	for i := 0; i < c.numPubs; i++ {
 		nc, err := nats.Connect(config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("NATS connection %d failed: %s", i, err)
+			return fmt.Errorf("nats connection %d failed: %s", i, err)
 		}
 		defer nc.Close()
 
@@ -263,6 +264,72 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 
 	return nil
 }
+func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int) {
+
+	var m *nats.Msg
+	var err error
+
+	errBytes := []byte("error")
+	minusByte := byte('-')
+
+	for i := 0; i < numMsg; i++ {
+		if progress != nil {
+			progress.Incr()
+		}
+
+		if !c.request {
+			err = nc.Publish(c.subject, msg)
+			if err != nil {
+				log.Fatalf("Publish error: %s", err)
+			}
+		} else {
+			m, err = nc.Request(c.subject, msg, time.Second)
+			if err != nil {
+				log.Fatalf("Request error: %s", err)
+			}
+
+			if len(m.Data) == 0 || m.Data[0] == minusByte || bytes.Contains(m.Data, errBytes) {
+				log.Fatalf("Publish Request did not receive a positive ACK: %q", m.Data)
+			}
+		}
+	}
+}
+
+func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int) {
+	js, err := nc.JetStream()
+	if err != nil {
+		log.Fatalf("Couldn't create jetstream context: %v", err)
+	}
+
+	if !c.syncPub {
+		for i := 0; i < numMsg; i += c.pubBatch {
+			for j := 0; j < c.pubBatch && i+j < c.numMsg; j++ {
+				if progress != nil {
+					progress.Incr()
+				}
+				js.PublishAsync(c.subject, msg)
+				if err != nil {
+					log.Fatalf("PubAsync error: %v", err)
+				}
+			}
+			select {
+			case <-js.PublishAsyncComplete():
+			case <-time.After(time.Second):
+				log.Fatalf("JS PubAsync did not receive a positive ack")
+			}
+		}
+	} else {
+		for i := 0; i < numMsg; i++ {
+			if progress != nil {
+				progress.Incr()
+			}
+			_, err = js.Publish(c.subject, msg)
+			if err != nil {
+				log.Fatalf("Publish error: %s", err)
+			}
+		}
+	}
+}
 
 func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int) {
 	startwg.Done()
@@ -283,68 +350,9 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 	start := time.Now()
 
 	if !c.js {
-
-		var m *nats.Msg
-		var err error
-
-		errBytes := []byte("error")
-		minusByte := byte('-')
-
-		for i := 0; i < numMsg; i++ {
-			if progress != nil {
-				progress.Incr()
-			}
-
-			if !c.request {
-				err = nc.Publish(c.subject, msg)
-				if err != nil {
-					log.Fatalf("Publish error: %s", err)
-				}
-			} else {
-				m, err = nc.Request(c.subject, msg, time.Second)
-				if err != nil {
-					log.Fatalf("Request error: %s", err)
-				}
-
-				if len(m.Data) == 0 || m.Data[0] == minusByte || bytes.Contains(m.Data, errBytes) {
-					log.Fatalf("Publish Request did not receive a positive ACK: %q", m.Data)
-				}
-			}
-		}
+		coreNATSPublisher(*c, nc, progress, msg, numMsg)
 	} else {
-		js, err := nc.JetStream()
-		if err != nil {
-			log.Fatalf("Couldn't create jetstream context: %v", err)
-		}
-
-		if !c.syncPub {
-			for i := 0; i < numMsg; i += c.pubBatch {
-				for j := 0; j < c.pubBatch && i+j < c.numMsg; j++ {
-					if progress != nil {
-						progress.Incr()
-					}
-					js.PublishAsync(c.subject, msg)
-					if err != nil {
-						log.Fatalf("PubAsync error: %v", err)
-					}
-				}
-				select {
-				case <-js.PublishAsyncComplete():
-				case <-time.After(time.Second):
-					log.Fatalf("JS PubAsync did not receive a positive ack")
-				}
-			}
-		} else {
-			for i := 0; i < numMsg; i++ {
-				if progress != nil {
-					progress.Incr()
-				}
-				_, err = js.Publish(c.subject, msg)
-				if err != nil {
-					log.Fatalf("Publish error: %s", err)
-				}
-			}
-		}
+		jsPublisher(*c, nc, progress, msg, numMsg)
 	}
 
 	nc.Flush()
