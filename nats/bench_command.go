@@ -178,27 +178,47 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 			}
 		}()
 
-		js.AddStream(&nats.StreamConfig{Name: JS_STREAM_NAME, Subjects: []string{c.subject}, Retention: nats.LimitsPolicy, MaxConsumers: -1, MaxMsgs: -1, MaxBytes: -1, Discard: nats.DiscardOld, MaxAge: 9223372036854775807, MaxMsgsPerSubject: -1, MaxMsgSize: -1, Storage: storageType, Replicas: c.replicas, Duplicates: time.Second * 2})
+		_, err = js.AddStream(&nats.StreamConfig{Name: JS_STREAM_NAME, Subjects: []string{c.subject}, Retention: nats.LimitsPolicy, MaxConsumers: -1, MaxMsgs: -1, MaxBytes: -1, Discard: nats.DiscardOld, MaxAge: 9223372036854775807, MaxMsgsPerSubject: -1, MaxMsgSize: -1, Storage: storageType, Replicas: c.replicas, Duplicates: time.Second * 2})
+		if err != nil {
+			log.Fatalf("error creating the stream %s: %v", JS_STREAM_NAME, err)
+		}
+
 		if !c.noPurge {
 			log.Printf("Purging the stream")
-			js.PurgeStream(JS_STREAM_NAME)
+			err = js.PurgeStream(JS_STREAM_NAME)
+			if err != nil {
+				log.Fatalf("error purging stream %s: %v", JS_STREAM_NAME, err)
+			}
 		}
 
 		if !c.noDeleteStream {
 			log.Printf("Will delete the stream %s at the end of the run", JS_STREAM_NAME)
-			defer js.DeleteStream(JS_STREAM_NAME)
+			defer func() {
+				err := js.DeleteStream(JS_STREAM_NAME)
+				if err != nil {
+					log.Printf("error deleting the stream %s: %v", JS_STREAM_NAME, err)
+				}
+			}()
 		}
 
 		// create the pull consumer
 		if c.pull && c.numSubs > 0 {
-			js.AddConsumer(JS_STREAM_NAME, &nats.ConsumerConfig{
+			_, err = js.AddConsumer(JS_STREAM_NAME, &nats.ConsumerConfig{
 				Durable:       JS_PULLCONSUMER_NAME,
 				DeliverPolicy: nats.DeliverAllPolicy,
 				AckPolicy:     nats.AckExplicitPolicy,
 				ReplayPolicy:  nats.ReplayInstantPolicy,
 				MaxAckPending: c.maxAckPending,
 			})
-			defer js.DeleteConsumer(JS_STREAM_NAME, JS_PULLCONSUMER_NAME)
+			if err != nil {
+				log.Fatalf("error creating the pull consumer: %v", err)
+			}
+			defer func() {
+				err := js.DeleteConsumer(JS_STREAM_NAME, JS_PULLCONSUMER_NAME)
+				if err != nil {
+					log.Printf("error deleting the pull consumer on stream %s: %v", JS_STREAM_NAME, err)
+				}
+			}()
 		}
 	}
 	subCounts := bench.MsgsPerClient(c.numMsg, c.numSubs)
@@ -258,7 +278,10 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 
 	if c.csvFile != "" {
 		csv := bm.CSV()
-		ioutil.WriteFile(c.csvFile, []byte(csv), 0644)
+		err := ioutil.WriteFile(c.csvFile, []byte(csv), 0644)
+		if err != nil {
+			log.Printf("error writing file %s: %v", c.csvFile, err)
+		}
 		fmt.Printf("Saved metric data in csv file %s\n", c.csvFile)
 	}
 
@@ -307,7 +330,7 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 				if progress != nil {
 					progress.Incr()
 				}
-				js.PublishAsync(c.subject, msg)
+				_, err = js.PublishAsync(c.subject, msg)
 				if err != nil {
 					log.Fatalf("PubAsync error: %v", err)
 				}
@@ -369,7 +392,10 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 	mh := func(msg *nats.Msg) {
 		received++
 		if c.reply {
-			msg.Ack()
+			err := msg.Ack()
+			if err != nil {
+				log.Fatalf("error sending a reply message: %v", err)
+			}
 		}
 		if received == 1 {
 			ch <- time.Now()
@@ -424,7 +450,10 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 		}
 	}
 
-	sub.SetPendingLimits(-1, -1)
+	err = sub.SetPendingLimits(-1, -1)
+	if err != nil {
+		log.Fatalf("error setting pending limits on the subscriber: %v", err)
+	}
 	nc.Flush()
 	startwg.Done()
 
