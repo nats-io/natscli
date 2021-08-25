@@ -18,6 +18,7 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
+	github.com/klauspost/compress v1.12.1
 	github.com/nats-io/jsm.go v0.0.26-0.20210816074939-52c3ab03eb9f
 	github.com/nats-io/nats-server/v2 v2.3.5-0.20210815194728-bf8fdf132077
 	github.com/nats-io/nats.go v1.11.1-0.20210813172934-9c00d13a8a19
