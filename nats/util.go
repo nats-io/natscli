@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/klauspost/compress/s2"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
@@ -789,15 +791,32 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 		mu.Lock()
 		defer mu.Unlock()
 
-		if finisher != nil {
-			finisher.Reset(300 * time.Millisecond)
+		data := m.Data
+		compressed := false
+		if m.Header.Get("Content-Encoding") == "snappy" {
+			compressed = true
+			ud, err := ioutil.ReadAll(s2.NewReader(bytes.NewBuffer(data)))
+			if err != nil {
+				errs <- err
+				return
+			}
+			data = ud
 		}
 
 		if trace {
-			log.Printf("<<< (%dB) %s", len(m.Data), string(m.Data))
+			if compressed {
+				log.Printf("<<< (%dB -> %dB) %s", len(m.Data), len(data), string(data))
+			} else {
+				log.Printf("<<< (%dB) %s", len(data), string(data))
+			}
+
 			if m.Header != nil {
 				log.Printf("<<< Header: %+v", m.Header)
 			}
+		}
+
+		if finisher != nil {
+			finisher.Reset(300 * time.Millisecond)
 		}
 
 		if m.Header.Get("Status") == "503" {
@@ -805,7 +824,7 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 			return
 		}
 
-		resp = append(resp, m.Data)
+		resp = append(resp, data)
 		ctr++
 
 		if waitFor > 0 && ctr == waitFor {
@@ -821,7 +840,12 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 		sub.AutoUnsubscribe(waitFor)
 	}
 
-	err = nc.PublishRequest(subj, sub.Subject, jreq)
+	msg := nats.NewMsg(subj)
+	msg.Data = jreq
+	msg.Header.Set("Accept-Encoding", "snappy")
+	msg.Reply = sub.Subject
+
+	err = nc.PublishMsg(msg)
 	if err != nil {
 		return nil, err
 	}
