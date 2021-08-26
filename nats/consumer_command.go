@@ -61,6 +61,7 @@ type consumerCmd struct {
 	maxWaiting          int
 	deliveryGroup       string
 	pull                bool
+	pullCount           int
 	replayPolicy        string
 	reportLeaderDistrib bool
 	samplePct           int
@@ -127,6 +128,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consNext.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
 	consNext.Flag("wait", "Wait up to this period to acknowledge messages").DurationVar(&c.ackWait)
+	consNext.Flag("count", "Number of messages to try to fetch from the pull consumer").Default("1").IntVar(&c.pullCount)
 
 	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
 	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -1036,7 +1038,15 @@ func (c *consumerCmd) subAction(_ *kingpin.ParseContext) error {
 func (c *consumerCmd) nextAction(_ *kingpin.ParseContext) error {
 	c.connectAndSetup(false, false, nats.UseOldRequestStyle())
 
-	return c.getNextMsgDirect(c.stream, c.consumer)
+	var err error
+
+	for i := 0; i < c.pullCount; i++ {
+		err = c.getNextMsgDirect(c.stream, c.consumer)
+		if err != nil {
+			break
+		}
+	}
+	return err
 }
 
 func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool, opts ...nats.Option) {
