@@ -239,22 +239,23 @@ func parseDurationString(dstr string) (dur time.Duration, err error) {
 // calculates progress bar width for uiprogress:
 //
 // if it cant figure out the width, assume 80
-// if the width is > 80, set to 80 - long progress bars feel weird
-// if the width is too small, set it to 20 and just live with the overflow
+// if the width is too small, set it to minWidth and just live with the overflow
 //
 // this ensures a reasonable progress size, ideally we should switch over
-// to a spinner for < 20 rather than cause overflows, but thats for later.
+// to a spinner for < minWidth rather than cause overflows, but thats for later.
 func progressWidth() int {
 	w, _, err := terminal.GetSize(int(os.Stdout.Fd()))
-	if err != nil || w > 80 {
-		w = 80
+	if err != nil {
+		return 80
 	}
 
-	if w-20 <= 20 {
-		return 20
-	}
+	minWidth := 10
 
-	return w - 20
+	if w-30 <= minWidth {
+		return minWidth
+	} else {
+		return w - 30
+	}
 }
 
 func selectPageSize(count int) int {
