@@ -13,16 +13,19 @@ require (
 	github.com/emicklei/dot v0.15.0
 	github.com/fatih/color v1.12.0
 	github.com/ghodss/yaml v1.0.0
+	github.com/golang/protobuf v1.4.3 // indirect
 	github.com/google/go-cmp v0.5.5
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.12.1
-	github.com/nats-io/jsm.go v0.0.26-0.20210816074939-52c3ab03eb9f
-	github.com/nats-io/nats-server/v2 v2.3.5-0.20210815194728-bf8fdf132077
-	github.com/nats-io/nats.go v1.11.1-0.20210813172934-9c00d13a8a19
+	github.com/klauspost/compress v1.13.4
+	github.com/nats-io/jsm.go v0.0.26-0.20210826084141-a9beedc06e05
+	github.com/nats-io/nats-server/v2 v2.3.5-0.20210825221009-41a253dabb43
+	github.com/nats-io/nats.go v1.12.0
 	github.com/nats-io/nuid v1.0.1
+	github.com/prometheus/client_golang v1.11.0 // indirect
+	github.com/prometheus/common v0.26.0 // indirect
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -30,7 +33,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
 	golang.org/x/term v0.0.0-20210422114643-f5beecf764ed
 	golang.org/x/text v0.3.6 // indirect
-	google.golang.org/protobuf v1.24.0 // indirect
+	google.golang.org/protobuf v1.26.0-rc.1 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

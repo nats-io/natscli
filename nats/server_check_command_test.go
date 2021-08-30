@@ -1,42 +1,13 @@
 package main
 
 import (
-	"sort"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 )
-
-func assertNoError(t *testing.T, err error) {
-	t.Helper()
-
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-func assertListIsEmpty(t *testing.T, list []string) {
-	t.Helper()
-
-	if len(list) > 0 {
-		t.Fatalf("invalid items: %v", list)
-	}
-}
-
-func assertListEquals(t *testing.T, list []string, crits ...string) {
-	t.Helper()
-
-	sort.Strings(list)
-	sort.Strings(crits)
-
-	if !cmp.Equal(list, crits) {
-		t.Fatalf("invalid items: %v", list)
-	}
-}
 
 func assertHasPDItem(t *testing.T, check *result, items ...string) {
 	t.Helper()
@@ -217,7 +188,7 @@ func TestCheckSources(t *testing.T) {
 		check := &result{}
 		assertNoError(t, cmd.checkSources(check, info))
 		assertListEquals(t, check.Criticals, "1 lagged sources")
-		assertHasPDItem(t, check, "sources=1;1;10 lagged=1 inactive=0")
+		assertHasPDItem(t, check, "sources=1;1;10", "sources_lagged=1", "sources_inactive=0")
 	})
 
 	t.Run("inactive source", func(t *testing.T) {
@@ -230,7 +201,7 @@ func TestCheckSources(t *testing.T) {
 		check := &result{}
 		assertNoError(t, cmd.checkSources(check, info))
 		assertListEquals(t, check.Criticals, "1 inactive sources")
-		assertHasPDItem(t, check, "sources=1;1;10 lagged=0 inactive=1")
+		assertHasPDItem(t, check, "sources=1;1;10", "sources_lagged=0", "sources_inactive=1")
 	})
 
 	t.Run("not enough sources", func(t *testing.T) {
@@ -245,7 +216,7 @@ func TestCheckSources(t *testing.T) {
 		check := &result{}
 		assertNoError(t, cmd.checkSources(check, info))
 		assertListEquals(t, check.Criticals, "1 sources of min expected 2")
-		assertHasPDItem(t, check, "sources=1;2;10 lagged=0 inactive=0")
+		assertHasPDItem(t, check, "sources=1;2;10", "sources_lagged=0", "sources_inactive=0")
 	})
 
 	t.Run("too many sources", func(t *testing.T) {
@@ -262,7 +233,7 @@ func TestCheckSources(t *testing.T) {
 		check := &result{}
 		assertNoError(t, cmd.checkSources(check, info))
 		assertListEquals(t, check.Criticals, "2 sources of max expected 1")
-		assertHasPDItem(t, check, "sources=2;1;1 lagged=0 inactive=0")
+		assertHasPDItem(t, check, "sources=2;1;1", "sources_lagged=0", "sources_inactive=0")
 	})
 }
 
@@ -524,7 +495,7 @@ func TestCheckJSZ(t *testing.T) {
 		check := &result{}
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListIsEmpty(t, check.Criticals)
-		assertHasPDItem(t, check, "peers=3;3;3 offline=0 not_current=0 inactive=0 lagged=0")
+		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=0", "peer_not_current=0", "peer_inactive=0", "peer_lagged=0")
 	})
 
 	t.Run("not current peer", func(t *testing.T) {
@@ -540,7 +511,7 @@ func TestCheckJSZ(t *testing.T) {
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListEquals(t, check.Criticals, "1 not current")
 		assertListIsEmpty(t, check.OKs)
-		assertHasPDItem(t, check, "peers=3;3;3 offline=0 not_current=1 inactive=0 lagged=0")
+		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=0", "peer_not_current=1", "peer_inactive=0", "peer_lagged=0")
 	})
 
 	t.Run("offline peer", func(t *testing.T) {
@@ -556,7 +527,7 @@ func TestCheckJSZ(t *testing.T) {
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListEquals(t, check.Criticals, "1 offline")
 		assertListIsEmpty(t, check.OKs)
-		assertHasPDItem(t, check, "peers=3;3;3 offline=1 not_current=0 inactive=0 lagged=0")
+		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=1", "peer_not_current=0", "peer_inactive=0", "peer_lagged=0")
 	})
 
 	t.Run("inactive peer", func(t *testing.T) {
@@ -572,7 +543,7 @@ func TestCheckJSZ(t *testing.T) {
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListEquals(t, check.Criticals, "1 inactive more than 1s")
 		assertListIsEmpty(t, check.OKs)
-		assertHasPDItem(t, check, "peers=3;3;3 offline=0 not_current=0 inactive=1 lagged=0")
+		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=0", "peer_not_current=0", "peer_inactive=1", "peer_lagged=0")
 	})
 
 	t.Run("lagged peer", func(t *testing.T) {
@@ -587,7 +558,7 @@ func TestCheckJSZ(t *testing.T) {
 		check := &result{}
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListEquals(t, check.Criticals, "1 lagged more than 10 ops")
-		assertHasPDItem(t, check, "peers=3;3;3 offline=0 not_current=0 inactive=0 lagged=1")
+		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=0", "peer_not_current=0", "peer_inactive=0", "peer_lagged=1")
 	})
 
 	t.Run("multiple errors", func(t *testing.T) {
@@ -603,7 +574,7 @@ func TestCheckJSZ(t *testing.T) {
 
 		check := &result{}
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
-		assertHasPDItem(t, check, "peers=5;3;3 offline=1 not_current=1 inactive=1 lagged=1")
+		assertHasPDItem(t, check, "peers=5;3;3", "peer_offline=1", "peer_not_current=1", "peer_inactive=1", "peer_lagged=1")
 		assertListEquals(t, check.Criticals, "5 peers of expected 3",
 			"1 not current",
 			"1 inactive more than 1s",

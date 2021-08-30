@@ -14,6 +14,7 @@
 package main
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -27,6 +28,33 @@ func checkErr(t *testing.T, err error, format string, a ...interface{}) {
 	}
 
 	t.Fatalf(format, a...)
+}
+
+func assertNoError(t *testing.T, err error) {
+	t.Helper()
+
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+func assertListIsEmpty(t *testing.T, list []string) {
+	t.Helper()
+
+	if len(list) > 0 {
+		t.Fatalf("invalid items: %v", list)
+	}
+}
+
+func assertListEquals(t *testing.T, list []string, crits ...string) {
+	t.Helper()
+
+	sort.Strings(list)
+	sort.Strings(crits)
+
+	if !cmp.Equal(list, crits) {
+		t.Fatalf("invalid items: %v", list)
+	}
 }
 
 func TestSplitString(t *testing.T) {
