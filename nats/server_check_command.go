@@ -19,12 +19,15 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -88,7 +91,8 @@ func configureServerCheckCommand(srv *kingpin.CmdClause) {
    meta        - JetStream Meta Cluster health
 `
 	check := srv.Command("check", help)
-	check.Flag("format", "Render the check in a specific format").Default("nagios").EnumVar(&checkRenderFormat, "nagios", "json")
+	check.Flag("format", "Render the check in a specific format").Default("nagios").EnumVar(&checkRenderFormat, "nagios", "json", "prometheus")
+	check.Flag("outfile", "Save output to a file rather than STDOUT").StringVar(&checkRenderOutFile)
 
 	conn := check.Command("connection", "Checks basic server connection").Alias("conn").Default().Action(c.checkConnection)
 	conn.Flag("connect-warn", "Warning threshold to allow for establishing connections").Default("500ms").PlaceHolder("DURATION").DurationVar(&c.connectWarning)
@@ -151,6 +155,7 @@ type checkStatus string
 
 var (
 	checkRenderFormat              = "nagios"
+	checkRenderOutFile             = ""
 	okCheckStatus      checkStatus = "OK"
 	warnCheckStatus    checkStatus = "WARNING"
 	critCheckStatus    checkStatus = "CRITICAL"
@@ -160,7 +165,8 @@ var (
 type result struct {
 	Output    string      `json:"output,omitempty"`
 	Status    checkStatus `json:"status"`
-	Name      string      `json:"name"`
+	Check     string      `json:"check_suite"`
+	Name      string      `json:"check_name"`
 	Warnings  []string    `json:"warning,omitempty"`
 	Criticals []string    `json:"critical,omitempty"`
 	OKs       []string    `json:"ok,omitempty"`
@@ -170,28 +176,22 @@ type result struct {
 func (r *result) pd(pd ...*perfDataItem) {
 	r.PerfData = append(r.PerfData, pd...)
 }
-func (r *result) critical(exit bool, format string, a ...interface{}) {
+
+func (r *result) criticalExit(format string, a ...interface{}) {
+	r.critical(format, a...)
+	r.GenericExit()
+}
+
+func (r *result) critical(format string, a ...interface{}) {
 	r.Criticals = append(r.Criticals, fmt.Sprintf(format, a...))
-
-	if exit {
-		r.GenericExit()
-	}
 }
 
-func (r *result) warn(exit bool, format string, a ...interface{}) {
+func (r *result) warn(format string, a ...interface{}) {
 	r.Warnings = append(r.Warnings, fmt.Sprintf(format, a...))
-
-	if exit {
-		r.GenericExit()
-	}
 }
 
-func (r *result) ok(exit bool, format string, a ...interface{}) {
+func (r *result) ok(format string, a ...interface{}) {
 	r.OKs = append(r.OKs, fmt.Sprintf(format, a...))
-
-	if exit {
-		r.GenericExit()
-	}
 }
 
 func (r *result) criticalIfErr(err error, format string, a ...interface{}) bool {
@@ -199,21 +199,108 @@ func (r *result) criticalIfErr(err error, format string, a ...interface{}) bool 
 		return false
 	}
 
-	r.critical(true, format, a...)
+	r.criticalExit(format, a...)
 
 	return true
 }
 
-func (r *result) Exit() {
+func (r *result) exitCode() int {
+	if checkRenderFormat == "prometheus" {
+		return 0
+	}
+
 	switch r.Status {
 	case okCheckStatus:
-		os.Exit(0)
+		return 0
 	case warnCheckStatus:
-		os.Exit(1)
+		return 1
 	case critCheckStatus:
-		os.Exit(2)
+		return 2
 	default:
-		os.Exit(3)
+		return 3
+	}
+}
+
+func (r *result) Exit() {
+	os.Exit(r.exitCode())
+}
+
+func (r *result) renderPrometheus() string {
+	if r.Check == "" {
+		r.Check = r.Name
+	}
+
+	registry := prometheus.NewRegistry()
+	prometheus.DefaultRegisterer = registry
+	prometheus.DefaultGatherer = registry
+
+	sname := strings.ReplaceAll(r.Name, `"`, `.`)
+	for _, pd := range r.PerfData {
+		help := fmt.Sprintf("Data about the NATS CLI check %s", r.Check)
+		if pd.Help != "" {
+			help = pd.Help
+		}
+
+		gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: fmt.Sprintf("nats_server_check_%s_%s", r.Check, pd.Name),
+			Help: help,
+		}, []string{"item"})
+		prometheus.MustRegister(gauge)
+		gauge.WithLabelValues(sname).Set(pd.Value)
+	}
+
+	status := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: fmt.Sprintf("nats_server_check_%s_status_code", r.Check),
+		Help: fmt.Sprintf("Nagios compatible status code for %s", r.Check),
+	}, []string{"item", "status"})
+	prometheus.MustRegister(status)
+
+	status.WithLabelValues(sname, string(r.Status)).Set(float64(r.exitCode()))
+
+	var buf bytes.Buffer
+
+	mfs, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		panic(err)
+	}
+
+	for _, mf := range mfs {
+		_, err := expfmt.MetricFamilyToText(&buf, mf)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	return buf.String()
+}
+
+func (r *result) renderJSON() string {
+	res, _ := json.MarshalIndent(r, "", "  ")
+	return string(res)
+}
+
+func (r *result) renderNagios() string {
+	res := []string{r.Name}
+	for _, c := range r.Criticals {
+		res = append(res, fmt.Sprintf("Crit:%s", c))
+	}
+
+	for _, w := range r.Warnings {
+		res = append(res, fmt.Sprintf("Warn:%s", w))
+	}
+
+	if r.Output != "" {
+		res = append(res, r.Output)
+	} else if len(r.OKs) > 0 {
+		for _, ok := range r.OKs {
+			res = append(res, fmt.Sprintf("OK:%s", ok))
+		}
+	}
+
+	if len(r.PerfData) == 0 {
+		return fmt.Sprintf("%s %s", r.Status, strings.Join(res, " "))
+	} else {
+		return fmt.Sprintf("%s %s | %s", r.Status, strings.Join(res, " "), r.PerfData)
 	}
 }
 
@@ -234,42 +321,52 @@ func (r *result) String() string {
 		r.Status = okCheckStatus
 	}
 
-	if checkRenderFormat == "json" {
-		res, _ := json.MarshalIndent(r, "", "  ")
-		return string(res)
-	} else {
-		res := []string{r.Name}
-		for _, c := range r.Criticals {
-			res = append(res, fmt.Sprintf("Crit:%s", c))
-		}
-
-		for _, w := range r.Warnings {
-			res = append(res, fmt.Sprintf("Warn:%s", w))
-		}
-
-		if r.Output != "" {
-			res = append(res, r.Output)
-		} else if len(r.OKs) > 0 {
-			for _, ok := range r.OKs {
-				res = append(res, fmt.Sprintf("OK:%s", ok))
-			}
-		}
-
-		if len(r.PerfData) == 0 {
-			return fmt.Sprintf("%s %s", r.Status, strings.Join(res, " "))
-		} else {
-			return fmt.Sprintf("%s %s | %s", r.Status, strings.Join(res, " "), r.PerfData)
-		}
+	switch checkRenderFormat {
+	case "json":
+		return r.renderJSON()
+	case "prometheus":
+		return r.renderPrometheus()
+	default:
+		return r.renderNagios()
 	}
 }
 
 func (r *result) GenericExit() {
+	if checkRenderOutFile != "" {
+		f, err := os.CreateTemp(filepath.Dir(checkRenderOutFile), "")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "temp file failed: %s", err)
+			os.Exit(1)
+		}
+		defer os.Remove(f.Name())
+
+		_, err = fmt.Fprintln(f, r.String())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "temp file write failed: %s", err)
+			os.Exit(1)
+		}
+
+		err = f.Close()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "temp file write failed: %s", err)
+			os.Exit(1)
+		}
+
+		err = os.Rename(f.Name(), checkRenderOutFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "temp file rename failed: %s", err)
+		}
+
+		os.Exit(1)
+	}
+
 	fmt.Println(r.String())
 
 	r.Exit()
 }
 
 type perfDataItem struct {
+	Help  string  `json:"-"`
 	Name  string  `json:"name"`
 	Value float64 `json:"value"`
 	Warn  float64 `json:"warning"`
@@ -315,7 +412,7 @@ func (i *perfDataItem) String() string {
 }
 
 func (c *SrvCheckCmd) checkSrv(_ *kingpin.ParseContext) error {
-	check := &result{Name: c.srvName}
+	check := &result{Name: c.srvName, Check: "server"}
 	defer check.GenericExit()
 
 	vz, err := c.fetchVarz()
@@ -338,52 +435,52 @@ func (c *SrvCheckCmd) checkVarz(check *result, vz *server.Varz) error {
 
 	if c.srvJSRequired {
 		if vz.JetStream.Config == nil {
-			check.critical(false, "JetStream not enabled")
+			check.critical("JetStream not enabled")
 		} else {
-			check.ok(false, "JetStream enabled")
+			check.ok("JetStream enabled")
 		}
 	}
 
 	if c.srvTLSRequired {
 		if vz.TLSRequired {
-			check.ok(false, "TLS required")
+			check.ok("TLS required")
 		} else {
-			check.critical(false, "TLS not required")
+			check.critical("TLS not required")
 		}
 	}
 
 	if c.srvAuthRequire {
 		if vz.AuthRequired {
-			check.ok(false, "Authentication required")
+			check.ok("Authentication required")
 		} else {
-			check.critical(false, "Authentication not required")
+			check.critical("Authentication not required")
 		}
 	}
 
 	up := time.Since(vz.Start)
 	if c.srvUptimeWarn > 0 || c.srvUptimeCrit > 0 {
 		if c.srvUptimeCrit > c.srvUptimeWarn {
-			check.critical(false, "Up invalid thresholds")
+			check.critical("Up invalid thresholds")
 			return nil
 		}
 
 		if up <= c.srvUptimeCrit {
-			check.critical(false, "Up %s", humanizeDuration(up))
+			check.critical("Up %s", humanizeDuration(up))
 		} else if up <= c.srvUptimeWarn {
-			check.warn(false, "Up %s", humanizeDuration(up))
+			check.warn("Up %s", humanizeDuration(up))
 		} else {
-			check.ok(false, "Up %s", humanizeDuration(up))
+			check.ok("Up %s", humanizeDuration(up))
 		}
 	}
 
 	check.pd(
-		&perfDataItem{Name: "uptime", Value: up.Round(time.Second).Seconds(), Warn: c.srvUptimeWarn.Seconds(), Crit: c.srvUptimeCrit.Seconds(), Unit: "s"},
-		&perfDataItem{Name: "cpu", Value: vz.CPU, Warn: float64(c.srvCPUWarn), Crit: float64(c.srvCPUCrit), Unit: "%"},
-		&perfDataItem{Name: "mem", Value: float64(vz.Mem), Warn: float64(c.srvMemWarn), Crit: float64(c.srvMemCrit)},
-		&perfDataItem{Name: "connections", Value: float64(vz.Connections), Warn: float64(c.srvConnWarn), Crit: float64(c.srvConnCrit)},
-		&perfDataItem{Name: "routes", Value: float64(vz.Routes), Warn: float64(c.srvRouteWarn), Crit: float64(c.srvRouteCrit)},
-		&perfDataItem{Name: "gateways", Value: float64(vz.Remotes), Warn: float64(c.srvGwayWarn), Crit: float64(c.srvGwayCrit)},
-		&perfDataItem{Name: "subscriptions", Value: float64(vz.Subscriptions), Warn: float64(c.srvSubsWarn), Crit: float64(c.srvSubCrit)},
+		&perfDataItem{Name: "uptime", Value: up.Round(time.Second).Seconds(), Warn: c.srvUptimeWarn.Seconds(), Crit: c.srvUptimeCrit.Seconds(), Unit: "s", Help: "NATS Server uptime in seconds"},
+		&perfDataItem{Name: "cpu", Value: vz.CPU, Warn: float64(c.srvCPUWarn), Crit: float64(c.srvCPUCrit), Unit: "%", Help: "NATS Server CPU usage in percentage"},
+		&perfDataItem{Name: "mem", Value: float64(vz.Mem), Warn: float64(c.srvMemWarn), Crit: float64(c.srvMemCrit), Help: "NATS Server memory usage in bytes"},
+		&perfDataItem{Name: "connections", Value: float64(vz.Connections), Warn: float64(c.srvConnWarn), Crit: float64(c.srvConnCrit), Help: "Active connections"},
+		&perfDataItem{Name: "routes", Value: float64(vz.Routes), Warn: float64(c.srvRouteWarn), Crit: float64(c.srvRouteCrit), Help: "Active connected route connects"},
+		&perfDataItem{Name: "gateways", Value: float64(vz.Remotes), Warn: float64(c.srvGwayWarn), Crit: float64(c.srvGwayCrit), Help: "Active connected gateway connections"},
+		&perfDataItem{Name: "subscriptions", Value: float64(vz.Subscriptions), Warn: float64(c.srvSubsWarn), Crit: float64(c.srvSubCrit), Help: "Active subscriptions"},
 	)
 
 	checkVal := func(name string, crit float64, warn float64, value float64, r bool) {
@@ -392,25 +489,25 @@ func (c *SrvCheckCmd) checkVarz(check *result, vz *server.Varz) error {
 		}
 
 		if !r && crit < warn {
-			check.critical(false, "%s invalid thresholds", name)
+			check.critical("%s invalid thresholds", name)
 			return
 		}
 
 		if r && crit < warn {
 			if value <= crit {
-				check.critical(false, "%s %.2f", name, value)
+				check.critical("%s %.2f", name, value)
 			} else if value <= warn {
-				check.warn(false, "%s %.2f", name, value)
+				check.warn("%s %.2f", name, value)
 			} else {
-				check.ok(false, "%s %.2f", name, value)
+				check.ok("%s %.2f", name, value)
 			}
 		} else {
 			if value >= crit {
-				check.critical(false, "%s %.2f", name, value)
+				check.critical("%s %.2f", name, value)
 			} else if value >= warn {
-				check.warn(false, "%s %.2f", name, value)
+				check.warn("%s %.2f", name, value)
 			} else {
-				check.ok(false, "%s %.2f", name, value)
+				check.ok("%s %.2f", name, value)
 			}
 		}
 	}
@@ -477,7 +574,7 @@ func (c *SrvCheckCmd) fetchVarz() (*server.Varz, error) {
 }
 
 func (c *SrvCheckCmd) checkJS(_ *kingpin.ParseContext) error {
-	check := &result{Name: "JetStream"}
+	check := &result{Name: "JetStream", Check: "jetstream"}
 	defer check.GenericExit()
 
 	_, mgr, err := prepareHelper("", natsOpts()...)
@@ -503,32 +600,32 @@ func (c *SrvCheckCmd) checkAccountInfo(check *result, info *api.JetStreamAccount
 			pct = int(float64(current) / float64(max) * 100)
 		}
 
-		check.pd(&perfDataItem{Name: item, Value: float64(current), Unit: unit})
-
+		check.pd(&perfDataItem{Name: item, Value: float64(current), Unit: unit, Help: fmt.Sprintf("JetStream %s resource usage", item)})
 		check.pd(&perfDataItem{
 			Name:  fmt.Sprintf("%s_pct", item),
 			Value: float64(pct),
 			Unit:  "%",
 			Warn:  float64(warn),
 			Crit:  float64(crit),
+			Help:  fmt.Sprintf("JetStream %s resource usage in percent", item),
 		})
 
 		if warn != -1 && crit != -1 && warn >= crit {
-			check.critical(false, "%s: invalid thresholds", item)
+			check.critical("%s: invalid thresholds", item)
 			return
 		}
 
 		if pct > 100 {
-			check.critical(false, "%s: exceed server limits", item)
+			check.critical("%s: exceed server limits", item)
 			return
 		}
 
 		if warn >= 0 && crit >= 0 {
 			switch {
 			case pct > crit:
-				check.critical(false, "%d%% %s", pct, item)
+				check.critical("%d%% %s", pct, item)
 			case pct > warn:
-				check.warn(false, "%d%% %s", pct, item)
+				check.warn("%d%% %s", pct, item)
 			}
 		}
 	}
@@ -542,7 +639,7 @@ func (c *SrvCheckCmd) checkAccountInfo(check *result, info *api.JetStreamAccount
 }
 
 func (c *SrvCheckCmd) checkRaft(_ *kingpin.ParseContext) error {
-	check := &result{Name: "JetStream Cluster"}
+	check := &result{Name: "JetStream Meta Cluster", Check: "meta"}
 	defer check.GenericExit()
 
 	nc, _, err := prepareHelper("", natsOpts()...)
@@ -552,7 +649,7 @@ func (c *SrvCheckCmd) checkRaft(_ *kingpin.ParseContext) error {
 	check.criticalIfErr(err, "JSZ API request failed: %s", err)
 
 	if len(res) != 1 {
-		check.critical(true, fmt.Sprintf("JSZ API request returned %d results", len(res)))
+		check.criticalExit(fmt.Sprintf("JSZ API request returned %d results", len(res)))
 		return nil
 	}
 
@@ -569,7 +666,7 @@ func (c *SrvCheckCmd) checkRaft(_ *kingpin.ParseContext) error {
 	check.criticalIfErr(err, "invalid result received: %s", err)
 
 	if len(check.Criticals) == 0 && len(check.Warnings) == 0 {
-		check.ok(false, "%d peers led by %s", len(jszresp.Data.Meta.Replicas)+1, jszresp.Data.Meta.Leader)
+		check.ok("%d peers led by %s", len(jszresp.Data.Meta.Replicas)+1, jszresp.Data.Meta.Leader)
 	}
 
 	return nil
@@ -577,12 +674,12 @@ func (c *SrvCheckCmd) checkRaft(_ *kingpin.ParseContext) error {
 
 func (c *SrvCheckCmd) checkClusterInfo(check *result, ci *server.ClusterInfo) error {
 	if ci == nil {
-		check.critical(false, "no cluster information")
+		check.critical("no cluster information")
 		return nil
 	}
 
 	if ci.Leader == "" {
-		check.critical(false, "No leader")
+		check.critical("No leader")
 		return nil
 	}
 
@@ -591,10 +688,11 @@ func (c *SrvCheckCmd) checkClusterInfo(check *result, ci *server.ClusterInfo) er
 		Value: float64(len(ci.Replicas) + 1),
 		Warn:  float64(c.raftExpect),
 		Crit:  float64(c.raftExpect),
+		Help:  "Configured RAFT peers",
 	})
 
 	if len(ci.Replicas)+1 != c.raftExpect {
-		check.critical(false, "%d peers of expected %d", len(ci.Replicas)+1, c.raftExpect)
+		check.critical("%d peers of expected %d", len(ci.Replicas)+1, c.raftExpect)
 	}
 
 	notCurrent := 0
@@ -617,30 +715,30 @@ func (c *SrvCheckCmd) checkClusterInfo(check *result, ci *server.ClusterInfo) er
 	}
 
 	check.pd(
-		&perfDataItem{Name: "offline", Value: float64(offline)},
-		&perfDataItem{Name: "not_current", Value: float64(notCurrent)},
-		&perfDataItem{Name: "inactive", Value: float64(inactive)},
-		&perfDataItem{Name: "lagged", Value: float64(lagged)},
+		&perfDataItem{Name: "peer_offline", Value: float64(offline), Help: "Offline RAFT peers"},
+		&perfDataItem{Name: "peer_not_current", Value: float64(notCurrent), Help: "RAFT peers that are not current"},
+		&perfDataItem{Name: "peer_inactive", Value: float64(inactive), Help: "Inactive RAFT peers"},
+		&perfDataItem{Name: "peer_lagged", Value: float64(lagged), Help: "RAFT peers that are lagged more than configured threshold"},
 	)
 
 	if notCurrent > 0 {
-		check.critical(false, "%d not current", notCurrent)
+		check.critical("%d not current", notCurrent)
 	}
 	if inactive > 0 {
-		check.critical(false, "%d inactive more than %s", inactive, c.raftSeenCritical)
+		check.critical("%d inactive more than %s", inactive, c.raftSeenCritical)
 	}
 	if offline > 0 {
-		check.critical(false, "%d offline", offline)
+		check.critical("%d offline", offline)
 	}
 	if lagged > 0 {
-		check.critical(false, "%d lagged more than %d ops", lagged, c.raftLagCritical)
+		check.critical("%d lagged more than %d ops", lagged, c.raftLagCritical)
 	}
 
 	return nil
 }
 
 func (c *SrvCheckCmd) checkStream(_ *kingpin.ParseContext) error {
-	check := &result{Name: c.sourcesStream}
+	check := &result{Name: c.sourcesStream, Check: "stream"}
 	defer check.GenericExit()
 
 	_, mgr, err := prepareHelper("", natsOpts()...)
@@ -660,18 +758,18 @@ func (c *SrvCheckCmd) checkStream(_ *kingpin.ParseContext) error {
 		check.criticalIfErr(err, "Invalid cluster data: %s", err)
 
 		if len(check.Criticals) == 0 {
-			check.ok(false, "%d current replicas", len(info.Cluster.Replicas)+1)
+			check.ok("%d current replicas", len(info.Cluster.Replicas)+1)
 		}
 	} else if c.raftExpect > 0 {
-		check.critical(false, "not clustered expected %d peers", c.raftExpect)
+		check.critical("not clustered expected %d peers", c.raftExpect)
 	}
 
-	check.pd(&perfDataItem{Name: "messages", Value: float64(info.State.Msgs), Warn: float64(c.sourcesMessagesWarn), Crit: float64(c.sourcesMessagesCrit)})
+	check.pd(&perfDataItem{Name: "messages", Value: float64(info.State.Msgs), Warn: float64(c.sourcesMessagesWarn), Crit: float64(c.sourcesMessagesCrit), Help: "Messages stored in the stream"})
 	if c.sourcesMessagesWarn > 0 && info.State.Msgs <= c.sourcesMessagesWarn {
-		check.warn(false, "%d messages", info.State.Msgs)
+		check.warn("%d messages", info.State.Msgs)
 	}
 	if c.sourcesMessagesCrit > 0 && info.State.Msgs <= c.sourcesMessagesCrit {
-		check.critical(false, "%d messages", info.State.Msgs)
+		check.critical("%d messages", info.State.Msgs)
 	}
 
 	switch {
@@ -680,7 +778,7 @@ func (c *SrvCheckCmd) checkStream(_ *kingpin.ParseContext) error {
 		check.criticalIfErr(err, "Invalid mirror data: %s", err)
 
 		if len(check.Criticals) == 0 {
-			check.ok(false, "%s mirror of %s is %d lagged, last seen %s ago", c.sourcesStream, info.Mirror.Name, info.Mirror.Lag, info.Mirror.Active.Round(time.Millisecond))
+			check.ok("%s mirror of %s is %d lagged, last seen %s ago", c.sourcesStream, info.Mirror.Name, info.Mirror.Lag, info.Mirror.Active.Round(time.Millisecond))
 		}
 
 	case stream.IsSourced():
@@ -688,7 +786,7 @@ func (c *SrvCheckCmd) checkStream(_ *kingpin.ParseContext) error {
 		check.criticalIfErr(err, "Invalid source data: %s", err)
 
 		if len(check.Criticals) == 0 {
-			check.ok(false, "%d sources", len(info.Sources))
+			check.ok("%d sources", len(info.Sources))
 		}
 	}
 
@@ -697,31 +795,31 @@ func (c *SrvCheckCmd) checkStream(_ *kingpin.ParseContext) error {
 
 func (c *SrvCheckCmd) checkMirror(check *result, info *api.StreamInfo) error {
 	if info.Mirror == nil {
-		check.critical(false, "not mirrored")
+		check.critical("not mirrored")
 		return nil
 	}
 
 	check.pd(
-		&perfDataItem{Name: "lag", Crit: float64(c.sourcesLagCritical), Value: float64(info.Mirror.Lag)},
-		&perfDataItem{Name: "active", Crit: c.sourcesSeenCritical.Seconds(), Unit: "s", Value: info.Mirror.Active.Seconds()},
+		&perfDataItem{Name: "lag", Crit: float64(c.sourcesLagCritical), Value: float64(info.Mirror.Lag), Help: "Number of operations this peer is behind its origin"},
+		&perfDataItem{Name: "active", Crit: c.sourcesSeenCritical.Seconds(), Unit: "s", Value: info.Mirror.Active.Seconds(), Help: "Indicates if this peer is active and catching up if lagged"},
 	)
 
 	if c.sourcesLagCritical > 0 && info.Mirror.Lag > c.sourcesLagCritical {
-		check.critical(false, "%d messages behind", info.Mirror.Lag)
+		check.critical("%d messages behind", info.Mirror.Lag)
 	}
 
 	if c.sourcesSeenCritical > 0 && info.Mirror.Active > c.sourcesSeenCritical {
-		check.critical(false, "last active %s", info.Mirror.Active)
+		check.critical("last active %s", info.Mirror.Active)
 	}
 
 	return nil
 }
 
 func (c *SrvCheckCmd) checkSources(check *result, info *api.StreamInfo) error {
-	check.pd(&perfDataItem{Name: "sources", Value: float64(len(info.Sources)), Warn: float64(c.sourcesMinSources), Crit: float64(c.sourcesMaxSources)})
+	check.pd(&perfDataItem{Name: "sources", Value: float64(len(info.Sources)), Warn: float64(c.sourcesMinSources), Crit: float64(c.sourcesMaxSources), Help: "Number of sources being consumed by this stream"})
 
 	if len(info.Sources) == 0 {
-		check.critical(false, "no sources defined")
+		check.critical("no sources defined")
 	}
 
 	lagged := 0
@@ -738,28 +836,28 @@ func (c *SrvCheckCmd) checkSources(check *result, info *api.StreamInfo) error {
 	}
 
 	check.pd(
-		&perfDataItem{Name: "lagged", Value: float64(lagged)},
-		&perfDataItem{Name: "inactive", Value: float64(inactive)},
+		&perfDataItem{Name: "sources_lagged", Value: float64(lagged), Help: "Number of sources that are behind more than the configured threshold"},
+		&perfDataItem{Name: "sources_inactive", Value: float64(inactive), Help: "Number of sources that are inactive"},
 	)
 
 	if lagged > 0 {
-		check.critical(false, "%d lagged sources", lagged)
+		check.critical("%d lagged sources", lagged)
 	}
 	if inactive > 0 {
-		check.critical(false, "%d inactive sources", inactive)
+		check.critical("%d inactive sources", inactive)
 	}
 	if len(info.Sources) < c.sourcesMinSources {
-		check.critical(false, "%d sources of min expected %d", len(info.Sources), c.sourcesMinSources)
+		check.critical("%d sources of min expected %d", len(info.Sources), c.sourcesMinSources)
 	}
 	if len(info.Sources) > c.sourcesMaxSources {
-		check.critical(false, "%d sources of max expected %d", len(info.Sources), c.sourcesMaxSources)
+		check.critical("%d sources of max expected %d", len(info.Sources), c.sourcesMaxSources)
 	}
 
 	return nil
 }
 
 func (c *SrvCheckCmd) checkConnection(_ *kingpin.ParseContext) error {
-	check := &result{Name: "Connection"}
+	check := &result{Name: "Connection", Check: "connections"}
 	defer check.GenericExit()
 
 	connStart := time.Now()
@@ -767,26 +865,26 @@ func (c *SrvCheckCmd) checkConnection(_ *kingpin.ParseContext) error {
 	check.criticalIfErr(err, "connection failed")
 
 	ct := time.Since(connStart)
-	check.pd(&perfDataItem{Name: "connect_time", Value: ct.Seconds(), Warn: c.connectWarning.Seconds(), Crit: c.connectCritical.Seconds(), Unit: "s"})
+	check.pd(&perfDataItem{Name: "connect_time", Value: ct.Seconds(), Warn: c.connectWarning.Seconds(), Crit: c.connectCritical.Seconds(), Unit: "s", Help: "Time taken to connect to NATS"})
 
 	if ct >= c.connectCritical {
-		check.critical(false, "connected to %s, connect time exceeded %v", nc.ConnectedUrl(), c.connectCritical)
+		check.critical("connected to %s, connect time exceeded %v", nc.ConnectedUrl(), c.connectCritical)
 	} else if ct >= c.connectWarning {
-		check.warn(false, "connected to %s, connect time exceeded %v", nc.ConnectedUrl(), c.connectWarning)
+		check.warn("connected to %s, connect time exceeded %v", nc.ConnectedUrl(), c.connectWarning)
 	} else {
-		check.ok(false, "connected to %s in %s", nc.ConnectedUrl(), ct)
+		check.ok("connected to %s in %s", nc.ConnectedUrl(), ct)
 	}
 
 	rtt, err := nc.RTT()
 	check.criticalIfErr(err, "rtt failed: %s", err)
 
-	check.pd(&perfDataItem{Name: "rtt", Value: rtt.Seconds(), Warn: c.rttWarning.Seconds(), Crit: c.rttCritical.Seconds(), Unit: "s"})
+	check.pd(&perfDataItem{Name: "rtt", Value: rtt.Seconds(), Warn: c.rttWarning.Seconds(), Crit: c.rttCritical.Seconds(), Unit: "s", Help: "The round-trip-time of the connection"})
 	if rtt >= c.rttCritical {
-		check.critical(false, "rtt time exceeded %v", c.rttCritical)
+		check.critical("rtt time exceeded %v", c.rttCritical)
 	} else if rtt >= c.rttWarning {
-		check.critical(false, "rtt time exceeded %v", c.rttWarning)
+		check.critical("rtt time exceeded %v", c.rttWarning)
 	} else {
-		check.ok(false, "rtt time %v", rtt)
+		check.ok("rtt time %v", rtt)
 	}
 
 	msg := []byte(randomPassword(100))
@@ -803,18 +901,18 @@ func (c *SrvCheckCmd) checkConnection(_ *kingpin.ParseContext) error {
 	check.criticalIfErr(err, "did not receive from %s: %s", ib, err)
 
 	reqt := time.Since(start)
-	check.pd(&perfDataItem{Name: "request_time", Value: reqt.Seconds(), Warn: c.reqWarning.Seconds(), Crit: c.reqCritical.Seconds(), Unit: "s"})
+	check.pd(&perfDataItem{Name: "request_time", Value: reqt.Seconds(), Warn: c.reqWarning.Seconds(), Crit: c.reqCritical.Seconds(), Unit: "s", Help: "Time taken for a full Request-Reply operation"})
 
 	if !bytes.Equal(received.Data, msg) {
-		check.critical(false, "did not receive expected message")
+		check.critical("did not receive expected message")
 	}
 
 	if reqt >= c.reqCritical {
-		check.critical(false, "round trip request took %f", reqt.Seconds())
+		check.critical("round trip request took %f", reqt.Seconds())
 	} else if reqt >= c.reqWarning {
-		check.warn(false, "round trip request took %f", reqt.Seconds())
+		check.warn("round trip request took %f", reqt.Seconds())
 	} else {
-		check.ok(false, "round trip took %fs", reqt.Seconds())
+		check.ok("round trip took %fs", reqt.Seconds())
 	}
 
 	return nil
