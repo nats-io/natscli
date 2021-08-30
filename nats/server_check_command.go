@@ -352,6 +352,12 @@ func (r *result) GenericExit() {
 			os.Exit(1)
 		}
 
+		err = os.Chmod(f.Name(), 0644)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "temp file mode change failed: %s", err)
+			os.Exit(1)
+		}
+
 		err = os.Rename(f.Name(), checkRenderOutFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "temp file rename failed: %s", err)
