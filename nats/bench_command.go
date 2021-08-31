@@ -44,6 +44,7 @@ type benchCmd struct {
 	jsTimeout      time.Duration
 	js             bool
 	storage        string
+	streamName     string
 	pull           bool
 	pullBatch      int
 	replicas       int
@@ -53,8 +54,7 @@ type benchCmd struct {
 }
 
 const (
-	JS_STREAM_NAME       string = "benchstream"
-	JS_PULLCONSUMER_NAME string = "pullconsumer"
+	JS_PULLCONSUMER_NAME string = "natscli-benchpull"
 )
 
 func configureBenchCommand(app *kingpin.Application) {
@@ -75,6 +75,7 @@ func configureBenchCommand(app *kingpin.Application) {
 	bench.Flag("pubbatch", "Sets the batch size for JS asynchronous publishing").Default("100").IntVar(&c.pubBatch)
 	bench.Flag("jstimeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	bench.Flag("storage", "JetStream storage (memory/file)").Default("memory").StringVar(&c.storage)
+	bench.Flag("stream", "Stream name to use for the benchmark (warning the stream will be deleted/purged unless --no-delete/--no-purge are set)").Default("benchstream").StringVar(&c.streamName)
 	bench.Flag("pull", "Uses a JetStream pull consumer rather than an ordered push consumer").Default("false").BoolVar(&c.pull)
 	bench.Flag("pullbatch", "Sets the batch size for the JS pull consumer").Default("100").IntVar(&c.pullBatch)
 	bench.Flag("replicas", "Number of stream replicas").Default("1").IntVar(&c.replicas)
@@ -114,7 +115,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("number of messages should be greater than 0")
 	}
 
-	log.Printf("Starting benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, storage=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, pullbatch=%s, request=%v, reply=%v, noqueue=%v, maxackpending=%s, replicas=%d, nopurge=%v, nodelete=%v]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.storage, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.pullBatch)), c.request, c.reply, c.noQueueGroup, humanize.Comma(int64(c.maxAckPending)), c.replicas, c.noPurge, c.noDeleteStream)
+	log.Printf("Starting benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, stream=%s  storage=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, pullbatch=%s, request=%v, reply=%v, noqueue=%v, maxackpending=%s, replicas=%d, nopurge=%v, nodelete=%v]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.streamName, c.storage, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.pullBatch)), c.request, c.reply, c.noQueueGroup, humanize.Comma(int64(c.maxAckPending)), c.replicas, c.noPurge, c.noDeleteStream)
 
 	if c.numPubs == 0 && c.numSubs == 0 {
 		log.Fatalf("You must have at least one publisher or at least one subscriber... try adding --pub 1 and/or --sub 1 to the arguments")
@@ -159,10 +160,10 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 
 		// First delete any prior stream unless no delete
 		if !c.noDeleteStream {
-			log.Printf("Deleting any existing %s stream", JS_STREAM_NAME)
-			err = js.DeleteStream(JS_STREAM_NAME)
+			log.Printf("Deleting any existing %s stream", c.streamName)
+			err = js.DeleteStream(c.streamName)
 			if err != nil && err != nats.ErrStreamNotFound {
-				log.Fatalf("Couldn't delete stream %s: %v", JS_STREAM_NAME, err)
+				log.Fatalf("Couldn't delete stream %s: %v", c.streamName, err)
 			}
 		}
 
@@ -181,32 +182,32 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		}()
 
 		// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
-		_, err = js.AddStream(&nats.StreamConfig{Name: JS_STREAM_NAME, Subjects: []string{c.subject}, Retention: nats.LimitsPolicy, Storage: storageType, Replicas: c.replicas})
+		_, err = js.AddStream(&nats.StreamConfig{Name: c.streamName, Subjects: []string{c.subject}, Retention: nats.LimitsPolicy, Storage: storageType, Replicas: c.replicas})
 		if err != nil {
-			log.Fatalf("error creating the stream %s: %v", JS_STREAM_NAME, err)
+			log.Fatalf("error creating the stream %s: %v", c.streamName, err)
 		}
 
 		if !c.noPurge {
 			log.Printf("Purging the stream")
-			err = js.PurgeStream(JS_STREAM_NAME)
+			err = js.PurgeStream(c.streamName)
 			if err != nil {
-				log.Fatalf("error purging stream %s: %v", JS_STREAM_NAME, err)
+				log.Fatalf("error purging stream %s: %v", c.streamName, err)
 			}
 		}
 
 		if !c.noDeleteStream {
-			log.Printf("Will delete the stream %s at the end of the run", JS_STREAM_NAME)
+			log.Printf("Will delete the stream %s at the end of the run", c.streamName)
 			defer func() {
-				err := js.DeleteStream(JS_STREAM_NAME)
+				err := js.DeleteStream(c.streamName)
 				if err != nil {
-					log.Printf("error deleting the stream %s: %v", JS_STREAM_NAME, err)
+					log.Printf("error deleting the stream %s: %v", c.streamName, err)
 				}
 			}()
 		}
 
 		// create the pull consumer
 		if c.pull && c.numSubs > 0 {
-			_, err = js.AddConsumer(JS_STREAM_NAME, &nats.ConsumerConfig{
+			_, err = js.AddConsumer(c.streamName, &nats.ConsumerConfig{
 				Durable:       JS_PULLCONSUMER_NAME,
 				DeliverPolicy: nats.DeliverAllPolicy,
 				AckPolicy:     nats.AckExplicitPolicy,
@@ -217,9 +218,9 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 				log.Fatalf("error creating the pull consumer: %v", err)
 			}
 			defer func() {
-				err := js.DeleteConsumer(JS_STREAM_NAME, JS_PULLCONSUMER_NAME)
+				err := js.DeleteConsumer(c.streamName, JS_PULLCONSUMER_NAME)
 				if err != nil {
-					log.Printf("error deleting the pull consumer on stream %s: %v", JS_STREAM_NAME, err)
+					log.Printf("error deleting the pull consumer on stream %s: %v", c.streamName, err)
 				}
 			}()
 		}
