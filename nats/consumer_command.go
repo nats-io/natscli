@@ -967,7 +967,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 
 	_, err = c.nc.Subscribe(consumer.DeliverySubject(), func(m *nats.Msg) {
 		msginfo, err := jsm.ParseJSMsgMetadata(m)
-		kingpin.FatalIfError(err, "could not parse JetStream metadata")
+		kingpin.FatalIfError(err, "could not parse JetStream metadata: '%s'", m.Reply)
 
 		if !c.raw {
 			now := time.Now().Format("15:04:05")
