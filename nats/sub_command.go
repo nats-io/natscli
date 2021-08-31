@@ -104,9 +104,15 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		}
 
 		// flow control
-		if len(m.Data) == 0 && m.Reply != "" && m.Header.Get("Status") == "100" {
-			m.Respond(nil)
-			log.Printf("Responding to Flow Control message")
+		if len(m.Data) == 0 && m.Header.Get("Status") == "100" {
+			stalled := m.Header.Get("Nats-Consumer-Stalled")
+			if stalled != "" {
+				nc.Publish(stalled, nil)
+				log.Printf("Resuming stalled consumer")
+			} else {
+				m.Respond(nil)
+				log.Printf("Responding to Flow Control message")
+			}
 		}
 
 		ctr++
