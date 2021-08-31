@@ -979,6 +979,11 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 			}
 
 			if len(m.Header) > 0 {
+				if len(m.Data) == 0 && m.Reply != "" && m.Header.Get("Status") == "100" {
+					m.Respond(nil)
+					return
+				}
+
 				fmt.Println()
 				fmt.Println("Headers:")
 				fmt.Println()
