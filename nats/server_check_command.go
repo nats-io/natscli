@@ -265,7 +265,7 @@ func (r *result) renderPrometheus() string {
 	}
 
 	for _, mf := range mfs {
-		_, err := expfmt.MetricFamilyToText(&buf, mf)
+		_, err = expfmt.MetricFamilyToText(&buf, mf)
 		if err != nil {
 			panic(err)
 		}
