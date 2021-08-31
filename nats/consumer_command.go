@@ -966,7 +966,24 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 	}
 
 	_, err = c.nc.Subscribe(consumer.DeliverySubject(), func(m *nats.Msg) {
-		msginfo, err := jsm.ParseJSMsgMetadata(m)
+		if len(m.Data) == 0 && m.Header.Get("Status") == "100" {
+			stalled := m.Header.Get("Nats-Consumer-Stalled")
+			if stalled != "" {
+				c.nc.Publish(stalled, nil)
+			} else {
+				m.Respond(nil)
+			}
+
+			return
+		}
+
+		var msginfo *jsm.MsgInfo
+		var err error
+
+		if len(m.Reply) > 0 {
+			msginfo, err = jsm.ParseJSMsgMetadata(m)
+		}
+
 		kingpin.FatalIfError(err, "could not parse JetStream metadata: '%s'", m.Reply)
 
 		if !c.raw {
