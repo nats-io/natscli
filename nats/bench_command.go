@@ -29,28 +29,28 @@ import (
 )
 
 type benchCmd struct {
-	subject        string
-	numPubs        int
-	numSubs        int
-	numMsg         int
-	msgSize        int
-	csvFile        string
-	noProgress     bool
-	request        bool
-	reply          bool
-	noQueueGroup   bool
-	syncPub        bool
-	pubBatch       int
-	jsTimeout      time.Duration
-	js             bool
-	storage        string
-	streamName     string
-	pull           bool
-	pullBatch      int
-	replicas       int
-	noPurge        bool
-	noDeleteStream bool
-	maxAckPending  int
+	subject       string
+	numPubs       int
+	numSubs       int
+	numMsg        int
+	msgSize       int
+	csvFile       string
+	noProgress    bool
+	request       bool
+	reply         bool
+	noQueueGroup  bool
+	syncPub       bool
+	pubBatch      int
+	jsTimeout     time.Duration
+	js            bool
+	storage       string
+	streamName    string
+	pull          bool
+	pullBatch     int
+	replicas      int
+	purge         bool
+	deleteStream  bool
+	maxAckPending int
 }
 
 const (
@@ -75,12 +75,12 @@ func configureBenchCommand(app *kingpin.Application) {
 	bench.Flag("pubbatch", "Sets the batch size for JS asynchronous publishing").Default("100").IntVar(&c.pubBatch)
 	bench.Flag("jstimeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	bench.Flag("storage", "JetStream storage (memory/file)").Default("memory").StringVar(&c.storage)
-	bench.Flag("stream", "Stream name to use for the benchmark (warning the stream will be deleted/purged unless --no-delete/--no-purge are set)").Default("benchstream").StringVar(&c.streamName)
+	bench.Flag("stream", "Stream name to use for the benchmark").Default("benchstream").StringVar(&c.streamName)
 	bench.Flag("pull", "Uses a JetStream pull consumer rather than an ordered push consumer").Default("false").BoolVar(&c.pull)
 	bench.Flag("pullbatch", "Sets the batch size for the JS pull consumer").Default("100").IntVar(&c.pullBatch)
 	bench.Flag("replicas", "Number of stream replicas").Default("1").IntVar(&c.replicas)
-	bench.Flag("no-purge", "Do not purge the stream before running").Default("false").BoolVar(&c.noPurge)
-	bench.Flag("no-delete", "Do not delete the stream at the end of the run").Default("false").BoolVar(&c.noDeleteStream)
+	bench.Flag("purge", "Purge the stream before running").Default("false").BoolVar(&c.purge)
+	bench.Flag("delete", "Delete the stream before and after the run").Default("false").BoolVar(&c.deleteStream)
 	bench.Flag("maxackpending", "Max acks pending for JS consumer").Default("-1").IntVar(&c.maxAckPending)
 
 	cheats["bench"] = `# benchmark core nats publish and subscribe with 10 publishers and subscribers
@@ -94,19 +94,19 @@ nats bench testsubject --sub 4 --reply
 nats bench testsubject --pub 4 --request --msgs 20000
 
 # benchmark JetStream acknowledged publishes
-nats bench testsubject --js --syncpub --pub 10  --msgs 10000
+nats bench testsubject --js --syncpub --pub 10  --msgs 10000 --purge --delete
 
 # benchmark JS publish and push consumers at the same time
-nats bench testsubject --pub 4 --sub 4 --js
+nats bench testsubject --pub 4 --sub 4 --js --purge --delete
 
 # benchmark JS stream purge and async batched publish into the stream
-nats bench testsubject --pub 4 --js --no-delete 
+nats bench testsubject --pub 4 --js --purge
 
 # benchmark JS stream do not purge and get replay from the stream using a push consumer
-nats bench testsubject --sub 4 --js --no-delete --no-purge
+nats bench testsubject --sub 4 --js
 
 # benchmark JS stream do not purge and get replay from the stream using a pull consumer
-nats bench testsubject --sub 4 --js --no-delete --no-purge --pull
+nats bench testsubject --sub 4 --js --pull
 `
 }
 
@@ -115,7 +115,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("number of messages should be greater than 0")
 	}
 
-	log.Printf("Starting benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, stream=%s  storage=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, pullbatch=%s, request=%v, reply=%v, noqueue=%v, maxackpending=%s, replicas=%d, nopurge=%v, nodelete=%v]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.streamName, c.storage, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.pullBatch)), c.request, c.reply, c.noQueueGroup, humanize.Comma(int64(c.maxAckPending)), c.replicas, c.noPurge, c.noDeleteStream)
+	log.Printf("Starting benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, stream=%s  storage=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, pullbatch=%s, request=%v, reply=%v, noqueue=%v, maxackpending=%s, replicas=%d, purge=%v, delete=%v]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.streamName, c.storage, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.pullBatch)), c.request, c.reply, c.noQueueGroup, humanize.Comma(int64(c.maxAckPending)), c.replicas, c.purge, c.deleteStream)
 
 	if c.numPubs == 0 && c.numSubs == 0 {
 		log.Fatalf("You must have at least one publisher or at least one subscriber... try adding --pub 1 and/or --sub 1 to the arguments")
@@ -159,7 +159,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		}
 
 		// First delete any prior stream unless no delete
-		if !c.noDeleteStream {
+		if c.deleteStream {
 			log.Printf("Deleting any existing %s stream", c.streamName)
 			err = js.DeleteStream(c.streamName)
 			if err != nil && err != nats.ErrStreamNotFound {
@@ -187,7 +187,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 			log.Fatalf("error creating the stream %s: %v", c.streamName, err)
 		}
 
-		if !c.noPurge {
+		if c.purge {
 			log.Printf("Purging the stream")
 			err = js.PurgeStream(c.streamName)
 			if err != nil {
@@ -195,7 +195,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 			}
 		}
 
-		if !c.noDeleteStream {
+		if c.deleteStream {
 			log.Printf("Will delete the stream %s at the end of the run", c.streamName)
 			defer func() {
 				err := js.DeleteStream(c.streamName)
