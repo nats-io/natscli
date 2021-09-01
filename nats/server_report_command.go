@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
@@ -338,15 +337,10 @@ func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
 	}
 
 	table := newTableWriter(fmt.Sprintf("%d Accounts Overview", len(accounts)))
-	table.AddHeaders("Account", "Server / Cluster", "Connections", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
+	table.AddHeaders("Account", "Connections", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
 
 	for _, acct := range accounts {
-		server := []string{}
-		for _, s := range acct.Server {
-			server = append(server, fmt.Sprintf("%s / %s", s.Name, s.Cluster))
-		}
-
-		table.AddRow(acct.Account, strings.Join(server, ", "), humanize.Comma(int64(acct.Connections)), humanize.Comma(acct.InMsgs), humanize.Comma(acct.OutMsgs), humanize.IBytes(uint64(acct.InBytes)), humanize.IBytes(uint64(acct.OutBytes)), humanize.Comma(int64(acct.Subs)))
+		table.AddRow(acct.Account, humanize.Comma(int64(acct.Connections)), humanize.Comma(acct.InMsgs), humanize.Comma(acct.OutMsgs), humanize.IBytes(uint64(acct.InBytes)), humanize.IBytes(uint64(acct.OutBytes)), humanize.Comma(int64(acct.Subs)))
 	}
 
 	fmt.Print(table.Render())
