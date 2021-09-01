@@ -466,6 +466,13 @@ func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
 	var iBytes int64
 	var subs uint32
 
+	type srvInfo struct {
+		cluster string
+		conns   int
+	}
+	servers := make(map[string]*srvInfo)
+	var serverNames []string
+
 	for _, info := range report {
 		name := info.Name
 		if len(info.Name) > 40 {
@@ -480,6 +487,14 @@ func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
 
 		srvName := info.Info.Name
 		cluster := info.Info.Cluster
+
+		srv, ok := servers[srvName]
+		if !ok {
+			servers[srvName] = &srvInfo{srvName, 0}
+			srv = servers[srvName]
+			serverNames = append(serverNames, srvName)
+		}
+		srv.conns++
 
 		acc := info.Account
 		if len(info.Account) > 46 {
@@ -500,6 +515,21 @@ func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
 	}
 
 	fmt.Print(table.Render())
+
+	if len(serverNames) > 0 {
+		fmt.Println()
+
+		sort.Slice(serverNames, func(i, j int) bool {
+			return servers[serverNames[i]].conns < servers[serverNames[j]].conns
+		})
+
+		table := newTableWriter("Connections per server")
+		table.AddHeaders("Server", "Cluster", "Connections")
+		for _, n := range serverNames {
+			table.AddRow(n, servers[n].cluster, servers[n].conns)
+		}
+		fmt.Print(table.Render())
+	}
 }
 
 type connz struct {
