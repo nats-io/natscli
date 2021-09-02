@@ -215,21 +215,20 @@ default messages are published as quick as possible without any acknowledgement 
 
 ```
 $ nats bench test --msgs=10000000 --pub 5                                                                                                                                                                                                                                                                                                                                                                         <13:03:30
-13:03:34 Starting benchmark [msgs=10,000,000, msgsize=128 B, pubs=5, subs=0]
+01:30:14 Starting benchmark [msgs=10,000,000, msgsize=128 B, pubs=5, subs=0, js=false, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
+Finished      0s [================================================] 100%
+Finished      0s [================================================] 100%
+Finished      0s [================================================] 100%
+Finished      0s [================================================] 100%
+Finished      0s [================================================] 100%
 
-   0s [====================================================================] 100%
-   0s [====================================================================] 100%
-   0s [====================================================================] 100%
-   0s [====================================================================] 100%
-   0s [====================================================================] 100%
-
-Pub stats: 12,930,556 msgs/sec ~ 1.54 GB/sec
- [1] 2,997,680 msgs/sec ~ 365.93 MB/sec (2000000 msgs)
- [2] 2,969,136 msgs/sec ~ 362.44 MB/sec (2000000 msgs)
- [3] 2,965,889 msgs/sec ~ 362.05 MB/sec (2000000 msgs)
- [4] 2,612,872 msgs/sec ~ 318.95 MB/sec (2000000 msgs)
- [5] 2,592,706 msgs/sec ~ 316.49 MB/sec (2000000 msgs)
- min 2,592,706 | avg 2,827,656 | max 2,997,680 | stddev 184,047 msgs
+Pub stats: 14,047,987 msgs/sec ~ 1.67 GB/sec
+ [1] 3,300,540 msgs/sec ~ 402.90 MB/sec (2000000 msgs)
+ [2] 3,306,601 msgs/sec ~ 403.64 MB/sec (2000000 msgs)
+ [3] 3,296,538 msgs/sec ~ 402.41 MB/sec (2000000 msgs)
+ [4] 2,813,752 msgs/sec ~ 343.48 MB/sec (2000000 msgs)
+ [5] 2,811,227 msgs/sec ~ 343.17 MB/sec (2000000 msgs)
+ min 2,811,227 | avg 3,105,731 | max 3,306,601 | stddev 239,453 msgs
 ```
 
 Adding `--sub 2` will start two subscribers on the same subject and measure the rate of messages:
@@ -237,28 +236,64 @@ Adding `--sub 2` will start two subscribers on the same subject and measure the 
 ```
 $ nats bench test --msgs=10000000 --pub 5 --sub 2
 ...
- Sub stats: 3,046,055 msgs/sec ~ 371.83 MB/sec
-  [1] 1,523,030 msgs/sec ~ 185.92 MB/sec (10000000 msgs)
-  [2] 1,523,030 msgs/sec ~ 185.92 MB/sec (10000000 msgs)
-  min 1,523,030 | avg 1,523,030 | max 1,523,030 | stddev 0 msgs
+01:30:52 Starting benchmark [msgs=10,000,000, msgsize=128 B, pubs=5, subs=2, js=false, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
+01:30:52 Starting subscriber, expecting 10,000,000 messages
+01:30:52 Starting subscriber, expecting 10,000,000 messages
+Finished      6s [================================================] 100%
+Finished      6s [================================================] 100%
+Finished      6s [================================================] 100%
+Finished      6s [================================================] 100%
+Finished      6s [================================================] 100%
+Finished      6s [================================================] 100%
+Finished      6s [================================================] 100%
+
+NATS Pub/Sub stats: 4,906,104 msgs/sec ~ 598.89 MB/sec
+ Pub stats: 1,635,428 msgs/sec ~ 199.64 MB/sec
+  [1] 328,573 msgs/sec ~ 40.11 MB/sec (2000000 msgs)
+  [2] 328,147 msgs/sec ~ 40.06 MB/sec (2000000 msgs)
+  [3] 327,411 msgs/sec ~ 39.97 MB/sec (2000000 msgs)
+  [4] 327,318 msgs/sec ~ 39.96 MB/sec (2000000 msgs)
+  [5] 327,283 msgs/sec ~ 39.95 MB/sec (2000000 msgs)
+  min 327,283 | avg 327,746 | max 328,573 | stddev 520 msgs
+ Sub stats: 3,271,233 msgs/sec ~ 399.32 MB/sec
+  [1] 1,635,682 msgs/sec ~ 199.67 MB/sec (10000000 msgs)
+  [2] 1,635,616 msgs/sec ~ 199.66 MB/sec (10000000 msgs)
+  min 1,635,616 | avg 1,635,649 | max 1,635,682 | stddev 33 msgs
 ```
 
 JetStream testing can be done by adding the `--js` flag. You can for example measure first the speed of publishing into a stream
 
 ```
-$ nats bench js.bench --js --pub 1 --no-delete --no-purge
-14:54:44 Starting benchmark [msgs=100,000, msgsize=128 B, pubs=1, subs=0, js=true, storage=memory, syncpub=false, pubbatch=100, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, nopurge=true, nodelete=true]
-   0s [==========================================================] 100%
+$ nats bench js.bench --js --pub 2 --msgs 1000000 --purge
+01:37:36 Starting benchmark [msgs=1,000,000, msgsize=128 B, pubs=2, subs=0, js=true, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=true]
+01:37:36 Purging the stream
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
 
-Pub stats: 299,196 msgs/sec ~ 36.52 MB/sec
+Pub stats: 415,097 msgs/sec ~ 50.67 MB/sec
+ [1] 207,907 msgs/sec ~ 25.38 MB/sec (500000 msgs)
+ [2] 207,572 msgs/sec ~ 25.34 MB/sec (500000 msgs)
+ min 207,572 | avg 207,739 | max 207,907 | stddev 167 msgs
 ```
-And then you can for example measure the speed of receiving (i.e. replay) the messages from the stream
+And then you can for example measure the speed of receiving (i.e. replay) the messages from the stream using ordered push consumers
 ```
-$ nats bench js.bench --js --sub 1 --no-delete --no-purge
-14:54:51 Starting benchmark [msgs=100,000, msgsize=128 B, pubs=0, subs=1, js=true, storage=memory, syncpub=false, pubbatch=100, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, nopurge=true, nodelete=true]
-14:54:51 Starting subscriber, expecting 100,000 messages
+$ nats bench js.bench --js --sub 4 --msgs 1000000
+01:40:05 Starting benchmark [msgs=1,000,000, msgsize=128 B, pubs=0, subs=4, js=true, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
+01:40:05 Starting subscriber, expecting 1,000,000 messages
+01:40:05 Starting subscriber, expecting 1,000,000 messages
+01:40:05 Starting subscriber, expecting 1,000,000 messages
+01:40:05 Starting subscriber, expecting 1,000,000 messages
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
 
-Sub stats: 840,742 msgs/sec ~ 102.63 MB/sec
+Sub stats: 1,522,920 msgs/sec ~ 185.90 MB/sec
+ [1] 382,739 msgs/sec ~ 46.72 MB/sec (1000000 msgs)
+ [2] 382,772 msgs/sec ~ 46.73 MB/sec (1000000 msgs)
+ [3] 382,407 msgs/sec ~ 46.68 MB/sec (1000000 msgs)
+ [4] 381,060 msgs/sec ~ 46.52 MB/sec (1000000 msgs)
+ min 381,060 | avg 382,244 | max 382,772 | stddev 698 msgs
 ```
 
 Similarily you can benchmark synchronous request/reply type of interactions using the `--request` and `--reply` flags. For example you can first start one (or more) replier(s)
@@ -271,31 +306,31 @@ And then run a benchmark with one (or more) synchronous requester(s)
 
 ```
 $ nats bench test --pub 10 --request 
-15:11:15 Starting benchmark [msgs=100,000, msgsize=128 B, pubs=10, subs=0, js=false, storage=memory, syncpub=false, pubbatch=100, pull=false, pullbatch=100, request=true, reply=false, noqueue=false, maxackpending=-1, replicas=1, nopurge=false, nodelete=false]
-15:11:15 Benchmark in request/reply mode
-   2s [==========================================================] 100%
-   2s [==========================================================] 100%
-   2s [==========================================================] 100%
-   2s [==========================================================] 100%
-   2s [==========================================================] 100%
-   2s [==========================================================] 100%
-   2s [==========================================================] 100%
-   2s [==========================================================] 100%
-   2s [==========================================================] 100%
-   2s [==========================================================] 100%
+03:04:56 Starting benchmark [msgs=100,000, msgsize=128 B, pubs=10, subs=0, js=false, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=true, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
+03:04:56 Benchmark in request/reply mode
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
+Finished      2s [================================================] 100%
 
-Pub stats: 38,341 msgs/sec ~ 4.68 MB/sec
- [1] 3,861 msgs/sec ~ 482.66 KB/sec (10000 msgs)
- [2] 3,857 msgs/sec ~ 482.20 KB/sec (10000 msgs)
- [3] 3,851 msgs/sec ~ 481.46 KB/sec (10000 msgs)
- [4] 3,845 msgs/sec ~ 480.73 KB/sec (10000 msgs)
- [5] 3,847 msgs/sec ~ 480.94 KB/sec (10000 msgs)
- [6] 3,843 msgs/sec ~ 480.44 KB/sec (10000 msgs)
- [7] 3,846 msgs/sec ~ 480.78 KB/sec (10000 msgs)
- [8] 3,842 msgs/sec ~ 480.28 KB/sec (10000 msgs)
- [9] 3,839 msgs/sec ~ 479.92 KB/sec (10000 msgs)
- [10] 3,839 msgs/sec ~ 479.96 KB/sec (10000 msgs)
- min 3,839 | avg 3,847 | max 3,861 | stddev 6 msgs
+Pub stats: 40,064 msgs/sec ~ 4.89 MB/sec
+ [1] 4,045 msgs/sec ~ 505.63 KB/sec (10000 msgs)
+ [2] 4,031 msgs/sec ~ 503.93 KB/sec (10000 msgs)
+ [3] 4,034 msgs/sec ~ 504.37 KB/sec (10000 msgs)
+ [4] 4,031 msgs/sec ~ 503.92 KB/sec (10000 msgs)
+ [5] 4,022 msgs/sec ~ 502.85 KB/sec (10000 msgs)
+ [6] 4,028 msgs/sec ~ 503.59 KB/sec (10000 msgs)
+ [7] 4,025 msgs/sec ~ 503.22 KB/sec (10000 msgs)
+ [8] 4,028 msgs/sec ~ 503.59 KB/sec (10000 msgs)
+ [9] 4,025 msgs/sec ~ 503.15 KB/sec (10000 msgs)
+ [10] 4,018 msgs/sec ~ 502.28 KB/sec (10000 msgs)
+ min 4,018 | avg 4,028 | max 4,045 | stddev 7 msgs
 ```
 
 There are numerous other flags that can be set to configure size of messages, using push or pull JetStream consumers and much more, see `nats bench --help`.
