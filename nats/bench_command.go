@@ -368,6 +368,7 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 		}
 		state = "Finished  "
 	} else {
+		state = "Publishing"
 		for i := 0; i < numMsg; i++ {
 			if progress != nil {
 				progress.Incr()
@@ -548,6 +549,5 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 
 	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
 
-	nc.Close()
 	donewg.Done()
 }
