@@ -150,7 +150,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 
 	if c.js {
 		// create the stream for the benchmark (and purge it)
-		nc, err := nats.Connect(config.ServerURL())
+		nc, err := nats.Connect(config.ServerURL(), natsOpts()...)
 		if err != nil {
 			log.Fatalf("nats connection failed: %s", err)
 		}
