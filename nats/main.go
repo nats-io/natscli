@@ -66,6 +66,7 @@ See 'nats cheat' for a quick cheatsheet of commands
 
 	ncli := kingpin.New("nats", help)
 	ncli.Author("NATS Authors <info@nats.io>")
+	ncli.UsageWriter(os.Stdout)
 	ncli.Version(version)
 	ncli.HelpFlag.Short('h')
 
