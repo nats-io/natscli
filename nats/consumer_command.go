@@ -295,7 +295,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	case api.DeliverLast:
 		fmt.Printf("      Deliver Policy: Last\n")
 	case api.DeliverNew:
-		fmt.Printf("      Deliver Policy: Next\n")
+		fmt.Printf("      Deliver Policy: New\n")
 	case api.DeliverLastPerSubject:
 		fmt.Printf("      Deliver Policy: Last Per Subject\n")
 	case api.DeliverByStartTime:
