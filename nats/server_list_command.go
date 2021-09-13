@@ -54,7 +54,7 @@ func configureServerListCommand(srv *kingpin.CmdClause) {
 	ls := srv.Command("list", "List known servers").Alias("ls").Action(c.list)
 	ls.Arg("expect", "How many servers to expect").Uint32Var(&c.expect)
 	ls.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	ls.Flag("sort", "Sort servers by a specific key (conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
+	ls.Flag("sort", "Sort servers by a specific key (name,conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("name,conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
 	ls.Flag("reverse", "Reverse sort servers").Short('R').Default("false").BoolVar(&c.reverse)
 	ls.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 }
@@ -188,6 +188,8 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		statj := results[j].Stats
 
 		switch c.sort {
+		case "name":
+			return rev(results[i].Server.Name < results[j].Server.Name)
 		case "conns", "conn":
 			return rev(stati.Connections < statj.Connections)
 		case "subs", "sub":
