@@ -303,7 +303,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	case api.DeliverByStartSequence:
 		fmt.Printf("      Deliver Policy: From Sequence %d\n", config.OptStartSeq)
 	}
-	if config.DeliverGroup != "" {
+	if config.DeliverGroup != "" && config.DeliverSubject != "" {
 		fmt.Printf(" Deliver Queue Group: %s\n", config.DeliverGroup)
 	}
 	fmt.Printf("          Ack Policy: %s\n", config.AckPolicy.String())
