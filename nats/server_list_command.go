@@ -189,7 +189,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 
 		switch c.sort {
 		case "name":
-			return rev(results[i].Server.Name < results[j].Server.Name)
+			return results[i].Server.Name < results[j].Server.Name
 		case "conns", "conn":
 			return rev(stati.Connections < statj.Connections)
 		case "subs", "sub":
