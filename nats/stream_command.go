@@ -1561,9 +1561,13 @@ func (c *streamCmd) prepareConfig() api.StreamConfig {
 
 	var dupeWindow time.Duration
 	if c.dupeWindow == "" && c.mirror == "" {
+		defaultDW := (2 * time.Minute).String()
+		if maxAge > 0 && maxAge < 2*time.Minute {
+			defaultDW = maxAge.String()
+		}
 		err = survey.AskOne(&survey.Input{
 			Message: "Duplicate tracking time window",
-			Default: "2m",
+			Default: defaultDW,
 			Help:    "Duplicate messages are identified by the Msg-Id headers and tracked within a window of this size. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --dupe-window.",
 		}, &c.dupeWindow)
 		kingpin.FatalIfError(err, "invalid input")
