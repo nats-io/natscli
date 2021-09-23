@@ -35,6 +35,7 @@ type subCmd struct {
 	jsAck   bool
 	inbox   bool
 	dump    string
+	limit   uint
 }
 
 func configureSubCommand(app *kingpin.Application) {
@@ -45,6 +46,7 @@ func configureSubCommand(app *kingpin.Application) {
 	act.Flag("raw", "Show the raw data received").Short('r').BoolVar(&c.raw)
 	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
 	act.Flag("inbox", "Subscribes to a generate inbox").Short('i').BoolVar(&c.inbox)
+	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
 	act.Flag("dump", "Dump received messages to files, 1 file per message. Specify - for null terminated STDOUT for use with xargs -0").PlaceHolder("DIRECTORY").StringVar(&c.dump)
 
 	cheats["sub"] = `# To subscribe to messages, in a queue group and acknowledge any JetStream ones
@@ -74,10 +76,14 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 	}
 	defer nc.Close()
 
-	i := 0
-	mu := sync.Mutex{}
-	dump := c.dump != ""
-	ctr := 0
+	var (
+		sub         *nats.Subscription
+		mu          = sync.Mutex{}
+		dump        = c.dump != ""
+		ctr         = uint(0)
+		ctx, cancel = context.WithCancel(context.Background())
+	)
+	defer cancel()
 
 	if c.dump == "-" && c.inbox {
 		return fmt.Errorf("generating inboxes is not compatible with dumping to stdout using null terminated strings")
@@ -86,8 +92,6 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 	handler := func(m *nats.Msg) {
 		mu.Lock()
 		defer mu.Unlock()
-
-		i += 1
 
 		var info *jsm.MsgInfo
 		if m.Reply != "" {
@@ -159,13 +163,13 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 
 		if info == nil {
 			if m.Reply != "" {
-				fmt.Printf("[#%d] Received on %q with reply %q\n", i, m.Subject, m.Reply)
+				fmt.Printf("[#%d] Received on %q with reply %q\n", ctr, m.Subject, m.Reply)
 			} else {
-				fmt.Printf("[#%d] Received on %q\n", i, m.Subject)
+				fmt.Printf("[#%d] Received on %q\n", ctr, m.Subject)
 			}
 
 		} else {
-			fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d / ack: %v\n", i, info.Stream(), info.Consumer(), m.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), c.jsAck)
+			fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d / ack: %v\n", ctr, info.Stream(), info.Consumer(), m.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), c.jsAck)
 		}
 
 		if len(m.Header) > 0 {
@@ -182,6 +186,11 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		if !strings.HasSuffix(string(m.Data), "\n") {
 			fmt.Println()
 		}
+
+		if ctr == c.limit {
+			sub.Unsubscribe()
+			cancel()
+		}
 	}
 
 	if (!c.raw && c.dump == "") || c.inbox {
@@ -193,10 +202,14 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 	}
 
 	if c.queue != "" {
-		nc.QueueSubscribe(c.subject, c.queue, handler)
+		sub, err = nc.QueueSubscribe(c.subject, c.queue, handler)
 	} else {
-		nc.Subscribe(c.subject, handler)
+		sub, err = nc.Subscribe(c.subject, handler)
 	}
+	if err != nil {
+		return err
+	}
+
 	nc.Flush()
 
 	err = nc.LastError()
@@ -204,7 +217,7 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	<-context.Background().Done()
+	<-ctx.Done()
 
 	return nil
 }
