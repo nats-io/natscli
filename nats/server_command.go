@@ -68,6 +68,6 @@ nats server req accounts --account WEATHER
 nats server req jsz --leader
 
 # To manage JetStream cluster RAFT membership
-nats server cluster raft step-down
+nats server raft step-down
 `
 }
