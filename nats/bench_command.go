@@ -38,7 +38,6 @@ type benchCmd struct {
 	noProgress    bool
 	request       bool
 	reply         bool
-	noQueueGroup  bool
 	syncPub       bool
 	pubBatch      int
 	jsTimeout     time.Duration
@@ -69,7 +68,6 @@ func configureBenchCommand(app *kingpin.Application) {
 	bench.Flag("syncpub", "Synchronously publish to the stream").Default("false").BoolVar(&c.syncPub)
 	bench.Flag("request", "Request/Reply mode: publishers send requests waits for a reply").Default("false").BoolVar(&c.request)
 	bench.Flag("reply", "Request/Reply mode: subscribers send replies").Default("false").BoolVar(&c.reply)
-	bench.Flag("no-queue", "Request/Reply mode: repliers do not join a queue group ").Default("false").BoolVar(&c.noQueueGroup)
 	bench.Flag("js", "Use JetStream streaming").Default("false").BoolVar(&c.js)
 	bench.Flag("pubbatch", "Sets the batch size for JS asynchronous publishing").Default("100").IntVar(&c.pubBatch)
 	bench.Flag("jstimeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
@@ -123,23 +121,35 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		log.Print("JetStream ordered push consumer mode: subscribers will not acknowledge the consumption of messages")
 	}
 	if c.numPubs == 0 && c.numSubs == 0 {
-		log.Fatalf("You must have at least one publisher or at least one subscriber... try adding --pub 1 and/or --sub 1 to the arguments")
+		log.Fatal("You must have at least one publisher or at least one subscriber... try adding --pub 1 and/or --sub 1 to the arguments")
 	}
 	if (c.request || c.reply) && c.js {
-		log.Fatalf("Request/Reply mode is not applicable to JetStream benchmarking")
+		log.Fatal("Request/Reply mode is not applicable to JetStream benchmarking")
 	} else if !c.js {
 		if c.request || c.reply {
-			log.Printf("Benchmark in request/reply mode")
+			log.Print("Benchmark in request/reply mode")
+			if c.reply {
+				// reply mode is open-ended for the number of messages, so don't show the progress bar
+				c.noProgress = true
+			}
 		}
 		if c.request && c.reply {
-			log.Fatalf("Request/Reply mode error: can not be both a requester and a replier at the same time, please use at least two instances of nats bench to benchmark request/reply")
+			log.Fatal("Request/Reply mode error: can not be both a requester and a replier at the same time, please use at least two instances of nats bench to benchmark request/reply")
 		}
 		if c.reply && c.numPubs > 0 && c.numSubs > 0 {
-			log.Fatalf("Request/Reply mode error: can not have a publisher while in --reply mode")
+			log.Fatal("Request/Reply mode error: can not have a publisher while in --reply mode")
 		}
 	}
 
-	log.Printf("Starting benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, stream=%s  storage=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, pullbatch=%s, request=%v, reply=%v, noqueue=%v, maxackpending=%s, replicas=%d, purge=%v]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.streamName, c.storage, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.pullBatch)), c.request, c.reply, c.noQueueGroup, humanize.Comma(int64(c.maxAckPending)), c.replicas, c.purge)
+	if c.js {
+		log.Printf("Starting JetStream benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, stream=%s  storage=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, pullbatch=%s, maxackpending=%s, replicas=%d, purge=%v]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.streamName, c.storage, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.pullBatch)), humanize.Comma(int64(c.maxAckPending)), c.replicas, c.purge)
+	} else {
+		if c.request || c.reply {
+			log.Printf("Starting request/reply benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, request=%v, reply=%v]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.request, c.reply)
+		} else {
+			log.Printf("Starting pub/sub benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js)
+		}
+	}
 
 	bm := bench.NewBenchmark("NATS", c.numSubs, c.numPubs)
 
@@ -221,7 +231,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		donewg.Add(1)
 
 		numMsg := func() int {
-			if c.pull || (c.reply && !c.noQueueGroup) {
+			if c.pull || c.reply {
 				return subCounts[i]
 			} else {
 				return c.numMsg
@@ -368,9 +378,10 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 	startwg.Done()
 
 	var progress *uiprogress.Bar
-	if c.noProgress {
-		log.Printf("Starting publisher, publishing %s messages", humanize.Comma(int64(numMsg)))
-	} else {
+
+	log.Printf("Starting publisher, publishing %s messages", humanize.Comma(int64(numMsg)))
+
+	if !c.noProgress {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
 		progress.Width = progressWidth()
 	}
@@ -404,14 +415,20 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 	ch := make(chan time.Time, 2)
 
 	var progress *uiprogress.Bar
-	if c.noProgress {
-		log.Printf("Starting publisher, publishing %s messages", humanize.Comma(int64(numMsg)))
+
+	if !c.reply {
+		log.Printf("Starting subscriber, expecting %s messages", humanize.Comma(int64(numMsg)))
 	} else {
+		log.Print("Starting replier, hit control-c to stop")
+		c.noProgress = true
+	}
+
+	if !c.noProgress {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
 		progress.Width = progressWidth()
 	}
 
-	state := "Receiving "
+	state := "Setup     "
 
 	if progress != nil {
 		progress.PrependFunc(func(b *uiprogress.Bar) string {
@@ -440,13 +457,6 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 	}
 	var sub *nats.Subscription
 
-	if !c.reply {
-		log.Printf("Starting subscriber, expecting %s messages", humanize.Comma(int64(numMsg)))
-	} else {
-		log.Printf("Starting replier, hit control-c to stop")
-		c.noProgress = true
-	}
-
 	var err error
 
 	if c.js {
@@ -463,6 +473,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 				log.Fatalf("Error PullSubscribe=" + err.Error())
 			}
 		} else {
+			state = "Consuming "
 			// ordered push consumer
 			sub, err = js.Subscribe(c.subject, mh, nats.OrderedConsumer())
 			if err != nil {
@@ -470,7 +481,8 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 			}
 		}
 	} else {
-		if !c.reply || (c.reply && c.noQueueGroup) {
+		state = "Receiving "
+		if !c.reply {
 			sub, err = nc.Subscribe(c.subject, mh)
 			if err != nil {
 				log.Fatalf("Subscribe error: %v", err)
@@ -506,15 +518,15 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 			}()
 
 			if progress != nil {
-				state = "Fetching  "
+				state = "Pulling   "
 			}
+
 			msgs, err := sub.Fetch(batchSize, nats.MaxWait(c.jsTimeout))
-
-			if progress != nil {
-				state = "Handling  "
-			}
-
 			if err == nil {
+				if progress != nil {
+					state = "Handling  "
+				}
+
 				for _, msg := range msgs {
 					mh(msg)
 				}
