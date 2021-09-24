@@ -207,7 +207,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		case "uptime":
 			return rev(stati.Start.UnixNano() > statj.Start.UnixNano())
 		default:
-			return rev(results[i].rtt < results[j].rtt)
+			return rev(results[i].rtt > results[j].rtt)
 		}
 	})
 
