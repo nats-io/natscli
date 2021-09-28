@@ -750,14 +750,14 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	return strings.Join(compact, ", ")
 }
 
-func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+func doReqAsync(req interface{}, subj string, waitFor int, nc *nats.Conn, cb func([]byte)) error {
 	jreq := []byte("{}")
 	var err error
 
 	if req != nil {
 		jreq, err = json.MarshalIndent(req, "", "  ")
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -766,9 +766,8 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 	}
 
 	var (
-		resp [][]byte
-		mu   sync.Mutex
-		ctr  = 0
+		mu  sync.Mutex
+		ctr = 0
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -825,7 +824,7 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 			return
 		}
 
-		resp = append(resp, data)
+		cb(data)
 		ctr++
 
 		if waitFor > 0 && ctr == waitFor {
@@ -833,7 +832,7 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 		}
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer sub.Unsubscribe()
 
@@ -843,20 +842,22 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 
 	msg := nats.NewMsg(subj)
 	msg.Data = jreq
-	msg.Header.Set("Accept-Encoding", "snappy")
+	if subj != "$SYS.REQ.SERVER.PING" {
+		msg.Header.Set("Accept-Encoding", "snappy")
+	}
 	msg.Reply = sub.Subject
 
 	err = nc.PublishMsg(msg)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	select {
 	case err = <-errs:
 		if err == nats.ErrNoResponders {
-			return nil, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
+			return fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
 		}
-		return nil, err
+		return err
 	case <-ctx.Done():
 	}
 
@@ -864,7 +865,19 @@ func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, 
 		log.Printf(">>> Received %d responses", ctr)
 	}
 
-	return resp, err
+	return err
+}
+func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+	res := [][]byte{}
+	mu := sync.Mutex{}
+
+	err := doReqAsync(req, subj, waitFor, nc, func(r []byte) {
+		mu.Lock()
+		res = append(res, r)
+		mu.Unlock()
+	})
+
+	return res, err
 }
 
 type raftLeader struct {

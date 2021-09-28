@@ -14,21 +14,17 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -66,9 +62,6 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	}
 	defer nc.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	type result struct {
 		*server.ServerStatsMsg
 		rtt time.Duration
@@ -85,20 +78,12 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		subs        uint32
 		js          int
 		start       = time.Now()
-		seen        uint32
 		mu          sync.Mutex
 	)
 
-	sub, err := nc.Subscribe(nc.NewRespInbox(), func(msg *nats.Msg) {
-		if msg.Header != nil && msg.Header.Get("Status") != "" {
-			fmt.Printf("%s status from $SYS.REQ.SERVER.PING, ensure a system account is used with appropriate permissions\n", msg.Header.Get("Status"))
-			os.Exit(1)
-		}
-
-		last := atomic.AddUint32(&seen, 1)
-
+	doReqAsync(nil, "$SYS.REQ.SERVER.PING", int(c.expect), nc, func(data []byte) {
 		ssm := &server.ServerStatsMsg{}
-		err = json.Unmarshal(msg.Data, ssm)
+		err = json.Unmarshal(data, ssm)
 		if err != nil {
 			log.Printf("Could not decode response: %s", err)
 			os.Exit(1)
@@ -106,10 +91,6 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 
 		mu.Lock()
 		defer mu.Unlock()
-
-		if c.expect == 0 && ssm.Stats.ActiveServers > 0 && servers == 0 {
-			c.expect = uint32(ssm.Stats.ActiveServers)
-		}
 
 		servers++
 		connections += ssm.Stats.Connections
@@ -139,31 +120,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 			ServerStatsMsg: ssm,
 			rtt:            time.Since(start),
 		})
-
-		if last == c.expect {
-			cancel()
-		}
 	})
-	if err != nil {
-		return err
-	}
-
-	err = nc.PublishRequest("$SYS.REQ.SERVER.PING", sub.Subject, nil)
-	if err != nil {
-		return err
-	}
-	nc.Flush()
-
-	ic := make(chan os.Signal, 1)
-	signal.Notify(ic, os.Interrupt)
-
-	select {
-	case <-ic:
-		cancel()
-	case <-ctx.Done():
-	}
-
-	sub.Drain()
 
 	if len(results) == 0 {
 		return fmt.Errorf("no results received, ensure the account used has system privileges and appropriate permissions")
@@ -234,12 +191,6 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	table.AddSeparator()
 	table.AddRow("", fmt.Sprintf("%d Clusters", len(clusters)), fmt.Sprintf("%d Servers", servers), "", js, connections, subs, "", "", humanize.IBytes(uint64(memory)), "", slow, "", "")
 	fmt.Print(table.Render())
-
-	lseen := atomic.LoadUint32(&seen)
-	missing := c.expect - lseen
-	if c.expect != 0 && missing > 0 && c.expect > lseen {
-		fmt.Printf("\nMissing %d server(s)\n", missing)
-	}
 
 	if len(clusters) > 0 {
 		c.showClusters(clusters)
