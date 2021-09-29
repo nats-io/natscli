@@ -668,7 +668,7 @@ func (c *SrvCheckCmd) checkRaft(_ *kingpin.ParseContext) error {
 	err = json.Unmarshal(res[0], jszresp)
 	check.criticalIfErr(err, "invalid result received: %s", err)
 
-	err = c.checkClusterInfo(check, jszresp.Data.Meta)
+	err = c.checkMetaClusterInfo(check, jszresp.Data.Meta)
 	check.criticalIfErr(err, "invalid result received: %s", err)
 
 	if len(check.Criticals) == 0 && len(check.Warnings) == 0 {
@@ -676,6 +676,14 @@ func (c *SrvCheckCmd) checkRaft(_ *kingpin.ParseContext) error {
 	}
 
 	return nil
+}
+
+func (c *SrvCheckCmd) checkMetaClusterInfo(check *result, ci *server.MetaClusterInfo) error {
+	return c.checkClusterInfo(check, &server.ClusterInfo{
+		Name:     ci.Name,
+		Leader:   ci.Leader,
+		Replicas: ci.Replicas,
+	})
 }
 
 func (c *SrvCheckCmd) checkClusterInfo(check *result, ci *server.ClusterInfo) error {
