@@ -105,7 +105,7 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		streams      int
 		bytes        uint64
 		msgs         uint64
-		cluster      *server.ClusterInfo
+		cluster      *server.MetaClusterInfo
 	)
 
 	renderDomain := false
