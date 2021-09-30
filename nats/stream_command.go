@@ -224,6 +224,10 @@ func configureStreamCommand(app *kingpin.Application) {
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	strRestore.Flag("config", "Load a different configuration when restoring the stream").ExistingFileVar(&c.inputFile)
 
+	strSeal := str.Command("seal", "Seals a stream preventing further updates").Action(c.sealAction)
+	strSeal.Arg("stream", "The name of the Stream to seal").Required().StringVar(&c.stream)
+	strSeal.Flag("force", "Force sealing without prompting").Short('f').BoolVar(&c.force)
+
 	strCluster := str.Command("cluster", "Manages a clustered Stream").Alias("c")
 	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	strClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
@@ -451,6 +455,27 @@ func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {
 			}
 		}
 	}
+}
+
+func (c *streamCmd) sealAction(_ *kingpin.ParseContext) error {
+	c.connectAndAskStream()
+
+	if !c.force {
+		ok, err := askConfirmation(fmt.Sprintf("Really seal Stream %s, sealed streams can not be unsealed or modified", c.stream), false)
+		kingpin.FatalIfError(err, "could not obtain confirmation")
+
+		if !ok {
+			return nil
+		}
+	}
+
+	stream, err := c.loadStream(c.stream)
+	kingpin.FatalIfError(err, "could not seal Stream")
+
+	stream.Seal()
+	kingpin.FatalIfError(err, "could not seal Stream")
+
+	return c.showStream(stream)
 }
 
 func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
@@ -1153,7 +1178,10 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	fmt.Println("Configuration:")
 	fmt.Println()
 	if cfg.Description != "" {
-		fmt.Printf("      Description: %s\n", cfg.Description)
+		fmt.Printf("          Description: %s\n", cfg.Description)
+	}
+	if cfg.Sealed {
+		fmt.Printf("               Sealed: true\n")
 	}
 	if len(cfg.Subjects) > 0 {
 		fmt.Printf("             Subjects: %s\n", strings.Join(cfg.Subjects, ", "))

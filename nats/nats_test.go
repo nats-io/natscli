@@ -335,6 +335,26 @@ func TestCLIStreamPurge(t *testing.T) {
 	checkMsgs(t, 0)
 }
 
+func TestCLIStreamSeal(t *testing.T) {
+	srv, nc, mgr := setupJStreamTest(t)
+	defer srv.Shutdown()
+
+	stream, err := mgr.NewStreamFromDefault("mem1", mem1Stream())
+	checkErr(t, err, "could not create stream: %v", err)
+	streamShouldExist(t, mgr, "mem1")
+
+	for i := 0; i < 10; i++ {
+		_, err = nc.Request("js.mem.1", []byte("hello"), time.Second)
+		checkErr(t, err, "could not publish message: %v", err)
+	}
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' str seal mem1 -f", srv.ClientURL()))
+	checkErr(t, stream.Reset(), "reset failed")
+	if !stream.Sealed() {
+		t.Fatalf("stream was not sealed")
+	}
+}
+
 func TestCLIStreamGet(t *testing.T) {
 	srv, nc, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
