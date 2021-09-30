@@ -152,14 +152,18 @@ func TestCLIPurge(t *testing.T) {
 	mustPut(t, store, "X", "VALX")
 	mustPut(t, store, "Y", "VALY")
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' kv purge T -f", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' kv purge T X -f", srv.ClientURL()))
 
-	status, err := store.Status()
-	if err != nil {
-		t.Fatalf("status failed: %s", err)
+	_, err := store.Get("X")
+	if err != kv.ErrUnknownKey {
+		t.Fatalf("expected unknown key got: %v", err)
 	}
-	if status.Values() != 0 {
-		t.Fatalf("found %d messages after purge", status.Values())
+	v, err := store.Get("Y")
+	if err != nil {
+		t.Fatalf("Y failed to get: %s", err)
+	}
+	if !bytes.Equal(v.Value(), []byte("VALY")) {
+		t.Fatalf("incorrect Y value: %q", v.Value())
 	}
 }
 
