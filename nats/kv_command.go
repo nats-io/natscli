@@ -56,10 +56,15 @@ NOTE: This is an experimental feature.
 	put.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	put.Arg("value", "The value to store, when empty reads STDIN").StringVar(&c.val)
 
-	del := kv.Command("del", "Deletes a key from the bucket").Action(c.deleteAction)
+	del := kv.Command("del", "Deletes a key from the bucket, preserving history").Action(c.deleteAction)
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	del.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	del.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
+
+	purge := kv.Command("purge", "Deletes a key from the bucket, clearing history before creating a delete marker").Action(c.purgeAction)
+	purge.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+	purge.Arg("key", "The key to act on").Required().StringVar(&c.key)
+	purge.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	history := kv.Command("history", "Shows the full history for a key").Action(c.historyAction)
 	history.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -84,10 +89,6 @@ NOTE: This is an experimental feature.
 
 	dump := kv.Command("dump", "Dumps the contents of the bucket as JSON").Action(c.dumpAction)
 	dump.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-
-	purge := kv.Command("purge", "Removes values from the bucket").Action(c.purgeAction)
-	purge.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	purge.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	rm := kv.Command("rm", "Removes a bucket").Action(c.rmAction)
 	rm.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -329,8 +330,13 @@ func (c *kvCommand) dumpAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *kvCommand) purgeAction(_ *kingpin.ParseContext) error {
+	_, store, err := c.loadBucket()
+	if err != nil {
+		return err
+	}
+
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Purge bucket %s?", c.bucket), false)
+		ok, err := askConfirmation(fmt.Sprintf("Purge key %s > %s?", c.bucket, c.key), false)
 		if err != nil {
 			return err
 		}
@@ -341,12 +347,7 @@ func (c *kvCommand) purgeAction(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	_, store, err := c.loadBucket()
-	if err != nil {
-		return err
-	}
-
-	return store.Purge()
+	return store.Purge(c.key)
 }
 
 func (c *kvCommand) rmAction(_ *kingpin.ParseContext) error {
