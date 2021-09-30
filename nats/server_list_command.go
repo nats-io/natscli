@@ -185,11 +185,37 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 		if ssm.Server.JetStream {
 			jsEnabled = "yes"
 		}
-		table.AddRow(cNames[i], ssm.Server.Cluster, ssm.Server.Host, ssm.Server.Version, jsEnabled, ssm.Stats.Connections, ssm.Stats.NumSubs, len(ssm.Stats.Routes), len(ssm.Stats.Gateways), humanize.IBytes(uint64(ssm.Stats.Mem)), fmt.Sprintf("%.1f", ssm.Stats.CPU), ssm.Stats.SlowConsumers, humanizeTime(ssm.Stats.Start), ssm.rtt)
+		table.AddRow(
+			cNames[i],
+			ssm.Server.Cluster,
+			ssm.Server.Host,
+			ssm.Server.Version,
+			jsEnabled,
+			humanize.Comma(int64(ssm.Stats.Connections)),
+			humanize.Comma(int64(ssm.Stats.NumSubs)),
+			len(ssm.Stats.Routes),
+			len(ssm.Stats.Gateways),
+			humanize.IBytes(uint64(ssm.Stats.Mem)),
+			fmt.Sprintf("%.1f", ssm.Stats.CPU),
+			ssm.Stats.SlowConsumers,
+			humanizeTime(ssm.Stats.Start),
+			ssm.rtt.Round(time.Millisecond))
 	}
 
 	table.AddSeparator()
-	table.AddRow("", fmt.Sprintf("%d Clusters", len(clusters)), fmt.Sprintf("%d Servers", servers), "", js, connections, subs, "", "", humanize.IBytes(uint64(memory)), "", slow, "", "")
+	table.AddRow(
+		"",
+		fmt.Sprintf("%d Clusters", len(clusters)),
+		fmt.Sprintf("%d Servers", servers),
+		"",
+		js,
+		connections,
+		humanize.Comma(int64(subs)),
+		"", "",
+		humanize.IBytes(uint64(memory)),
+		"",
+		slow,
+		"", "")
 	fmt.Print(table.Render())
 
 	if len(clusters) > 0 {
