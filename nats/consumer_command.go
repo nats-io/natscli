@@ -86,6 +86,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 		f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
 		OptionalBoolean(f.Flag("flow-control", "Enable Push consumer flow control"))
 		f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
+		OptionalBoolean(f.Flag("headers-only", "Deliver only headers and no bodies (--no-headers-only disables)"))
 		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").PlaceHolder("TRIES").IntVar(&c.maxDeliver)
 		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
@@ -332,6 +333,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	if config.DeliverSubject != "" {
 		fmt.Printf("        Flow Control: %v\n", config.FlowControl)
 	}
+	if config.HeadersOnly {
+		fmt.Printf("         Headers Only: true\n")
+	}
 
 	fmt.Println()
 
@@ -574,6 +578,11 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.DeliverGroup = ""
 	}
 
+	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
+	if !hOnly.IsSetByUser() {
+		cfg.HeadersOnly = hOnly.Value()
+	}
+
 	consumer, err := c.mgr.NewConsumerFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "Consumer creation failed")
 
@@ -782,6 +791,14 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 
 		cfg.FlowControl = fc.Value()
 	}
+
+	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
+	if !hOnly.IsSetByUser() {
+		v, err := askConfirmation("Deliver headers only without bodies", false)
+		kingpin.FatalIfError(err, "could not ask headers only")
+		hOnly.SetBool(v)
+	}
+	cfg.HeadersOnly = hOnly.Value()
 
 	if c.maxAckPending == -1 {
 		c.maxAckPending = 0
@@ -1111,7 +1128,7 @@ func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
 	leaders := make(map[string]*raftLeader)
 
 	table := newTableWriter(fmt.Sprintf("Consumer report for %s with %d consumers", c.stream, ss.Consumers))
-	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
+	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Un	processed", "Ack Floor", "Cluster")
 	err = s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
 		if err != nil {
