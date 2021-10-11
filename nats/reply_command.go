@@ -121,7 +121,7 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 
 		msg := nats.NewMsg(m.Reply)
 		if nc.HeadersSupported() && len(c.hdrs) > 0 {
-			parseStringsToHeader(c.hdrs, i, msg)
+			parseStringsToMsgHeader(c.hdrs, i, msg)
 		}
 
 		switch {

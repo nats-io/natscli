@@ -96,7 +96,7 @@ func (c *pubCmd) prepareMsg(body []byte, seq int) (*nats.Msg, error) {
 	msg.Reply = c.replyTo
 	msg.Data = body
 
-	return msg, parseStringsToHeader(c.hdrs, seq, msg)
+	return msg, parseStringsToMsgHeader(c.hdrs, seq, msg)
 }
 
 func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
