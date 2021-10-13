@@ -102,6 +102,7 @@ See 'nats cheat' for a quick cheatsheet of commands
 	configureEventsCommand(ncli)
 	configureGovernorCommand(ncli)
 	configureKVCommand(ncli)
+	configureObjectCommand(ncli)
 	configureLatencyCommand(ncli)
 	configurePubCommand(ncli)
 	configureRTTCommand(ncli)

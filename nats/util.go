@@ -404,6 +404,28 @@ func newNatsConn(servers string, opts ...nats.Option) (*nats.Conn, error) {
 	return nats.Connect(servers, opts...)
 }
 
+func prepareJSHelper(servers string, opts ...nats.Option) (*nats.Conn, nats.JetStreamContext, error) {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var jso []nats.JSOpt
+	if jsDomain != "" {
+		jso = append(jso, nats.Domain(jsDomain))
+	}
+	if jsApiPrefix != "" {
+		jso = append(jso, nats.APIPrefix(jsApiPrefix))
+	}
+
+	js, err := nc.JetStream(jso...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return nc, js, nil
+}
+
 func prepareHelper(servers string, opts ...nats.Option) (*nats.Conn, *jsm.Manager, error) {
 	if config == nil {
 		if ctxError != nil {
@@ -633,7 +655,27 @@ func randomString(shortest uint, longest uint) string {
 	return string(b)
 }
 
-func parseStringsToHeader(hdrs []string, seq int, msg *nats.Msg) error {
+func parseStringsToHeader(hdrs []string, seq int) (nats.Header, error) {
+	res := nats.Header{}
+
+	for _, hdr := range hdrs {
+		parts := strings.SplitN(hdr, ":", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid header %q", hdr)
+		}
+
+		val, err := pubReplyBodyTemplate(strings.TrimSpace(parts[1]), seq)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse Header template for %s: %s", parts[0], err)
+		}
+
+		res.Add(strings.TrimSpace(parts[0]), string(val))
+	}
+
+	return res, nil
+}
+
+func parseStringsToMsgHeader(hdrs []string, seq int, msg *nats.Msg) error {
 	for _, hdr := range hdrs {
 		parts := strings.SplitN(hdr, ":", 2)
 		if len(parts) != 2 {

@@ -20,7 +20,7 @@ require (
 	github.com/klauspost/compress v1.13.4
 	github.com/nats-io/jsm.go v0.0.27-0.20211006163108-9aae04fb57e9
 	github.com/nats-io/nats-server/v2 v2.6.2-0.20211006145508-3f12216fcc34
-	github.com/nats-io/nats.go v1.12.3
+	github.com/nats-io/nats.go v1.13.1-0.20211013144704-0f47b1ceedfa
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/common v0.26.0
