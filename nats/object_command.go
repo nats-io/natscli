@@ -238,7 +238,7 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 
 func (c *objCommand) showObjectInfo(nfo *nats.ObjectInfo) {
 	digest := strings.Split(nfo.Digest, "=")
-	digestBytes, _ := base64.StdEncoding.DecodeString(digest[1])
+	digestBytes, _ := base64.URLEncoding.DecodeString(digest[1])
 
 	fmt.Printf("Object information for %s > %s\n\n", nfo.Bucket, nfo.Name)
 	if nfo.Description != "" {
