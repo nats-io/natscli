@@ -417,15 +417,15 @@ func prepareJSHelper() (*nats.Conn, nats.JetStreamContext, error) {
 		nats.APIPrefix(jsApiPrefix),
 	}
 
-	// if trace {
-	// 	jso = append(jso, nats.TraceFunc(func(op nats.TraceOperation, subj string, payload []byte, hdr nats.Header) {
-	// 		if op == nats.TraceSent {
-	// 			log.Printf(">>> %s: %s", subj, string(payload))
-	// 		} else {
-	// 			log.Printf("<<< %s: %s", subj, string(payload))
-	// 		}
-	// 	}))
-	// }
+	if trace {
+		jso = append(jso, nats.TraceFunc(func(op nats.TraceOperation, subj string, payload []byte, hdr nats.Header) {
+			if op == nats.TraceSent {
+				log.Printf(">>> %s: %s", subj, string(payload))
+			} else {
+				log.Printf("<<< %s: %s", subj, string(payload))
+			}
+		}))
+	}
 
 	js, err := nc.JetStream(jso...)
 	if err != nil {
