@@ -25,6 +25,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
+	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -35,6 +36,7 @@ type objCommand struct {
 	overrideName string
 	hdrs         []string
 	force        bool
+	noProgress   bool
 
 	description string
 	replicas    uint
@@ -66,6 +68,8 @@ NOTE: This is an experimental feature.
 	put.Flag("name", "Override the name supplied to the object store").StringVar(&c.overrideName)
 	put.Flag("description", "Sets an optional description for the object").StringVar(&c.description)
 	put.Flag("header", "Adds headers to the object").Short('H').StringsVar(&c.hdrs)
+	put.Flag("no-progress", "Disables progress bars").Default("false").BoolVar(&c.noProgress)
+	put.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	rm := obj.Command("rm", "Removes a file from the store").Action(c.rmAction)
 	rm.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -76,6 +80,7 @@ NOTE: This is an experimental feature.
 	get.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	get.Arg("file", "The file to retrieve").Required().StringVar(&c.file)
 	get.Flag("output", "Override the output file name").Short('O').StringVar(&c.overrideName)
+	get.Flag("no-progress", "Disables progress bars").Default("false").BoolVar(&c.noProgress)
 
 	info := obj.Command("info", "Get information about a bucket or object").Action(c.infoAction)
 	info.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -179,13 +184,13 @@ func (c *objCommand) rmAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *objCommand) infoAction(_ *kingpin.ParseContext) error {
-	if c.file == "" {
-		return fmt.Errorf("only object info is supported")
-	}
-
 	_, _, obj, err := c.loadBucket()
 	if err != nil {
 		return err
+	}
+
+	if c.file == "" {
+		return c.showBucketInfo(obj)
 	}
 
 	nfo, err := obj.GetInfo(c.file)
@@ -207,9 +212,16 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 	fmt.Printf("%s Object Store Status\n", status.Bucket())
 	fmt.Println()
 	fmt.Printf("         Bucket Name: %s\n", status.Bucket())
-	fmt.Printf("         Description: %s\n", status.Description())
+	if status.Description() != "" {
+		fmt.Printf("         Description: %s\n", status.Description())
+	}
 	fmt.Printf("            Replicas: %d\n", status.Replicas())
-	fmt.Printf("                 TTL: %s\n", humanizeDuration(status.TTL()))
+	if status.TTL() == 0 {
+		fmt.Printf("                 TTL: unlimitd\n")
+	} else {
+		fmt.Printf("                 TTL: %s\n", humanizeDuration(status.TTL()))
+	}
+
 	fmt.Printf("              Sealed: %v\n", status.Sealed())
 	fmt.Printf("                Size: %s\n", humanize.IBytes(status.Size()))
 	fmt.Printf("  Backing Store Kind: %s\n", status.BackingStore())
@@ -241,9 +253,15 @@ func (c *objCommand) showObjectInfo(nfo *nats.ObjectInfo) {
 		fmt.Printf("            Deleted: %v\n", nfo.Deleted)
 	}
 	if len(nfo.Headers) > 0 {
-		fmt.Printf("            Headers:\n")
+		fmt.Printf("            Headers: ")
+		first := true
 		for k, v := range nfo.Headers {
-			fmt.Printf("                     %s = %s\n", k, v)
+			if first {
+				fmt.Printf("%s = %s\n", k, v)
+				first = false
+			} else {
+				fmt.Printf("                     %s = %s\n", k, v)
+			}
 		}
 	}
 }
@@ -287,6 +305,18 @@ func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 		name = c.overrideName
 	}
 
+	nfo, err := obj.GetInfo(name)
+	if err == nil && !nfo.Deleted && !c.force {
+		c.showObjectInfo(nfo)
+		fmt.Println()
+		ok, err := askConfirmation(fmt.Sprintf("Replace existing file %s > %s", c.bucket, name), false)
+		kingpin.FatalIfError(err, "could not obtain confirmation")
+
+		if !ok {
+			return nil
+		}
+	}
+
 	hdr, err := parseStringsToHeader(c.hdrs, 0)
 	if err != nil {
 		return err
@@ -302,8 +332,32 @@ func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 	if err != nil {
 		return err
 	}
+	defer r.Close()
 
-	nfo, err := obj.Put(meta, r)
+	stat, err := r.Stat()
+	if err != nil {
+		return err
+	}
+
+	var progress *uiprogress.Bar
+	pr := io.Reader(r)
+	stop := func() {}
+
+	if !c.noProgress && stat.Size() > 20480 {
+		hs := humanize.IBytes(uint64(stat.Size()))
+		progress = uiprogress.AddBar(int(stat.Size())).PrependFunc(func(b *uiprogress.Bar) string {
+			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
+		})
+		progress.Width = progressWidth()
+
+		fmt.Println()
+		uiprogress.Start()
+		stop = func() { uiprogress.Stop(); fmt.Println() }
+		pr = &progressRW{p: progress, r: r}
+	}
+
+	nfo, err = obj.Put(meta, pr)
+	stop()
 	if err != nil {
 		return err
 	}
@@ -343,14 +397,44 @@ func (c *objCommand) getAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	if !c.force {
+		_, err = os.Stat(out)
+		if !os.IsNotExist(err) {
+			ok, err := askConfirmation(fmt.Sprintf("Replace existing target file %s", out), false)
+			kingpin.FatalIfError(err, "could not obtain confirmation")
+
+			if !ok {
+				return nil
+			}
+		}
+	}
+
 	of, err := os.Create(out)
 	if err != nil {
 		return err
 	}
 	defer of.Close()
 
-	// TODO: progress
-	wc, err := io.Copy(of, res)
+	var progress *uiprogress.Bar
+	pw := io.Writer(of)
+	stop := func() {}
+
+	if !c.noProgress && nfo.Size > 20480 {
+		hs := humanize.IBytes(nfo.Size)
+		progress = uiprogress.AddBar(int(nfo.Size)).PrependFunc(func(b *uiprogress.Bar) string {
+			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
+		})
+		progress.Width = progressWidth()
+
+		fmt.Println()
+		uiprogress.Start()
+		stop = func() { uiprogress.Stop(); fmt.Println() }
+		pw = &progressRW{p: progress, w: of}
+	}
+
+	start := time.Now()
+	wc, err := io.Copy(pw, res)
+	stop()
 	if err != nil {
 		of.Close()
 		os.Remove(of.Name())
@@ -367,14 +451,19 @@ func (c *objCommand) getAction(_ *kingpin.ParseContext) error {
 		log.Printf("Could not set modification time: %s", err)
 	}
 
-	// TODO: render, verify
-	fmt.Printf("wrote: %s to %s\n", humanize.IBytes(uint64(wc)), of.Name())
+	elapsed := time.Since(start)
+	if elapsed > 2*time.Second {
+		bps := float64(nfo.Size) / elapsed.Seconds()
+		fmt.Printf("Wrote: %s to %s in %v average %s/s\n", humanize.IBytes(uint64(wc)), of.Name(), humanizeDuration(elapsed), humanize.IBytes(uint64(bps)))
+	} else {
+		fmt.Printf("Wrote: %s to %s in %v\n", humanize.IBytes(uint64(wc)), of.Name(), humanizeDuration(elapsed))
+	}
 
 	return nil
 }
 
 func (c *objCommand) addAction(_ *kingpin.ParseContext) error {
-	_, js, err := prepareJSHelper("", natsOpts()...)
+	_, js, err := prepareJSHelper()
 	if err != nil {
 		return err
 	}
@@ -394,7 +483,7 @@ func (c *objCommand) addAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *objCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.ObjectStore, error) {
-	nc, js, err := prepareJSHelper("", natsOpts()...)
+	nc, js, err := prepareJSHelper()
 	if err != nil {
 		return nil, nil, nil, err
 	}

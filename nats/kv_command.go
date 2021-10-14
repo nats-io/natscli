@@ -379,7 +379,7 @@ func (c *kvCommand) valOrReadVal() ([]byte, error) {
 }
 
 func (c *kvCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.KeyValue, error) {
-	nc, js, err := prepareJSHelper("", natsOpts()...)
+	nc, js, err := prepareJSHelper()
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -465,7 +465,7 @@ func (c *kvCommand) rmAction(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	_, js, err := prepareJSHelper("", natsOpts()...)
+	_, js, err := prepareJSHelper()
 	if err != nil {
 		return err
 	}

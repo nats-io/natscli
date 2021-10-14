@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"math"
@@ -37,6 +38,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/gosuri/uiprogress"
 	"github.com/klauspost/compress/s2"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -404,19 +406,26 @@ func newNatsConn(servers string, opts ...nats.Option) (*nats.Conn, error) {
 	return nats.Connect(servers, opts...)
 }
 
-func prepareJSHelper(servers string, opts ...nats.Option) (*nats.Conn, nats.JetStreamContext, error) {
+func prepareJSHelper() (*nats.Conn, nats.JetStreamContext, error) {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var jso []nats.JSOpt
-	if jsDomain != "" {
-		jso = append(jso, nats.Domain(jsDomain))
+	jso := []nats.JSOpt{
+		nats.Domain(jsDomain),
+		nats.APIPrefix(jsApiPrefix),
 	}
-	if jsApiPrefix != "" {
-		jso = append(jso, nats.APIPrefix(jsApiPrefix))
-	}
+
+	// if trace {
+	// 	jso = append(jso, nats.TraceFunc(func(op nats.TraceOperation, subj string, payload []byte, hdr nats.Header) {
+	// 		if op == nats.TraceSent {
+	// 			log.Printf(">>> %s: %s", subj, string(payload))
+	// 		} else {
+	// 			log.Printf("<<< %s: %s", subj, string(payload))
+	// 		}
+	// 	}))
+	// }
 
 	js, err := nc.JetStream(jso...)
 	if err != nil {
@@ -1042,4 +1051,24 @@ func base64IfNotPrintable(val []byte) string {
 	}
 
 	return base64.StdEncoding.EncodeToString(val)
+}
+
+// io.Reader / io.Writer that updates progress bar
+type progressRW struct {
+	r io.Reader
+	w io.Writer
+	p *uiprogress.Bar
+}
+
+func (pr *progressRW) Read(p []byte) (n int, err error) {
+	n, err = pr.r.Read(p)
+	pr.p.Set(pr.p.Current() + n)
+
+	return n, err
+}
+
+func (pr *progressRW) Write(p []byte) (n int, err error) {
+	n, err = pr.w.Write(p)
+	pr.p.Set(pr.p.Current() + n)
+	return n, err
 }
