@@ -37,6 +37,7 @@ type objCommand struct {
 	hdrs         []string
 	force        bool
 	noProgress   bool
+	storage      string
 
 	description string
 	replicas    uint
@@ -61,6 +62,7 @@ NOTE: This is an experimental feature.
 	add.Flag("ttl", "How long to keep objects for").DurationVar(&c.ttl)
 	add.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
 	add.Flag("description", "A description for the bucket").StringVar(&c.description)
+	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 
 	put := obj.Command("put", "Puts a file into the store").Action(c.putAction)
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -281,7 +283,6 @@ func (c *objCommand) showObjectInfo(nfo *nats.ObjectInfo) {
 	fmt.Printf("  Modification Time: %s\n", nfo.ModTime.Format(time.RFC822Z))
 	fmt.Printf("             Chunks: %s\n", humanize.Comma(int64(nfo.Chunks)))
 	fmt.Printf("             Digest: %s %x\n", digest[0], digestBytes)
-	fmt.Printf("                 ID: %s\n", nfo.NUID)
 	if nfo.Deleted {
 		fmt.Printf("            Deleted: %v\n", nfo.Deleted)
 	}
@@ -289,11 +290,13 @@ func (c *objCommand) showObjectInfo(nfo *nats.ObjectInfo) {
 		fmt.Printf("            Headers: ")
 		first := true
 		for k, v := range nfo.Headers {
-			if first {
-				fmt.Printf("%s = %s\n", k, v)
-				first = false
-			} else {
-				fmt.Printf("                     %s = %s\n", k, v)
+			for _, i := range v {
+				if first {
+					fmt.Printf("%s: %s\n", k, i)
+					first = false
+				} else {
+					fmt.Printf("                     %s: %s\n", k, i)
+				}
 			}
 		}
 	}
@@ -316,10 +319,10 @@ func (c *objCommand) lsAction(_ *kingpin.ParseContext) error {
 	}
 
 	table := newTableWriter("Bucket Contents")
-	table.AddHeaders("Name", "Size", "Time", "ID")
+	table.AddHeaders("Name", "Size", "Time")
 
 	for _, i := range contents {
-		table.AddRow(i.Name, humanize.IBytes(i.Size), i.ModTime.Format(time.RFC3339), i.NUID)
+		table.AddRow(i.Name, humanize.IBytes(i.Size), i.ModTime.Format(time.RFC3339))
 	}
 
 	fmt.Println(table.Render())
@@ -501,11 +504,16 @@ func (c *objCommand) addAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	st := nats.FileStorage
+	if c.storage == "memory" || c.storage == "m" {
+		st = nats.MemoryStorage
+	}
+
 	obj, err := js.CreateObjectStore(&nats.ObjectStoreConfig{
 		Bucket:      c.bucket,
 		Description: c.description,
 		TTL:         c.ttl,
-		Storage:     nats.FileStorage,
+		Storage:     st,
 		Replicas:    int(c.replicas),
 	})
 	if err != nil {
