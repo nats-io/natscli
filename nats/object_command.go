@@ -17,7 +17,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -379,7 +378,7 @@ func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 	pr := io.Reader(r)
 	stop := func() {}
 
-	if !c.noProgress && stat.Size() > 20480 {
+	if !trace && !c.noProgress && stat.Size() > 20480 {
 		hs := humanize.IBytes(uint64(stat.Size()))
 		progress = uiprogress.AddBar(int(stat.Size())).PrependFunc(func(b *uiprogress.Bar) string {
 			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
@@ -455,7 +454,7 @@ func (c *objCommand) getAction(_ *kingpin.ParseContext) error {
 	pw := io.Writer(of)
 	stop := func() {}
 
-	if !c.noProgress && nfo.Size > 20480 {
+	if !trace && !c.noProgress && nfo.Size > 20480 {
 		hs := humanize.IBytes(nfo.Size)
 		progress = uiprogress.AddBar(int(nfo.Size)).PrependFunc(func(b *uiprogress.Bar) string {
 			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
@@ -482,10 +481,6 @@ func (c *objCommand) getAction(_ *kingpin.ParseContext) error {
 	}
 
 	of.Close()
-	err = os.Chtimes(of.Name(), time.Now(), nfo.ModTime)
-	if err != nil {
-		log.Printf("Could not set modification time: %s", err)
-	}
 
 	elapsed := time.Since(start)
 	if elapsed > 2*time.Second {
