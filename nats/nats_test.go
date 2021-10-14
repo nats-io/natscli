@@ -182,7 +182,7 @@ func TestCLIStreamCreate(t *testing.T) {
 	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m --max-msgs-per-subject=10 --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new --dupe-window 1h --replicas 1 --description 'test suite' --allow-rollup --deny-delete --deny-purge", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m --max-msgs-per-subject=10 --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new --dupe-window 1h --replicas 1 --description 'test suite' --allow-rollup --deny-delete --no-deny-purge", srv.ClientURL()))
 	streamShouldExist(t, mgr, "mem1")
 	info := streamInfo(t, mgr, "mem1")
 
@@ -226,8 +226,8 @@ func TestCLIStreamCreate(t *testing.T) {
 		t.Fatalf("expected rollups to be allowed")
 	}
 
-	if !info.Config.DenyPurge {
-		t.Fatalf("expected purge to be denied")
+	if info.Config.DenyPurge {
+		t.Fatalf("expected purge to be allowed")
 	}
 
 	if !info.Config.DenyDelete {
