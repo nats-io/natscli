@@ -81,6 +81,7 @@ NOTE: This is an experimental feature.
 	get.Arg("file", "The file to retrieve").Required().StringVar(&c.file)
 	get.Flag("output", "Override the output file name").Short('O').StringVar(&c.overrideName)
 	get.Flag("no-progress", "Disables progress bars").Default("false").BoolVar(&c.noProgress)
+	get.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	info := obj.Command("info", "Get information about a bucket or object").Action(c.infoAction)
 	info.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
