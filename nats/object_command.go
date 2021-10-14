@@ -95,6 +95,38 @@ NOTE: This is an experimental feature.
 
 	watch := obj.Command("watch", "Watch a bucket for changes").Action(c.watchAction)
 	watch.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+
+	cheats["obj"] = `# to create a replicated bucket
+nats obj add FILES --replicas 3
+
+# store a file in the bucket
+nats obj put FILES image.jpg
+
+# retrieve a file from a bucket
+nats obj get FILES image.jpg -O out.jpg
+
+# delete a file
+nats obj rm FILES image.jpg
+
+# view bucket info
+nats obj info FILES
+
+# view file info
+nats obj info FILES image.jpg
+
+# view all files in a bucket
+nats obj ls FILES
+
+# prevent further modifications to the bucket
+nats obj seal FILES
+
+# create a bucket backup for FILES into backups/FILES
+nats obj status FILES
+nats stream backup <stream name> backups/FILES
+
+# restore a bucket from a backup
+nats stream restore <stream name> backups/FILES
+`
 }
 
 func (c *objCommand) watchAction(_ *kingpin.ParseContext) error {
@@ -322,12 +354,6 @@ func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	meta := &nats.ObjectMeta{
-		Name:        filepath.Clean(name),
-		Description: c.description,
-		Headers:     hdr,
-	}
-
 	r, err := os.Open(c.file)
 	if err != nil {
 		return err
@@ -337,6 +363,12 @@ func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 	stat, err := r.Stat()
 	if err != nil {
 		return err
+	}
+
+	meta := &nats.ObjectMeta{
+		Name:        filepath.Clean(name),
+		Description: c.description,
+		Headers:     hdr,
 	}
 
 	var progress *uiprogress.Bar
