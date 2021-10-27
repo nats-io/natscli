@@ -65,7 +65,7 @@ NOTE: This is an experimental feature.
 
 	put := obj.Command("put", "Puts a file into the store").Action(c.putAction)
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	put.Arg("file", "The file to put").Required().ExistingFileVar(&c.file)
+	put.Arg("file", "The file to put").ExistingFileVar(&c.file)
 	put.Flag("name", "Override the name supplied to the object store").StringVar(&c.overrideName)
 	put.Flag("description", "Sets an optional description for the object").StringVar(&c.description)
 	put.Flag("header", "Adds headers to the object").Short('H').StringsVar(&c.hdrs)
@@ -103,6 +103,9 @@ nats obj add FILES --replicas 3
 
 # store a file in the bucket
 nats obj put FILES image.jpg
+
+# store contents of STDIN in the bucket
+cat x.jpg|nats obj put FILES --name image.jpg
 
 # retrieve a file from a bucket
 nats obj get FILES image.jpg -O out.jpg
@@ -340,6 +343,10 @@ func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 		name = c.overrideName
 	}
 
+	if c.file == "" && name == "" {
+		return fmt.Errorf("--name is required when reading from stdin")
+	}
+
 	nfo, err := obj.GetInfo(name)
 	if err == nil && !nfo.Deleted && !c.force {
 		c.showObjectInfo(nfo)
@@ -357,15 +364,26 @@ func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	r, err := os.Open(c.file)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
+	var (
+		pr   io.Reader
+		stat os.FileInfo
+	)
 
-	stat, err := r.Stat()
-	if err != nil {
-		return err
+	if c.file == "" {
+		pr = os.Stdin
+	} else {
+		f, err := os.Open(c.file)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		stat, err = f.Stat()
+		if err != nil {
+			return err
+		}
+
+		pr = f
 	}
 
 	meta := &nats.ObjectMeta{
@@ -375,10 +393,9 @@ func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 	}
 
 	var progress *uiprogress.Bar
-	pr := io.Reader(r)
 	stop := func() {}
 
-	if !trace && !c.noProgress && stat.Size() > 20480 {
+	if !trace && !c.noProgress && stat != nil && stat.Size() > 20480 {
 		hs := humanize.IBytes(uint64(stat.Size()))
 		progress = uiprogress.AddBar(int(stat.Size())).PrependFunc(func(b *uiprogress.Bar) string {
 			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
@@ -388,7 +405,7 @@ func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 		fmt.Println()
 		uiprogress.Start()
 		stop = func() { uiprogress.Stop(); fmt.Println() }
-		pr = &progressRW{p: progress, r: r}
+		pr = &progressRW{p: progress, r: pr}
 	}
 
 	nfo, err = obj.Put(meta, pr)
