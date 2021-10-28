@@ -362,31 +362,31 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	fmt.Println("State:")
 	fmt.Println()
 	if state.Delivered.Last == nil {
-		fmt.Printf("   Last Delivered Message: Consumer sequence: %d Stream sequence: %d\n", state.Delivered.Consumer, state.Delivered.Stream)
+		fmt.Printf("   Last Delivered Message: Consumer sequence: %s Stream sequence: %s\n", humanize.Comma(int64(state.Delivered.Consumer)), humanize.Comma(int64(state.Delivered.Stream)))
 	} else {
-		fmt.Printf("   Last Delivered Message: Consumer sequence: %d Stream sequence: %d Last delivery: %s ago\n", state.Delivered.Consumer, state.Delivered.Stream, humanizeDuration(time.Since(*state.Delivered.Last)))
+		fmt.Printf("   Last Delivered Message: Consumer sequence: %s Stream sequence: %s Last delivery: %s ago\n", humanize.Comma(int64(state.Delivered.Consumer)), humanize.Comma(int64(state.Delivered.Stream)), humanizeDuration(time.Since(*state.Delivered.Last)))
 	}
 
 	if config.AckPolicy != api.AckNone {
 		if state.AckFloor.Last == nil {
-			fmt.Printf("     Acknowledgment floor: Consumer sequence: %d Stream sequence: %d\n", state.AckFloor.Consumer, state.AckFloor.Stream)
+			fmt.Printf("     Acknowledgment floor: Consumer sequence: %s Stream sequence: %s\n", humanize.Comma(int64(state.AckFloor.Consumer)), humanize.Comma(int64(state.AckFloor.Stream)))
 		} else {
-			fmt.Printf("     Acknowledgment floor: Consumer sequence: %d Stream sequence: %d Last Ack: %s ago\n", state.AckFloor.Consumer, state.AckFloor.Stream, humanizeDuration(time.Since(*state.AckFloor.Last)))
+			fmt.Printf("     Acknowledgment floor: Consumer sequence: %s Stream sequence: %s Last Ack: %s ago\n", humanize.Comma(int64(state.AckFloor.Consumer)), humanize.Comma(int64(state.AckFloor.Stream)), humanizeDuration(time.Since(*state.AckFloor.Last)))
 		}
 		if config.MaxAckPending > 0 {
-			fmt.Printf("         Outstanding Acks: %d out of maximum %d\n", state.NumAckPending, config.MaxAckPending)
+			fmt.Printf("         Outstanding Acks: %s out of maximum %s\n", humanize.Comma(int64(state.NumAckPending)), humanize.Comma(int64(config.MaxAckPending)))
 		} else {
-			fmt.Printf("         Outstanding Acks: %d\n", state.NumAckPending)
+			fmt.Printf("         Outstanding Acks: %s\n", humanize.Comma(int64(state.NumAckPending)))
 		}
-		fmt.Printf("     Redelivered Messages: %d\n", state.NumRedelivered)
+		fmt.Printf("     Redelivered Messages: %s\n", humanize.Comma(int64(state.NumRedelivered)))
 	}
 
-	fmt.Printf("     Unprocessed Messages: %d\n", state.NumPending)
+	fmt.Printf("     Unprocessed Messages: %s\n", humanize.Comma(int64(state.NumPending)))
 	if config.DeliverSubject == "" {
 		if config.MaxWaiting > 0 {
-			fmt.Printf("            Waiting Pulls: %d of maximum %d\n", state.NumWaiting, config.MaxWaiting)
+			fmt.Printf("            Waiting Pulls: %s of maximum %s\n", humanize.Comma(int64(state.NumWaiting)), humanize.Comma(int64(config.MaxWaiting)))
 		} else {
-			fmt.Printf("            Waiting Pulls: %d of unlimited\n", state.NumWaiting)
+			fmt.Printf("            Waiting Pulls: %s of unlimited\n", humanize.Comma(int64(state.NumWaiting)))
 		}
 	} else {
 		if state.PushBound {
