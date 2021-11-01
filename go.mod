@@ -16,15 +16,14 @@ require (
 	github.com/guptarohit/asciigraph v0.5.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.13.6
-	github.com/nats-io/jsm.go v0.0.27-0.20211006163108-9aae04fb57e9
-	github.com/nats-io/nats-server/v2 v2.6.2
+	github.com/nats-io/jsm.go v0.0.27-0.20211028083116-961936f4a85a
+	github.com/nats-io/nats-server/v2 v2.6.3
 	github.com/nats-io/nats.go v1.13.1-0.20211018182449-f2416a8b1483
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/common v0.31.1
+	github.com/santhosh-tekuri/jsonschema/v5 v5.0.0
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
-	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
-	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
