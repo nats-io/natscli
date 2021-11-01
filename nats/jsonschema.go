@@ -14,10 +14,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/nats-io/jsm.go/api"
-	"github.com/xeipuuv/gojsonschema"
+	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
 type SchemaValidator struct{}
@@ -27,22 +28,41 @@ func (v SchemaValidator) ValidateStruct(data interface{}, schemaType string) (ok
 	if err != nil {
 		return false, []string{fmt.Sprintf("unknown schema type %s", schemaType)}
 	}
-
-	ls := gojsonschema.NewBytesLoader(s)
-	ld := gojsonschema.NewGoLoader(data)
-	result, err := gojsonschema.Validate(ls, ld)
+	sch, err := jsonschema.CompileString("schema.json", string(s))
 	if err != nil {
-		return false, []string{fmt.Sprintf("validation failed: %s", err)}
+		return false, []string{fmt.Sprintf("could not load schema %s: %s", s, err)}
 	}
 
-	if result.Valid() {
-		return true, nil
+	// it only accepts basic primitives so we have to specifically convert to interface{}
+	var d interface{}
+	dj, err := json.Marshal(data)
+	if err != nil {
+		return false, []string{fmt.Sprintf("could not serialize data: %s", err)}
+	}
+	err = json.Unmarshal(dj, &d)
+	if err != nil {
+		return false, []string{fmt.Sprintf("could not de-serialize data: %s", err)}
 	}
 
-	errors := make([]string, len(result.Errors()))
-	for i, verr := range result.Errors() {
-		errors[i] = verr.String()
+	err = sch.Validate(d)
+	if err != nil {
+		if verr, ok := err.(*jsonschema.ValidationError); ok {
+			for _, e := range verr.BasicOutput().Errors {
+				if e.KeywordLocation == "" || e.Error == "oneOf failed" || e.Error == "allOf failed" {
+					continue
+				}
+
+				if e.InstanceLocation == "" {
+					errs = append(errs, e.Error)
+				} else {
+					errs = append(errs, fmt.Sprintf("%s: %s", e.InstanceLocation, e.Error))
+				}
+			}
+			return false, errs
+		} else {
+			return false, []string{fmt.Sprintf("could not validate: %s", err)}
+		}
 	}
 
-	return false, errors
+	return true, nil
 }
