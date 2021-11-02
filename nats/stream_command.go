@@ -52,6 +52,7 @@ type streamCmd struct {
 	inputFile        string
 	outFile          string
 	filterSubject    string
+	showAll          bool
 
 	destination           string
 	subjects              []string
@@ -169,6 +170,7 @@ func configureStreamCommand(app *kingpin.Application) {
 
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
 	strLs.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
+	strLs.Flag("all", "Show all streams including system ones").Short('a').BoolVar(&c.showAll)
 	strLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
@@ -1992,13 +1994,25 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 	streams, err := mgr.StreamNames(&jsm.StreamNamesFilter{Subject: c.filterSubject})
 	kingpin.FatalIfError(err, "could not list Streams")
 
+	var matched []string
+	for _, s := range streams {
+		if !c.showAll && (strings.HasPrefix(s, "KV_") || strings.HasPrefix(s, "OBJ_") || strings.HasPrefix(s, "$MQTT_")) {
+			continue
+		}
+
+		matched = append(matched, s)
+	}
+
 	if c.json {
-		err = printJSON(streams)
+		err = printJSON(matched)
 		kingpin.FatalIfError(err, "could not display Streams")
 		return nil
 	}
 
-	if len(streams) == 0 {
+	if len(matched) == 0 && len(streams) != 0 {
+		fmt.Println("No Streams defined, pass -a to include system streams")
+		return nil
+	} else if len(matched) == 0 {
 		fmt.Println("No Streams defined")
 		return nil
 	}
@@ -2010,7 +2024,7 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 	}
 
 	fmt.Println()
-	for _, s := range streams {
+	for _, s := range matched {
 		fmt.Printf("\t%s\n", s)
 	}
 	fmt.Println()
