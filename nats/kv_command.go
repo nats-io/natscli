@@ -206,11 +206,11 @@ func (c *kvCommand) lsAction(_ *kingpin.ParseContext) error {
 	})
 
 	table := newTableWriter("Key-Value Buckets")
-	table.AddHeaders("Bucket", "Description", "Created", "Size", "Values")
+	table.AddHeaders("Bucket", "Description", "Created", "Size", "Values", "Last Update")
 	for _, s := range found {
 		nfo, _ := s.LatestInformation()
 
-		table.AddRow(strings.TrimPrefix(s.Name(), "KV_"), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), nfo.State.Bytes, humanize.IBytes(nfo.State.Msgs))
+		table.AddRow(strings.TrimPrefix(s.Name(), "KV_"), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), nfo.State.Bytes, humanize.IBytes(nfo.State.Msgs), humanizeDuration(time.Since(nfo.State.LastTime)))
 	}
 
 	fmt.Println(table.Render())

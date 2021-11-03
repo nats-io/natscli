@@ -2045,10 +2045,10 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 	} else {
 		table = newTableWriter(fmt.Sprintf("Streams matching %s", c.filterSubject))
 	}
-	table.AddHeaders("Name", "Description", "Created", "Messages", "Size")
+	table.AddHeaders("Name", "Description", "Created", "Messages", "Size", "Last Message")
 	for _, s := range streams {
 		nfo, _ := s.LatestInformation()
-		table.AddRow(s.Name(), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), humanize.Comma(int64(nfo.State.Msgs)), humanize.IBytes(nfo.State.Bytes))
+		table.AddRow(s.Name(), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), humanize.Comma(int64(nfo.State.Msgs)), humanize.IBytes(nfo.State.Bytes), humanizeDuration(time.Since(nfo.State.LastTime)))
 	}
 	fmt.Println(table.Render())
 

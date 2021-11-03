@@ -347,11 +347,11 @@ func (c *objCommand) listBuckets() error {
 	})
 
 	table := newTableWriter("Object Store Buckets")
-	table.AddHeaders("Bucket", "Description", "Created", "Size")
+	table.AddHeaders("Bucket", "Description", "Created", "Size", "Last Update")
 	for _, s := range found {
 		nfo, _ := s.LatestInformation()
 
-		table.AddRow(strings.TrimPrefix(s.Name(), "OBJ_"), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), humanize.IBytes(nfo.State.Bytes))
+		table.AddRow(strings.TrimPrefix(s.Name(), "OBJ_"), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), humanize.IBytes(nfo.State.Bytes), humanizeDuration(time.Since(nfo.State.LastTime)))
 	}
 
 	fmt.Println(table.Render())
