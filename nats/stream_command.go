@@ -1999,7 +1999,7 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 
 	skipped := false
 	err = mgr.EachStream(func(s *jsm.Stream) {
-		if !c.showAll && (strings.HasPrefix(s.Name(), "KV_") || strings.HasPrefix(s.Name(), "OBJ_") || strings.HasPrefix(s.Name(), "$MQTT_")) {
+		if !c.showAll && s.IsInternal() {
 			skipped = true
 			return
 		}
