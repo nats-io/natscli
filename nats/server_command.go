@@ -27,6 +27,7 @@ func configureServerCommand(app *kingpin.Application) {
 	configureServerRaftCommand(srv)
 	configureServerPasswdCommand(srv)
 	configureServerCheckCommand(srv)
+	configureServerRunCommand(srv)
 
 	cheats["server"] = `# To see all servers, including their server ID and show a response graph
 nats server ping --id --graph --user system
