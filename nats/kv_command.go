@@ -17,10 +17,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -36,9 +39,9 @@ type kvCommand struct {
 	force         bool
 	maxValueSize  int32
 	maxBucketSize int64
-	cluster       string
 	revision      uint64
 	description   string
+	listNames     bool
 }
 
 func configureKVCommand(app *kingpin.Application) {
@@ -61,7 +64,6 @@ NOTE: This is an experimental feature.
 	add.Flag("history", "How many historic values to keep per key").Default("1").Uint64Var(&c.history)
 	add.Flag("ttl", "How long to keep values for").DurationVar(&c.ttl)
 	add.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
-	add.Flag("cluster", "Place the bucket in a specific cluster").StringVar(&c.cluster)
 	add.Flag("max-value-size", "Maximum size for any single value").Int32Var(&c.maxValueSize)
 	add.Flag("max-bucket-size", "Maximum size for the bucket").Int64Var(&c.maxBucketSize)
 	add.Flag("description", "A description for the bucket").StringVar(&c.description)
@@ -108,6 +110,9 @@ NOTE: This is an experimental feature.
 	watch.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	watch.Arg("key", "The key to act on").StringVar(&c.key)
 
+	ls := kv.Command("list", "List available Buckets").Alias("ls").Action(c.lsAction)
+	ls.Flag("names", "Show just the bucket names").Short('n').BoolVar(&c.listNames)
+
 	rm := kv.Command("rm", "Removes a bucket").Action(c.rmAction)
 	rm.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	rm.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
@@ -145,6 +150,9 @@ nats stream backup <stream name> backups/CONFIG
 
 # restore a bucket from a backup
 nats stream restore <stream name> backups/CONFIG
+
+# list known buckets
+nats kv ls
 `
 
 }
@@ -160,6 +168,54 @@ func (c *kvCommand) strForOp(op nats.KeyValueOp) string {
 	default:
 		return "UNKNOWN"
 	}
+}
+
+func (c *kvCommand) lsAction(_ *kingpin.ParseContext) error {
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	var found []*jsm.Stream
+	err = mgr.EachStream(func(s *jsm.Stream) {
+		if strings.HasPrefix(s.Name(), "KV_") {
+			found = append(found, s)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(found) == 0 {
+		fmt.Println("No Key-Value buckets found")
+		return nil
+	}
+
+	if c.listNames {
+		for _, s := range found {
+			fmt.Println(strings.TrimPrefix(s.Name(), "KV_"))
+		}
+		return nil
+	}
+
+	sort.Slice(found, func(i, j int) bool {
+		info, _ := found[i].LatestInformation()
+		jnfo, _ := found[j].LatestInformation()
+
+		return info.State.Bytes < jnfo.State.Bytes
+	})
+
+	table := newTableWriter("Key-Value Buckets")
+	table.AddHeaders("Bucket", "Description", "Created", "Size", "Values")
+	for _, s := range found {
+		nfo, _ := s.LatestInformation()
+
+		table.AddRow(strings.TrimPrefix(s.Name(), "KV_"), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), nfo.State.Bytes, humanize.IBytes(nfo.State.Msgs))
+	}
+
+	fmt.Println(table.Render())
+
+	return nil
 }
 
 func (c *kvCommand) upgradeAction(_ *kingpin.ParseContext) error {

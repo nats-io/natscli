@@ -19,12 +19,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/gosuri/uiprogress"
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -37,6 +39,7 @@ type objCommand struct {
 	force        bool
 	noProgress   bool
 	storage      string
+	listNames    bool
 
 	description string
 	replicas    uint
@@ -88,8 +91,9 @@ NOTE: This is an experimental feature.
 	info.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	info.Arg("file", "The file to retrieve").StringVar(&c.file)
 
-	ls := obj.Command("ls", "List contents of the bucket").Action(c.lsAction)
-	ls.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+	ls := obj.Command("ls", "List buckets or contents of a specific bucket").Action(c.lsAction)
+	ls.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
+	ls.Flag("names", "When listing buckets, show just the bucket names").Short('n').BoolVar(&c.listNames)
 
 	seal := obj.Command("seal", "Seals a bucket preventing further updates").Action(c.sealAction)
 	seal.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -118,6 +122,9 @@ nats obj info FILES
 
 # view file info
 nats obj info FILES image.jpg
+
+# list known buckets
+nats obj ls
 
 # view all files in a bucket
 nats obj ls FILES
@@ -304,7 +311,59 @@ func (c *objCommand) showObjectInfo(nfo *nats.ObjectInfo) {
 	}
 }
 
+func (c *objCommand) listBuckets() error {
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	var found []*jsm.Stream
+	err = mgr.EachStream(func(s *jsm.Stream) {
+		if strings.HasPrefix(s.Name(), "OBJ_") {
+			found = append(found, s)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(found) == 0 {
+		fmt.Println("No Object Store buckets found")
+		return nil
+	}
+
+	if c.listNames {
+		for _, s := range found {
+			fmt.Println(strings.TrimPrefix(s.Name(), "OBJ_"))
+		}
+		return nil
+	}
+
+	sort.Slice(found, func(i, j int) bool {
+		info, _ := found[i].LatestInformation()
+		jnfo, _ := found[j].LatestInformation()
+
+		return info.State.Bytes < jnfo.State.Bytes
+	})
+
+	table := newTableWriter("Object Store Buckets")
+	table.AddHeaders("Bucket", "Description", "Created", "Size")
+	for _, s := range found {
+		nfo, _ := s.LatestInformation()
+
+		table.AddRow(strings.TrimPrefix(s.Name(), "OBJ_"), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), humanize.IBytes(nfo.State.Bytes))
+	}
+
+	fmt.Println(table.Render())
+
+	return nil
+}
+
 func (c *objCommand) lsAction(_ *kingpin.ParseContext) error {
+	if c.bucket == "" {
+		return c.listBuckets()
+	}
+
 	_, _, obj, err := c.loadBucket()
 	if err != nil {
 		return err
