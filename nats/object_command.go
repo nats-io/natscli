@@ -319,7 +319,7 @@ func (c *objCommand) listBuckets() error {
 
 	var found []*jsm.Stream
 	err = mgr.EachStream(func(s *jsm.Stream) {
-		if strings.HasPrefix(s.Name(), "OBJ_") {
+		if s.IsObjectBucket() {
 			found = append(found, s)
 		}
 	})

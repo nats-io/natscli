@@ -178,7 +178,7 @@ func (c *kvCommand) lsAction(_ *kingpin.ParseContext) error {
 
 	var found []*jsm.Stream
 	err = mgr.EachStream(func(s *jsm.Stream) {
-		if strings.HasPrefix(s.Name(), "KV_") {
+		if s.IsKVBucket() {
 			found = append(found, s)
 		}
 	})
