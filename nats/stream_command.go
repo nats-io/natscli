@@ -38,6 +38,7 @@ import (
 	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
+	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go"
@@ -94,6 +95,7 @@ type streamCmd struct {
 	denyDelete            bool
 	denyPurge             bool
 
+	listNames    bool
 	vwStartId    int
 	vwStartDelta time.Duration
 	vwPageSize   int
@@ -172,6 +174,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	strLs.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
 	strLs.Flag("all", "Show all streams including system ones").Short('a').BoolVar(&c.showAll)
 	strLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	strLs.Flag("names", "Show just the bucket names").Short('n').BoolVar(&c.listNames)
 
 	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
 	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -1991,43 +1994,63 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	streams, err := mgr.StreamNames(&jsm.StreamNamesFilter{Subject: c.filterSubject})
-	kingpin.FatalIfError(err, "could not list Streams")
+	var streams []*jsm.Stream
+	var names []string
 
-	var matched []string
-	for _, s := range streams {
-		if !c.showAll && (strings.HasPrefix(s, "KV_") || strings.HasPrefix(s, "OBJ_") || strings.HasPrefix(s, "$MQTT_")) {
-			continue
+	skipped := false
+	err = mgr.EachStream(func(s *jsm.Stream) {
+		if !c.showAll && (strings.HasPrefix(s.Name(), "KV_") || strings.HasPrefix(s.Name(), "OBJ_") || strings.HasPrefix(s.Name(), "$MQTT_")) {
+			skipped = true
+			return
 		}
 
-		matched = append(matched, s)
+		streams = append(streams, s)
+		names = append(names, s.Name())
+	})
+	if err != nil {
+		return fmt.Errorf("could not list streams: %s", err)
 	}
 
 	if c.json {
-		err = printJSON(matched)
+		err = printJSON(names)
 		kingpin.FatalIfError(err, "could not display Streams")
 		return nil
 	}
 
-	if len(matched) == 0 && len(streams) != 0 {
+	if len(streams) == 0 && skipped {
 		fmt.Println("No Streams defined, pass -a to include system streams")
 		return nil
-	} else if len(matched) == 0 {
+	} else if len(streams) == 0 {
 		fmt.Println("No Streams defined")
 		return nil
 	}
 
-	if c.filterSubject == "" {
-		fmt.Println("Streams:")
-	} else {
-		fmt.Printf("Streams matching %q:\n", c.filterSubject)
+	sort.Slice(streams, func(i, j int) bool {
+		info, _ := streams[i].LatestInformation()
+		jnfo, _ := streams[j].LatestInformation()
+
+		return info.State.Bytes < jnfo.State.Bytes
+	})
+
+	if c.listNames {
+		for _, n := range names {
+			fmt.Println(n)
+		}
+		return nil
 	}
 
-	fmt.Println()
-	for _, s := range matched {
-		fmt.Printf("\t%s\n", s)
+	var table *tablewriter.Table
+	if c.filterSubject == "" {
+		table = newTableWriter("Streams")
+	} else {
+		table = newTableWriter(fmt.Sprintf("Streams matching %s", c.filterSubject))
 	}
-	fmt.Println()
+	table.AddHeaders("Name", "Description", "Created", "Messages", "Size")
+	for _, s := range streams {
+		nfo, _ := s.LatestInformation()
+		table.AddRow(s.Name(), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), humanize.Comma(int64(nfo.State.Msgs)), humanize.IBytes(nfo.State.Bytes))
+	}
+	fmt.Println(table.Render())
 
 	return nil
 }
