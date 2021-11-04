@@ -176,7 +176,9 @@ func (c *ctxCommand) listCommand(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	fmt.Printf("Known contexts:\n\n")
+	table := newTableWriter("Known Contexts")
+	table.AddHeaders("Name", "Description")
+
 	for _, name := range known {
 		cfg, _ := natscontext.New(name, true)
 
@@ -184,14 +186,10 @@ func (c *ctxCommand) listCommand(_ *kingpin.ParseContext) error {
 			name = name + "*"
 		}
 
-		if cfg != nil && cfg.Description() != "" {
-			fmt.Printf("   %-20s%s\n", name, cfg.Description())
-		} else {
-			fmt.Printf("   %-20s\n", name)
-		}
+		table.AddRow(name, cfg.Description())
 	}
 
-	fmt.Println()
+	fmt.Println(table.Render())
 
 	return nil
 }
