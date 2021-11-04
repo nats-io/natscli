@@ -46,6 +46,7 @@ type consumerCmd struct {
 	destination string
 	inputFile   string
 	outFile     string
+	showAll     bool
 
 	selectedConsumer *jsm.Consumer
 
@@ -99,6 +100,7 @@ func configureConsumerCommand(app *kingpin.Application) {
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
+	cons.Flag("all", "Operate on all streams including system ones").Short('a').BoolVar(&c.showAll)
 
 	consAdd := cons.Command("add", "Creates a new Consumer").Alias("create").Alias("new").Action(c.createAction)
 	consAdd.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -1102,7 +1104,7 @@ func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool, opts ...
 	}
 
 	if askStream {
-		c.stream, _, err = selectStream(c.mgr, c.stream, c.force)
+		c.stream, _, err = selectStream(c.mgr, c.stream, c.force, c.showAll)
 		kingpin.FatalIfError(err, "could not select Stream")
 
 		if askConsumer {

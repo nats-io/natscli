@@ -151,6 +151,7 @@ func configureStreamCommand(app *kingpin.Application) {
 	}
 
 	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
+	str.Flag("all", "Operate on all streams including system ones").Short('a').BoolVar(&c.showAll)
 
 	strAdd := str.Command("add", "Create a new Stream").Alias("create").Alias("new").Action(c.addAction)
 	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -172,7 +173,6 @@ func configureStreamCommand(app *kingpin.Application) {
 
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
 	strLs.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
-	strLs.Flag("all", "Show all streams including system ones").Short('a').BoolVar(&c.showAll)
 	strLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	strLs.Flag("names", "Show just the bucket names").Short('n').BoolVar(&c.listNames)
 
@@ -2157,6 +2157,6 @@ func (c *streamCmd) connectAndAskStream() {
 	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	c.stream, c.selectedStream, err = selectStream(c.mgr, c.stream, c.force)
+	c.stream, c.selectedStream, err = selectStream(c.mgr, c.stream, c.force, c.showAll)
 	kingpin.FatalIfError(err, "could not pick a Stream to operate on")
 }
