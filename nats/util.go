@@ -128,7 +128,7 @@ func selectStreamTemplate(mgr *jsm.Manager, template string, force bool) (string
 	}
 }
 
-func selectStream(mgr *jsm.Manager, stream string, force bool) (string, *jsm.Stream, error) {
+func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string, *jsm.Stream, error) {
 	s, err := mgr.LoadStream(stream)
 	if err == nil {
 		return s.Name(), s, nil
@@ -140,10 +140,16 @@ func selectStream(mgr *jsm.Manager, stream string, force bool) (string, *jsm.Str
 	}
 
 	known := false
+	var matched []string
+
 	for _, s := range streams {
 		if s == stream {
 			known = true
 			break
+		}
+
+		if all || !jsm.IsInternalStream(s) {
+			matched = append(matched, s)
 		}
 	}
 
@@ -155,7 +161,7 @@ func selectStream(mgr *jsm.Manager, stream string, force bool) (string, *jsm.Str
 		return "", nil, fmt.Errorf("unknown stream %q", stream)
 	}
 
-	switch len(streams) {
+	switch len(matched) {
 	case 0:
 		return "", nil, errors.New("no Streams are defined")
 	default:
@@ -163,8 +169,8 @@ func selectStream(mgr *jsm.Manager, stream string, force bool) (string, *jsm.Str
 
 		err = survey.AskOne(&survey.Select{
 			Message:  "Select a Stream",
-			Options:  streams,
-			PageSize: selectPageSize(len(streams)),
+			Options:  matched,
+			PageSize: selectPageSize(len(matched)),
 		}, &s)
 		if err != nil {
 			return "", nil, err
