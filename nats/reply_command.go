@@ -157,6 +157,10 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 				args = cmdParts[1:]
 			}
 
+			if trace {
+				log.Printf("Executing: %s", strings.Join(cmdParts, " "))
+			}
+
 			cmd := exec.Command(cmdParts[0], args...)
 			cmd.Env = os.Environ()
 			cmd.Env = append(cmd.Env, fmt.Sprintf("NATS_REQUEST_SUBJECT=%s", m.Subject))

@@ -21,18 +21,21 @@ type SrvRunCmd struct {
 }
 
 type SrvRunConfig struct {
-	Name                string
-	Port                int
-	UserPassword        string
-	UserPasswordCrypt   string
-	SystemPassword      string
-	SystemPasswordCrypt string
-	ExtendDemoNetwork   bool
-	ExtendNGSNetwork    bool
-	JetStream           bool
-	Verbose             bool
-	Debug               bool
-	StoreDir            string
+	Name                 string
+	Port                 int
+	UserPassword         string
+	UserPasswordCrypt    string
+	ServicePassword      string
+	ServicePasswordCrypt string
+	SystemPassword       string
+	SystemPasswordCrypt  string
+	ExtendDemoNetwork    bool
+	ExtendWithContext    bool
+	JetStream            bool
+	Verbose              bool
+	Debug                bool
+	StoreDir             string
+	Context              *natscontext.Context
 }
 
 var serverRunConfig = `
@@ -52,8 +55,31 @@ jetstream {
 accounts {
     USER: {
         jetstream: enabled
-        users: [{"user": "local", "password": "{{.UserPasswordCrypt}}"}],
+        users: [
+            {
+                user: "local",
+                password: "{{.UserPasswordCrypt}}"
+            }
+        ]
+
+        imports: [
+            {service: {account: SERVICE, subject: "service.>"}, to: "imports.SERVICE.>"}
+        ]
     }
+
+	SERVICE: {
+        jetstream: enabled
+        users: [
+            {
+                user: "service",
+                password: "{{.ServicePasswordCrypt}}"
+            }
+        ]
+
+        exports: [
+            {service: service.>}
+        ]
+	}
 
     SYSTEM: {
         users: [{"user": "system", "password": "{{.SystemPasswordCrypt}}"}],
@@ -62,9 +88,21 @@ accounts {
 
 leafnodes {
     remotes = [
-{{ if .ExtendDemoNetwork }}
-        {url: "nats://demo.nats.io:7422", account: "USER"}
-{{ end }}
+{{- if .ExtendDemoNetwork }}
+        {
+            url:"nats://demo.nats.io:7422", 
+            account: "USER"
+        }
+{{- end }}
+{{- if .ExtendWithContext }}
+        {
+            url: "{{.Context.ServerURL}}",
+            {{- if .Context.Creds }}
+            credentials: "{{.Context.Creds}}",
+            {{- end }}
+            account: "USER"
+        }
+{{- end }}
     ]
 }
 `
@@ -75,10 +113,9 @@ func configureServerRunCommand(srv *kingpin.CmdClause) {
 	run := srv.Command("run", "Runs a local development NATS server").Hidden().Action(c.runAction)
 	run.Arg("name", "Uses a named context for local access to the server").Default("nats_development").StringVar(&c.config.Name)
 	run.Flag("extend-demo", "Extends the NATS demo network").BoolVar(&c.config.ExtendDemoNetwork)
-	// run.Flag("extend-ngs", "Extends Synadia NGS network").BoolVar(&c.config.ExtendNGSNetwork)
+	run.Flag("extend", "Extends a NATS network using a context").BoolVar(&c.config.ExtendWithContext)
 	run.Flag("jetstream", "Enables JetStream support").BoolVar(&c.config.JetStream)
 	run.Flag("port", "Sets the local listening port").Default("4222").IntVar(&c.config.Port)
-	run.Flag("verbose", "Log verbosely").BoolVar(&c.config.Verbose)
 	run.Flag("debug", "Log in debug mode").BoolVar(&c.config.Debug)
 }
 
@@ -100,7 +137,28 @@ func (c *SrvRunCmd) dataParentDir() (string, error) {
 	return filepath.Join(u.HomeDir, ".local", "share"), nil
 }
 
+func (c *SrvRunCmd) validate() error {
+	if c.config.ExtendWithContext {
+		if config.ServerURL() == "" {
+			return fmt.Errorf("extending using a context requires a server url in the context")
+		}
+	}
+
+	return nil
+}
+
 func (c *SrvRunCmd) prepareConfig() error {
+	err := c.validate()
+	if err != nil {
+		return err
+	}
+
+	c.config.Context = config
+
+	if trace {
+		c.config.Verbose = true
+	}
+
 	c.config.UserPassword = randomString(32, 32)
 	b, err := bcrypt.GenerateFromPassword([]byte(c.config.UserPassword), 5)
 	if err != nil {
@@ -114,6 +172,13 @@ func (c *SrvRunCmd) prepareConfig() error {
 		return err
 	}
 	c.config.SystemPasswordCrypt = string(b)
+
+	c.config.ServicePassword = randomString(32, 32)
+	b, err = bcrypt.GenerateFromPassword([]byte(c.config.ServicePassword), 5)
+	if err != nil {
+		return err
+	}
+	c.config.ServicePasswordCrypt = string(b)
 
 	if c.config.JetStream {
 		parent, err := c.dataParentDir()
@@ -167,7 +232,7 @@ func (c *SrvRunCmd) interruptWatcher(ctx context.Context, cancel context.CancelF
 	}
 }
 
-func (c *SrvRunCmd) configureContexts(url string) (string, string, error) {
+func (c *SrvRunCmd) configureContexts(url string) (string, string, string, error) {
 	nctx, _ := natscontext.New(c.config.Name, false,
 		natscontext.WithServerURL(url),
 		natscontext.WithUser("local"),
@@ -176,7 +241,19 @@ func (c *SrvRunCmd) configureContexts(url string) (string, string, error) {
 	)
 	err := nctx.Save(nctx.Name)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
+	}
+
+	svcName := fmt.Sprintf("%s_service", c.config.Name)
+	nctx, _ = natscontext.New(svcName, false,
+		natscontext.WithServerURL(url),
+		natscontext.WithUser("service"),
+		natscontext.WithPassword(c.config.ServicePassword),
+		natscontext.WithDescription("Local service access for NATS Development instance"),
+	)
+	err = nctx.Save(svcName)
+	if err != nil {
+		return "", "", "", err
 	}
 
 	sysName := fmt.Sprintf("%s_system", c.config.Name)
@@ -188,10 +265,10 @@ func (c *SrvRunCmd) configureContexts(url string) (string, string, error) {
 	)
 	err = nctx.Save(nctx.Name)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
-	return c.config.Name, sysName, nil
+	return c.config.Name, svcName, sysName, nil
 }
 
 func (c *SrvRunCmd) runAction(_ *kingpin.ParseContext) error {
@@ -218,21 +295,26 @@ func (c *SrvRunCmd) runAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	u, s, err := c.configureContexts(srv.ClientURL())
+	u, svc, s, err := c.configureContexts(srv.ClientURL())
 	if err != nil {
 		return err
 	}
 	defer natscontext.DeleteContext(u)
 	defer natscontext.DeleteContext(s)
+	defer natscontext.DeleteContext(svc)
 
 	fmt.Printf("Starting local development NATS Server instance: %s\n", c.config.Name)
 	fmt.Println()
-	fmt.Printf("        User Credentials: User: local  Password: %s Context: %s\n", c.config.UserPassword, u)
-	fmt.Printf("      System Credentials: User: system Password: %s Context: %s\n", c.config.SystemPassword, s)
+	fmt.Printf("        User Credentials: User: local   Password: %s Context: %s\n", c.config.UserPassword, u)
+	fmt.Printf("     Service Credentials: User: service Password: %s Context: %s\n", c.config.ServicePassword, svc)
+	fmt.Printf("      System Credentials: User: system  Password: %s Context: %s\n", c.config.SystemPassword, s)
 	fmt.Printf("                     URL: %s\n", srv.ClientURL())
-	fmt.Printf("           Configuration: %s\n", tf)
 	fmt.Printf("  Extending Demo Network: %v\n", c.config.ExtendDemoNetwork)
-	// fmt.Printf("   Extending NGS Network: %v\n", c.config.ExtendNGSNetwork)
+	if c.config.ExtendWithContext {
+		fmt.Printf("   Extending Remote NATS: using %s context\n", config.Name)
+	} else {
+		fmt.Printf("   Extending Remote NATS: %v\n", c.config.ExtendWithContext)
+	}
 
 	fmt.Println()
 
