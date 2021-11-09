@@ -580,6 +580,10 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.DeliverGroup = ""
 	}
 
+	if c.deliveryGroup == "_unset_" {
+		cfg.DeliverGroup = ""
+	}
+
 	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
 	if !hOnly.IsSetByUser() {
 		cfg.HeadersOnly = hOnly.Value()
@@ -667,6 +671,9 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 		kingpin.FatalIfError(err, "could not request delivery group")
 	}
 	cfg.DeliverGroup = c.deliveryGroup
+	if cfg.DeliverGroup == "_unset_" {
+		cfg.DeliverGroup = ""
+	}
 
 	if c.startPolicy == "" {
 		err = survey.AskOne(&survey.Input{
