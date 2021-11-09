@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"os/user"
@@ -22,7 +23,7 @@ type SrvRunCmd struct {
 
 type SrvRunConfig struct {
 	Name                 string
-	Port                 int
+	Port                 string
 	UserPassword         string
 	UserPasswordCrypt    string
 	ServicePassword      string
@@ -115,8 +116,21 @@ func configureServerRunCommand(srv *kingpin.CmdClause) {
 	run.Flag("extend-demo", "Extends the NATS demo network").BoolVar(&c.config.ExtendDemoNetwork)
 	run.Flag("extend", "Extends a NATS network using a context").BoolVar(&c.config.ExtendWithContext)
 	run.Flag("jetstream", "Enables JetStream support").BoolVar(&c.config.JetStream)
-	run.Flag("port", "Sets the local listening port").Default("4222").IntVar(&c.config.Port)
+	run.Flag("port", "Sets the local listening port").Default("-1").StringVar(&c.config.Port)
 	run.Flag("debug", "Log in debug mode").BoolVar(&c.config.Debug)
+}
+
+// server doesnt know what port -1 will pick since its the os at Listen time that does it
+// so we call a quick listen to get a unused random port and return that for us
+func (c *SrvRunCmd) getRandomPort() (string, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+	defer l.Close()
+
+	_, port, err := net.SplitHostPort(l.Addr().String())
+	return port, err
 }
 
 func (c *SrvRunCmd) dataParentDir() (string, error) {
@@ -157,6 +171,15 @@ func (c *SrvRunCmd) prepareConfig() error {
 
 	if trace {
 		c.config.Verbose = true
+	}
+
+	if c.config.Port == "-1" {
+		p, err := c.getRandomPort()
+		if err != nil {
+			return err
+		}
+
+		c.config.Port = p
 	}
 
 	c.config.UserPassword = randomString(32, 32)
@@ -233,6 +256,19 @@ func (c *SrvRunCmd) interruptWatcher(ctx context.Context, cancel context.CancelF
 }
 
 func (c *SrvRunCmd) configureContexts(url string) (string, string, string, error) {
+	svcName := fmt.Sprintf("%s_service", c.config.Name)
+	sysName := fmt.Sprintf("%s_system", c.config.Name)
+
+	if natscontext.IsKnown(c.config.Name) {
+		return "", "", "", fmt.Errorf("context %s already exist, choose a new instance name or remove it with 'nats context rm %s'", c.config.Name, c.config.Name)
+	}
+	if natscontext.IsKnown(svcName) {
+		return "", "", "", fmt.Errorf("context %s already exist, choose a new instance name or remove it with 'nats context rm %s'", svcName, svcName)
+	}
+	if natscontext.IsKnown(sysName) {
+		return "", "", "", fmt.Errorf("context %s already exist, choose a new instance name or remove it with 'nats context rm %s'", sysName, sysName)
+	}
+
 	nctx, _ := natscontext.New(c.config.Name, false,
 		natscontext.WithServerURL(url),
 		natscontext.WithUser("local"),
@@ -244,7 +280,6 @@ func (c *SrvRunCmd) configureContexts(url string) (string, string, string, error
 		return "", "", "", err
 	}
 
-	svcName := fmt.Sprintf("%s_service", c.config.Name)
 	nctx, _ = natscontext.New(svcName, false,
 		natscontext.WithServerURL(url),
 		natscontext.WithUser("service"),
@@ -256,7 +291,6 @@ func (c *SrvRunCmd) configureContexts(url string) (string, string, string, error
 		return "", "", "", err
 	}
 
-	sysName := fmt.Sprintf("%s_system", c.config.Name)
 	nctx, _ = natscontext.New(sysName, false,
 		natscontext.WithServerURL(url),
 		natscontext.WithUser("system"),
@@ -299,22 +333,22 @@ func (c *SrvRunCmd) runAction(_ *kingpin.ParseContext) error {
 	if err != nil {
 		return err
 	}
-	defer natscontext.DeleteContext(u)
-	defer natscontext.DeleteContext(s)
-	defer natscontext.DeleteContext(svc)
+	natscontext.DeleteContext(u)
+	natscontext.DeleteContext(s)
+	natscontext.DeleteContext(svc)
 
 	fmt.Printf("Starting local development NATS Server instance: %s\n", c.config.Name)
 	fmt.Println()
 	fmt.Printf("        User Credentials: User: local   Password: %s Context: %s\n", c.config.UserPassword, u)
 	fmt.Printf("     Service Credentials: User: service Password: %s Context: %s\n", c.config.ServicePassword, svc)
 	fmt.Printf("      System Credentials: User: system  Password: %s Context: %s\n", c.config.SystemPassword, s)
-	fmt.Printf("                     URL: %s\n", srv.ClientURL())
 	fmt.Printf("  Extending Demo Network: %v\n", c.config.ExtendDemoNetwork)
 	if c.config.ExtendWithContext {
 		fmt.Printf("   Extending Remote NATS: using %s context\n", config.Name)
 	} else {
 		fmt.Printf("   Extending Remote NATS: %v\n", c.config.ExtendWithContext)
 	}
+	fmt.Printf("                     URL: %s\n", srv.ClientURL())
 
 	fmt.Println()
 
