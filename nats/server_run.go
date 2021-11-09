@@ -333,9 +333,9 @@ func (c *SrvRunCmd) runAction(_ *kingpin.ParseContext) error {
 	if err != nil {
 		return err
 	}
-	natscontext.DeleteContext(u)
-	natscontext.DeleteContext(s)
-	natscontext.DeleteContext(svc)
+	defer natscontext.DeleteContext(u)
+	defer natscontext.DeleteContext(s)
+	defer natscontext.DeleteContext(svc)
 
 	fmt.Printf("Starting local development NATS Server instance: %s\n", c.config.Name)
 	fmt.Println()
