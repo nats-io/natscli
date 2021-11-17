@@ -42,6 +42,7 @@ type kvCommand struct {
 	revision      uint64
 	description   string
 	listNames     bool
+	storage       string
 }
 
 func configureKVCommand(app *kingpin.Application) {
@@ -67,6 +68,7 @@ NOTE: This is an experimental feature.
 	add.Flag("max-value-size", "Maximum size for any single value").Int32Var(&c.maxValueSize)
 	add.Flag("max-bucket-size", "Maximum size for the bucket").Int64Var(&c.maxBucketSize)
 	add.Flag("description", "A description for the bucket").StringVar(&c.description)
+	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 
 	put := kv.Command("put", "Puts a value into a key").Action(c.putAction)
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -330,6 +332,11 @@ func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	storage := nats.FileStorage
+	if strings.HasPrefix(c.storage, "m") {
+		storage = nats.MemoryStorage
+	}
+
 	store, err := js.CreateKeyValue(&nats.KeyValueConfig{
 		Bucket:       c.bucket,
 		Description:  c.description,
@@ -337,7 +344,7 @@ func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
 		History:      uint8(c.history),
 		TTL:          c.ttl,
 		MaxBytes:     c.maxBucketSize,
-		Storage:      nats.FileStorage, // TODO
+		Storage:      storage,
 		Replicas:     int(c.replicas),
 	})
 	if err != nil {
@@ -577,6 +584,7 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 		if nfo.Cluster != nil {
 			fmt.Printf("    Cluster Location: %s\n", nfo.Cluster.Name)
 		}
+		fmt.Printf("            Storage: %s\n", nfo.Config.Storage.String())
 
 		if !nfo.Config.AllowRollup {
 			fmt.Println()
