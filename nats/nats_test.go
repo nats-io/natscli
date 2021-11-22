@@ -469,6 +469,24 @@ func TestCLIConsumerInfo(t *testing.T) {
 	}
 }
 
+func TestCLIConsumerEdit(t *testing.T) {
+	srv, _, mgr := setupConsTest(t)
+	defer srv.Shutdown()
+
+	_, err := mgr.NewConsumerFromDefault("mem1", pull1Cons())
+	checkErr(t, err, "could not create consumer: %v", err)
+	consumerShouldExist(t, mgr, "mem1", "pull1")
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' con edit mem1 pull1 --description pull_test -f", srv.ClientURL()))
+
+	c, err := mgr.LoadConsumer("mem1", "pull1")
+	checkErr(t, err, "load failed")
+
+	if c.Description() != "pull_test" {
+		t.Fatalf("expected description to be pull_test got: %q", c.Description())
+	}
+}
+
 func TestCLIConsumerLs(t *testing.T) {
 	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()

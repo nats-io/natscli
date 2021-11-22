@@ -23,12 +23,14 @@ import (
 	"math/rand"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/google/go-cmp/cmp"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -115,6 +117,18 @@ func configureConsumerCommand(app *kingpin.Application) {
 	consCp.Arg("source", "Source Consumer name").Required().StringVar(&c.consumer)
 	consCp.Arg("destination", "Destination Consumer name").Required().StringVar(&c.destination)
 	addCreateFlags(consCp)
+
+	edit := cons.Command("edit", "Edits the configuration of a consumer").Action(c.editAction)
+	edit.Arg("stream", "Stream name").StringVar(&c.stream)
+	edit.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	edit.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
+	edit.Flag("max-deliver", "Maximum amount of times a message will be delivered").PlaceHolder("TRIES").IntVar(&c.maxDeliver)
+	edit.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
+	edit.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
+	edit.Flag("max-waiting", "Maximum number of outstanding pulls allowed").PlaceHolder("PULLS").IntVar(&c.maxWaiting)
+	edit.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
+	OptionalBoolean(edit.Flag("headers-only", "Deliver only headers and no bodies (--no-headers-only disables)"))
+	edit.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
 	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
 	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -205,6 +219,78 @@ func (c *consumerCmd) leaderStandDown(_ *kingpin.ParseContext) error {
 
 	fmt.Println()
 	c.showConsumer(consumer)
+	return nil
+}
+
+func (c *consumerCmd) editAction(pc *kingpin.ParseContext) error {
+	c.connectAndSetup(true, true)
+	var err error
+
+	if c.selectedConsumer == nil {
+		c.selectedConsumer, err = c.mgr.LoadConsumer(c.stream, c.consumer)
+		kingpin.FatalIfError(err, "could not load Consumer")
+	}
+
+	ncfg := c.selectedConsumer.Configuration()
+	if c.description != "" {
+		ncfg.Description = c.description
+	}
+
+	if c.maxDeliver != 0 {
+		ncfg.MaxDeliver = c.maxDeliver
+	}
+
+	if c.maxAckPending != -1 {
+		ncfg.MaxAckPending = c.maxAckPending
+	}
+
+	if c.ackWait != -1*time.Second {
+		ncfg.AckWait = c.ackWait
+	}
+
+	if c.maxWaiting != 0 {
+		ncfg.MaxWaiting = c.maxWaiting
+	}
+
+	if c.samplePct != -1 {
+		ncfg.SampleFrequency = c.sampleFreqFromInt(c.samplePct)
+	}
+
+	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
+	if hOnly.IsSetByUser() {
+		ncfg.HeadersOnly = hOnly.Value()
+	}
+
+	// sorts strings to subject lists that only differ in ordering is considered equal
+	sorter := cmp.Transformer("Sort", func(in []string) []string {
+		out := append([]string(nil), in...)
+		sort.Strings(out)
+		return out
+	})
+
+	diff := cmp.Diff(c.selectedConsumer.Configuration(), ncfg, sorter)
+	if diff == "" {
+		fmt.Printf("No difference in configuration")
+		return nil
+	}
+
+	fmt.Printf("Differences (-old +new):\n%s", diff)
+	if !c.force {
+		ok, err := askConfirmation(fmt.Sprintf("Really edit Consumer %s > %s", c.stream, c.consumer), false)
+		kingpin.FatalIfError(err, "could not obtain confirmation")
+
+		if !ok {
+			return nil
+		}
+	}
+
+	cons, err := c.mgr.NewConsumerFromDefault(c.stream, ncfg)
+	if err != nil {
+		return err
+	}
+
+	c.showConsumer(cons)
+
 	return nil
 }
 
@@ -447,7 +533,7 @@ func (c *consumerCmd) ackPolicyFromString(p string) api.AckPolicy {
 	}
 }
 
-func (c *consumerCmd) sampleFreqFromString(s int) string {
+func (c *consumerCmd) sampleFreqFromInt(s int) string {
 	if s > 100 || s < 0 {
 		kingpin.Fatalf("sample percent is not between 0 and 100")
 	}
@@ -505,7 +591,7 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 	}
 
 	if c.samplePct != -1 {
-		cfg.SampleFrequency = c.sampleFreqFromString(c.samplePct)
+		cfg.SampleFrequency = c.sampleFreqFromInt(c.samplePct)
 	}
 
 	if c.startPolicy != "" {
@@ -1137,7 +1223,7 @@ func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
 	leaders := make(map[string]*raftLeader)
 
 	table := newTableWriter(fmt.Sprintf("Consumer report for %s with %d consumers", c.stream, ss.Consumers))
-	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Un	processed", "Ack Floor", "Cluster")
+	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
 	err = s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
 		if err != nil {
