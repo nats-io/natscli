@@ -46,4 +46,6 @@ jobs:
           set -e
           cd nats
           go test -v --failfast -p=1 ./...
+          cd ../cli
+          go test -v --failfast -p=1 ./...
           set +e

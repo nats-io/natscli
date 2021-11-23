@@ -31,12 +31,22 @@ import (
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/cli"
 
 	"github.com/nats-io/jsm.go"
 )
 
 func init() {
-	skipContexts = true
+	cli.SkipContexts = true
+}
+
+func checkErr(t *testing.T, err error, format string, a ...interface{}) {
+	t.Helper()
+	if err == nil {
+		return
+	}
+
+	t.Fatalf(format, a...)
 }
 
 func runNatsCli(t *testing.T, args ...string) (output []byte) {
@@ -58,6 +68,20 @@ func runNatsCli(t *testing.T, args ...string) (output []byte) {
 	}
 
 	return out
+}
+
+func prepareHelper(servers string) (*nats.Conn, *jsm.Manager, error) {
+	nc, err := nats.Connect(servers)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return nc, mgr, nil
 }
 
 func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) {
