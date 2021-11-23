@@ -31,14 +31,14 @@ builds:
       - 6
       - 7
     ignore:
-      - goos: darwin
-        goarch: 386
-      - goos: freebsd
-        goarch: arm
-      - goos: freebsd
-        goarch: arm64
-      - goos: freebsd
-        goarch: 386
+      - Goos: darwin
+        Goarch: 386
+      - Goos: freebsd
+        Goarch: arm
+      - Goos: freebsd
+        Goarch: arm64
+      - Goos: freebsd
+        Goarch: 386
 
 archives:
   - name_template: "nats-{{.Version}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
