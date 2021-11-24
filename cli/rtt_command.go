@@ -151,7 +151,16 @@ func (c *rttCmd) calcRTT(server string, opts []nats.Option) (string, time.Durati
 }
 
 func (c *rttCmd) targets() (targets []*rttTarget, err error) {
-	for _, s := range strings.Split(opts.Config.ServerURL(), ",") {
+	servers := ""
+	if opts.Conn != nil {
+		servers = strings.Join(opts.Conn.DiscoveredServers(), ",")
+	} else if opts.Config != nil {
+		servers = opts.Config.ServerURL()
+	} else {
+		return nil, fmt.Errorf("cannot find a server list to test")
+	}
+
+	for _, s := range strings.Split(servers, ",") {
 		if !strings.Contains(s, "://") {
 			s = fmt.Sprintf("nats://%s", s)
 		}

@@ -870,7 +870,7 @@ func doReqAsync(req interface{}, subj string, waitFor int, nc *nats.Conn, cb fun
 	}
 
 	errs := make(chan error)
-	sub, err := nc.Subscribe(nats.NewInbox(), func(m *nats.Msg) {
+	sub, err := nc.Subscribe(nc.NewRespInbox(), func(m *nats.Msg) {
 		mu.Lock()
 		defer mu.Unlock()
 

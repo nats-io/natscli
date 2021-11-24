@@ -96,7 +96,7 @@ func (c *latencyCmd) latencyAction(_ *kingpin.ParseContext) error {
 	wg.Add(1)
 
 	// Random subject (to run multiple tests in parallel)
-	subject := nats.NewInbox()
+	subject := c2.NewRespInbox()
 
 	// Count the messages.
 	received := 0
@@ -255,7 +255,7 @@ func (c *latencyCmd) waitForRoute(pnc *nats.Conn, snc *nats.Conn) error {
 	// Setup a test subscription to let us know when a message has been received.
 	// Use a new inbox subject as to not skew results
 	var routed int32
-	subject := nats.NewInbox()
+	subject := snc.NewRespInbox()
 	sub, err := snc.Subscribe(subject, func(msg *nats.Msg) {
 		atomic.AddInt32(&routed, 1)
 	})
