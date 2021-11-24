@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -75,7 +74,7 @@ type consumerCmd struct {
 	nc  *nats.Conn
 }
 
-func configureConsumerCommand(app *kingpin.Application) {
+func configureConsumerCommand(app commandHost) {
 	c := &consumerCmd{}
 
 	addCreateFlags := func(f *kingpin.CmdClause) {
@@ -1147,7 +1146,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 	})
 	kingpin.FatalIfError(err, "could not subscribe")
 
-	<-context.Background().Done()
+	<-ctx.Done()
 
 	return nil
 }

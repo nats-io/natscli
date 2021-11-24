@@ -43,7 +43,7 @@ type rttTarget struct {
 	tlsName string
 }
 
-func configureRTTCommand(app *kingpin.Application) {
+func configureRTTCommand(app commandHost) {
 	c := &rttCmd{}
 
 	rtt := app.Command("rtt", "Compute round-trip time to NATS server").Action(c.rtt)

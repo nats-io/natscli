@@ -52,7 +52,7 @@ func (c *SrvPingCmd) ping(_ *kingpin.ParseContext) error {
 	}
 	defer nc.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 
 	seen := uint32(0)
 	mu := &sync.Mutex{}

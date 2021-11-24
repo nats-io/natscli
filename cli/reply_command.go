@@ -38,7 +38,7 @@ type replyCmd struct {
 	hdrs    []string
 }
 
-func configureReplyCommand(app *kingpin.Application) {
+func configureReplyCommand(app commandHost) {
 	c := &replyCmd{}
 	help := `Generic service reply utility
 

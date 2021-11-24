@@ -27,7 +27,7 @@ type govCmd struct {
 	command  string
 }
 
-func configureGovernorCommand(app *kingpin.Application) {
+func configureGovernorCommand(app commandHost) {
 	c := &govCmd{}
 
 	help := `Controls the concurrency of distributed command executions
@@ -319,7 +319,7 @@ func (c *govCmd) runAction(_ *kingpin.ParseContext) error {
 		args = append(args, parts[1:]...)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), c.age)
+	ctx, cancel := context.WithTimeout(ctx, c.age)
 	defer cancel()
 
 	gov := governor.NewJSGovernor(c.name, mgr, governor.WithInterval(c.interval))

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	glog "log"
 	"math/rand"
 	"sort"
@@ -16,7 +17,11 @@ import (
 type command struct {
 	Name    string
 	Order   int
-	Command func(app *kingpin.Application)
+	Command func(app commandHost)
+}
+
+type commandHost interface {
+	Command(name string, help string) *kingpin.CmdClause
 }
 
 // Logger provides a plugable logger implementation
@@ -35,13 +40,14 @@ var (
 	mu       sync.Mutex
 	Version  = "development"
 	log      Logger
+	ctx      context.Context
 
 	// These are persisted by contexts, as properties thereof.
 	// So don't include NATS_CONTEXT in this list.
 	overrideEnvVars = []string{"NATS_URL", "NATS_USER", "NATS_PASSWORD", "NATS_CREDS", "NATS_NKEY", "NATS_CERT", "NATS_KEY", "NATS_CA", "NATS_TIMEOUT"}
 )
 
-func registerCommand(name string, order int, c func(app *kingpin.Application)) {
+func registerCommand(name string, order int, c func(app commandHost)) {
 	mu.Lock()
 	commands = append(commands, &command{name, order, c})
 	mu.Unlock()
@@ -91,19 +97,40 @@ type Options struct {
 // SkipContexts used during tests
 var SkipContexts bool
 
-// Configure attaches the cli commands to app, prepare will load the context on demand and should be true unless override nats,
-// manager and js context is given.  Disable is a list of command names to skip.
-func Configure(app *kingpin.Application, options *Options, prepare bool, logger Logger, disable ...string) error {
-	opts = options
-	log = logger
+func SetVersion(v string) {
+	mu.Lock()
+	defer mu.Unlock()
 
-	if opts.Timeout == 0 {
-		opts.Timeout = 2 * time.Second
+	Version = v
+}
+
+// SetLogger sets a custom logger to use
+func SetLogger(l Logger) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	log = l
+}
+
+// SetContext sets the context to use
+func SetContext(c context.Context) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	ctx = c
+}
+
+func commonConfigure(cmd commandHost, cliOpts *Options, disable ...string) error {
+	if cliOpts != nil {
+		opts = cliOpts
+	} else {
+		opts = &Options{
+			Timeout: 5 * time.Second,
+		}
 	}
 
-	if logger == nil {
-		log = goLogger{}
-	}
+	ctx = context.Background()
+	log = goLogger{}
 
 	sort.Slice(commands, func(i int, j int) bool {
 		return commands[i].Name < commands[j].Name
@@ -121,15 +148,41 @@ func Configure(app *kingpin.Application, options *Options, prepare bool, logger 
 
 	for _, c := range commands {
 		if shouldEnable(c.Name) {
-			c.Command(app)
+			c.Command(cmd)
 		}
+	}
+
+	return nil
+}
+
+// ConfigureInCommand attaches the cli commands to cmd, prepare will load the context on demand and should be true unless override nats,
+// manager and js context is given in a custom PreAction in the caller.  Disable is a list of command names to skip.
+func ConfigureInCommand(cmd *kingpin.CmdClause, cliOpts *Options, prepare bool, disable ...string) (*Options, error) {
+	err := commonConfigure(cmd, cliOpts, disable...)
+	if err != nil {
+		return nil, err
+	}
+
+	if prepare {
+		cmd.PreAction(preAction)
+	}
+
+	return opts, nil
+}
+
+// ConfigureInApp attaches the cli commands to app, prepare will load the context on demand and should be true unless override nats,
+// manager and js context is given in a custom PreAction in the caller.  Disable is a list of command names to skip.
+func ConfigureInApp(app *kingpin.Application, cliOpts *Options, prepare bool, disable ...string) (*Options, error) {
+	err := commonConfigure(app, cliOpts, disable...)
+	if err != nil {
+		return nil, err
 	}
 
 	if prepare {
 		app.PreAction(preAction)
 	}
 
-	return nil
+	return opts, nil
 }
 
 func preAction(_ *kingpin.ParseContext) (err error) {

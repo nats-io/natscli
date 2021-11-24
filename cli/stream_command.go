@@ -121,7 +121,7 @@ type streamStat struct {
 	Sources   []*api.StreamSourceInfo
 }
 
-func configureStreamCommand(app *kingpin.Application) {
+func configureStreamCommand(app commandHost) {
 	c := &streamCmd{msgID: -1}
 
 	addCreateFlags := func(f *kingpin.CmdClause) {
@@ -406,7 +406,7 @@ func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {
 	}
 	defer pgr.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
@@ -538,7 +538,7 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 
 	fmt.Printf("Starting restore of Stream %q from file %q\n\n", c.stream, c.backupDirectory)
 
-	fp, _, err := mgr.RestoreSnapshotFromDirectory(context.Background(), c.stream, c.backupDirectory, opts...)
+	fp, _, err := mgr.RestoreSnapshotFromDirectory(ctx, c.stream, c.backupDirectory, opts...)
 	kingpin.FatalIfError(err, "restore failed")
 	if c.showProgress {
 		progress.Set(int(fp.ChunksSent()))
@@ -626,7 +626,7 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 		opts = append(opts, jsm.SnapshotHealthCheck())
 	}
 
-	fp, err := stream.SnapshotToDirectory(context.Background(), c.backupDirectory, opts...)
+	fp, err := stream.SnapshotToDirectory(ctx, c.backupDirectory, opts...)
 	kingpin.FatalIfError(err, "snapshot failed")
 
 	pmu.Lock()

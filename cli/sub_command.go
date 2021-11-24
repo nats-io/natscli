@@ -37,7 +37,7 @@ type subCmd struct {
 	limit   uint
 }
 
-func configureSubCommand(app *kingpin.Application) {
+func configureSubCommand(app commandHost) {
 	c := &subCmd{}
 	act := app.Command("sub", "Generic subscription client").Action(c.subscribe)
 	act.Arg("subject", "Subject to subscribe to").StringVar(&c.subject)
@@ -84,7 +84,7 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		mu          = sync.Mutex{}
 		dump        = c.dump != ""
 		ctr         = uint(0)
-		ctx, cancel = context.WithCancel(context.Background())
+		ctx, cancel = context.WithCancel(ctx)
 	)
 	defer cancel()
 

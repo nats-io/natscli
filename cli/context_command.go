@@ -37,7 +37,7 @@ type ctxCommand struct {
 	validateErrors int
 }
 
-func configureCtxCommand(app *kingpin.Application) {
+func configureCtxCommand(app commandHost) {
 	c := ctxCommand{}
 
 	context := app.Command("context", "Manage nats configuration contexts").Alias("ctx")

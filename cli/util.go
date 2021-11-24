@@ -853,7 +853,7 @@ func doReqAsync(req interface{}, subj string, waitFor int, nc *nats.Conn, cb fun
 		ctr = 0
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 
 	var finisher *time.Timer

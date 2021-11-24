@@ -117,7 +117,7 @@ func configureServerRunCommand(srv *kingpin.CmdClause) {
 	run.Flag("extend", "Extends a NATS network using a context").BoolVar(&c.config.ExtendWithContext)
 	run.Flag("jetstream", "Enables JetStream support").BoolVar(&c.config.JetStream)
 	run.Flag("port", "Sets the local listening port").Default("-1").StringVar(&c.config.Port)
-	run.Flag("debug", "Log in debug mode").BoolVar(&c.config.Debug)
+	run.Flag("verbose", "Log in debug mode").BoolVar(&c.config.Debug)
 }
 
 // server doesnt know what port -1 will pick since its the os at Listen time that does it

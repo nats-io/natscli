@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -44,7 +43,7 @@ type eventsCmd struct {
 	sync.Mutex
 }
 
-func configureEventsCommand(app *kingpin.Application) {
+func configureEventsCommand(app commandHost) {
 	c := &eventsCmd{}
 
 	events := app.Command("events", "Show Advisories and Events").Alias("event").Alias("e").Action(c.eventsAction)
@@ -187,7 +186,7 @@ func (c *eventsCmd) eventsAction(_ *kingpin.ParseContext) error {
 		}
 	}
 
-	<-context.Background().Done()
+	<-ctx.Done()
 
 	return nil
 }

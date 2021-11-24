@@ -41,7 +41,7 @@ type latencyCmd struct {
 	numPubs       int
 }
 
-func configureLatencyCommand(app *kingpin.Application) {
+func configureLatencyCommand(app commandHost) {
 	c := &latencyCmd{}
 
 	latency := app.Command("latency", "Perform latency tests between two NATS servers").Alias("lat").Action(c.latencyAction)
