@@ -11,7 +11,6 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/governor"
-	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -195,7 +194,7 @@ func (c *govCmd) viewAction(_ *kingpin.ParseContext) error {
 		table.AddHeaders("ID", "Process Name", "Age")
 		defer func() { fmt.Println(table.Render()) }()
 
-		sub, err := nc.SubscribeSync(nats.NewInbox())
+		sub, err := nc.SubscribeSync(nc.NewRespInbox())
 		if err != nil {
 			return err
 		}

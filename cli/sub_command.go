@@ -67,17 +67,17 @@ func init() {
 }
 
 func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
-	if c.subject == "" && c.inbox {
-		c.subject = nats.NewInbox()
-	} else if c.subject == "" {
-		return fmt.Errorf("subject is required")
-	}
-
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 	defer nc.Close()
+
+	if c.subject == "" && c.inbox {
+		c.subject = nc.NewRespInbox()
+	} else if c.subject == "" {
+		return fmt.Errorf("subject is required")
+	}
 
 	var (
 		sub         *nats.Subscription

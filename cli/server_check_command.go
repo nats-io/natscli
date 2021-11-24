@@ -25,7 +25,6 @@ import (
 
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -902,7 +901,7 @@ func (c *SrvCheckCmd) checkConnection(_ *kingpin.ParseContext) error {
 	}
 
 	msg := []byte(randomPassword(100))
-	ib := nats.NewInbox()
+	ib := nc.NewRespInbox()
 	sub, err := nc.SubscribeSync(ib)
 	check.criticalIfErr(err, "could not subscribe to %s: %s", ib, err)
 	sub.AutoUnsubscribe(1)
