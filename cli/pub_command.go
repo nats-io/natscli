@@ -38,7 +38,7 @@ type pubCmd struct {
 	sleep   time.Duration
 }
 
-func configurePubCommand(app *kingpin.Application) {
+func configurePubCommand(app commandHost) {
 	c := &pubCmd{}
 	help := `%s
 

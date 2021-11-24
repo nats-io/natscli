@@ -13,11 +13,7 @@
 
 package cli
 
-import (
-	"gopkg.in/alecthomas/kingpin.v2"
-)
-
-func configureServerCommand(app *kingpin.Application) {
+func configureServerCommand(app commandHost) {
 	srv := app.Command("server", "Server information").Alias("srv").Alias("sys").Alias("system")
 	configureServerInfoCommand(srv)
 	configureServerListCommand(srv)

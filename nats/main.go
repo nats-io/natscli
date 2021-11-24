@@ -37,7 +37,11 @@ See 'nats cheat' for a quick cheatsheet of commands
 	ncli.Version(version)
 	ncli.HelpFlag.Short('h')
 
-	opts := &cli.Options{}
+	opts, err := cli.ConfigureInApp(ncli, nil, true)
+	if err != nil {
+		return
+	}
+	cli.SetVersion(version)
 
 	ncli.Flag("server", "NATS server urls").Short('s').Envar("NATS_URL").PlaceHolder("NATS_URL").StringVar(&opts.Servers)
 	ncli.Flag("user", "Username or Token").Envar("NATS_USER").PlaceHolder("NATS_USER").StringVar(&opts.Username)
@@ -54,8 +58,6 @@ See 'nats cheat' for a quick cheatsheet of commands
 	ncli.Flag("domain", "JetStream domain to access").PlaceHolder("PREFIX").PlaceHolder("DOMAIN").Hidden().StringVar(&opts.JsDomain)
 	ncli.Flag("context", "Configuration context").Envar("NATS_CONTEXT").StringVar(&opts.CfgCtx)
 	ncli.Flag("trace", "Trace API interactions").BoolVar(&opts.Trace)
-
-	cli.Configure(ncli, opts, true, nil)
 
 	log.SetFlags(log.Ltime)
 

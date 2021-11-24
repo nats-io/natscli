@@ -25,7 +25,7 @@ type errCmd struct {
 	reverse bool
 }
 
-func configureErrCommand(app *kingpin.Application) {
+func configureErrCommand(app commandHost) {
 	c := &errCmd{}
 	cmd := app.Command("errors", "Error code documentation").Alias("err").Alias("error")
 	cmd.Flag("errors", "The errors.json file to use as input").PlaceHolder("FILE").ExistingFileVar(&c.file)

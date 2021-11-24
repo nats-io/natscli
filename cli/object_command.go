@@ -46,7 +46,7 @@ type objCommand struct {
 	ttl         time.Duration
 }
 
-func configureObjectCommand(app *kingpin.Application) {
+func configureObjectCommand(app commandHost) {
 	c := &objCommand{}
 
 	help := `Interacts with a JetStream based Object store

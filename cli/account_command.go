@@ -28,7 +28,7 @@ type actCmd struct {
 	topk    int
 }
 
-func configureActCommand(app *kingpin.Application) {
+func configureActCommand(app commandHost) {
 	c := &actCmd{}
 	act := app.Command("account", "Account information and status").Alias("a")
 	act.Command("info", "Account information").Alias("nfo").Action(c.infoAction)

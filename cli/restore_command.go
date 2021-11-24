@@ -25,7 +25,7 @@ type restoreCmd struct {
 	updateStream bool
 }
 
-func configureRestoreCommand(app *kingpin.Application) {
+func configureRestoreCommand(app commandHost) {
 	c := &restoreCmd{}
 
 	restore := app.Command("restore", "Restores a backup of JetStream configuration").Action(c.restoreAction)

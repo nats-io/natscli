@@ -22,7 +22,7 @@ type backupCmd struct {
 	data   bool
 }
 
-func configureBackupCommand(app *kingpin.Application) {
+func configureBackupCommand(app commandHost) {
 	c := &backupCmd{}
 
 	backup := app.Command("backup", "JetStream configuration backup utility").Action(c.backupAction)

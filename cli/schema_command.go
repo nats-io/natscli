@@ -13,11 +13,7 @@
 
 package cli
 
-import (
-	"gopkg.in/alecthomas/kingpin.v2"
-)
-
-func configureSchemaCommand(app *kingpin.Application) {
+func configureSchemaCommand(app commandHost) {
 	schema := app.Command("schema", "Schema tools")
 
 	cheats["schemas"] = `# To see all available schemas using regular expressions

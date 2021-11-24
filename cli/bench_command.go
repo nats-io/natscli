@@ -54,7 +54,7 @@ const (
 	JS_PULLCONSUMER_NAME string = "natscli-benchpull"
 )
 
-func configureBenchCommand(app *kingpin.Application) {
+func configureBenchCommand(app commandHost) {
 	c := &benchCmd{}
 	bench := app.Command("bench", "Benchmark utility").Action(c.bench)
 	bench.Arg("subject", "Subject to use for testing").Required().StringVar(&c.subject)

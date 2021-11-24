@@ -28,7 +28,7 @@ type cheatCmd struct {
 	save     string
 }
 
-func configureCheatCommand(app *kingpin.Application) {
+func configureCheatCommand(app commandHost) {
 	c := &cheatCmd{}
 	help := `Cheatsheets for the nats CLI
 

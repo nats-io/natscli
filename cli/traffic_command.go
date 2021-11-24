@@ -71,7 +71,7 @@ func (r *rateTrackInt) Rate() int64 {
 	return rate
 }
 
-func configureTrafficCommand(app *kingpin.Application) {
+func configureTrafficCommand(app commandHost) {
 	c := &trafficCmd{}
 
 	traffic := app.Command("traffic", "Monitor NATS network traffic").Hidden().Action(c.monitor)

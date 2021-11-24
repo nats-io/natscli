@@ -45,7 +45,7 @@ type kvCommand struct {
 	storage       string
 }
 
-func configureKVCommand(app *kingpin.Application) {
+func configureKVCommand(app commandHost) {
 	c := &kvCommand{}
 
 	help := `Interacts with a JetStream based Key-Value store
