@@ -306,7 +306,7 @@ func TestCheckVarz(t *testing.T) {
 
 	t.Run("uptime", func(t *testing.T) {
 		cmd := &SrvCheckCmd{srvName: "testing"}
-		vz := &server.Varz{Name: "testing", Start: time.Now().Add(-1 * time.Second)}
+		vz := &server.Varz{Name: "testing"}
 
 		// invalid thresholds
 		check := &result{}
@@ -318,6 +318,7 @@ func TestCheckVarz(t *testing.T) {
 
 		// critical uptime
 		check = &result{}
+		vz.Uptime = "1s"
 		cmd.srvUptimeCrit = 10 * time.Minute
 		cmd.srvUptimeWarn = 20 * time.Minute
 		assertNoError(t, cmd.checkVarz(check, vz))
@@ -325,18 +326,67 @@ func TestCheckVarz(t *testing.T) {
 		assertListIsEmpty(t, check.OKs)
 		assertHasPDItem(t, check, "uptime=1.0000s;1200.0000;600.000")
 
-		// warning uptime
+		// critical uptime
 		check = &result{}
-		vz.Start = time.Now().Add(-11 * time.Minute)
+		vz.Uptime = "9m59s"
+		cmd.srvUptimeCrit = 10 * time.Minute
+		cmd.srvUptimeWarn = 20 * time.Minute
+		assertNoError(t, cmd.checkVarz(check, vz))
+		assertListEquals(t, check.Criticals, "Up 9m59s")
+		assertListIsEmpty(t, check.OKs)
+		assertHasPDItem(t, check, "uptime=599.0000s;1200.0000;600.000")
+
+		// critical uptime
+		check = &result{}
+		vz.Uptime = "10m0s"
+		cmd.srvUptimeCrit = 10 * time.Minute
+		cmd.srvUptimeWarn = 20 * time.Minute
+		assertNoError(t, cmd.checkVarz(check, vz))
+		assertListEquals(t, check.Criticals, "Up 10m0s")
+		assertListIsEmpty(t, check.OKs)
+		assertHasPDItem(t, check, "uptime=600.0000s;1200.0000;600.000")
+
+		// critical -> warning uptime
+		check = &result{}
+		vz.Uptime = "10m1s"
+		cmd.srvUptimeCrit = 10 * time.Minute
+		cmd.srvUptimeWarn = 20 * time.Minute
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListIsEmpty(t, check.Criticals)
-		assertListEquals(t, check.Warnings, "Up 11m0s")
+		assertListEquals(t, check.Warnings, "Up 10m1s")
 		assertListIsEmpty(t, check.OKs)
-		assertHasPDItem(t, check, "uptime=660.0000s;1200.0000;600.000")
+		assertHasPDItem(t, check, "uptime=601.0000s;1200.0000;600.000")
+
+		// warning uptime
+		check = &result{}
+		vz.Uptime = "19m59s"
+		assertNoError(t, cmd.checkVarz(check, vz))
+		assertListIsEmpty(t, check.Criticals)
+		assertListEquals(t, check.Warnings, "Up 19m59s")
+		assertListIsEmpty(t, check.OKs)
+		assertHasPDItem(t, check, "uptime=1199.0000s;1200.0000;600.000")
+
+		// warning uptime
+		check = &result{}
+		vz.Uptime = "20m0s"
+		assertNoError(t, cmd.checkVarz(check, vz))
+		assertListIsEmpty(t, check.Criticals)
+		assertListEquals(t, check.Warnings, "Up 20m0s")
+		assertListIsEmpty(t, check.OKs)
+		assertHasPDItem(t, check, "uptime=1200.0000s;1200.0000;600.000")
 
 		// ok uptime
 		check = &result{}
-		vz.Start = time.Now().Add(-21 * time.Minute)
+		vz.Uptime = "20m1s"
+		assertNoError(t, cmd.checkVarz(check, vz))
+		assertListIsEmpty(t, check.Criticals)
+		assertListIsEmpty(t, check.Warnings)
+		assertListEquals(t, check.OKs, "Up 20m1s")
+		assertHasPDItem(t, check, "uptime=1201.0000s;1200.0000;600.0000")
+
+		// ok uptime
+		check = &result{}
+		vz.Uptime = "21m0s"
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListIsEmpty(t, check.Criticals)
 		assertListIsEmpty(t, check.Warnings)
