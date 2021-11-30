@@ -197,7 +197,7 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 			humanize.IBytes(uint64(ssm.Stats.Mem)),
 			fmt.Sprintf("%.1f", ssm.Stats.CPU),
 			ssm.Stats.SlowConsumers,
-			humanizeTime(ssm.Stats.Start),
+			humanizeDuration(ssm.Server.Time.Sub(ssm.Stats.Start)),
 			ssm.rtt.Round(time.Millisecond))
 	}
 
