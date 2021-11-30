@@ -16,6 +16,7 @@ package main
 import (
 	"log"
 	"os"
+	"runtime/debug"
 
 	"github.com/nats-io/natscli/cli"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -34,7 +35,7 @@ See 'nats cheat' for a quick cheatsheet of commands
 	ncli := kingpin.New("nats", help)
 	ncli.Author("NATS Authors <info@nats.io>")
 	ncli.UsageWriter(os.Stdout)
-	ncli.Version(version)
+	ncli.Version(getVersion())
 	ncli.HelpFlag.Short('h')
 
 	opts, err := cli.ConfigureInApp(ncli, nil, true)
@@ -62,4 +63,17 @@ See 'nats cheat' for a quick cheatsheet of commands
 	log.SetFlags(log.Ltime)
 
 	kingpin.MustParse(ncli.Parse(os.Args[1:]))
+}
+
+func getVersion() string {
+	if version != "development" {
+		return version
+	}
+
+	nfo, ok := debug.ReadBuildInfo()
+	if !ok || (nfo != nil && nfo.Main.Version == "") {
+		return version
+	}
+
+	return nfo.Main.Version
 }
