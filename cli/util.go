@@ -546,10 +546,6 @@ func humanizeDuration(d time.Duration) string {
 	return fmt.Sprintf("%.2fs", d.Seconds())
 }
 
-func humanizeTime(t time.Time) string {
-	return humanizeDuration(time.Since(t))
-}
-
 const (
 	hdrLine   = "NATS/1.0\r\n"
 	crlf      = "\r\n"
