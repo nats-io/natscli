@@ -462,7 +462,10 @@ func (c *SrvCheckCmd) checkVarz(check *result, vz *server.Varz) error {
 		}
 	}
 
-	up := time.Since(vz.Start)
+	up, err := parseDurationString(vz.Uptime)
+	if err != nil {
+		return fmt.Errorf("invalid uptime from server: %s", err)
+	}
 	if c.srvUptimeWarn > 0 || c.srvUptimeCrit > 0 {
 		if c.srvUptimeCrit > c.srvUptimeWarn {
 			check.critical("Up invalid thresholds")
@@ -479,7 +482,7 @@ func (c *SrvCheckCmd) checkVarz(check *result, vz *server.Varz) error {
 	}
 
 	check.pd(
-		&perfDataItem{Name: "uptime", Value: up.Round(time.Second).Seconds(), Warn: c.srvUptimeWarn.Seconds(), Crit: c.srvUptimeCrit.Seconds(), Unit: "s", Help: "NATS Server uptime in seconds"},
+		&perfDataItem{Name: "uptime", Value: up.Seconds(), Warn: c.srvUptimeWarn.Seconds(), Crit: c.srvUptimeCrit.Seconds(), Unit: "s", Help: "NATS Server uptime in seconds"},
 		&perfDataItem{Name: "cpu", Value: vz.CPU, Warn: float64(c.srvCPUWarn), Crit: float64(c.srvCPUCrit), Unit: "%", Help: "NATS Server CPU usage in percentage"},
 		&perfDataItem{Name: "mem", Value: float64(vz.Mem), Warn: float64(c.srvMemWarn), Crit: float64(c.srvMemCrit), Help: "NATS Server memory usage in bytes"},
 		&perfDataItem{Name: "connections", Value: float64(vz.Connections), Warn: float64(c.srvConnWarn), Crit: float64(c.srvConnCrit), Help: "Active connections"},
