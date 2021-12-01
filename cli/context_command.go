@@ -184,7 +184,11 @@ func (c *ctxCommand) listCommand(_ *kingpin.ParseContext) error {
 	table.AddHeaders("Name", "Description")
 
 	for _, name := range known {
-		cfg, _ := natscontext.New(name, true)
+		cfg, err := natscontext.New(name, true)
+		if err != nil {
+			log.Printf("Could not load context %s: %s", name, err)
+			continue
+		}
 
 		if name == current {
 			name = name + "*"
