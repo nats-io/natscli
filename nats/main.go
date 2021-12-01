@@ -71,7 +71,7 @@ func getVersion() string {
 	}
 
 	nfo, ok := debug.ReadBuildInfo()
-	if !ok || (nfo != nil && nfo.Main.Version == "") {
+	if !ok || (nfo != nil && (nfo.Main.Version == "" || nfo.Main.Version == "(devel)")) {
 		return version
 	}
 
