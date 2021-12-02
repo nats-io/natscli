@@ -837,19 +837,19 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 
 		stats = append(stats, s)
 	})
-	var tolleratedErr error
+	var toleratedErr error
 	if err != nil {
-		if err, ok := err.(api.ApiError); !ok || err.ErrCode != 10004 {
+		if !jsm.IsNatsError(err, 10004){
 			return err
 		}
-		tolleratedErr = err
+		toleratedErr = err
 	}
 
 	if len(stats) == 0 {
 		if !c.json {
 			fmt.Println("No Streams defined")
 		}
-		return tolleratedErr
+		return toleratedErr
 	}
 
 	if c.reportSortConsumers {
@@ -878,7 +878,7 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 		renderRaftLeaders(leaders, "Streams")
 	}
 
-	return tolleratedErr
+	return toleratedErr
 }
 
 func (c *streamCmd) renderReplication(stats []streamStat) {
