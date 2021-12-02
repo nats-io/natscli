@@ -2019,22 +2019,26 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 		streams = append(streams, s)
 		names = append(names, s.Name())
 	})
+	var toleratedErr error
 	if err != nil {
-		return fmt.Errorf("could not list streams: %s", err)
+		if !jsm.IsNatsError(err, 10004) {
+			return fmt.Errorf("could not list streams: %s", err)
+		}
+		toleratedErr = err
 	}
 
 	if c.json {
 		err = printJSON(names)
 		kingpin.FatalIfError(err, "could not display Streams")
-		return nil
+		return toleratedErr
 	}
 
 	if len(streams) == 0 && skipped {
 		fmt.Println("No Streams defined, pass -a to include system streams")
-		return nil
+		return toleratedErr
 	} else if len(streams) == 0 {
 		fmt.Println("No Streams defined")
-		return nil
+		return toleratedErr
 	}
 
 	sort.Slice(streams, func(i, j int) bool {
@@ -2048,7 +2052,7 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 		for _, n := range names {
 			fmt.Println(n)
 		}
-		return nil
+		return toleratedErr
 	}
 
 	var table *tablewriter.Table
@@ -2064,7 +2068,7 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 	}
 	fmt.Println(table.Render())
 
-	return nil
+	return toleratedErr
 }
 
 func (c *streamCmd) rmMsgAction(_ *kingpin.ParseContext) (err error) {
