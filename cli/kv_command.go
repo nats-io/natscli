@@ -326,12 +326,7 @@ func (c *kvCommand) deleteAction(_ *kingpin.ParseContext) error {
 }
 
 func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
-	if err != nil {
-		return err
-	}
-
-	js, err := nc.JetStream()
+	_, js, err := prepareJSHelper()
 	if err != nil {
 		return err
 	}
