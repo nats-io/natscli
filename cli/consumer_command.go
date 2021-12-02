@@ -1259,8 +1259,12 @@ func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
 			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), humanizeDuration(cons.AckWait()), humanize.Comma(int64(cs.NumAckPending)), humanize.Comma(int64(cs.NumRedelivered)), unprocessed, humanize.Comma(int64(cs.AckFloor.Stream)), renderCluster(cs.Cluster))
 		}
 	})
+	var tolleratedErr error
 	if err != nil {
-		return err
+		if err, ok := err.(api.ApiError); !ok || err.ErrCode != 10004 {
+			return err
+		}
+		tolleratedErr = err
 	}
 
 	fmt.Println(table.Render())
@@ -1269,5 +1273,5 @@ func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
 		renderRaftLeaders(leaders, "Consumers")
 	}
 
-	return nil
+	return tolleratedErr
 }
