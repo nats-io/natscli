@@ -1894,8 +1894,6 @@ func (c *streamCmd) validateCfg(cfg *api.StreamConfig) (bool, []byte, []string, 
 func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 	cfg := c.prepareConfig(pc)
 
-	fmt.Printf("cfg: %#v\n", cfg)
-
 	switch {
 	case c.validateOnly:
 		valid, j, errs, err := c.validateCfg(&cfg)
@@ -1923,12 +1921,9 @@ func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 		return ioutil.WriteFile(c.outFile, j, 0644)
 	}
 
-	log.Printf("options: %#v\n", opts)
-	log.Printf("preparing helper %#v\n", natsOpts())
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "could not create Stream")
 
-	log.Printf("mgr: %v\n", mgr)
 	str, err := mgr.NewStreamFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "could not create Stream")
 
