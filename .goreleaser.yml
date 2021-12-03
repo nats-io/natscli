@@ -4,7 +4,7 @@ release:
   github:
     owner: nats-io
     name: natscli
-  name_template: "Release {{.Tag}}"
+  name_template: "Release {{.Version}}"
   draft: true
 
 changelog:
@@ -68,7 +68,7 @@ brews:
       bin.install "nats"
 
 nfpms:
-  - file_name_template: 'nats-{{.Tag}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
+  - file_name_template: 'nats-{{.Version}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
     homepage:  https://nats.io
     description: NATS Utility
     maintainer: R.I. Pienaar <rip@devco.net>
