@@ -47,6 +47,8 @@ You can now develop against this NATS instance using the credentials and URL sho
 
 [JetStream](https://docs.nats.io/jetstream) can be enabled by passing the `--jetstream` flag, this will create a data directory that matches the instance name.  Future invocations with the same instance name will access the same data.
 
+When extending another network a JetStream Domain is set matching the upper case of the name.
+
 ```nohighlight
 $ nats server run --jetstream
 ...
