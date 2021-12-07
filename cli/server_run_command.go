@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"text/template"
 
@@ -33,9 +34,11 @@ type SrvRunConfig struct {
 	ExtendDemoNetwork    bool
 	ExtendWithContext    bool
 	JetStream            bool
+	JSDomain             string
 	Verbose              bool
 	Debug                bool
 	StoreDir             string
+	Listen               string
 	Context              *natscontext.Context
 }
 
@@ -50,6 +53,9 @@ logtime: false
 {{ if .JetStream }}
 jetstream {
     store_dir: {{ .StoreDir }}
+{{ if .JSDomain }}
+	domain: {{ .JSDomain }}
+{{ end }}
 }
 {{ end }}
 
@@ -209,6 +215,9 @@ func (c *SrvRunCmd) prepareConfig() error {
 			return err
 		}
 		c.config.StoreDir = filepath.Join(parent, "nats", c.config.Name)
+		if c.config.ExtendWithContext || c.config.ExtendDemoNetwork {
+			c.config.JSDomain = strings.ToUpper(c.config.Name)
+		}
 	}
 
 	return nil
@@ -274,6 +283,7 @@ func (c *SrvRunCmd) configureContexts(url string) (string, string, string, error
 		natscontext.WithUser("local"),
 		natscontext.WithPassword(c.config.UserPassword),
 		natscontext.WithDescription("Local user access for NATS Development instance"),
+		natscontext.WithJSDomain(c.config.JSDomain),
 	)
 	err := nctx.Save(nctx.Name)
 	if err != nil {
@@ -285,6 +295,7 @@ func (c *SrvRunCmd) configureContexts(url string) (string, string, string, error
 		natscontext.WithUser("service"),
 		natscontext.WithPassword(c.config.ServicePassword),
 		natscontext.WithDescription("Local service access for NATS Development instance"),
+		natscontext.WithJSDomain(c.config.JSDomain),
 	)
 	err = nctx.Save(svcName)
 	if err != nil {
@@ -342,6 +353,9 @@ func (c *SrvRunCmd) runAction(_ *kingpin.ParseContext) error {
 	fmt.Printf("        User Credentials: User: local   Password: %s Context: %s\n", c.config.UserPassword, u)
 	fmt.Printf("     Service Credentials: User: service Password: %s Context: %s\n", c.config.ServicePassword, svc)
 	fmt.Printf("      System Credentials: User: system  Password: %s Context: %s\n", c.config.SystemPassword, s)
+	if c.config.JSDomain != "" {
+		fmt.Printf("        JetStream Domain: %s\n", c.config.JSDomain)
+	}
 	fmt.Printf("  Extending Demo Network: %v\n", c.config.ExtendDemoNetwork)
 	if c.config.ExtendWithContext {
 		fmt.Printf("   Extending Remote NATS: using %s context\n", c.config.Context.Name)
