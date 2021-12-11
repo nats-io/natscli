@@ -126,29 +126,29 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 
 		if c.raw {
 			fmt.Println(string(m.Data))
-			continue
-		}
-
-		if progress != nil {
+		} else if progress != nil {
 			progress.Incr()
-			continue
-		}
+		} else {
+			log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
 
-		log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
-
-		if len(m.Header) > 0 {
-			for h, vals := range m.Header {
-				for _, val := range vals {
-					log.Printf("%s: %s", h, val)
+			if len(m.Header) > 0 {
+				for h, vals := range m.Header {
+					for _, val := range vals {
+						log.Printf("%s: %s", h, val)
+					}
 				}
+
+				fmt.Println()
 			}
 
-			fmt.Println()
+			fmt.Println(string(m.Data))
+			if !strings.HasSuffix(string(m.Data), "\n") {
+				fmt.Println()
+			}
 		}
 
-		fmt.Println(string(m.Data))
-		if !strings.HasSuffix(string(m.Data), "\n") {
-			fmt.Println()
+		if c.cnt > 1 && c.sleep > 0 {
+			time.Sleep(c.sleep)
 		}
 	}
 
