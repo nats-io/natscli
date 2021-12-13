@@ -127,18 +127,18 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 				return err
 			}
 		} else {
-			sub, e := nc.SubscribeSync(c.replyTo)
-			if e != nil {
-				return e
+			sub, err := nc.SubscribeSync(c.replyTo)
+			if err != nil {
+				return err
 			}
-			if e := nc.PublishMsg(msg); e != nil {
-				return e
+			err = nc.PublishMsg(msg)
+			if  err != nil {
+				return err
 			}
 			m, err = sub.NextMsg(opts.Timeout)
-		}
-
-		if err != nil {
-			return err
+			if err != nil {
+				return err
+			}
 		}
 
 		if c.raw {
