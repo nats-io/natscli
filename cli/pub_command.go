@@ -88,7 +88,6 @@ nats request destination.subject "hello world" -H "Content-type:text/plain" --ra
 	req.Flag("raw", "Show just the output received").Short('r').Default("false").BoolVar(&c.raw)
 	req.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
-	req.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
 }
 
 func init() {
@@ -120,25 +119,9 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			return err
 		}
 
-		var m *nats.Msg
-		if c.replyTo == "" {
-			m, err = nc.RequestMsg(msg, opts.Timeout)
-			if err != nil {
-				return err
-			}
-		} else {
-			sub, err := nc.SubscribeSync(c.replyTo)
-			if err != nil {
-				return err
-			}
-			err = nc.PublishMsg(msg)
-			if  err != nil {
-				return err
-			}
-			m, err = sub.NextMsg(opts.Timeout)
-			if err != nil {
-				return err
-			}
+		m, err := nc.RequestMsg(msg, opts.Timeout)
+		if err != nil {
+			return err
 		}
 
 		if c.raw {

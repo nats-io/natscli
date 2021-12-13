@@ -250,6 +250,7 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 	c.showIfNotEmpty("    JS API Prefix: %s\n", cfg.JSAPIPrefix())
 	c.showIfNotEmpty("  JS Event Prefix: %s\n", cfg.JSEventPrefix())
 	c.showIfNotEmpty("        JS Domain: %s\n", cfg.JSDomain())
+	c.showIfNotEmpty("     Inbox Prefix: %s\n", cfg.InboxPrefix())
 	c.showIfNotEmpty("             Path: %s\n", cfg.Path())
 
 	checkConn := func() error {
