@@ -748,6 +748,7 @@ func loadContext() error {
 		natscontext.WithJSEventPrefix(opts.JsEventPrefix),
 		natscontext.WithJSAPIPrefix(opts.JsApiPrefix),
 		natscontext.WithJSDomain(opts.JsDomain),
+		natscontext.WithInboxPrefix(opts.InboxPrefix),
 	}
 
 	if opts.Username != "" && opts.Password == "" {

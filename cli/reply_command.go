@@ -35,6 +35,7 @@ type replyCmd struct {
 	command string
 	echo    bool
 	sleep   time.Duration
+	limit   uint
 	hdrs    []string
 }
 
@@ -81,6 +82,7 @@ Available template functions are:
 	act.Flag("queue", "Queue group name").Default("NATS-RPLY-22").Short('q').StringVar(&c.queue)
 	act.Flag("sleep", "Inject a random sleep delay between replies up to this duration max").PlaceHolder("MAX").DurationVar(&c.sleep)
 	act.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
+	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
 
 	cheats["reply"] = `# To set up a responder that runs an external command with the 3rd subject token as argument
 nats reply "service.requests.>" --command "service.sh {{2}}"
@@ -106,8 +108,10 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 		c.echo = true
 	}
 
+	ic := make(chan os.Signal, 1)
+	defer close(ic)
 	i := 0
-	nc.QueueSubscribe(c.subject, c.queue, func(m *nats.Msg) {
+	sub, _ := nc.QueueSubscribe(c.subject, c.queue, func(m *nats.Msg) {
 		log.Printf("[#%d] Received on subject %q:", i, m.Subject)
 		for h, vals := range m.Header {
 			for _, val := range vals {
@@ -190,7 +194,14 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 		}
 
 		i++
+
+		if c.limit != 0 && uint(i) == c.limit {
+			ic <- os.Interrupt
+		}
 	})
+	if sub != nil && c.limit != 0 {
+		sub.AutoUnsubscribe(int(c.limit))
+	}
 	nc.Flush()
 
 	err = nc.LastError()
@@ -200,7 +211,6 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 
 	log.Printf("Listening on %q in group %q", c.subject, c.queue)
 
-	ic := make(chan os.Signal, 1)
 	signal.Notify(ic, os.Interrupt)
 	<-ic
 

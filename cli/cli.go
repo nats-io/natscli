@@ -85,6 +85,8 @@ type Options struct {
 	CfgCtx string
 	// Trace enables verbose debug logging
 	Trace bool
+	// Customer inbox Prefix
+	InboxPrefix string
 
 	// Conn sets a prepared connect to connect with
 	Conn *nats.Conn
