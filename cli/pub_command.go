@@ -28,14 +28,15 @@ import (
 )
 
 type pubCmd struct {
-	subject string
-	body    string
-	req     bool
-	replyTo string
-	raw     bool
-	hdrs    []string
-	cnt     int
-	sleep   time.Duration
+	subject    string
+	body       string
+	req        bool
+	replyTo    string
+	raw        bool
+	hdrs       []string
+	cnt        int
+	sleep      time.Duration
+	forceStdin bool
 }
 
 func configurePubCommand(app commandHost) {
@@ -70,12 +71,16 @@ Available template functions are:
 	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 	pub.Flag("sleep", "When publishing multiple messages, sleep between publishes").DurationVar(&c.sleep)
+	pub.Flag("force-stdin", "Force reading from stdin").Default("false").BoolVar(&c.forceStdin)
 
 	cheats["pub"] = `# To publish 100 messages with a random body between 100 and 1000 characters
 nats pub destination.subject "{{ Random 100 1000 }}" -H Count:{{ Count }} --count 100
 
 # To publish messages from STDIN
 echo "hello world" | nats pub destination.subject
+
+# To publish messages from STDIN in a headless (non-tty) context
+echo "hello world" | nats pub --force-stdin destination.subject
 
 # To request a response from a server and show just the raw result
 nats request destination.subject "hello world" -H "Content-type:text/plain" --raw
@@ -166,7 +171,7 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 		c.cnt = math.MaxInt16
 	}
 
-	if c.body == "!nil!" && terminal.IsTerminal(int(os.Stdout.Fd())) {
+	if c.body == "!nil!" && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
 		log.Println("Reading payload from STDIN")
 		body, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {
