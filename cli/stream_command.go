@@ -1145,7 +1145,7 @@ func (c *streamCmd) editAction(_ *kingpin.ParseContext) error {
 
 	diff := cmp.Diff(sourceStream.Configuration(), cfg, sorter)
 	if diff == "" {
-		fmt.Printf("No difference in configuration")
+		fmt.Printf("No difference in configuration\n")
 		return nil
 	}
 
