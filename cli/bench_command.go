@@ -215,7 +215,12 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 				DeliverPolicy: nats.DeliverAllPolicy,
 				AckPolicy:     nats.AckExplicitPolicy,
 				ReplayPolicy:  nats.ReplayInstantPolicy,
-				MaxAckPending: c.numSubs * c.pullBatch,
+				MaxAckPending: func(a int) int {
+					if a >= 20000 {
+						return a
+					}
+					return 20000
+				}(c.numSubs * c.pullBatch),
 			})
 			if err != nil {
 				log.Fatal("error creating the pull consumer: ", err)
