@@ -28,30 +28,30 @@ import (
 )
 
 type benchCmd struct {
-	subject       string
-	numPubs       int
-	numSubs       int
-	numMsg        int
-	msgSize       int
-	csvFile       string
-	noProgress    bool
-	request       bool
-	reply         bool
-	syncPub       bool
-	pubBatch      int
-	jsTimeout     time.Duration
-	js            bool
-	storage       string
-	streamName    string
-	pull          bool
-	pullBatch     int
-	replicas      int
-	purge         bool
-	maxAckPending int
+	subject    string
+	numPubs    int
+	numSubs    int
+	numMsg     int
+	msgSize    int
+	csvFile    string
+	noProgress bool
+	request    bool
+	reply      bool
+	syncPub    bool
+	pubBatch   int
+	jsTimeout  time.Duration
+	js         bool
+	storage    string
+	streamName string
+	pull       bool
+	pullBatch  int
+	replicas   int
+	purge      bool
 }
 
 const (
 	JS_PULLCONSUMER_NAME string = "natscli-benchpull"
+	DEFAULT_STREAM_NAME  string = "benchstream"
 )
 
 func configureBenchCommand(app commandHost) {
@@ -69,14 +69,13 @@ func configureBenchCommand(app commandHost) {
 	bench.Flag("reply", "Request/Reply mode: subscribers send replies").Default("false").BoolVar(&c.reply)
 	bench.Flag("js", "Use JetStream streaming").Default("false").BoolVar(&c.js)
 	bench.Flag("pubbatch", "Sets the batch size for JS asynchronous publishing").Default("100").IntVar(&c.pubBatch)
-	bench.Flag("jstimeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
-	bench.Flag("storage", "JetStream storage (memory/file)").Default("memory").StringVar(&c.storage)
-	bench.Flag("stream", "Stream name to use for the benchmark").Default("benchstream").StringVar(&c.streamName)
 	bench.Flag("pull", "Uses a JetStream pull consumer rather than an ordered push consumer").Default("false").BoolVar(&c.pull)
 	bench.Flag("pullbatch", "Sets the batch size for the JS pull consumer").Default("100").IntVar(&c.pullBatch)
-	bench.Flag("replicas", "Number of stream replicas").Default("1").IntVar(&c.replicas)
+	bench.Flag("jstimeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	bench.Flag("purge", "Purge the stream before running").Default("false").BoolVar(&c.purge)
-	bench.Flag("maxackpending", "Max acks pending for JS consumer").Default("-1").IntVar(&c.maxAckPending)
+	bench.Flag("stream", "When set to something else than \"benchstream\": use and do not define the specified stream when creating pull subscribers. Otherwise define and use the \"benchstream\" stream").Default(DEFAULT_STREAM_NAME).StringVar(&c.streamName)
+	bench.Flag("storage", "JetStream storage (memory/file) for the \"benchstream\" stream").Default("memory").StringVar(&c.storage)
+	bench.Flag("replicas", "Number of stream replicas for the \"benchstream\" stream").Default("1").IntVar(&c.replicas)
 
 	cheats["bench"] = `# benchmark core nats publish and subscribe with 10 publishers and subscribers
 nats bench testsubject --pub 10 --sub 10 --msgs 10000 --size 512
@@ -145,12 +144,16 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	}
 
 	if c.js {
-		log.Printf("Starting JetStream benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, stream=%s  storage=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, pullbatch=%s, maxackpending=%s, replicas=%d, purge=%v]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.streamName, c.storage, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.pullBatch)), humanize.Comma(int64(c.maxAckPending)), c.replicas, c.purge)
+		if c.streamName == DEFAULT_STREAM_NAME {
+			log.Printf("Starting JetStream benchmark [subject=%s, msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, stream=%s, storage=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, pullbatch=%s, replicas=%d, purge=%v]", c.subject, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.streamName, c.storage, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.pullBatch)), c.replicas, c.purge)
+		} else {
+			log.Printf("Starting JetStream benchmark [subject=%s, msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, stream=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, pullbatch=%s, purge=%v]", c.subject, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.streamName, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.pullBatch)), c.purge)
+		}
 	} else {
 		if c.request || c.reply {
-			log.Printf("Starting request/reply benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, request=%v, reply=%v]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.request, c.reply)
+			log.Printf("Starting request/reply benchmark [subject=%s, msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v, request=%v, reply=%v]", c.subject, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js, c.request, c.reply)
 		} else {
-			log.Printf("Starting pub/sub benchmark [msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v]", humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js)
+			log.Printf("Starting pub/sub benchmark [subject=%s, msgs=%s, msgsize=%s, pubs=%d, subs=%d, js=%v]", c.subject, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.js)
 		}
 	}
 
@@ -187,10 +190,14 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 			}
 		}()
 
-		// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
-		_, err = js.AddStream(&nats.StreamConfig{Name: c.streamName, Subjects: []string{c.subject}, Retention: nats.LimitsPolicy, Storage: storageType, Replicas: c.replicas})
-		if err != nil {
-			log.Fatalf("there is already a stream %s defined with conflicting attributes, if you want to delete and re-define the stream use `nats stream delete` (%v)", c.streamName, err)
+		if c.streamName == DEFAULT_STREAM_NAME {
+			// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
+			_, err = js.AddStream(&nats.StreamConfig{Name: c.streamName, Subjects: []string{c.subject}, Retention: nats.LimitsPolicy, Storage: storageType, Replicas: c.replicas})
+			if err != nil {
+				log.Fatalf("there is already a stream %s defined with conflicting attributes, if you want to delete and re-define the stream use `nats stream delete` (%v)", c.streamName, err)
+			}
+		} else if c.js && c.pull && c.numSubs > 0 {
+			log.Printf("Using stream: %s", c.streamName)
 		}
 
 		if c.purge {
@@ -208,7 +215,12 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 				DeliverPolicy: nats.DeliverAllPolicy,
 				AckPolicy:     nats.AckExplicitPolicy,
 				ReplayPolicy:  nats.ReplayInstantPolicy,
-				MaxAckPending: c.maxAckPending,
+				MaxAckPending: func(a int) int {
+					if a >= 20000 {
+						return a
+					}
+					return 20000
+				}(c.numSubs * c.pullBatch),
 			})
 			if err != nil {
 				log.Fatal("error creating the pull consumer: ", err)
