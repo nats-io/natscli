@@ -75,7 +75,7 @@ NOTE: This is an experimental feature.
 	put.Flag("no-progress", "Disables progress bars").Default("false").BoolVar(&c.noProgress)
 	put.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
-	del := obj.Command("del", "Deletes an object or bucket from the store").Action(c.delAction).Alias("rm")
+	del := obj.Command("del", "Deletes a file or bucket from the store").Action(c.delAction).Alias("rm")
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	del.Arg("file", "The file to retrieve").StringVar(&c.file)
 	del.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
@@ -115,7 +115,10 @@ cat x.jpg|nats obj put FILES --name image.jpg
 nats obj get FILES image.jpg -O out.jpg
 
 # delete a file
-nats obj rm FILES image.jpg
+nats obj del FILES image.jpg
+
+# delete a bucket
+nats obj del FILES
 
 # view bucket info
 nats obj info FILES
@@ -231,7 +234,7 @@ func (c *objCommand) delAction(_ *kingpin.ParseContext) error {
 
 	} else {
 		if !c.force {
-			ok, err := askConfirmation(fmt.Sprintf("Delete bucket %s?", c.bucket), false)
+			ok, err := askConfirmation(fmt.Sprintf("Delete bucket %s and all its files?", c.bucket), false)
 			if err != nil {
 				return err
 			}
