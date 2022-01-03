@@ -75,9 +75,9 @@ NOTE: This is an experimental feature.
 	put.Flag("no-progress", "Disables progress bars").Default("false").BoolVar(&c.noProgress)
 	put.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
-	del := obj.Command("del", "Removes a file from the store").Action(c.delAction)
+	del := obj.Command("del", "Deletes an object or bucket from the store").Action(c.delAction).Alias("rm")
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	del.Arg("file", "The file to retrieve").Required().StringVar(&c.file)
+	del.Arg("file", "The file to retrieve").StringVar(&c.file)
 	del.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	get := obj.Command("get", "Retrieves a file from the store").Action(c.getAction)
@@ -94,10 +94,6 @@ NOTE: This is an experimental feature.
 	ls := obj.Command("ls", "List buckets or contents of a specific bucket").Action(c.lsAction)
 	ls.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
 	ls.Flag("names", "When listing buckets, show just the bucket names").Short('n').BoolVar(&c.listNames)
-
-	rm := obj.Command("rm", "Removes a bucket").Action(c.rmAction)
-	rm.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	rm.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	seal := obj.Command("seal", "Seals a bucket preventing further updates").Action(c.sealAction)
 	seal.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -207,32 +203,52 @@ func (c *objCommand) delAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	if !c.force {
-		nfo, err := obj.GetInfo(c.file)
+	if c.file != "" {
+		if !c.force {
+			nfo, err := obj.GetInfo(c.file)
+			if err != nil {
+				return err
+			}
+
+			ok, err := askConfirmation(fmt.Sprintf("Delete %s byte file %s > %s?", humanize.IBytes(nfo.Size), c.bucket, c.file), false)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				fmt.Println("Skipping delete")
+				return nil
+			}
+		}
+		err = obj.Delete(c.file)
 		if err != nil {
 			return err
 		}
 
-		ok, err := askConfirmation(fmt.Sprintf("Delete %s byte file %s > %s?", humanize.IBytes(nfo.Size), c.bucket, c.file), false)
+		fmt.Printf("Removed %s > %s\n", c.bucket, c.file)
+
+		return c.showBucketInfo(obj)
+
+	} else {
+		if !c.force {
+			ok, err := askConfirmation(fmt.Sprintf("Delete bucket %s?", c.bucket), false)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				fmt.Println("Skipping delete")
+				return nil
+			}
+		}
+
+		_, js, err := prepareJSHelper()
 		if err != nil {
 			return err
 		}
 
-		if !ok {
-			fmt.Println("Skipping delete")
-			return nil
-		}
-
+		return js.DeleteObjectStore(c.bucket)
 	}
-
-	err = obj.Delete(c.file)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Removed %s > %s\n", c.bucket, c.file)
-
-	return c.showBucketInfo(obj)
 }
 
 func (c *objCommand) infoAction(_ *kingpin.ParseContext) error {
@@ -397,28 +413,6 @@ func (c *objCommand) lsAction(_ *kingpin.ParseContext) error {
 	fmt.Println(table.Render())
 
 	return nil
-}
-
-
-func (c *objCommand) rmAction(_ *kingpin.ParseContext) error {
-	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Deleted bucket %s?", c.bucket), false)
-		if err != nil {
-			return err
-		}
-
-		if !ok {
-			fmt.Println("Skipping delete")
-			return nil
-		}
-	}
-
-	_, js, err := prepareJSHelper()
-	if err != nil {
-		return err
-	}
-
-	return js.DeleteObjectStore(c.bucket)
 }
 
 
