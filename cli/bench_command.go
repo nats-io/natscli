@@ -391,7 +391,7 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 					}
 				}
 			case <-time.After(c.jsTimeout):
-				log.Fatalf("JS PubAsync did not receive a positive ack")
+				log.Fatalf("JS PubAsync did not receive an ack/error")
 			}
 		}
 		state = "Finished  "
