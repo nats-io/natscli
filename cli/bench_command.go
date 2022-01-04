@@ -47,6 +47,8 @@ type benchCmd struct {
 	pullBatch  int
 	replicas   int
 	purge      bool
+	ackSleep   time.Duration
+	pubSleep   time.Duration
 }
 
 const (
@@ -76,6 +78,8 @@ func configureBenchCommand(app commandHost) {
 	bench.Flag("stream", "When set to something else than \"benchstream\": use and do not define the specified stream when creating pull subscribers. Otherwise define and use the \"benchstream\" stream").Default(DEFAULT_STREAM_NAME).StringVar(&c.streamName)
 	bench.Flag("storage", "JetStream storage (memory/file) for the \"benchstream\" stream").Default("memory").StringVar(&c.storage)
 	bench.Flag("replicas", "Number of stream replicas for the \"benchstream\" stream").Default("1").IntVar(&c.replicas)
+	bench.Flag("acksleep", "sleep for the specified interval before sending JetStream pull consumer acks, or replies in --reply mode").Default("0s").DurationVar(&c.ackSleep)
+	bench.Flag("pubsleep", "sleep for the specified interval after publishing each message").Default("0s").DurationVar(&c.pubSleep)
 
 	cheats["bench"] = `# benchmark core nats publish and subscribe with 10 publishers and subscribers
 nats bench testsubject --pub 10 --sub 10 --msgs 10000 --size 512
@@ -101,6 +105,12 @@ nats bench testsubject --js --sub 4
 
 # benchmark JS stream get replay from the stream using a pull consumer
 nats bench testsubject --js --sub 4 --pull
+
+# simulate a message processing time (for reply mode and pull JS consumers) of 50 microseconds
+nats bench testsubject --reply --sub 1 --acksleep 50us
+
+# generate load by publishing messages at an interval of 100 nanoseconds rather than back to back
+nats bench testsubject --pub 1 --pubsleep 100ns
 
 # remember when benchmarking JetStream
 Once you are finished benchmarking, remember to free up the resources (i.e. memory and files) consumed by the stream using 'nats stream rm'
@@ -335,6 +345,7 @@ func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg 
 				log.Fatalf("Publish Request did not receive a positive ACK: %q", m.Data)
 			}
 		}
+		time.Sleep(c.pubSleep)
 	}
 	state = "Finished  "
 }
@@ -356,20 +367,28 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 	if !c.syncPub {
 		for i := 0; i < numMsg; i += c.pubBatch {
 			state = "Publishing"
+			futures := make([]nats.PubAckFuture, c.pubBatch)
 			for j := 0; j < c.pubBatch && i+j < c.numMsg; j++ {
-				_, err = js.PublishAsync(c.subject, msg)
+				futures[j], err = js.PublishAsync(c.subject, msg)
 				if err != nil {
 					log.Fatalf("PubAsync error: %v", err)
 				}
 				if progress != nil {
 					progress.Incr()
 				}
+				time.Sleep(c.pubSleep)
 			}
 
 			state = "AckWait   "
 
 			select {
 			case <-js.PublishAsyncComplete():
+				for future := range futures {
+					e := <-futures[future].Ok()
+					if e == nil {
+						log.Printf("PubAsync %v not OK, err=%v", future, <-futures[future].Err())
+					}
+				}
 			case <-time.After(c.jsTimeout):
 				log.Fatalf("JS PubAsync did not receive a positive ack")
 			}
@@ -385,6 +404,7 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 			if err != nil {
 				log.Fatalf("Publish error: %s", err)
 			}
+			time.Sleep(c.pubSleep)
 		}
 	}
 }
@@ -455,6 +475,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 	mh := func(msg *nats.Msg) {
 		received++
 		if c.reply || (c.js && c.pull) {
+			time.Sleep(c.ackSleep)
 			err := msg.Ack()
 			if err != nil {
 				log.Fatalf("error sending a reply message: %v", err)
