@@ -384,9 +384,10 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 			select {
 			case <-js.PublishAsyncComplete():
 				for future := range futures {
-					e := <-futures[future].Ok()
-					if e == nil {
-						log.Printf("PubAsync %v not OK, err=%v", future, <-futures[future].Err())
+					select {
+					case <-futures[future].Ok():
+					case e := <-futures[future].Err():
+						log.Printf("PubAsync %v not OK, err=%v", future, e)
 					}
 				}
 			case <-time.After(c.jsTimeout):
