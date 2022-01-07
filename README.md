@@ -24,8 +24,8 @@ operating systems can be found.
 For OS X `brew` can be used to install the latest version:
 
 ```nohighlight
-$ brew tap nats-io/nats-tools
-$ brew install nats-io/nats-tools/nats
+brew tap nats-io/nats-tools
+brew install nats-io/nats-tools/nats
 ```
 
 For Arch users there is an [AUR package](https://aur.archlinux.org/packages/natscli/) that you can install with:
@@ -43,7 +43,10 @@ To enable this we'll create a `demo` configuration and set it as default.
 
 First we add a configuration to capture the default `localhost` configuration.
 ```
-$ nats context add local --description "Localhost" 
+nats context add local --description "Localhost"
+```
+Output
+```
 NATS Configuration Context "localhost"
 
   Description: Localhost
@@ -53,7 +56,10 @@ NATS Configuration Context "localhost"
 Next we add a context for `demo.nats.io:4222` and we select it as default.
 
 ```
-$ nats context add nats --server demo.nats.io:4222 --description "NATS Demo" --select
+nats context add nats --server demo.nats.io:4222 --description "NATS Demo" --select
+```
+Output
+```
 NATS Configuration Context "nats"
 
   Description: NATS Demo
@@ -62,7 +68,10 @@ NATS Configuration Context "nats"
 
 These are the contexts, the `*` indicates the default
 ```
-$ nats context ls
+nats context ls
+```
+Output
+```
 Known contexts:
 
    localhost           Localhost
@@ -84,7 +93,10 @@ The `nats` CLI can publish messages and subscribe to subjects.
 We will subscribe to the `cli.demo` subject:
 
 ```
-$ nats sub cli.demo 
+nats sub cli.demo 
+```
+Output
+```
 12:30:25 Subscribing on cli.demo
 ``` 
 
@@ -93,14 +105,20 @@ We can now publish messages to the `cli.demo` subject.
 First we publish a single message:
 
 ```
-$ nats pub cli.demo "hello world"
+nats pub cli.demo "hello world" 
+```
+Output
+```
 12:31:20 Published 11 bytes to "cli.demo"
 ```
 
 Next we publish 5 messages with a counter and timestamp in the format `message 5 @ 2020-12-03T12:33:18+01:00`:
 
 ```
-$ nats pub cli.demo "message {{.Count}} @ {{.TimeStamp}}" --count=10
+nats pub cli.demo "message {{.Count}} @ {{.TimeStamp}}" --count=10 
+```
+Output
+```
 12:33:17 Published 33 bytes to "cli.demo"
 12:33:17 Published 33 bytes to "cli.demo"
 12:33:17 Published 33 bytes to "cli.demo"
@@ -111,7 +129,10 @@ $ nats pub cli.demo "message {{.Count}} @ {{.TimeStamp}}" --count=10
 We can also publish messages read from STDIN:
 
 ```
-$ echo hello|nats pub cli.demo
+echo hello|nats pub cli.demo 
+```
+Output
+```
 12:34:15 Reading payload from STDIN
 12:34:15 Published 6 bytes to "cli.demo"
 ```
@@ -119,14 +140,20 @@ $ echo hello|nats pub cli.demo
 Finally, NATS supports HTTP style headers and the CLI behaves like `curl`:
 
 ```
-$ nats pub cli.demo 'hello headers' -H Header1:One -H Header2:Two
+nats pub cli.demo 'hello headers' -H Header1:One -H Header2:Two 
+```
+Output
+```
 12:38:44 Published 13 bytes to "cli.demo"
 ```
 
 The receiver will show:
 
 ```
-$ nats sub cli.demo 
+nats sub cli.demo  
+```
+Output
+```
 [#47] Received on "cli.demo"
 Header1: One
 Header2: Two
@@ -140,7 +167,10 @@ When receiving messages from a JetStream Push Consumer messages can be acknowled
 message metadata is also produced:
 
 ```
-$ nats sub js.out.testing --ack
+nats sub js.out.testing --ack 
+```
+Output
+```
 12:55:23 Subscribing on js.out.testing with acknowledgement of JetStream messages
 [#1] Received JetStream message: consumer: TESTING > TAIL / subject: js.in.testing / delivered: 1 / consumer seq: 568 / stream seq: 2638 / ack: true
 test JS message
@@ -153,7 +183,7 @@ subscribe in 2 or more shells and then publish messages using some of the method
 only be received by one of the subscribers at a time.
 
 ```
-$ nats sub cli.demo --queue=Q1
+nats sub cli.demo --queue=Q1
 ```
 
 ### Service Requests and Creation
@@ -161,14 +191,20 @@ $ nats sub cli.demo --queue=Q1
 NATS supports a RPC mechanism where a service received Requests and replies with data in response.
 
 ```
-$ nats reply 'cli.weather.>' "Weather Service"
+nats reply 'cli.weather.>' "Weather Service" 
+```
+Output
+```
 12:43:28 Listening on "cli.weather.>" in group "NATS-RPLY-22"
 ```
 
 In another shell we can send a request to this service:
 
 ```
-$ nats request cli.weather.london
+nats request cli.weather.london 
+```
+Output
+```
 12:46:34 Sending request on "cli.weather.london"
 12:46:35 Received on "_INBOX.BJoZpwsshQM5cKUj8KAkT6.HF9jslpP" rtt 404.76854ms
 Weather Service
@@ -179,14 +215,20 @@ This shows that the service round trip was 404ms, and we can see the response `W
 To make this a bit more interesting we can interact with the `wttr.in` web service:
 
 ```
-$ nats reply 'cli.weather.>' --command "curl -s wttr.in/{{2}}?format=3"
+nats reply 'cli.weather.>' --command "curl -s wttr.in/{{2}}?format=3" 
+```
+Output
+```
 12:47:03 Listening on "cli.weather.>" in group "NATS-RPLY-22"
 ```
 
 We can perform the same request again:
 
 ```
-$ nats request "cli.weather.{london,newyork}" '' --raw
+nats request "cli.weather.{london,newyork}" '' --raw 
+```
+Output
+```
 london: 🌦 +7°C
 newyork: ☀️ +2°C
 ```
@@ -203,7 +245,10 @@ Benchmarking and latency testing is key requirement for evaluating the productio
 Here we'll run these benchmarks against a local server instead of `demo.nats.io`.
 
 ```
-$ nats context select localhost
+nats context select localhost 
+```
+Output
+```
 NATS Configuration Context "localhost"
 
   Description: Localhost
@@ -214,7 +259,10 @@ We can benchmark core NATS publishing performance, here we publish 10 million me
 default messages are published as quick as possible without any acknowledgement or confirmations:
 
 ```
-$ nats bench test --msgs=10000000 --pub 5                                                                                                                                                                                                                                                                                                                                                                         <13:03:30
+nats bench test --msgs=10000000 --pub 5 
+```
+Output
+```                                                                                                                                                                                                                                                                                                                                                                         <13:03:30
 01:30:14 Starting benchmark [msgs=10,000,000, msgsize=128 B, pubs=5, subs=0, js=false, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
 Finished      0s [================================================] 100%
 Finished      0s [================================================] 100%
@@ -234,7 +282,10 @@ Pub stats: 14,047,987 msgs/sec ~ 1.67 GB/sec
 Adding `--sub 2` will start two subscribers on the same subject and measure the rate of messages:
 
 ```
-$ nats bench test --msgs=10000000 --pub 5 --sub 2
+nats bench test --msgs=10000000 --pub 5 --sub 2 
+```
+Output
+```
 ...
 01:30:52 Starting benchmark [msgs=10,000,000, msgsize=128 B, pubs=5, subs=2, js=false, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
 01:30:52 Starting subscriber, expecting 10,000,000 messages
@@ -264,7 +315,10 @@ NATS Pub/Sub stats: 4,906,104 msgs/sec ~ 598.89 MB/sec
 JetStream testing can be done by adding the `--js` flag. You can for example measure first the speed of publishing into a stream
 
 ```
-$ nats bench js.bench --js --pub 2 --msgs 1000000 --purge
+nats bench js.bench --js --pub 2 --msgs 1000000 --purge 
+```
+Output
+```
 01:37:36 Starting benchmark [msgs=1,000,000, msgsize=128 B, pubs=2, subs=0, js=true, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=true]
 01:37:36 Purging the stream
 Finished      2s [================================================] 100%
@@ -277,7 +331,10 @@ Pub stats: 415,097 msgs/sec ~ 50.67 MB/sec
 ```
 And then you can for example measure the speed of receiving (i.e. replay) the messages from the stream using ordered push consumers
 ```
-$ nats bench js.bench --js --sub 4 --msgs 1000000
+nats bench js.bench --js --sub 4 --msgs 1000000 
+```
+Output
+```
 01:40:05 Starting benchmark [msgs=1,000,000, msgsize=128 B, pubs=0, subs=4, js=true, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
 01:40:05 Starting subscriber, expecting 1,000,000 messages
 01:40:05 Starting subscriber, expecting 1,000,000 messages
@@ -299,13 +356,16 @@ Sub stats: 1,522,920 msgs/sec ~ 185.90 MB/sec
 Similarily you can benchmark synchronous request/reply type of interactions using the `--request` and `--reply` flags. For example you can first start one (or more) replier(s)
 
 ```
-$ nats bench test --sub 2 --reply
+nats bench test --sub 2 --reply
 ```
 
 And then run a benchmark with one (or more) synchronous requester(s)
 
 ```
-$ nats bench test --pub 10 --request 
+nats bench test --pub 10 --request  
+```
+Output
+```
 03:04:56 Starting benchmark [msgs=100,000, msgsize=128 B, pubs=10, subs=0, js=false, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=true, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
 03:04:56 Benchmark in request/reply mode
 Finished      2s [================================================] 100%
@@ -341,7 +401,10 @@ Latency is the rate at which messages can cross your network, with the `nats` CL
 to your NATS network and measure the latency between the publisher and subscriber.
 
 ```
-$ nats latency --server-b localhost:4222 --rate 500000 
+nats latency --server-b localhost:4222 --rate 500000  
+```
+Output
+```
 ==============================
 Pub Server RTT : 64µs
 Sub Server RTT : 70µs
@@ -388,7 +451,10 @@ I create a `system` context before running these commands and pass that to the c
 ### Lifecycle Events
 
 ```
-$ nats event --context system
+nats event --context system 
+```
+Output
+```
 Listening for Client Connection events on $SYS.ACCOUNT.*.CONNECT
 Listening for Client Disconnection events on $SYS.ACCOUNT.*.DISCONNECT
 Listening for Authentication Errors events on $SYS.SERVER.*.CLIENT.AUTH.ERR
@@ -435,7 +501,10 @@ These events are JSON messages and can be viewed raw using `--json` or in Cloud 
 finally a short version of the messages can be shown:
 
 ```
-$ nats event --short
+nats event --short 
+```
+Output
+```
 Listening for Client Connection events on $SYS.ACCOUNT.*.CONNECT
 Listening for Client Disconnection events on $SYS.ACCOUNT.*.DISCONNECT
 Listening for Authentication Errors events on $SYS.SERVER.*.CLIENT.AUTH.ERR
@@ -454,7 +523,10 @@ via internal APIs, the `nats` tool can interact with these and observe your serv
 A quick view of the available servers and your network RTT to each can be seen with `nats server ping`:
 
 ```
-$ nats server ping
+nats server ping 
+```
+Output
+```
 nc1-c1                                                       rtt=2.30864ms
 nc3-c1                                                       rtt=2.396573ms
 nc2-c1                                                       rtt=2.484994ms
@@ -468,7 +540,10 @@ nc3-c2                                                       rtt=2.549958ms
 A general server overview can be seen with `nats server list`:
 
 ```
-$ nats server list
+nats server list 
+```
+Output
+```
 +----------------------------------------------------------------------------------------------------------------------------+
 |                                                      Server Overview                                                       |
 +--------+------------+-----------+---------------+-------+------+--------+-----+---------+-----+------+--------+------------+
@@ -499,7 +574,10 @@ $ nats server list
 Data from a specific server can be accessed using it's server name or ID:
 
 ```
-$ nats server info nc1-c1
+nats server info nc1-c1 
+```
+Output
+```
 Server information for nc1-c1 (NBNIKFCQZ3J6I7JDTUDHAH3Z3HOQYEYGZZ5HOS63BX47PS66NHPT2P72)
 
 Process Details:
@@ -570,7 +648,10 @@ languages.
 The `nats` CLI allows you to view these schemas and validate documents using these schemas.
 
 ```
-$ nats schema ls
+nats schema ls 
+```
+Output
+```
 Matched Schemas:
 
   io.nats.jetstream.advisory.v1.api_audit
@@ -588,7 +669,10 @@ Finally, if you are interacting with the API using JSON request messages constru
 by our own management libraries you can use this tool to validate your messages:
 
 ```
-$ nats schema validate io.nats.jetstream.api.v1.stream_create_request request.json
+nats schema validate io.nats.jetstream.api.v1.stream_create_request request.json 
+```
+Output
+```
 Validation errors in request.json:
 
   retention: retention must be one of the following: "limits", "interest", "workqueue"
