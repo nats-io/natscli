@@ -418,7 +418,6 @@ func (c *objCommand) lsAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-
 func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 	_, _, obj, err := c.loadBucket()
 	if err != nil {
