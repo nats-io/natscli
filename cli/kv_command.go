@@ -91,9 +91,9 @@ NOTE: This is an experimental feature.
 	update.Arg("value", "The value to store, when empty reads STDIN").StringVar(&c.val)
 	update.Arg("revision", "The revision of the previous value in the bucket").Uint64Var(&c.revision)
 
-	del := kv.Command("del", "Deletes a key from the bucket, preserving history").Action(c.deleteAction)
+	del := kv.Command("del", "Deletes a key or the entire bucket").Alias("rm").Action(c.deleteAction)
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	del.Arg("key", "The key to act on").Required().StringVar(&c.key)
+	del.Arg("key", "The key to act on").StringVar(&c.key)
 	del.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	purge := kv.Command("purge", "Deletes a key from the bucket, clearing history before creating a delete marker").Action(c.purgeAction)
@@ -114,10 +114,6 @@ NOTE: This is an experimental feature.
 
 	ls := kv.Command("list", "List available Buckets").Alias("ls").Action(c.lsAction)
 	ls.Flag("names", "Show just the bucket names").Short('n').BoolVar(&c.listNames)
-
-	rm := kv.Command("rm", "Removes a bucket").Action(c.rmAction)
-	rm.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	rm.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
 	rmHistory := kv.Command("compact", "Removes all historic values from the store where the last value is a delete").Action(c.compactAction)
 	rmHistory.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -304,7 +300,11 @@ func (c *kvCommand) compactAction(_ *kingpin.ParseContext) error {
 	return store.PurgeDeletes()
 }
 
-func (c *kvCommand) deleteAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) deleteAction(pc *kingpin.ParseContext) error {
+	if c.key == "" {
+		return c.rmBucketAction(pc)
+	}
+
 	_, _, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -530,7 +530,7 @@ func (c *kvCommand) purgeAction(_ *kingpin.ParseContext) error {
 	return store.Purge(c.key)
 }
 
-func (c *kvCommand) rmAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) rmBucketAction(_ *kingpin.ParseContext) error {
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Deleted bucket %s?", c.bucket), false)
 		if err != nil {
