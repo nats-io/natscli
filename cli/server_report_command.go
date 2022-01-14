@@ -94,6 +94,16 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		Server server.ServerInfo `json:"server"`
 	}
 
+	// works around 2.7.0 breaking chances
+	type jszrCompact struct {
+		Data struct {
+			Streams   int    `json:"total_streams,omitempty"`
+			Consumers int    `json:"total_consumers,omitempty"`
+			Messages  uint64 `json:"total_messages,omitempty"`
+			Bytes     uint64 `json:"total_message_bytes,omitempty"`
+		} `json:"data"`
+	}
+
 	var (
 		names        []string
 		jszResponses []*jszr
@@ -115,6 +125,19 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 		err = json.Unmarshal(r, &response)
 		if err != nil {
 			return err
+		}
+
+		// we may have a pre 2.7.0 machine and will try get data with old struct names, if all of these are
+		// 0 it might be that they are 0 or that we had data in the old format, so we try parse the old
+		// and set what is in there.  If it's not an old server 0s will stay 0s, otherwise we pull in old format values
+		if response.Data.Streams == 0 && response.Data.Consumers == 0 && response.Data.Messages == 0 && response.Data.Bytes == 0 {
+			cresp := jszrCompact{}
+			if json.Unmarshal(r, &cresp) == nil {
+				response.Data.Streams = cresp.Data.Streams
+				response.Data.Consumers = cresp.Data.Consumers
+				response.Data.Messages = cresp.Data.Messages
+				response.Data.Bytes = cresp.Data.Bytes
+			}
 		}
 
 		if response.Data.Config.Domain != "" {

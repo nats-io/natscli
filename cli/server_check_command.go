@@ -666,9 +666,32 @@ func (c *SrvCheckCmd) checkRaft(_ *kingpin.ParseContext) error {
 		Server server.ServerInfo `json:"server"`
 	}
 
+	// works around 2.7.0 breaking chances
+	type jszrCompact struct {
+		Data struct {
+			Streams   int    `json:"total_streams,omitempty"`
+			Consumers int    `json:"total_consumers,omitempty"`
+			Messages  uint64 `json:"total_messages,omitempty"`
+			Bytes     uint64 `json:"total_message_bytes,omitempty"`
+		} `json:"data"`
+	}
+
 	jszresp := &jszr{}
 	err = json.Unmarshal(res[0], jszresp)
 	check.criticalIfErr(err, "invalid result received: %s", err)
+
+	// we may have a pre 2.7.0 machine and will try get data with old struct names, if all of these are
+	// 0 it might be that they are 0 or that we had data in the old format, so we try parse the old
+	// and set what is in there.  If it's not an old server 0s will stay 0s, otherwise we pull in old format values
+	if jszresp.Data.Streams == 0 && jszresp.Data.Consumers == 0 && jszresp.Data.Messages == 0 && jszresp.Data.Bytes == 0 {
+		cresp := jszrCompact{}
+		if json.Unmarshal(res[0], &cresp) == nil {
+			jszresp.Data.Streams = cresp.Data.Streams
+			jszresp.Data.Consumers = cresp.Data.Consumers
+			jszresp.Data.Messages = cresp.Data.Messages
+			jszresp.Data.Bytes = cresp.Data.Bytes
+		}
+	}
 
 	err = c.checkMetaClusterInfo(check, jszresp.Data.Meta)
 	check.criticalIfErr(err, "invalid result received: %s", err)

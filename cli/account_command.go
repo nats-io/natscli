@@ -94,28 +94,32 @@ func (c *actCmd) infoAction(_ *kingpin.ParseContext) error {
 	fmt.Println()
 	switch err {
 	case nil:
+		fmt.Printf("Configuration Requirements:\n\n")
+		fmt.Printf("   Requires Max Bytes Set: %t\n", info.Limits.MaxBytesRequired)
+		fmt.Println()
+		fmt.Printf("Stream Resource Usage Limits:\n\n")
 		if info.Limits.MaxMemory == -1 {
-			fmt.Printf("           Memory: %s of Unlimited\n", humanize.IBytes(info.Memory))
+			fmt.Printf("      Memory: %s of Unlimited\n", humanize.IBytes(info.Memory))
 		} else {
-			fmt.Printf("           Memory: %s of %s\n", humanize.IBytes(info.Memory), humanize.IBytes(uint64(info.Limits.MaxMemory)))
+			fmt.Printf("      Memory: %s of %s\n", humanize.IBytes(info.Memory), humanize.IBytes(uint64(info.Limits.MaxMemory)))
 		}
 
 		if info.Limits.MaxMemory == -1 {
-			fmt.Printf("          Storage: %s of Unlimited\n", humanize.IBytes(info.Store))
+			fmt.Printf("     Storage: %s of Unlimited\n", humanize.IBytes(info.Store))
 		} else {
-			fmt.Printf("          Storage: %s of %s\n", humanize.IBytes(info.Store), humanize.IBytes(uint64(info.Limits.MaxStore)))
+			fmt.Printf("     Storage: %s of %s\n", humanize.IBytes(info.Store), humanize.IBytes(uint64(info.Limits.MaxStore)))
 		}
 
 		if info.Limits.MaxStreams == -1 {
-			fmt.Printf("          Streams: %s of Unlimited\n", humanize.Comma(int64(info.Streams)))
+			fmt.Printf("     Streams: %s of Unlimited\n", humanize.Comma(int64(info.Streams)))
 		} else {
-			fmt.Printf("          Streams: %s of %s\n", humanize.Comma(int64(info.Streams)), humanize.Comma(int64(info.Limits.MaxStreams)))
+			fmt.Printf("     Streams: %s of %s\n", humanize.Comma(int64(info.Streams)), humanize.Comma(int64(info.Limits.MaxStreams)))
 		}
 
 		if info.Limits.MaxConsumers == -1 {
-			fmt.Printf("        Consumers: %s of Unlimited\n", humanize.Comma(int64(info.Consumers)))
+			fmt.Printf("   Consumers: %s of Unlimited\n", humanize.Comma(int64(info.Consumers)))
 		} else {
-			fmt.Printf("        Consumers: %s of %s\n", humanize.Comma(int64(info.Consumers)), humanize.Comma(int64(info.Limits.MaxConsumers)))
+			fmt.Printf("   Consumers: %s of %s\n", humanize.Comma(int64(info.Consumers)), humanize.Comma(int64(info.Limits.MaxConsumers)))
 		}
 
 	case context.DeadlineExceeded:

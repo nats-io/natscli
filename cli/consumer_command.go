@@ -69,6 +69,9 @@ type consumerCmd struct {
 	startPolicy         string
 	validateOnly        bool
 	description         string
+	inactiveThreshold   time.Duration
+	maxPullExpire       time.Duration
+	maxPullBatch        int
 
 	mgr *jsm.Manager
 	nc  *nats.Conn
@@ -92,11 +95,14 @@ func configureConsumerCommand(app commandHost) {
 		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("max-waiting", "Maximum number of outstanding pulls allowed").PlaceHolder("PULLS").IntVar(&c.maxWaiting)
+		f.Flag("max-pull-batch", "Maximum size batch size for a pull request to accept").PlaceHolder("BATCH_SIZE").IntVar(&c.maxPullBatch)
+		f.Flag("max-pull-expire", "Maximum expire duration for a pull request to accept").PlaceHolder("EXPIRES").DurationVar(&c.maxPullExpire)
 		f.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
 		f.Flag("replay", "Replay Policy (instant, original)").PlaceHolder("POLICY").EnumVar(&c.replayPolicy, "instant", "original")
 		f.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
 		f.Flag("target", "Push based delivery target subject").PlaceHolder("SUBJECT").StringVar(&c.delivery)
 		f.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
+		f.Flag("inactive-threshold", "How long to allow an ephemeral consumer to be idle before removing it").PlaceHolder("THRESHOLD").DurationVar(&c.inactiveThreshold)
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
@@ -124,6 +130,8 @@ func configureConsumerCommand(app commandHost) {
 	edit.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
 	edit.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
 	edit.Flag("max-waiting", "Maximum number of outstanding pulls allowed").PlaceHolder("PULLS").IntVar(&c.maxWaiting)
+	edit.Flag("max-pull-batch", "Maximum size batch size for a pull request to accept").PlaceHolder("BATCH_SIZE").IntVar(&c.maxPullBatch)
+	edit.Flag("max-pull-expire", "Maximum expire duration for a pull request to accept").PlaceHolder("EXPIRES").DurationVar(&c.maxPullExpire)
 	edit.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
 	OptionalBoolean(edit.Flag("headers-only", "Deliver only headers and no bodies (--no-headers-only disables)"))
 	edit.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
@@ -233,6 +241,10 @@ func (c *consumerCmd) editAction(pc *kingpin.ParseContext) error {
 		kingpin.FatalIfError(err, "could not load Consumer")
 	}
 
+	if !c.selectedConsumer.IsDurable() {
+		return fmt.Errorf("only durable consumers can be edited")
+	}
+
 	ncfg := c.selectedConsumer.Configuration()
 	if c.description != "" {
 		ncfg.Description = c.description
@@ -258,12 +270,20 @@ func (c *consumerCmd) editAction(pc *kingpin.ParseContext) error {
 		ncfg.SampleFrequency = c.sampleFreqFromInt(c.samplePct)
 	}
 
+	if c.maxPullBatch > 0 {
+		ncfg.MaxRequestBatch = c.maxPullBatch
+	}
+
+	if c.maxPullExpire > 0 {
+		ncfg.MaxRequestExpires = c.maxPullExpire
+	}
+
 	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
 	if hOnly.IsSetByUser() {
 		ncfg.HeadersOnly = hOnly.Value()
 	}
 
-	// sorts strings to subject lists that only differ in ordering is considered equal
+	// sort strings to subject lists that only differ in ordering is considered equal
 	sorter := cmp.Transformer("Sort", func(in []string) []string {
 		out := append([]string(nil), in...)
 		sort.Strings(out)
@@ -425,6 +445,15 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	}
 	if config.HeadersOnly {
 		fmt.Printf("         Headers Only: true\n")
+	}
+	if config.InactiveThreshold > 0 && config.DeliverSubject == "" {
+		fmt.Printf("  Inactive Threshold: %s\n", humanizeDuration(config.InactiveThreshold))
+	}
+	if config.MaxRequestExpires > 0 {
+		fmt.Printf("     Max Pull Expire: %s\n", humanizeDuration(config.MaxRequestExpires))
+	}
+	if config.MaxRequestBatch > 0 {
+		fmt.Printf("      Max Pull Batch: %s\n", humanize.Comma(int64(config.MaxRequestBatch)))
 	}
 
 	fmt.Println()
@@ -612,7 +641,6 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 
 	if c.pull {
 		cfg.DeliverSubject = ""
-		c.ackPolicy = "explicit"
 		cfg.MaxWaiting = c.maxWaiting
 	}
 
@@ -670,6 +698,18 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 
 	if c.deliveryGroup == "_unset_" {
 		cfg.DeliverGroup = ""
+	}
+
+	if c.inactiveThreshold > 0 {
+		cfg.InactiveThreshold = c.inactiveThreshold
+	}
+
+	if c.maxPullExpire > 0 {
+		cfg.MaxRequestExpires = c.maxPullExpire
+	}
+
+	if c.maxPullBatch > 0 {
+		cfg.MaxRequestBatch = c.maxPullBatch
 	}
 
 	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
@@ -740,16 +780,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 		kingpin.FatalIfError(err, "could not request delivery target")
 	}
 
-	if c.ephemeral && c.delivery == "" {
-		kingpin.Fatalf("ephemeral Consumers has to be push-based")
-	}
-
 	cfg.DeliverSubject = c.delivery
-
-	// pull is always explicit
-	if c.delivery == "" {
-		c.ackPolicy = "explicit"
-	}
 
 	if cfg.DeliverSubject != "" && c.deliveryGroup == "_unset_" {
 		err = survey.AskOne(&survey.Input{
@@ -774,10 +805,17 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	c.setStartPolicy(cfg, c.startPolicy)
 
 	if c.ackPolicy == "" {
+		valid := []string{"explicit", "all", "none"}
+		dflt := "none"
+		if c.delivery == "" {
+			valid = []string{"explicit", "all"}
+			dflt = "explicit"
+		}
+
 		err = survey.AskOne(&survey.Select{
 			Message: "Acknowledgement policy",
-			Options: []string{"explicit", "all", "none"},
-			Default: "none",
+			Options: valid,
+			Default: dflt,
 			Help:    "Messages that are not acknowledged will be redelivered at a later time. 'none' means no acknowledgement is needed only 1 delivery ever, 'all' means acknowledging message 10 will also acknowledge 0-9 and 'explicit' means each has to be acknowledged specifically. Settable using --ack",
 		}, &c.ackPolicy)
 		kingpin.FatalIfError(err, "could not ask acknowledgement policy")
@@ -794,6 +832,10 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 
 	cfg.AckPolicy = c.ackPolicyFromString(c.ackPolicy)
+	if cfg.AckPolicy == api.AckNone && cfg.DeliverSubject == "" {
+		kingpin.Fatalf("pull consumers can only be explicit or all acknowledgement modes")
+	}
+
 	if cfg.AckPolicy == api.AckNone {
 		cfg.MaxDeliver = -1
 	}
@@ -902,6 +944,15 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 
 	cfg.MaxAckPending = c.maxAckPending
+	cfg.InactiveThreshold = c.inactiveThreshold
+
+	if c.maxPullBatch > 0 {
+		cfg.MaxRequestBatch = c.maxPullBatch
+	}
+
+	if c.maxPullExpire > 0 {
+		cfg.MaxRequestExpires = c.maxPullExpire
+	}
 
 	if cfg.DeliverSubject == "" {
 		cfg.MaxWaiting = c.maxWaiting
