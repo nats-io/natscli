@@ -327,22 +327,27 @@ func TestCLIStreamLs(t *testing.T) {
 	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	_, err := mgr.NewStreamFromDefault("mem1", mem1Stream())
-	checkErr(t, err, "could not create stream: %v", err)
-	streamShouldExist(t, mgr, "mem1")
+	for i := 1; i <= 2500; i++ {
+		cfg := mem1Stream()
+		cfg.Subjects = []string{}
+		cfg.Name = fmt.Sprintf("mem_%d", i)
+		_, err := mgr.NewStreamFromDefault(cfg.Name, cfg)
+		checkErr(t, err, "could not create stream: %v", err)
+		streamShouldExist(t, mgr, cfg.Name)
+	}
 
 	out := runNatsCli(t, fmt.Sprintf("--server='%s' str ls -j", srv.ClientURL()))
 
 	list := []string{}
-	err = json.Unmarshal(out, &list)
+	err := json.Unmarshal(out, &list)
 	checkErr(t, err, "could not parse cli output: %v", err)
 
-	if len(list) != 1 {
-		t.Fatalf("expected 1 ms got %v", list)
+	if len(list) != 2500 {
+		t.Fatalf("expected 2500 ms got %d: %v", len(list), list)
 	}
 
-	if list[0] != "mem1" {
-		t.Fatalf("expected [mem1] got %v", list)
+	if list[0] != "mem_1" && list[len(list)-1] != "mem_999" {
+		t.Fatalf("invalid sorted list %v", list)
 	}
 }
 
