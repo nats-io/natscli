@@ -66,10 +66,6 @@ type SrvCheckCmd struct {
 	srvMemCrit     int
 	srvConnWarn    int
 	srvConnCrit    int
-	srvRouteWarn   int
-	srvRouteCrit   int
-	srvGwayWarn    int
-	srvGwayCrit    int
 	srvSubsWarn    int
 	srvSubCrit     int
 	srvUptimeWarn  time.Duration
@@ -136,10 +132,6 @@ func configureServerCheckCommand(srv *kingpin.CmdClause) {
 	serv.Flag("mem-critical", "Critical threshold Memory CPU usage, in percent").IntVar(&c.srvMemCrit)
 	serv.Flag("conn-warn", "Warning threshold for connections, supports inversion").IntVar(&c.srvConnWarn)
 	serv.Flag("conn-critical", "Critical threshold for connections, supports inversion").IntVar(&c.srvConnCrit)
-	serv.Flag("route-warn", "Warning threshold for number of active routes, supports inversion").IntVar(&c.srvRouteWarn)
-	serv.Flag("route-critical", "Critical threshold for number of active routes, supports inversion").IntVar(&c.srvRouteCrit)
-	serv.Flag("gateway-warn", "Warning threshold for gateway connections, supports inversion").IntVar(&c.srvGwayWarn)
-	serv.Flag("gateway-critical", "Critical threshold for gateway connections, supports inversion").IntVar(&c.srvGwayCrit)
 	serv.Flag("subs-warn", "Warning threshold for number of active subscriptions, supports inversion").IntVar(&c.srvSubsWarn)
 	serv.Flag("subs-critical", "Critical threshold for number of active subscriptions, supports inversion").IntVar(&c.srvSubCrit)
 	serv.Flag("uptime-warn", "Warning threshold for server uptime as duration").DurationVar(&c.srvUptimeWarn)
@@ -486,8 +478,6 @@ func (c *SrvCheckCmd) checkVarz(check *result, vz *server.Varz) error {
 		&perfDataItem{Name: "cpu", Value: vz.CPU, Warn: float64(c.srvCPUWarn), Crit: float64(c.srvCPUCrit), Unit: "%", Help: "NATS Server CPU usage in percentage"},
 		&perfDataItem{Name: "mem", Value: float64(vz.Mem), Warn: float64(c.srvMemWarn), Crit: float64(c.srvMemCrit), Help: "NATS Server memory usage in bytes"},
 		&perfDataItem{Name: "connections", Value: float64(vz.Connections), Warn: float64(c.srvConnWarn), Crit: float64(c.srvConnCrit), Help: "Active connections"},
-		&perfDataItem{Name: "routes", Value: float64(vz.Routes), Warn: float64(c.srvRouteWarn), Crit: float64(c.srvRouteCrit), Help: "Active connected route connects"},
-		&perfDataItem{Name: "gateways", Value: float64(vz.Remotes), Warn: float64(c.srvGwayWarn), Crit: float64(c.srvGwayCrit), Help: "Active connected gateway connections"},
 		&perfDataItem{Name: "subscriptions", Value: float64(vz.Subscriptions), Warn: float64(c.srvSubsWarn), Crit: float64(c.srvSubCrit), Help: "Active subscriptions"},
 	)
 
@@ -523,8 +513,6 @@ func (c *SrvCheckCmd) checkVarz(check *result, vz *server.Varz) error {
 	checkVal("CPU", float64(c.srvCPUCrit), float64(c.srvCPUWarn), vz.CPU, false)
 	checkVal("Memory", float64(c.srvMemCrit), float64(c.srvMemWarn), float64(vz.Mem), false)
 	checkVal("Connections", float64(c.srvConnCrit), float64(c.srvConnWarn), float64(vz.Connections), true)
-	checkVal("Routes", float64(c.srvRouteCrit), float64(c.srvRouteWarn), float64(vz.Routes), true)
-	checkVal("Gateways", float64(c.srvGwayCrit), float64(c.srvGwayWarn), float64(len(vz.Gateway.Gateways)), true)
 	checkVal("Subscriptions", float64(c.srvSubCrit), float64(c.srvSubsWarn), float64(vz.Subscriptions), true)
 
 	return nil
