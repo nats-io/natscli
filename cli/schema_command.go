@@ -20,14 +20,14 @@ func configureSchemaCommand(app commandHost) {
 nats schema search 'response|request'
 
 # To view a specific schema
-nats schema show io.nats.jetstream.api.v1.stream_msg_get_request --yaml
+nats schema info io.nats.jetstream.api.v1.stream_msg_get_request --yaml
 
 # To validate a JSON input against a specific schema
 nats schema validate io.nats.jetstream.api.v1.stream_msg_get_request request.json
 `
 
 	configureSchemaSearchCommand(schema)
-	configureSchemaShowCommand(schema)
+	configureSchemaInfoCommand(schema)
 	configureSchemaValidateCommand(schema)
 }
 

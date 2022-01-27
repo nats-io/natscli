@@ -21,22 +21,22 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-type schemaShowCmd struct {
+type schemaInfoCmd struct {
 	schema string
 	yaml   bool
 }
 
-func configureSchemaShowCommand(schema *kingpin.CmdClause) {
-	c := &schemaShowCmd{}
-	show := schema.Command("show", "Show the contents of a schema").Action(c.show)
-	show.Arg("schema", "Schema ID to show").Required().StringVar(&c.schema)
-	show.Flag("yaml", "Produce YAML format output").BoolVar(&c.yaml)
+func configureSchemaInfoCommand(schema *kingpin.CmdClause) {
+	c := &schemaInfoCmd{}
+	info := schema.Command("info", "Display schema contents").Alias("show").Action(c.info)
+	info.Arg("schema", "Schema ID to show").Required().StringVar(&c.schema)
+	info.Flag("yaml", "Produce YAML format output").BoolVar(&c.yaml)
 }
 
-func (c *schemaShowCmd) show(_ *kingpin.ParseContext) error {
+func (c *schemaInfoCmd) info(_ *kingpin.ParseContext) error {
 	schema, err := api.Schema(c.schema)
 	if err != nil {
-		return fmt.Errorf("could not load schame %q: %s", c.schema, err)
+		return fmt.Errorf("could not load schema %q: %s", c.schema, err)
 	}
 
 	if c.yaml {

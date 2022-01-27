@@ -30,10 +30,10 @@ func configureErrCommand(app commandHost) {
 	cmd := app.Command("errors", "Error code documentation").Alias("err").Alias("error")
 	cmd.Flag("errors", "The errors.json file to use as input").PlaceHolder("FILE").ExistingFileVar(&c.file)
 
-	list := cmd.Command("list", "List all known error codes").Alias("ls").Action(c.listAction)
-	list.Arg("match", "Regular expression match to limit the displayed results").StringVar(&c.match)
-	list.Arg("sort", "Sorts by a specific field (code, http, description, d, desc)").Default("code").EnumVar(&c.sort, "code", "http", "description", "descr", "d")
-	list.Flag("reverse", "Reverse sort").Short('R').BoolVar(&c.reverse)
+	ls := cmd.Command("ls", "List all known error codes").Alias("list").Action(c.listAction)
+	ls.Arg("match", "Regular expression match to limit the displayed results").StringVar(&c.match)
+	ls.Arg("sort", "Sorts by a specific field (code, http, description, d, desc)").Default("code").EnumVar(&c.sort, "code", "http", "description", "descr", "d")
+	ls.Flag("reverse", "Reverse sort").Short('R').BoolVar(&c.reverse)
 
 	lookup := cmd.Command("lookup", "Looks up an error by it's code").Alias("find").Alias("get").Alias("l").Alias("view").Alias("show").Action(c.lookupAction)
 	lookup.Arg("code", "The code to retrieve").Required().Uint16Var(&c.code)
@@ -49,7 +49,7 @@ func configureErrCommand(app commandHost) {
 nats errors lookup 1000
 
 # To list all errors mentioning stream using regular expression matches
-nats errors list stream
+nats errors ls stream
 
 # As a NATS Server developer edit an existing code in errors.json
 nats errors edit errors.json 10013
