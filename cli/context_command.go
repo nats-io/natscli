@@ -60,10 +60,10 @@ func configureCtxCommand(app commandHost) {
 	pick := context.Command("select", "Select the default context").Alias("switch").Alias("set").Action(c.selectCommand)
 	pick.Arg("name", "The context name to select").StringVar(&c.name)
 
-	show := context.Command("show", "Show the current or named context").Action(c.showCommand)
-	show.Arg("name", "The context name to show").StringVar(&c.name)
-	show.Flag("json", "Show the context in JSON format").Short('j').BoolVar(&c.json)
-	show.Flag("connect", "Attempts to connect to NATS using the context while validating").BoolVar(&c.activate)
+	info := context.Command("info", "Display information on the current or named context").Alias("show").Action(c.showCommand)
+	info.Arg("name", "The context name to show").StringVar(&c.name)
+	info.Flag("json", "Show the context in JSON format").Short('j').BoolVar(&c.json)
+	info.Flag("connect", "Attempts to connect to NATS using the context while validating").BoolVar(&c.activate)
 
 	validate := context.Command("validate", "Validate one or all contexts").Action(c.validateCommand)
 	validate.Arg("name", "Validate a specific context, validates all when not supplied").StringVar(&c.name)
@@ -76,7 +76,7 @@ nats context edit development [standard connection properties]
 
 # View contexts
 nats context ls
-nats context show development --json
+nats context info development --json
 
 # Validate all connections are valid and that connections can be established
 nats context validate --connect

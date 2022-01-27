@@ -662,7 +662,7 @@ Matched Schemas:
 
 The schemas can be limited using a regular expression, try `nats schema ls request` to see all API requests.
 
-Schemas can be viewed in their raw JSON or YAML formats using `nats schema show io.nats.jetstream.advisory.v1.consumer_action`,
+Schemas can be viewed in their raw JSON or YAML formats using `nats schema info io.nats.jetstream.advisory.v1.consumer_action`,
 these schemas include descriptions about each field and more.
 
 Finally, if you are interacting with the API using JSON request messages constructed using languages that is not supported

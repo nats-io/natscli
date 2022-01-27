@@ -112,7 +112,7 @@ NOTE: This is an experimental feature.
 	watch.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	watch.Arg("key", "The key to act on").StringVar(&c.key)
 
-	ls := kv.Command("list", "List available Buckets").Alias("ls").Action(c.lsAction)
+	ls := kv.Command("ls", "List available Buckets").Alias("list").Action(c.lsAction)
 	ls.Flag("names", "Show just the bucket names").Short('n').BoolVar(&c.listNames)
 
 	rmHistory := kv.Command("compact", "Removes all historic values from the store where the last value is a delete").Action(c.compactAction)
