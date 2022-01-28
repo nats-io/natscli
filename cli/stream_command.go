@@ -94,6 +94,14 @@ type streamCmd struct {
 	denyDelete            bool
 	denyPurge             bool
 
+	fServer    string
+	fCluster   string
+	fEmpty     bool
+	fIdle      time.Duration
+	fCreated   time.Duration
+	fConsumers int
+	fInvert    bool
+
 	listNames    bool
 	vwStartId    int
 	vwStartDelta time.Duration
@@ -172,8 +180,18 @@ func configureStreamCommand(app commandHost) {
 
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
 	strLs.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
+	strLs.Flag("names", "Show just the stream names").Short('n').BoolVar(&c.listNames)
 	strLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	strLs.Flag("names", "Show just the bucket names").Short('n').BoolVar(&c.listNames)
+
+	strFind := str.Command("find", "Finds streams matching certain criteria").Alias("query").Action(c.findAction)
+	strFind.Flag("server-name", "Display streams present on a regular expression matched server").StringVar(&c.fServer)
+	strFind.Flag("cluster", "Display streams present on a regular expression matched cluster").StringVar(&c.fCluster)
+	strFind.Flag("empty", "Display streams with no messages").BoolVar(&c.fEmpty)
+	strFind.Flag("idle", "Display streams with no new messages or consumer deliveries for a period").PlaceHolder("DURATION").DurationVar(&c.fIdle)
+	strFind.Flag("created", "Display streams created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
+	strFind.Flag("consumers", "Display streams with fewer consumers than threshold").PlaceHolder("THRESHOLD").Default("-1").IntVar(&c.fConsumers)
+	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
+	strFind.Flag("names", "Show just the stream names").Short('n').BoolVar(&c.listNames)
 
 	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
 	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -267,6 +285,54 @@ func configureStreamCommand(app commandHost) {
 
 func init() {
 	registerCommand("stream", 16, configureStreamCommand)
+}
+
+func (c *streamCmd) findAction(_ *kingpin.ParseContext) (err error) {
+	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
+	if err != nil {
+		return fmt.Errorf("setup failed: %v", err)
+	}
+
+	opts := []jsm.StreamQueryOpt{}
+	if c.fServer != "" {
+		opts = append(opts, jsm.StreamQueryServerName(c.fServer))
+	}
+	if c.fCluster != "" {
+		opts = append(opts, jsm.StreamQueryClusterName(c.fCluster))
+	}
+	if c.fEmpty {
+		opts = append(opts, jsm.StreamQueryWithoutMessages())
+	}
+	if c.fIdle > 0 {
+		opts = append(opts, jsm.StreamQueryIdleLongerThan(c.fIdle))
+	}
+	if c.fCreated > 0 {
+		opts = append(opts, jsm.StreamQueryOlderThan(c.fCreated))
+	}
+	if c.fConsumers >= 0 {
+		opts = append(opts, jsm.StreamQueryFewerConsumersThan(uint(c.fConsumers)))
+	}
+	if c.fInvert {
+		opts = append(opts, jsm.StreamQueryInvert())
+	}
+
+	found, err := c.mgr.QueryStreams(opts...)
+	if err != nil {
+		return err
+	}
+
+	if c.json {
+		return printJSON(found)
+	}
+
+	t, err := c.renderStreamsAsTable(found)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(t)
+
+	return nil
 }
 
 func (c *streamCmd) loadStream(stream string) (*jsm.Stream, error) {
@@ -2028,6 +2094,17 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
+	t, err := c.renderStreamsAsTable(streams)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(t)
+
+	return nil
+}
+
+func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream) (string, error) {
 	sort.Slice(streams, func(i, j int) bool {
 		info, _ := streams[i].LatestInformation()
 		jnfo, _ := streams[j].LatestInformation()
@@ -2036,10 +2113,17 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 	})
 
 	if c.listNames {
+		names := make([]string, len(c.stream))
+		for i, s := range streams {
+			names[i] = s.Name()
+		}
+
+		sort.Strings(names)
 		for _, n := range names {
 			fmt.Println(n)
 		}
-		return nil
+
+		return "", nil
 	}
 
 	var table *tablewriter.Table
@@ -2053,9 +2137,8 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 		nfo, _ := s.LatestInformation()
 		table.AddRow(s.Name(), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), humanize.Comma(int64(nfo.State.Msgs)), humanize.IBytes(nfo.State.Bytes), humanizeDuration(time.Since(nfo.State.LastTime)))
 	}
-	fmt.Println(table.Render())
 
-	return nil
+	return table.Render(), nil
 }
 
 func (c *streamCmd) rmMsgAction(_ *kingpin.ParseContext) (err error) {
