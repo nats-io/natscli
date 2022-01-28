@@ -559,7 +559,7 @@ func TestCLIConsumerAdd(t *testing.T) {
 	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --max-pending 10 --replay instant --deliver all --target out.push1 --ack explicit --filter '' --deliver-group '' --max-deliver 20 --bps 1024 --heartbeat=1s --flow-control --description 'test suite' --no-headers-only", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --max-pending 10 --replay instant --deliver all --target out.push1 --ack explicit --filter '' --deliver-group '' --max-deliver 20 --bps 1024 --heartbeat=1s --flow-control --description 'test suite' --no-headers-only --backoff linear", srv.ClientURL()))
 	consumerShouldExist(t, mgr, "mem1", "push1")
 	push1, err := mgr.LoadConsumer("mem1", "push1")
 	checkErr(t, err, "push1 could not be loaded")
@@ -586,12 +586,16 @@ func TestCLIConsumerAdd(t *testing.T) {
 	if push1.IsHeadersOnly() {
 		t.Fatalf("Expected headers only to be off")
 	}
+	if len(push1.Backoff()) != 10 {
+		t.Fatalf("Backoff policy was not set")
+	}
+
 	push1.Delete()
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 pull1 --config testdata/mem1_pull1_consumer.json", srv.ClientURL()))
 	consumerShouldExist(t, mgr, "mem1", "pull1")
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --filter 'js.mem.>' --max-pending 10 --replay instant --deliver subject --target out.push1 --ack explicit --deliver-group BOB --max-deliver 20 --bps 1024 --heartbeat=1s --flow-control --description 'test suite' --no-headers-only", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --filter 'js.mem.>' --max-pending 10 --replay instant --deliver subject --target out.push1 --ack explicit --deliver-group BOB --max-deliver 20 --bps 1024 --heartbeat=1s --flow-control --description 'test suite' --no-headers-only --backoff linear", srv.ClientURL()))
 	consumerShouldExist(t, mgr, "mem1", "push1")
 	push1, err = mgr.LoadConsumer("mem1", "push1")
 	checkErr(t, err, "push1 could not be loaded")
@@ -626,20 +630,6 @@ func TestCLIConsumerNext(t *testing.T) {
 
 	if strings.TrimSpace(string(out)) != "hello" {
 		t.Fatalf("did not receive 'hello', got: '%s'", string(out))
-	}
-}
-
-func TestCLIConsumerHeadersOnly(t *testing.T) {
-	srv, _, mgr := setupConsTest(t)
-	defer srv.Shutdown()
-
-	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --filter 'js.mem.>' --max-pending 10 --replay instant --deliver subject --target out.push1 --ack explicit --deliver-group BOB --max-deliver 20 --bps 1024 --heartbeat=1s --flow-control --description 'test suite' --headers-only", srv.ClientURL()))
-
-	push1, err := mgr.LoadConsumer("mem1", "push1")
-	checkErr(t, err, "push1 could not be loaded")
-
-	if !push1.IsHeadersOnly() {
-		t.Fatalf("Expected headers only to be on")
 	}
 }
 
