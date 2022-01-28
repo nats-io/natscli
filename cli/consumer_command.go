@@ -72,6 +72,10 @@ type consumerCmd struct {
 	inactiveThreshold   time.Duration
 	maxPullExpire       time.Duration
 	maxPullBatch        int
+	backoffMode         string
+	backoffSteps        uint
+	backoffMin          time.Duration
+	backoffMax          time.Duration
 
 	mgr *jsm.Manager
 	nc  *nats.Conn
@@ -83,6 +87,10 @@ func configureConsumerCommand(app commandHost) {
 	addCreateFlags := func(f *kingpin.CmdClause) {
 		f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
 		f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
+		f.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear")
+		f.Flag("backoff-steps", "Number of steps to use when creating the backoff policy").PlaceHolder("STEPS").Default("10").UintVar(&c.backoffSteps)
+		f.Flag("backoff-min", "The shortest backoff period that will be generated").PlaceHolder("MIN").Default("1m").DurationVar(&c.backoffMin)
+		f.Flag("backoff-max", "The longest backoff period that will be generated").PlaceHolder("MAX").Default("20m").DurationVar(&c.backoffMax)
 		f.Flag("deliver", "Start policy (all, new, last, subject, 1h, msg sequence)").PlaceHolder("POLICY").StringVar(&c.startPolicy)
 		f.Flag("deliver-group", "Delivers push messages only to subscriptions matching this group").Default("_unset_").PlaceHolder("GROUP").StringVar(&c.deliveryGroup)
 		f.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
@@ -126,6 +134,10 @@ func configureConsumerCommand(app commandHost) {
 	edit.Arg("stream", "Stream name").StringVar(&c.stream)
 	edit.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	edit.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
+	edit.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear")
+	edit.Flag("backoff-steps", "Number of steps to use when creating the backoff policy").PlaceHolder("STEPS").UintVar(&c.backoffSteps)
+	edit.Flag("backoff-min", "The shortest backoff period that will be generated").PlaceHolder("MIN").DurationVar(&c.backoffMin)
+	edit.Flag("backoff-max", "The longest backoff period that will be generated").PlaceHolder("MAX").DurationVar(&c.backoffMax)
 	edit.Flag("max-deliver", "Maximum amount of times a message will be delivered").PlaceHolder("TRIES").IntVar(&c.maxDeliver)
 	edit.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
 	edit.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
@@ -278,6 +290,13 @@ func (c *consumerCmd) editAction(pc *kingpin.ParseContext) error {
 		ncfg.MaxRequestExpires = c.maxPullExpire
 	}
 
+	if c.backoffMode != "" {
+		ncfg.BackOff, err = c.backoffPolicy()
+		if err != nil {
+			return fmt.Errorf("could not determine backoff policy: %v", err)
+		}
+	}
+
 	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
 	if hOnly.IsSetByUser() {
 		ncfg.HeadersOnly = hOnly.Value()
@@ -314,6 +333,19 @@ func (c *consumerCmd) editAction(pc *kingpin.ParseContext) error {
 	c.showConsumer(cons)
 
 	return nil
+}
+
+func (c *consumerCmd) backoffPolicy() ([]time.Duration, error) {
+	if c.backoffMode == "" || c.backoffSteps == 0 || c.backoffMin == 0 || c.backoffMax == 0 {
+		return nil, fmt.Errorf("required policy properties not supplied")
+	}
+
+	switch c.backoffMode {
+	case "linear":
+		return jsm.LinearBackoffPeriods(c.backoffSteps, c.backoffMin, c.backoffMax)
+	default:
+		return nil, fmt.Errorf("invalid backoff mode %q", c.backoffMode)
+	}
 }
 
 func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
@@ -374,6 +406,32 @@ func (c *consumerCmd) showConsumer(consumer *jsm.Consumer) {
 	kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
 
 	c.showInfo(config, state)
+}
+
+func (c *consumerCmd) renderBackoff(bo []time.Duration) string {
+	if len(bo) == 0 {
+		return "unset"
+	}
+
+	var times []string
+
+	if len(bo) > 15 {
+		for _, d := range bo[:5] {
+			times = append(times, d.String())
+		}
+		times = append(times, "...")
+		for _, d := range bo[len(bo)-5:] {
+			times = append(times, d.String())
+		}
+
+		return fmt.Sprintf("%s (%d total)", strings.Join(times, ", "), len(bo))
+	} else {
+		for _, p := range bo {
+			times = append(times, p.String())
+		}
+
+		return strings.Join(times, ", ")
+	}
 }
 
 func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo) {
@@ -455,7 +513,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	if config.MaxRequestBatch > 0 {
 		fmt.Printf("      Max Pull Batch: %s\n", humanize.Comma(int64(config.MaxRequestBatch)))
 	}
-
+	if len(config.BackOff) > 0 {
+		fmt.Printf("             Backoff: %s\n", c.renderBackoff(config.BackOff))
+	}
 	fmt.Println()
 
 	if state.Cluster != nil && state.Cluster.Name != "" {
@@ -712,6 +772,13 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 		cfg.MaxRequestBatch = c.maxPullBatch
 	}
 
+	if c.backoffMode != "" {
+		cfg.BackOff, err = c.backoffPolicy()
+		if err != nil {
+			return fmt.Errorf("could not determine backoff policy: %v", err)
+		}
+	}
+
 	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
 	if !hOnly.IsSetByUser() {
 		cfg.HeadersOnly = hOnly.Value()
@@ -939,6 +1006,25 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 	cfg.HeadersOnly = hOnly.Value()
 
+	if c.backoffMode == "" {
+		err = c.askBackoffPolicy()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if c.backoffMode != "" {
+		cfg.BackOff, err = c.backoffPolicy()
+		if err != nil {
+			return nil, fmt.Errorf("could not determine backoff policy: %v", err)
+		}
+
+		// hopefully this is just to work around a temporary bug in the server
+		if c.maxDeliver == -1 {
+			c.maxDeliver = len(cfg.BackOff) + 1
+		}
+	}
+
 	if c.maxAckPending == -1 {
 		c.maxAckPending = 0
 	}
@@ -968,6 +1054,63 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	cfg.RateLimit = c.bpsRateLimit
 
 	return cfg, nil
+}
+
+func (c *consumerCmd) askBackoffPolicy() error {
+	ok, err := askConfirmation("Add a Retry Backoff Policy", false)
+	if err != nil {
+		return err
+	}
+
+	if ok {
+		err = survey.AskOne(&survey.Select{
+			Message: "Backoff policy",
+			Options: []string{"linear"},
+			Default: "linear",
+			Help:    "Adds a Backoff policy for use with delivery retries. Linear grows at equal intervals between min and max.",
+		}, &c.backoffMode)
+		if err != nil {
+			return err
+		}
+
+		d := ""
+		err := survey.AskOne(&survey.Input{
+			Message: "Minimum retry time",
+			Help:    "Backoff policies range from min to max",
+			Default: "1m",
+		}, &d)
+		if err != nil {
+			return err
+		}
+		c.backoffMin, err = parseDurationString(d)
+		if err != nil {
+			return err
+		}
+
+		err = survey.AskOne(&survey.Input{
+			Message: "Maximum retry time",
+			Help:    "Backoff policies range from min to max",
+			Default: "10m",
+		}, &d)
+		if err != nil {
+			return err
+		}
+		c.backoffMax, err = parseDurationString(d)
+		if err != nil {
+			return err
+		}
+
+		steps, err := askOneInt("Number of steps to generate in the policy", "20", "Number of steps to create between min and max")
+		if err != nil {
+			return err
+		}
+		if steps < 1 {
+			return fmt.Errorf("backoff steps must be > 0")
+		}
+		c.backoffSteps = uint(steps)
+	}
+
+	return nil
 }
 
 func (c *consumerCmd) validateCfg(cfg *api.ConsumerConfig) (bool, []byte, []string, error) {
