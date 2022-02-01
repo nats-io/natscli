@@ -47,6 +47,12 @@ archives:
     files:
       - README.md
       - LICENSE
+  - name_template: "nats-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
+    wrap_in_directory: true
+    format: zip
+    files:
+      - README.md
+      - LICENSE
 
 checksum:
   name_template: "SHA256SUMS"
