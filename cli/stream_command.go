@@ -158,7 +158,7 @@ func configureStreamCommand(app commandHost) {
 	}
 
 	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
-	str.Flag("all", "Operate on all streams including system ones").Short('a').BoolVar(&c.showAll)
+	str.Flag("all", "When listing or selecting streams show all streams including system ones").Short('a').BoolVar(&c.showAll)
 
 	strAdd := str.Command("add", "Create a new Stream").Alias("create").Alias("new").Action(c.addAction)
 	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -2113,7 +2113,7 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream) (string, error) 
 	})
 
 	if c.listNames {
-		names := make([]string, len(c.stream))
+		names := make([]string, len(streams))
 		for i, s := range streams {
 			names[i] = s.Name()
 		}
