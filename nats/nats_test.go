@@ -455,7 +455,7 @@ func TestCLIStreamBackupAndRestore(t *testing.T) {
 	checkErr(t, err, "state failed")
 	stream.Delete()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str restore file1 %s --no-progress", srv.ClientURL(), td))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str restore  %s --no-progress", srv.ClientURL(), td))
 	stream, err = mgr.NewStreamFromDefault("file1", file1Stream())
 	checkErr(t, err, "could not create stream: %v", err)
 
@@ -795,7 +795,7 @@ func TestCLIStreamBackupRestore(t *testing.T) {
 	checkErr(t, err, "delete failed")
 	streamShouldNotExist(t, mgr, "file1")
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' stream restore file1 %s", srv.ClientURL(), target))
+	runNatsCli(t, fmt.Sprintf("--server='%s' stream restore %s", srv.ClientURL(), target))
 	streamShouldExist(t, mgr, "file1")
 
 	stream, err = mgr.LoadStream("file1")

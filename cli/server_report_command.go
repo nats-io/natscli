@@ -321,12 +321,7 @@ func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
 
 		if len(account.ConnInfo) > 0 {
 			report := account.ConnInfo
-			if c.topk > 0 && c.topk <= len(account.ConnInfo) {
-				report = account.ConnInfo[len(account.ConnInfo)-c.topk:]
-			}
-
-			c.sortConnections(report)
-			c.renderConnections(int64(len(account.ConnInfo)), report)
+			c.renderConnections(report)
 		}
 		return nil
 	}
@@ -429,23 +424,12 @@ func (c *SrvReportCmd) reportConnections(_ *kingpin.ParseContext) error {
 
 	conns := connz.flatConnInfo()
 
-	c.sortConnections(conns)
-
-	report := conns
-	if c.topk > 0 && c.topk <= len(conns) {
-		if c.reverse {
-			report = conns[len(conns)-c.topk:]
-		} else {
-			report = conns[:c.topk]
-		}
-	}
-
 	if c.json {
-		printJSON(report)
+		printJSON(conns)
 		return nil
 	}
 
-	c.renderConnections(int64(len(conns)), report)
+	c.renderConnections(conns)
 
 	return nil
 }
@@ -479,8 +463,16 @@ func (c *SrvReportCmd) sortConnections(conns []connInfo) {
 	})
 }
 
-func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
-	table := newTableWriter(fmt.Sprintf("Top %d Connections out of %s by %s", len(report), humanize.Comma(total), c.sort))
+func (c *SrvReportCmd) renderConnections(report []connInfo) {
+	c.sortConnections(report)
+
+	total := len(report)
+	limit := total
+	if c.topk > 0 && c.topk <= total {
+		limit = c.topk
+	}
+
+	table := newTableWriter(fmt.Sprintf("Top %d Connections out of %s by %s", limit, humanize.Comma(int64(total)), c.sort))
 	table.AddHeaders("CID", "Name", "Server", "Cluster", "IP", "Account", "Uptime", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
 
 	var oMsgs int64
@@ -496,7 +488,7 @@ func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
 	servers := make(map[string]*srvInfo)
 	var serverNames []string
 
-	for _, info := range report {
+	for i, info := range report {
 		name := info.Name
 		if len(info.Name) > 40 {
 			name = info.Name[:40] + " .."
@@ -513,7 +505,7 @@ func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
 
 		srv, ok := servers[srvName]
 		if !ok {
-			servers[srvName] = &srvInfo{srvName, 0}
+			servers[srvName] = &srvInfo{cluster, 0}
 			srv = servers[srvName]
 			serverNames = append(serverNames, srvName)
 		}
@@ -529,12 +521,14 @@ func (c *SrvReportCmd) renderConnections(total int64, report []connInfo) {
 			cid = fmt.Sprintf("%s%d", string(info.Kind[0]), info.Cid)
 		}
 
-		table.AddRow(cid, name, srvName, cluster, info.IP, acc, info.Uptime, humanize.Comma(info.InMsgs), humanize.Comma(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), len(info.Subs))
+		if i < limit {
+			table.AddRow(cid, name, srvName, cluster, info.IP, acc, info.Uptime, humanize.Comma(info.InMsgs), humanize.Comma(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), len(info.Subs))
+		}
 	}
 
 	if len(report) > 1 {
 		table.AddSeparator()
-		table.AddRow("", "", "", "", "", "", "", humanize.Comma(iMsgs), humanize.Comma(oMsgs), humanize.IBytes(uint64(iBytes)), humanize.IBytes(uint64(oBytes)), humanize.Comma(int64(subs)))
+		table.AddRow("", fmt.Sprintf("Totals for %s connections", humanize.Comma(int64(total))), "", "", "", "", "", humanize.Comma(iMsgs), humanize.Comma(oMsgs), humanize.IBytes(uint64(iBytes)), humanize.IBytes(uint64(oBytes)), humanize.Comma(int64(subs)))
 	}
 
 	fmt.Print(table.Render())
