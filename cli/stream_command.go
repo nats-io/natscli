@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -247,7 +248,6 @@ func configureStreamCommand(app commandHost) {
 	strBackup.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
 
 	strRestore := str.Command("restore", "Restore a Stream over the NATS network").Action(c.restoreAction)
-	strRestore.Arg("stream", "The name of the Stream to restore").Required().StringVar(&c.stream)
 	strRestore.Arg("file", "The directory holding the backup to restore").Required().ExistingDirVar(&c.backupDirectory)
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	strRestore.Flag("config", "Load a different configuration when restoring the stream").ExistingFileVar(&c.inputFile)
@@ -562,10 +562,16 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
 
-	known, err := mgr.IsKnownStream(c.stream)
+	var bm api.JSApiStreamRestoreRequest
+	bmj, err := os.ReadFile(filepath.Join(c.backupDirectory, "backup.json"))
+	kingpin.FatalIfError(err, "restore failed")
+	err = json.Unmarshal(bmj, &bm)
+	kingpin.FatalIfError(err, "restore failed")
+
+	known, err := mgr.IsKnownStream(bm.Config.Name)
 	kingpin.FatalIfError(err, "Could not check if the stream already exist")
 	if known {
-		kingpin.Fatalf("Stream %q already exist", c.stream)
+		kingpin.Fatalf("Stream %q already exist", bm.Config.Name)
 	}
 
 	var progress *uiprogress.Bar
@@ -599,12 +605,19 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 			return err
 		}
 
+		// we need to confirm this new config has the same stream
+		// name as the snapshot else the server state can get confused
+		// see https://github.com/nats-io/nats-server/issues/2850
+		if bm.Config.Name != cfg.Name {
+			return fmt.Errorf("stream names may not be changed during restore")
+		}
+
 		opts = append(opts, jsm.RestoreConfiguration(*cfg))
 	}
 
-	fmt.Printf("Starting restore of Stream %q from file %q\n\n", c.stream, c.backupDirectory)
+	fmt.Printf("Starting restore of Stream %q from file %q\n\n", bm.Config.Name, c.backupDirectory)
 
-	fp, _, err := mgr.RestoreSnapshotFromDirectory(ctx, c.stream, c.backupDirectory, opts...)
+	fp, _, err := mgr.RestoreSnapshotFromDirectory(ctx, bm.Config.Name, c.backupDirectory, opts...)
 	kingpin.FatalIfError(err, "restore failed")
 	if c.showProgress {
 		progress.Set(int(fp.ChunksSent()))
@@ -612,10 +625,10 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 	}
 
 	fmt.Println()
-	fmt.Printf("Restored stream %q in %v\n", c.stream, fp.EndTime().Sub(fp.StartTime()).Round(time.Second))
+	fmt.Printf("Restored stream %q in %v\n", bm.Config.Name, fp.EndTime().Sub(fp.StartTime()).Round(time.Second))
 	fmt.Println()
 
-	stream, err := mgr.LoadStream(c.stream)
+	stream, err := mgr.LoadStream(bm.Config.Name)
 	kingpin.FatalIfError(err, "could not request Stream info")
 	err = c.showStream(stream)
 	kingpin.FatalIfError(err, "could not show stream")
