@@ -318,7 +318,8 @@ func TestCheckVarz(t *testing.T) {
 
 		// critical uptime
 		check = &result{}
-		vz.Uptime = "1s"
+		vz.Now = time.Now()
+		vz.Start = vz.Now.Add(-1 * time.Second)
 		cmd.srvUptimeCrit = 10 * time.Minute
 		cmd.srvUptimeWarn = 20 * time.Minute
 		assertNoError(t, cmd.checkVarz(check, vz))
@@ -328,7 +329,8 @@ func TestCheckVarz(t *testing.T) {
 
 		// critical uptime
 		check = &result{}
-		vz.Uptime = "9m59s"
+		vz.Now = time.Now()
+		vz.Start = vz.Now.Add(-599 * time.Second)
 		cmd.srvUptimeCrit = 10 * time.Minute
 		cmd.srvUptimeWarn = 20 * time.Minute
 		assertNoError(t, cmd.checkVarz(check, vz))
@@ -338,7 +340,8 @@ func TestCheckVarz(t *testing.T) {
 
 		// critical uptime
 		check = &result{}
-		vz.Uptime = "10m0s"
+		vz.Now = time.Now()
+		vz.Start = vz.Now.Add(-600 * time.Second)
 		cmd.srvUptimeCrit = 10 * time.Minute
 		cmd.srvUptimeWarn = 20 * time.Minute
 		assertNoError(t, cmd.checkVarz(check, vz))
@@ -348,7 +351,8 @@ func TestCheckVarz(t *testing.T) {
 
 		// critical -> warning uptime
 		check = &result{}
-		vz.Uptime = "10m1s"
+		vz.Now = time.Now()
+		vz.Start = vz.Now.Add(-601 * time.Second)
 		cmd.srvUptimeCrit = 10 * time.Minute
 		cmd.srvUptimeWarn = 20 * time.Minute
 		assertNoError(t, cmd.checkVarz(check, vz))
@@ -359,7 +363,8 @@ func TestCheckVarz(t *testing.T) {
 
 		// warning uptime
 		check = &result{}
-		vz.Uptime = "19m59s"
+		vz.Now = time.Now()
+		vz.Start = vz.Now.Add(-1199 * time.Second)
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListIsEmpty(t, check.Criticals)
 		assertListEquals(t, check.Warnings, "Up 19m59s")
@@ -368,7 +373,8 @@ func TestCheckVarz(t *testing.T) {
 
 		// warning uptime
 		check = &result{}
-		vz.Uptime = "20m0s"
+		vz.Now = time.Now()
+		vz.Start = vz.Now.Add(-1200 * time.Second)
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListIsEmpty(t, check.Criticals)
 		assertListEquals(t, check.Warnings, "Up 20m0s")
@@ -377,7 +383,8 @@ func TestCheckVarz(t *testing.T) {
 
 		// ok uptime
 		check = &result{}
-		vz.Uptime = "20m1s"
+		vz.Now = time.Now()
+		vz.Start = vz.Now.Add(-1201 * time.Second)
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListIsEmpty(t, check.Criticals)
 		assertListIsEmpty(t, check.Warnings)
@@ -386,7 +393,8 @@ func TestCheckVarz(t *testing.T) {
 
 		// ok uptime
 		check = &result{}
-		vz.Uptime = "21m0s"
+		vz.Now = time.Now()
+		vz.Start = vz.Now.Add(-1260 * time.Second)
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListIsEmpty(t, check.Criticals)
 		assertListIsEmpty(t, check.Warnings)

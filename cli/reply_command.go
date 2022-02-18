@@ -178,7 +178,6 @@ func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
 			}
 
 		default:
-			log.Printf("cnt: %d", i)
 			body, err := pubReplyBodyTemplate(c.body, i)
 			if err != nil {
 				log.Printf("Could not parse body template: %s", err)

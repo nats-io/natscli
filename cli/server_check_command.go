@@ -454,10 +454,7 @@ func (c *SrvCheckCmd) checkVarz(check *result, vz *server.Varz) error {
 		}
 	}
 
-	up, err := parseDurationString(vz.Uptime)
-	if err != nil {
-		return fmt.Errorf("invalid uptime from server: %s", err)
-	}
+	up := vz.Now.Sub(vz.Start)
 	if c.srvUptimeWarn > 0 || c.srvUptimeCrit > 0 {
 		if c.srvUptimeCrit > c.srvUptimeWarn {
 			check.critical("Up invalid thresholds")
