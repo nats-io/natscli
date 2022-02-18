@@ -15,17 +15,17 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.14.2
+	github.com/klauspost/compress v1.14.3
 	github.com/nats-io/jsm.go v0.0.28-0.20220211125725-501a222fb5d6
-	github.com/nats-io/nats-server/v2 v2.7.3-0.20220211012451-4aaf76e20d0f
-	github.com/nats-io/nats.go v1.13.1-0.20220210170715-3ead80931bdf
+	github.com/nats-io/nats-server/v2 v2.7.3-0.20220217204130-58806c1290b3
+	github.com/nats-io/nats.go v1.13.1-0.20220216000616-0096b1bfae8d
 	github.com/nats-io/nuid v1.0.1
-	github.com/prometheus/client_golang v1.12.0
+	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/common v0.32.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.0.0
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
-	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce
+	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
