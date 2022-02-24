@@ -82,7 +82,9 @@ The context is selected as default, use `nats context --help` to see how to add,
 
 ### JetStream management
 
-For full information on managing JetStream please refer to the [JetStream Technical Preview](https://github.com/nats-io/jetstream#readme)
+For full information on managing JetStream please refer to the [JetStream Documentation](https://docs.nats.io/jetstream)
+
+As of [nats-server v2.2.0](https://docs.nats.io/release-notes/whats_new/whats_new_22) JetStream is GA.
 
 ### Publish and Subscribe
 
