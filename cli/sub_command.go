@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
@@ -28,13 +29,19 @@ import (
 )
 
 type subCmd struct {
-	subject string
-	queue   string
-	raw     bool
-	jsAck   bool
-	inbox   bool
-	dump    string
-	limit   uint
+	subject      string
+	queue        string
+	raw          bool
+	jsAck        bool
+	inbox        bool
+	dump         string
+	limit        uint
+	sseq         uint64
+	deliverAll   bool
+	deliverNew   bool
+	deliverLast  bool
+	deliverSince string
+	headersOnly  bool
 }
 
 func configureSubCommand(app commandHost) {
@@ -47,6 +54,12 @@ func configureSubCommand(app commandHost) {
 	act.Flag("inbox", "Subscribes to a generate inbox").Short('i').BoolVar(&c.inbox)
 	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
 	act.Flag("dump", "Dump received messages to files, 1 file per message. Specify - for null terminated STDOUT for use with xargs -0").PlaceHolder("DIRECTORY").StringVar(&c.dump)
+	act.Flag("headers-only", "Do not render any data, shows only headers").BoolVar(&c.headersOnly)
+	act.Flag("start-sequence", "Starts at a specific Stream sequence (requires JetStream)").Uint64Var(&c.sseq)
+	act.Flag("all", "Delivers all messages found in the Stream (requires JetStream").BoolVar(&c.deliverAll)
+	act.Flag("new", "Delivers only future messages (requires JetStream)").BoolVar(&c.deliverNew)
+	act.Flag("last", "Delivers the most recent and all future messages (requires JetStream)").BoolVar(&c.deliverLast)
+	act.Flag("since", "Delivers messages received since a duration").StringVar(&c.deliverSince)
 
 	cheats["sub"] = `# To subscribe to messages, in a queue group and acknowledge any JetStream ones
 nats sub source.subject --queue work --ack
@@ -59,6 +72,9 @@ nats sub --inbox --dump /tmp/archive
 
 # To process all messages using xargs 1 message at a time through a shell command
 nats sub subject --dump=- | xargs -0 -n 1 -I "{}" sh -c "echo '{}' | wc -c"
+
+# To receive new messages received in a stream with the subject ORDERS.new
+nats sub ORDERS.new --next
 `
 }
 
@@ -79,6 +95,19 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("subject is required")
 	}
 
+	if c.dump == "-" && c.inbox {
+		return fmt.Errorf("generating inboxes is not compatible with dumping to stdout using null terminated strings")
+	}
+
+	jetStream := c.sseq > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != ""
+
+	if c.inbox && jetStream {
+		return fmt.Errorf("generating inboxes is not compatible with JetStream subscriptions")
+	}
+	if c.queue != "" && jetStream {
+		return fmt.Errorf("queu group subscriptions are not supported with JetStream")
+	}
+
 	var (
 		sub         *nats.Subscription
 		mu          = sync.Mutex{}
@@ -87,10 +116,6 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 		ctx, cancel = context.WithCancel(ctx)
 	)
 	defer cancel()
-
-	if c.dump == "-" && c.inbox {
-		return fmt.Errorf("generating inboxes is not compatible with dumping to stdout using null terminated strings")
-	}
 
 	handler := func(m *nats.Msg) {
 		mu.Lock()
@@ -170,9 +195,10 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 			} else {
 				fmt.Printf("[#%d] Received on %q\n", ctr, m.Subject)
 			}
-
+		} else if jetStream {
+			fmt.Printf("[#%d] Received JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, info.Stream(), info.StreamSequence(), m.Subject, info.TimeStamp().Format(time.RFC3339))
 		} else {
-			fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d / ack: %v\n", ctr, info.Stream(), info.Consumer(), m.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), c.jsAck)
+			fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, info.Stream(), info.Consumer(), m.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
 		}
 
 		if len(m.Header) > 0 {
@@ -185,9 +211,11 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 			fmt.Println()
 		}
 
-		fmt.Println(string(m.Data))
-		if !strings.HasSuffix(string(m.Data), "\n") {
-			fmt.Println()
+		if !c.headersOnly {
+			fmt.Println(string(m.Data))
+			if !strings.HasSuffix(string(m.Data), "\n") {
+				fmt.Println()
+			}
 		}
 
 		if ctr == c.limit {
@@ -197,16 +225,67 @@ func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
 	}
 
 	if (!c.raw && c.dump == "") || c.inbox {
-		if c.jsAck {
-			log.Printf("Subscribing on %s with acknowledgement of JetStream messages\n", c.subject)
-		} else {
-			log.Printf("Subscribing on %s\n", c.subject)
+		switch {
+		case jetStream:
+			// logs later depending on settings
+		case c.jsAck:
+			log.Printf("Subscribing on %s with acknowledgement of JetStream messages", c.subject)
+		default:
+			log.Printf("Subscribing on %s", c.subject)
 		}
 	}
 
-	if c.queue != "" {
+	switch {
+	case jetStream:
+		var js nats.JetStream
+		js, err = nc.JetStream()
+		if err != nil {
+			return err
+		}
+
+		opts := []nats.SubOpt{
+			nats.EnableFlowControl(),
+			nats.IdleHeartbeat(5 * time.Second),
+			nats.AckNone(),
+		}
+
+		if c.headersOnly {
+			opts = append(opts, nats.HeadersOnly())
+		}
+
+		switch {
+		case c.sseq > 0:
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with sequence %d", c.subject, c.sseq)
+			opts = append(opts, nats.StartSequence(c.sseq))
+		case c.deliverLast:
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the last message received", c.subject)
+			opts = append(opts, nats.DeliverLast())
+		case c.deliverAll:
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the first message received", c.subject)
+
+			opts = append(opts, nats.DeliverAll())
+		case c.deliverNew:
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s delivering any new messages received", c.subject)
+
+			opts = append(opts, nats.DeliverNew())
+		case c.deliverSince != "":
+			var d time.Duration
+			d, err = parseDurationString(c.deliverSince)
+			if err != nil {
+				return err
+			}
+
+			start := time.Now().Add(-1 * d)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with messages since %s", c.subject, humanizeDuration(d))
+
+			opts = append(opts, nats.StartTime(start))
+		}
+
+		c.jsAck = false
+		sub, err = js.Subscribe(c.subject, handler, opts...)
+	case c.queue != "":
 		sub, err = nc.QueueSubscribe(c.subject, c.queue, handler)
-	} else {
+	default:
 		sub, err = nc.Subscribe(c.subject, handler)
 	}
 	if err != nil {
