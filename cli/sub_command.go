@@ -39,7 +39,7 @@ type subCmd struct {
 
 func configureSubCommand(app commandHost) {
 	c := &subCmd{}
-	act := app.Command("sub", "Generic subscription client").Action(c.subscribe)
+	act := app.Command("subscribe", "Generic subscription client").Alias("sub").Action(c.subscribe)
 	act.Arg("subject", "Subject to subscribe to").StringVar(&c.subject)
 	act.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)
 	act.Flag("raw", "Show the raw data received").Short('r').BoolVar(&c.raw)
