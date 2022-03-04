@@ -232,18 +232,20 @@ func (c *kvCommand) upgradeAction(_ *kingpin.ParseContext) error {
 	}
 
 	nfo := status.(*nats.KeyValueBucketStatus).StreamInfo()
-	if nfo.Config.AllowRollup {
+	if nfo.Config.AllowRollup && nfo.Config.Discard == nats.DiscardNew {
 		fmt.Println("Bucket is already using the correct configuration")
+		os.Exit(1)
 	}
 
 	nfo.Config.AllowRollup = true
+	nfo.Config.Discard = nats.DiscardNew
 	nfo, err = js.UpdateStream(&nfo.Config)
 	if err != nil {
 		return err
 	}
 
-	if !nfo.Config.AllowRollup {
-		fmt.Printf("Configuration upgrade failed, please edit stream %s to allow RollUps", nfo.Config.Name)
+	if !nfo.Config.AllowRollup || nfo.Config.Discard != nats.DiscardNew {
+		fmt.Printf("Configuration upgrade failed, please edit stream %s to allow RollUps and have Discard Policy of New", nfo.Config.Name)
 		os.Exit(1)
 	}
 
