@@ -55,11 +55,11 @@ func configureSubCommand(app commandHost) {
 	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
 	act.Flag("dump", "Dump received messages to files, 1 file per message. Specify - for null terminated STDOUT for use with xargs -0").PlaceHolder("DIRECTORY").StringVar(&c.dump)
 	act.Flag("headers-only", "Do not render any data, shows only headers").BoolVar(&c.headersOnly)
-	act.Flag("start-sequence", "Starts at a specific Stream sequence (requires JetStream)").Uint64Var(&c.sseq)
+	act.Flag("start-sequence", "Starts at a specific Stream sequence (requires JetStream)").PlaceHolder("SEQUENCE").Uint64Var(&c.sseq)
 	act.Flag("all", "Delivers all messages found in the Stream (requires JetStream").BoolVar(&c.deliverAll)
 	act.Flag("new", "Delivers only future messages (requires JetStream)").BoolVar(&c.deliverNew)
 	act.Flag("last", "Delivers the most recent and all future messages (requires JetStream)").BoolVar(&c.deliverLast)
-	act.Flag("since", "Delivers messages received since a duration").StringVar(&c.deliverSince)
+	act.Flag("since", "Delivers messages received since a duration (requires JetStream)").PlaceHolder("DURATION").StringVar(&c.deliverSince)
 
 	cheats["sub"] = `# To subscribe to messages, in a queue group and acknowledge any JetStream ones
 nats sub source.subject --queue work --ack
