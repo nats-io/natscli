@@ -28,7 +28,7 @@ type schemaInfoCmd struct {
 
 func configureSchemaInfoCommand(schema *kingpin.CmdClause) {
 	c := &schemaInfoCmd{}
-	info := schema.Command("info", "Display schema contents").Alias("show").Action(c.info)
+	info := schema.Command("info", "Display schema contents").Alias("show").Alias("view").Action(c.info)
 	info.Arg("schema", "Schema ID to show").Required().StringVar(&c.schema)
 	info.Flag("yaml", "Produce YAML format output").BoolVar(&c.yaml)
 }

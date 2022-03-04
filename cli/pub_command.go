@@ -41,7 +41,7 @@ type pubCmd struct {
 
 func configurePubCommand(app commandHost) {
 	c := &pubCmd{}
-	help := `%s
+	pubHelp := `Generic data publish utility
 
 Body and Header values of the messages may use Go templates to 
 create unique messages.
@@ -63,7 +63,7 @@ Available template functions are:
    Random(min, max) random string at least min long, at most max 
 
 `
-	pub := app.Command("pub", fmt.Sprintf(help, "Generic data publish utilty")).Action(c.publish)
+	pub := app.Command("publish", pubHelp).Alias("pub").Action(c.publish)
 	pub.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	pub.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	pub.Flag("wait", "Wait for a reply from a service").Short('w').BoolVar(&c.req)
@@ -86,7 +86,29 @@ echo "hello world" | nats pub --force-stdin destination.subject
 nats request destination.subject "hello world" -H "Content-type:text/plain" --raw
 `
 
-	req := app.Command("request", fmt.Sprintf(help, "Generic data request utility")).Alias("req").Action(c.publish)
+	requestHelp := `Generic request-reply request utility
+
+Body and Header values of the messages may use Go templates to 
+create unique messages.
+
+   nats request test --count 10 "Message {{Count}} @ {{Time}}"
+
+Multiple messages with random strings between 10 and 100 long:
+
+   nats request test --count 10 "Message {{Count}}: {{ Random 10 100 }}"
+
+Available template functions are:
+
+   Count            the message number
+   TimeStamp        RFC3339 format current time
+   Unix             seconds since 1970 in UTC
+   UnixNano         nano seconds since 1970 in UTC
+   Time             the current time
+   ID               an unique ID
+   Random(min, max) random string at least min long, at most max 
+
+`
+	req := app.Command("request", requestHelp).Alias("req").Action(c.publish)
 	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	req.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	req.Flag("wait", "Wait for a reply from a service").Short('w').Default("true").Hidden().BoolVar(&c.req)

@@ -168,7 +168,7 @@ func configureStreamCommand(app commandHost) {
 	strAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
 	addCreateFlags(strAdd)
 
-	strEdit := str.Command("edit", "Edits an existing stream").Action(c.editAction)
+	strEdit := str.Command("edit", "Edits an existing stream").Alias("update").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
 	strEdit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	strEdit.Flag("force", "Force edit without prompting").Short('f').BoolVar(&c.force)
