@@ -140,7 +140,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	}
 	if c.js && c.numSubs > 0 && c.pushDurable {
 		if c.pull {
-			log.Fatal("the durable consumer must be either pull or push, it can not be both")
+			log.Fatal("The durable consumer must be either pull or push, it can not be both")
 		}
 		log.Print("JetStream durable push consumer mode, subscriber(s) will explicitly acknowledge the consumption of messages")
 	}
@@ -215,7 +215,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		// create the stream for the benchmark (and purge it)
 		nc, err := nats.Connect(opts.Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			log.Fatalf("nats connection failed: %s", err)
+			log.Fatalf("NATS connection failed: %s", err)
 		}
 
 		js, err = nc.JetStream(nats.MaxWait(c.jsTimeout))
@@ -224,7 +224,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		}
 		if c.kv {
 			// create bucket
-			_, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: c.subject, History: c.history, Storage: nats.MemoryStorage, Description: "nats bench bucket", Replicas: c.replicas})
+			_, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: c.subject, History: c.history, Storage: storageType, Description: "nats bench bucket", Replicas: c.replicas})
 			if err != nil {
 				log.Fatalf("Couldn't create the KV bucket: %v", err)
 			}
@@ -233,7 +233,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 				// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
 				_, err = js.AddStream(&nats.StreamConfig{Name: c.streamName, Subjects: []string{c.subject}, Retention: nats.LimitsPolicy, Storage: storageType, Replicas: c.replicas})
 				if err != nil {
-					log.Fatalf("there is already a stream %s defined with conflicting attributes, if you want to delete and re-define the stream use `nats stream delete` (%v)", c.streamName, err)
+					log.Fatalf("There is already a stream %s defined with conflicting attributes, if you want to delete and re-define the stream use `nats stream delete` (%v)", c.streamName, err)
 				}
 			} else if (c.pull || c.pushDurable) && c.numSubs > 0 {
 				log.Printf("Using stream: %s", c.streamName)
@@ -243,7 +243,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 				log.Printf("Purging the stream")
 				err = js.PurgeStream(c.streamName)
 				if err != nil {
-					log.Fatalf("error purging stream %s: %v", c.streamName, err)
+					log.Fatalf("Error purging stream %s: %v", c.streamName, err)
 				}
 			}
 
@@ -264,12 +264,12 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 						}(c.numSubs * c.consumerBatch),
 					})
 					if err != nil {
-						log.Fatal("error creating the pull consumer: ", err)
+						log.Fatal("Error creating the pull consumer: ", err)
 					}
 					defer func() {
 						err := js.DeleteConsumer(c.streamName, c.consumerName)
 						if err != nil {
-							log.Printf("error deleting the pull consumer on stream %s: %v", c.streamName, err)
+							log.Printf("Error deleting the pull consumer on stream %s: %v", c.streamName, err)
 						}
 						log.Printf("Deleted durable consumer: %s\n", c.consumerName)
 
@@ -286,12 +286,12 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 						MaxAckPending:  c.consumerBatch * c.numSubs,
 					})
 					if err != nil {
-						log.Fatal("error creating the durable push consumer: ", err)
+						log.Fatal("Error creating the durable push consumer: ", err)
 					}
 					defer func() {
 						err := js.DeleteConsumer(c.streamName, c.consumerName)
 						if err != nil {
-							log.Printf("error deleting the durable push consumer on stream %s: %v", c.streamName, err)
+							log.Fatalf("Error deleting the durable push consumer on stream %s: %v", c.streamName, err)
 						}
 						log.Printf("Deleted durable consumer: %s\n", c.consumerName)
 					}()
@@ -542,7 +542,7 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 
 	err := nc.Flush()
 	if err != nil {
-		log.Fatalf("error flushing: %v", err)
+		log.Fatalf("Error flushing: %v", err)
 	}
 
 	bm.AddPubSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
@@ -588,7 +588,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 			time.Sleep(c.subSleep)
 			err := msg.Ack()
 			if err != nil {
-				log.Fatalf("error sending a reply message: %v", err)
+				log.Fatalf("Error sending a reply message: %v", err)
 			}
 		}
 
@@ -607,7 +607,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 	var err error
 
 	if !c.kv {
-		// create the subscribers
+		// create the subscriber
 		if c.js {
 			var js nats.JetStreamContext
 
