@@ -87,7 +87,7 @@ func configureConsumerCommand(app commandHost) {
 	addCreateFlags := func(f *kingpin.CmdClause) {
 		f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
 		f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
-		f.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear")
+		f.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (none, linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear", "none")
 		f.Flag("backoff-steps", "Number of steps to use when creating the backoff policy").PlaceHolder("STEPS").Default("10").UintVar(&c.backoffSteps)
 		f.Flag("backoff-min", "The shortest backoff period that will be generated").PlaceHolder("MIN").Default("1m").DurationVar(&c.backoffMin)
 		f.Flag("backoff-max", "The longest backoff period that will be generated").PlaceHolder("MAX").Default("20m").DurationVar(&c.backoffMax)
@@ -134,7 +134,7 @@ func configureConsumerCommand(app commandHost) {
 	edit.Arg("stream", "Stream name").StringVar(&c.stream)
 	edit.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	edit.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
-	edit.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear")
+	edit.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (none, linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear", "none")
 	edit.Flag("backoff-steps", "Number of steps to use when creating the backoff policy").PlaceHolder("STEPS").UintVar(&c.backoffSteps)
 	edit.Flag("backoff-min", "The shortest backoff period that will be generated").PlaceHolder("MIN").DurationVar(&c.backoffMin)
 	edit.Flag("backoff-max", "The longest backoff period that will be generated").PlaceHolder("MAX").DurationVar(&c.backoffMax)
@@ -353,6 +353,10 @@ func (c *consumerCmd) editAction(pc *kingpin.ParseContext) error {
 }
 
 func (c *consumerCmd) backoffPolicy() ([]time.Duration, error) {
+	if c.backoffMode == "none" {
+		return nil, nil
+	}
+
 	if c.backoffMode == "" || c.backoffSteps == 0 || c.backoffMin == 0 || c.backoffMax == 0 {
 		return nil, fmt.Errorf("required policy properties not supplied")
 	}
@@ -1082,12 +1086,16 @@ func (c *consumerCmd) askBackoffPolicy() error {
 	if ok {
 		err = survey.AskOne(&survey.Select{
 			Message: "Backoff policy",
-			Options: []string{"linear"},
-			Default: "linear",
+			Options: []string{"linear", "none"},
+			Default: "none",
 			Help:    "Adds a Backoff policy for use with delivery retries. Linear grows at equal intervals between min and max.",
 		}, &c.backoffMode)
 		if err != nil {
 			return err
+		}
+
+		if c.backoffMode == "none" {
+			return nil
 		}
 
 		d := ""
