@@ -133,9 +133,11 @@ type streamStat struct {
 func configureStreamCommand(app commandHost) {
 	c := &streamCmd{msgID: -1}
 
-	addCreateFlags := func(f *kingpin.CmdClause) {
+	addCreateFlags := func(f *kingpin.CmdClause, edit bool) {
 		f.Flag("ack", "(--no-ack) Acknowledge publishes").Default("true").BoolVar(&c.ack)
-		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
+		if !edit {
+			f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
+		}
 		f.Flag("description", "Sets a contextual description for the stream").StringVar(&c.description)
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
 		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
@@ -150,9 +152,13 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
 		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
-		f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
+		if !edit {
+			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
+		}
 		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
-		f.Flag("tags", "Place the stream on servers that has specific tags").StringsVar(&c.placementTags)
+		if !edit {
+			f.Flag("tags", "Place the stream on servers that has specific tags").StringsVar(&c.placementTags)
+		}
 		OptionalBoolean(f.Flag("allow-rollup", "(--no-allow-rollup) Allows roll-ups to be done by publishing messages with special headers"))
 		OptionalBoolean(f.Flag("deny-delete", "(--no-deny-delete) Deny messages from being deleted via the API"))
 		OptionalBoolean(f.Flag("deny-purge", "(--no-deny-purge) Deny entire stream or subject purges via the API"))
@@ -166,14 +172,14 @@ func configureStreamCommand(app commandHost) {
 	strAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	strAdd.Flag("validate", "Only validates the configuration against the official Schema").BoolVar(&c.validateOnly)
 	strAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
-	addCreateFlags(strAdd)
+	addCreateFlags(strAdd, false)
 
 	strEdit := str.Command("edit", "Edits an existing stream").Alias("update").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
 	strEdit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	strEdit.Flag("force", "Force edit without prompting").Short('f').BoolVar(&c.force)
 	strEdit.Flag("interactive", "Edit the configuring using your editor").Short('i').BoolVar(&c.interactive)
-	addCreateFlags(strEdit)
+	addCreateFlags(strEdit, true)
 
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
@@ -209,7 +215,7 @@ func configureStreamCommand(app commandHost) {
 	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another").Alias("cp").Action(c.cpAction)
 	strCopy.Arg("source", "Source Stream to copy").Required().StringVar(&c.stream)
 	strCopy.Arg("destination", "New Stream to create").Required().StringVar(&c.destination)
-	addCreateFlags(strCopy)
+	addCreateFlags(strCopy, false)
 
 	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
 	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -269,7 +275,7 @@ func configureStreamCommand(app commandHost) {
 	strTAdd := strTemplate.Command("create", "Creates a new Stream Template").Alias("add").Alias("new").Action(c.streamTemplateAdd)
 	strTAdd.Arg("stream", "Template name").StringVar(&c.stream)
 	strTAdd.Flag("max-streams", "Maximum amount of streams that this template can generate").Default("-1").IntVar(&c.maxStreams)
-	addCreateFlags(strTAdd)
+	addCreateFlags(strTAdd, false)
 
 	strTInfo := strTemplate.Command("info", "Stream Template information").Alias("nfo").Alias("i").Action(c.streamTemplateInfo)
 	strTInfo.Arg("template", "Stream Template to retrieve information for").StringVar(&c.stream)
@@ -1171,21 +1177,16 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.Replicas = int(c.replicas)
 	}
 
+	cfg.Placement = &api.Placement{}
 	if c.placementCluster != "" {
-		if cfg.Placement == nil {
-			cfg.Placement = &api.Placement{}
-		}
 		cfg.Placement.Cluster = c.placementCluster
 	}
 
 	if len(c.placementTags) == 0 {
-		if cfg.Placement == nil {
-			cfg.Placement = &api.Placement{}
-		}
 		cfg.Placement.Tags = c.placementTags
 	}
 
-	if cfg.Placement.Cluster == "" {
+	if cfg.Placement.Cluster == "" && len(cfg.Placement.Tags) == 0 {
 		cfg.Placement = nil
 	}
 
