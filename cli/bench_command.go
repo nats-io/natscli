@@ -82,7 +82,7 @@ func configureBenchCommand(app commandHost) {
 	bench.Flag("jstimeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	bench.Flag("purge", "Purge the stream before running").Default("false").BoolVar(&c.purge)
 	bench.Flag("stream", "When set to something else than \"benchstream\": use (and do not attempt to define) the specified stream when creating durable subscribers. Otherwise define and use the \"benchstream\" stream").Default(DEFAULT_STREAM_NAME).StringVar(&c.streamName)
-	bench.Flag("storage", "JetStream storage (memory/file) for the \"benchstream\" stream").Default("memory").StringVar(&c.storage)
+	bench.Flag("storage", "JetStream storage (memory/file) for the \"benchstream\" stream").Default("memory").EnumVar(&c.storage, "memory", "file")
 	bench.Flag("replicas", "Number of stream replicas for the \"benchstream\" stream").Default("1").IntVar(&c.replicas)
 	bench.Flag("subsleep", "Sleep for the specified interval before sending the subscriber acknowledgement back in --js mode, or sending the reply back in --reply mode,  or doing the next get in --kv mode").Default("0s").DurationVar(&c.subSleep)
 	bench.Flag("pubsleep", "Sleep for the specified interval after publishing each message").Default("0s").DurationVar(&c.pubSleep)
