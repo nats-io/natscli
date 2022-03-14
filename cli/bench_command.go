@@ -377,6 +377,13 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	return nil
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int) {
 
 	var m *nats.Msg
@@ -435,7 +442,7 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 	if !c.syncPub {
 		for i := 0; i < numMsg; i += c.pubBatch {
 			state = "Publishing"
-			futures := make([]nats.PubAckFuture, c.pubBatch)
+			futures := make([]nats.PubAckFuture, min(c.pubBatch, c.numMsg-i))
 			for j := 0; j < c.pubBatch && i+j < c.numMsg; j++ {
 				futures[j], err = js.PublishAsync(c.subject, msg)
 				if err != nil {
