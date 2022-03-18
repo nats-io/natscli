@@ -32,14 +32,16 @@ import (
 )
 
 type objCommand struct {
-	bucket       string
-	file         string
-	overrideName string
-	hdrs         []string
-	force        bool
-	noProgress   bool
-	storage      string
-	listNames    bool
+	bucket           string
+	file             string
+	overrideName     string
+	hdrs             []string
+	force            bool
+	noProgress       bool
+	storage          string
+	listNames        bool
+	placementCluster string
+	placementTags    []string
 
 	description string
 	replicas    uint
@@ -65,6 +67,8 @@ NOTE: This is an experimental feature.
 	add.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
 	add.Flag("description", "A description for the bucket").StringVar(&c.description)
 	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
+	add.Flag("tags", "Place the store on servers that has specific tags").StringsVar(&c.placementTags)
+	add.Flag("cluster", "Place the store on a specific cluster").StringVar(&c.placementCluster)
 
 	put := obj.Command("put", "Puts a file into the store").Action(c.putAction)
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -607,12 +611,18 @@ func (c *objCommand) addAction(_ *kingpin.ParseContext) error {
 		st = nats.MemoryStorage
 	}
 
+	placement := &nats.Placement{Cluster: c.placementCluster}
+	if len(c.placementTags) > 0 {
+		placement.Tags = c.placementTags
+	}
+
 	obj, err := js.CreateObjectStore(&nats.ObjectStoreConfig{
 		Bucket:      c.bucket,
 		Description: c.description,
 		TTL:         c.ttl,
 		Storage:     st,
 		Replicas:    int(c.replicas),
+		Placement:   placement,
 	})
 	if err != nil {
 		return err
