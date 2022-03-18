@@ -15,10 +15,10 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.14.4
-	github.com/nats-io/jsm.go v0.0.30
-	github.com/nats-io/nats-server/v2 v2.7.5-0.20220309212130-5c0d1999ff72
-	github.com/nats-io/nats.go v1.13.1-0.20220308171302-2f2f6968e98d
+	github.com/klauspost/compress v1.15.1
+	github.com/nats-io/jsm.go v0.0.31-0.20220318094353-016d9b02a83f
+	github.com/nats-io/nats-server/v2 v2.7.5-0.20220318022501-29ff67e2ac34
+	github.com/nats-io/nats.go v1.13.1-0.20220317185802-4fef66c57d2b
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/common v0.32.1

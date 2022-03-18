@@ -29,20 +29,22 @@ import (
 )
 
 type kvCommand struct {
-	bucket        string
-	key           string
-	val           string
-	raw           bool
-	history       uint64
-	ttl           time.Duration
-	replicas      uint
-	force         bool
-	maxValueSize  int32
-	maxBucketSize int64
-	revision      uint64
-	description   string
-	listNames     bool
-	storage       string
+	bucket           string
+	key              string
+	val              string
+	raw              bool
+	history          uint64
+	ttl              time.Duration
+	replicas         uint
+	force            bool
+	maxValueSize     int32
+	maxBucketSize    int64
+	revision         uint64
+	description      string
+	listNames        bool
+	storage          string
+	placementCluster string
+	placementTags    []string
 }
 
 func configureKVCommand(app commandHost) {
@@ -69,6 +71,8 @@ NOTE: This is an experimental feature.
 	add.Flag("max-bucket-size", "Maximum size for the bucket").Int64Var(&c.maxBucketSize)
 	add.Flag("description", "A description for the bucket").StringVar(&c.description)
 	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
+	add.Flag("tags", "Place the bucket on servers that has specific tags").StringsVar(&c.placementTags)
+	add.Flag("cluster", "Place the bucket on a specific cluster").StringVar(&c.placementCluster)
 
 	put := kv.Command("put", "Puts a value into a key").Action(c.putAction)
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -338,6 +342,11 @@ func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
 		storage = nats.MemoryStorage
 	}
 
+	placement := &nats.Placement{Cluster: c.placementCluster}
+	if len(c.placementTags) > 0 {
+		placement.Tags = c.placementTags
+	}
+
 	store, err := js.CreateKeyValue(&nats.KeyValueConfig{
 		Bucket:       c.bucket,
 		Description:  c.description,
@@ -347,6 +356,7 @@ func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
 		MaxBytes:     c.maxBucketSize,
 		Storage:      storage,
 		Replicas:     int(c.replicas),
+		Placement:    placement,
 	})
 	if err != nil {
 		return err

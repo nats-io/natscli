@@ -3,6 +3,10 @@ on: [push, pull_request]
 
 jobs:
   test:
+    strategy:
+      matrix:
+        go: [ 1.17, 1.18 ]
+
     env:
       GOPATH: /home/runner/work/natscli
 
@@ -16,13 +20,13 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v1
         with:
-          go-version: 1.16
+          go-version: ${{matrix.go}}
 
       - name: Install deps
         shell: bash --noprofile --norc -x -eo pipefail {0}
         run: |
-          go get -u honnef.co/go/tools/cmd/staticcheck
-          go get -u github.com/client9/misspell/cmd/misspell
+          go install honnef.co/go/tools/cmd/staticcheck@master
+          go install github.com/client9/misspell/cmd/misspell@latest
 
       - name: Build
         shell: bash --noprofile --norc -x -eo pipefail {0}
