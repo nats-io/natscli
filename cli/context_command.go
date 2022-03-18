@@ -21,20 +21,21 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
-	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go/natscontext"
+	"github.com/nats-io/nats.go"
 )
 
 type ctxCommand struct {
-	json           bool
-	activate       bool
-	description    string
-	name           string
-	nsc            string
-	force          bool
-	validateErrors int
+	json             bool
+	completionFormat bool
+	activate         bool
+	description      string
+	name             string
+	nsc              string
+	force            bool
+	validateErrors   int
 }
 
 func configureCtxCommand(app commandHost) {
@@ -51,7 +52,8 @@ func configureCtxCommand(app commandHost) {
 	edit := context.Command("edit", "Edit a context in your EDITOR").Alias("vi").Action(c.editCommand)
 	edit.Arg("name", "The context name to edit").Required().StringVar(&c.name)
 
-	context.Command("ls", "List known contexts").Alias("list").Alias("l").Action(c.listCommand)
+	ls := context.Command("ls", "List known contexts").Alias("list").Alias("l").Action(c.listCommand)
+	ls.Flag("completion", "Format the list for use by shell completion").Hidden().BoolVar(&c.completionFormat)
 
 	rm := context.Command("rm", "Remove a context").Alias("remove").Action(c.removeCommand)
 	rm.Arg("name", "The context name to remove").Required().StringVar(&c.name)
@@ -172,32 +174,60 @@ func (c *ctxCommand) editCommand(pc *kingpin.ParseContext) error {
 	return c.showCommand(pc)
 }
 
-func (c *ctxCommand) listCommand(_ *kingpin.ParseContext) error {
-	known := natscontext.KnownContexts()
-	current := natscontext.SelectedContext()
-	if len(known) == 0 {
-		fmt.Println("No known contexts")
-		return nil
-	}
-
-	table := newTableWriter("Known Contexts")
-	table.AddHeaders("Name", "Description")
-
-	for _, name := range known {
-		cfg, err := natscontext.New(name, true)
-		if err != nil {
-			log.Printf("Could not load context %s: %s", name, err)
-			continue
-		}
+func (c *ctxCommand) renderListCompletion(current string, known []*natscontext.Context) {
+	for _, nctx := range known {
+		name := strings.ReplaceAll(nctx.Name, ":", `\:`)
 
 		if name == current {
 			name = name + "*"
 		}
 
-		table.AddRow(name, cfg.Description())
+		fmt.Printf("%s:%s\n", name, nctx.Description())
+	}
+}
+
+func (c *ctxCommand) renderListTable(current string, known []*natscontext.Context) {
+	if len(known) == 0 {
+		fmt.Println("No known contexts")
+		return
+	}
+
+	table := newTableWriter("Known Contexts")
+	table.AddHeaders("Name", "Description")
+
+	for _, nctx := range known {
+		if nctx.Name == current {
+			nctx.Name = nctx.Name + "*"
+		}
+
+		table.AddRow(nctx.Name, nctx.Description())
 	}
 
 	fmt.Println(table.Render())
+
+}
+func (c *ctxCommand) listCommand(_ *kingpin.ParseContext) error {
+	names := natscontext.KnownContexts()
+	current := natscontext.SelectedContext()
+	var contexts []*natscontext.Context
+
+	for _, name := range names {
+		cfg, err := natscontext.New(name, true)
+		if err != nil {
+			if !c.completionFormat {
+				log.Printf("Could not load context %s: %s", name, err)
+			}
+			continue
+		}
+
+		contexts = append(contexts, cfg)
+	}
+
+	if c.completionFormat {
+		c.renderListCompletion(current, contexts)
+	} else {
+		c.renderListTable(current, contexts)
+	}
 
 	return nil
 }
