@@ -36,12 +36,11 @@ import (
 	"github.com/emicklei/dot"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gosuri/uiprogress"
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/xlab/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
-
-	"github.com/nats-io/jsm.go"
 )
 
 type streamCmd struct {
@@ -157,7 +156,8 @@ func configureStreamCommand(app commandHost) {
 		}
 		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
 		if !edit {
-			f.Flag("tags", "Place the stream on servers that has specific tags").StringsVar(&c.placementTags)
+			f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
+			f.Flag("tags", "Backward compatibility only, use --tag").Hidden().StringsVar(&c.placementTags)
 		}
 		OptionalBoolean(f.Flag("allow-rollup", "(--no-allow-rollup) Allows roll-ups to be done by publishing messages with special headers"))
 		OptionalBoolean(f.Flag("deny-delete", "(--no-deny-delete) Deny messages from being deleted via the API"))

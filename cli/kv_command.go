@@ -595,12 +595,12 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 		if nfo.Cluster != nil {
 			fmt.Printf("    Cluster Location: %s\n", nfo.Cluster.Name)
 		}
-		fmt.Printf("            Storage: %s\n", nfo.Config.Storage.String())
+		fmt.Printf("             Storage: %s\n", nfo.Config.Storage.String())
 
-		if !nfo.Config.AllowRollup {
+		if !nfo.Config.AllowRollup || nfo.Config.Discard != nats.DiscardNew {
 			fmt.Println()
-			fmt.Println("Warning the bucket does not support roll-ups")
-			fmt.Println("and needs a configuration upgrade.")
+			fmt.Println("Warning the bucket if not compatible with the latest")
+			fmt.Println("configuration format and needs a configuration upgrade.")
 			fmt.Println()
 			fmt.Printf("Please run: nats kv upgrade %s\n\n", status.Bucket())
 		}
