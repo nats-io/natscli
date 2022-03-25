@@ -1086,18 +1086,40 @@ func (c *streamCmd) renderStreams(stats []streamStat) {
 }
 
 func (c *streamCmd) loadConfigFile(file string) (*api.StreamConfig, error) {
-	var cfg api.StreamConfig
 	f, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
 
-	err = json.Unmarshal(f, &cfg)
+	var cfg api.StreamConfig
+
+	// there is a chance that this is a `nats s info --json` output
+	// which is a StreamState, so we detect if this is one of those
+	// by checking if there's a config key then extract that, else
+	// we try loading it as a StreamConfig
+
+	var nfo map[string]interface{}
+	err = json.Unmarshal(f, &nfo)
 	if err != nil {
 		return nil, err
 	}
 
-	if cfg.Name == "" {
+	_, ok := nfo["config"]
+	if ok {
+		var nfo api.StreamInfo
+		err = json.Unmarshal(f, &nfo)
+		if err != nil {
+			return nil, err
+		}
+		cfg = nfo.Config
+	} else {
+		err = json.Unmarshal(f, &cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if cfg.Name != c.stream {
 		cfg.Name = c.stream
 	}
 
