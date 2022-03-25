@@ -759,7 +759,13 @@ func loadContext() error {
 
 	var err error
 
-	opts.Config, err = natscontext.New(opts.CfgCtx, !SkipContexts, ctxOpts...)
+	exist, _ := fileAccessible(opts.CfgCtx)
+
+	if exist {
+		opts.Config, err = natscontext.NewFromFile(opts.CfgCtx, ctxOpts...)
+	} else {
+		opts.Config, err = natscontext.New(opts.CfgCtx, !SkipContexts, ctxOpts...)
+	}
 
 	return err
 }
