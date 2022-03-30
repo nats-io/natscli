@@ -445,13 +445,15 @@ func prepareJSHelper() (*nats.Conn, nats.JetStreamContext, error) {
 	}
 
 	if opts.Trace {
-		jso = append(jso, nats.TraceFunc(func(op nats.TraceOperation, subj string, payload []byte, hdr nats.Header) {
-			if op == nats.TraceSent {
+		ct := &nats.ClientTrace{
+			RequestSent: func(subj string, payload []byte) {
 				log.Printf(">>> %s: %s", subj, string(payload))
-			} else {
+			},
+			ResponseReceived: func(subj string, payload []byte, hdr nats.Header) {
 				log.Printf("<<< %s: %s", subj, string(payload))
-			}
-		}))
+			},
+		}
+		jso = append(jso, ct)
 	}
 
 	opts.JSc, err = opts.Conn.JetStream(jso...)
