@@ -25,6 +25,7 @@ import (
 
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -74,6 +75,11 @@ type SrvCheckCmd struct {
 	srvTLSRequired bool
 	srvJSRequired  bool
 	srvURL         *url.URL
+
+	kvBucket     string
+	kvValuesCrit int
+	kvValuesWarn int
+	kvKey        string
 }
 
 func configureServerCheckCommand(srv *kingpin.CmdClause) {
@@ -139,7 +145,12 @@ func configureServerCheckCommand(srv *kingpin.CmdClause) {
 	serv.Flag("auth-required", "Checks that authentication is enabled").Default("false").BoolVar(&c.srvAuthRequire)
 	serv.Flag("tls-required", "Checks that TLS is required").Default("false").BoolVar(&c.srvTLSRequired)
 	serv.Flag("js-required", "Checks that JetStream is enabled").Default("false").BoolVar(&c.srvJSRequired)
-	// serv.Flag("url", "Fetch varz over this URL instead of over the NATS protocol").URLVar(&c.srvURL)
+
+	kv := check.Command("kv", "Checks a NATS KV Bucket").Action(c.checkKV)
+	kv.Flag("bucket", "Checks a specific bucket").Required().StringVar(&c.kvBucket)
+	kv.Flag("values-critical", "Critical threshold for number of values in the bucket").Default("-1").IntVar(&c.kvValuesCrit)
+	kv.Flag("values-warn", "Warning threshold for number of values in the bucket").Default("-1").IntVar(&c.kvValuesWarn)
+	kv.Flag("key", "Requires a key to have any non-delete value set").StringVar(&c.kvKey)
 }
 
 type checkStatus string
@@ -406,6 +417,87 @@ func (i *perfDataItem) String() string {
 	}
 
 	return pd
+}
+
+func (c *SrvCheckCmd) checkKVStatusAndBucket(check *result, nc *nats.Conn) {
+	js, err := nc.JetStream()
+	check.criticalIfErr(err, "connection failed: %v", err)
+
+	kv, err := js.KeyValue(c.kvBucket)
+	if err == nats.ErrBucketNotFound {
+		check.critical("bucket %v not found", c.kvBucket)
+		return
+	} else if err != nil {
+		check.critical("could not load bucket: %v", err)
+		return
+	}
+
+	check.ok("bucket %s", c.kvBucket)
+
+	status, err := kv.Status()
+	check.criticalIfErr(err, "could not obtain bucket status: %v", err)
+
+	check.pd(
+		&perfDataItem{Name: "values", Value: float64(status.Values()), Warn: float64(c.kvValuesWarn), Crit: float64(c.kvValuesCrit), Help: "How many values are stored in the bucket"},
+	)
+
+	if c.kvKey != "" {
+		v, err := kv.Get(c.kvKey)
+		if err == nats.ErrKeyNotFound {
+			check.critical("key %s not found", c.kvKey)
+		} else if err != nil {
+			check.critical("key %s not loaded: %v", c.kvKey, err)
+		} else {
+			switch v.Operation() {
+			case nats.KeyValueDelete:
+				check.critical("key %v is deleted", c.kvKey)
+			case nats.KeyValuePurge:
+				check.critical("key %v is purged", c.kvKey)
+			default:
+				check.ok("key %s found", c.kvKey)
+			}
+		}
+	}
+
+	if c.kvValuesWarn > -1 || c.kvValuesCrit > -1 {
+		if c.kvValuesCrit < c.kvValuesWarn {
+			if c.kvValuesCrit > -1 && status.Values() <= uint64(c.kvValuesCrit) {
+				check.critical("%d values", status.Values())
+			} else if c.kvValuesWarn > -1 && status.Values() <= uint64(c.kvValuesWarn) {
+				check.warn("%d values", status.Values())
+			} else {
+				check.ok("%d values", status.Values())
+			}
+		} else {
+			if c.kvValuesCrit > -1 && status.Values() >= uint64(c.kvValuesCrit) {
+				check.critical("%d values", status.Values())
+			} else if c.kvValuesWarn > -1 && status.Values() >= uint64(c.kvValuesWarn) {
+				check.warn("%d values", status.Values())
+			} else {
+				check.ok("%d values", status.Values())
+			}
+		}
+	}
+
+	if status.BackingStore() == "JetStream" {
+		nfo := status.(*nats.KeyValueBucketStatus).StreamInfo()
+		check.pd(
+			&perfDataItem{Name: "bytes", Value: float64(nfo.State.Bytes), Unit: "B", Help: "Bytes stored in the bucket"},
+			&perfDataItem{Name: "replicas", Value: float64(nfo.Config.Replicas)},
+		)
+	}
+}
+
+func (c *SrvCheckCmd) checkKV(_ *kingpin.ParseContext) error {
+	check := &result{Name: c.kvBucket, Check: "kv"}
+	defer check.GenericExit()
+
+	nc, _, err := prepareHelper("", natsOpts()...)
+	check.criticalIfErr(err, "connection failed: %s", err)
+
+	c.checkKVStatusAndBucket(check, nc)
+
+	return nil
 }
 
 func (c *SrvCheckCmd) checkSrv(_ *kingpin.ParseContext) error {

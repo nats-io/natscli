@@ -1,12 +1,16 @@
 package cli
 
 import (
+	"fmt"
+	"io/ioutil"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 )
 
 func assertHasPDItem(t *testing.T, check *result, items ...string) {
@@ -22,6 +26,173 @@ func assertHasPDItem(t *testing.T, check *result, items ...string) {
 			t.Fatalf("did not contain item: '%s': %s", i, pd)
 		}
 	}
+}
+
+func withJetStream(t *testing.T, cb func(srv *server.Server, nc *nats.Conn, mgr *jsm.Manager)) {
+	t.Helper()
+
+	dir, err := ioutil.TempDir("", "")
+	checkErr(t, err, "could not create temporary js store: %v", err)
+
+	srv, err := server.NewServer(&server.Options{
+		Port:      -1,
+		StoreDir:  dir,
+		JetStream: true,
+	})
+	checkErr(t, err, "could not start js server: %v", err)
+
+	go srv.Start()
+	if !srv.ReadyForConnections(10 * time.Second) {
+		t.Errorf("nats server did not start")
+	}
+	defer func() {
+		srv.Shutdown()
+		srv.WaitForShutdown()
+	}()
+
+	opts.Conn = nil
+	nc, mgr, err := prepareHelper(srv.ClientURL())
+	checkErr(t, err, "could not connect client to server @ %s: %v", srv.ClientURL(), err)
+	defer nc.Close()
+
+	cb(srv, nc, mgr)
+}
+
+func TestCheckKV(t *testing.T) {
+	dfltCmd := func() *SrvCheckCmd {
+		return &SrvCheckCmd{kvBucket: "TEST", kvValuesWarn: -1, kvValuesCrit: -1}
+	}
+
+	t.Run("Bucket", func(t *testing.T) {
+		withJetStream(t, func(_ *server.Server, nc *nats.Conn, _ *jsm.Manager) {
+			cmd := dfltCmd()
+			check := &result{}
+			cmd.checkKVStatusAndBucket(check, nc)
+			assertListIsEmpty(t, check.Warnings)
+			assertListIsEmpty(t, check.OKs)
+			assertListEquals(t, check.Criticals, "bucket TEST not found")
+
+			js, err := nc.JetStream()
+			checkErr(t, err, "js context failed")
+
+			_, err = js.CreateKeyValue(&nats.KeyValueConfig{Bucket: "TEST"})
+			checkErr(t, err, "kv create failed")
+
+			check = &result{}
+			cmd.checkKVStatusAndBucket(check, nc)
+			assertListIsEmpty(t, check.Warnings)
+			assertListIsEmpty(t, check.Criticals)
+			assertListEquals(t, check.OKs, "bucket TEST")
+		})
+	})
+
+	t.Run("Values", func(t *testing.T) {
+		withJetStream(t, func(srv *server.Server, nc *nats.Conn, _ *jsm.Manager) {
+			fmt.Printf("url %v (%s)\n", srv.ClientURL(), srv.String())
+			fmt.Printf("connected: %v version: %v name: %v\n", nc.ConnectedUrl(), nc.ConnectedServerVersion(), nc.ConnectedServerName())
+			js, err := nc.JetStream()
+			checkErr(t, err, "js context failed")
+
+			bucket, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: "TEST"})
+			checkErr(t, err, "kv create failed: %v", err)
+
+			cmd := dfltCmd()
+			cmd.kvValuesWarn = 1
+			cmd.kvValuesCrit = 2
+
+			check := &result{}
+			cmd.checkKVStatusAndBucket(check, nc)
+			assertListIsEmpty(t, check.Warnings)
+			assertListIsEmpty(t, check.Criticals)
+			assertListEquals(t, check.OKs, "0 values", "bucket TEST")
+
+			_, err = bucket.PutString("K", "V")
+			checkErr(t, err, "pub failed")
+
+			check = &result{}
+			cmd.checkKVStatusAndBucket(check, nc)
+			assertListEquals(t, check.OKs, "bucket TEST")
+			assertListEquals(t, check.Warnings, "1 values")
+			assertListIsEmpty(t, check.Criticals)
+
+			_, err = bucket.PutString("K1", "V")
+			checkErr(t, err, "pub failed")
+
+			check = &result{}
+			cmd.checkKVStatusAndBucket(check, nc)
+			assertListEquals(t, check.OKs, "bucket TEST")
+			assertListEquals(t, check.Criticals, "2 values")
+			assertListIsEmpty(t, check.Warnings)
+
+			// now test inverse logic
+
+			cmd.kvValuesCrit = 3
+			cmd.kvValuesWarn = 5
+
+			_, err = bucket.PutString("K2", "V")
+			checkErr(t, err, "pub failed")
+
+			check = &result{}
+			cmd.checkKVStatusAndBucket(check, nc)
+			assertListIsEmpty(t, check.Warnings)
+			assertListEquals(t, check.OKs, "bucket TEST")
+			assertListEquals(t, check.Criticals, "3 values")
+
+			_, err = bucket.PutString("K3", "V")
+			checkErr(t, err, "pub failed")
+
+			check = &result{}
+			cmd.checkKVStatusAndBucket(check, nc)
+			assertListIsEmpty(t, check.Criticals)
+			assertListEquals(t, check.OKs, "bucket TEST")
+			assertListEquals(t, check.Warnings, "4 values")
+
+			_, err = bucket.PutString("K4", "V")
+			checkErr(t, err, "pub failed")
+			_, err = bucket.PutString("K5", "V")
+			checkErr(t, err, "pub failed")
+
+			check = &result{}
+			cmd.checkKVStatusAndBucket(check, nc)
+			assertListIsEmpty(t, check.Warnings)
+			assertListIsEmpty(t, check.Criticals)
+			assertListEquals(t, check.OKs, "bucket TEST", "6 values")
+		})
+	})
+
+	t.Run("Key", func(t *testing.T) {
+		withJetStream(t, func(srv *server.Server, nc *nats.Conn, _ *jsm.Manager) {
+			js, err := nc.JetStream()
+			checkErr(t, err, "js context failed")
+
+			bucket, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: "TEST"})
+			checkErr(t, err, "kv create failed")
+
+			cmd := dfltCmd()
+			cmd.kvKey = "KEY"
+			check := &result{}
+			cmd.checkKVStatusAndBucket(check, nc)
+			assertListIsEmpty(t, check.Warnings)
+			assertListEquals(t, check.OKs, "bucket TEST")
+			assertListEquals(t, check.Criticals, "key KEY not found")
+
+			_, err = bucket.Put("KEY", []byte("VAL"))
+			checkErr(t, err, "put failed")
+
+			check = &result{}
+			cmd.checkKVStatusAndBucket(check, nc)
+			assertListIsEmpty(t, check.Warnings)
+			assertListEquals(t, check.OKs, "bucket TEST", "key KEY found")
+			assertListIsEmpty(t, check.Criticals)
+
+			bucket.Delete("KEY")
+			check = &result{}
+			cmd.checkKVStatusAndBucket(check, nc)
+			assertListIsEmpty(t, check.Warnings)
+			assertListEquals(t, check.OKs, "bucket TEST")
+			assertListEquals(t, check.Criticals, "key KEY not found")
+		})
+	})
 }
 
 func TestCheckAccountInfo(t *testing.T) {
