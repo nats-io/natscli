@@ -1094,7 +1094,7 @@ func (c *streamCmd) loadConfigFile(file string) (*api.StreamConfig, error) {
 	var cfg api.StreamConfig
 
 	// there is a chance that this is a `nats s info --json` output
-	// which is a StreamState, so we detect if this is one of those
+	// which is a StreamInfo, so we detect if this is one of those
 	// by checking if there's a config key then extract that, else
 	// we try loading it as a StreamConfig
 
