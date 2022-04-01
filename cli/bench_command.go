@@ -335,7 +335,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	startwg.Wait()
 
 	pubCounts := bench.MsgsPerClient(c.numMsg, c.numPubs)
-
+	trigger := make(chan struct{})
 	for i := 0; i < c.numPubs; i++ {
 		nc, err := nats.Connect(opts.Config.ServerURL(), natsOpts()...)
 		if err != nil {
@@ -346,7 +346,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runPublisher(bm, nc, startwg, donewg, pubCounts[i], offset(i, pubCounts))
+		go c.runPublisher(bm, nc, startwg, donewg, trigger, pubCounts[i], offset(i, pubCounts))
 	}
 
 	if !c.noProgress {
@@ -354,6 +354,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 	}
 
 	startwg.Wait()
+	close(trigger)
 	donewg.Wait()
 
 	bm.Close()
@@ -516,7 +517,7 @@ func kvPutter(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, n
 	}
 }
 
-func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, offset int) {
+func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int) {
 	startwg.Done()
 
 	var progress *uiprogress.Bar
@@ -536,6 +537,8 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 	if c.msgSize > 0 {
 		msg = make([]byte, c.msgSize)
 	}
+
+	<-trigger
 
 	start := time.Now()
 
