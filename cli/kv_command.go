@@ -570,15 +570,26 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 		return err
 	}
 
-	fmt.Printf("%s Key-Value Store Status\n", status.Bucket())
+	var nfo *nats.StreamInfo
+	if status.BackingStore() == "JetStream" {
+		nfo = status.(*nats.KeyValueBucketStatus).StreamInfo()
+	}
+
+	if nfo == nil {
+		fmt.Printf("Information for Key-Value Store Bucket %s\n", status.Bucket())
+	} else {
+		fmt.Printf("Information for Key-Value Store Bucket %s created %s\n", status.Bucket(), nfo.Created.Local().Format(time.RFC3339))
+	}
+
+	fmt.Println()
+	fmt.Println("Configuration:")
 	fmt.Println()
 	fmt.Printf("         Bucket Name: %s\n", status.Bucket())
 	fmt.Printf("        History Kept: %d\n", status.History())
 	fmt.Printf("       Values Stored: %d\n", status.Values())
 	fmt.Printf("  Backing Store Kind: %s\n", status.BackingStore())
 
-	if status.BackingStore() == "JetStream" {
-		nfo := status.(*nats.KeyValueBucketStatus).StreamInfo()
+	if nfo != nil {
 		if nfo.Config.Description != "" {
 			fmt.Printf("         Description: %s\n", nfo.Config.Description)
 		}
@@ -614,8 +625,8 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 }
 
 func renderNatsGoClusterInfo(info *nats.StreamInfo) {
-	fmt.Printf("                 Name: %s\n", info.Cluster.Name)
-	fmt.Printf("               Leader: %s\n", info.Cluster.Leader)
+	fmt.Printf("                Name: %s\n", info.Cluster.Name)
+	fmt.Printf("              Leader: %s\n", info.Cluster.Leader)
 	for _, r := range info.Cluster.Replicas {
 		state := []string{r.Name}
 
@@ -642,7 +653,6 @@ func renderNatsGoClusterInfo(info *nats.StreamInfo) {
 			state = append(state, fmt.Sprintf("%d operation behind", r.Lag))
 		}
 
-		fmt.Printf("              Replica: %s\n", strings.Join(state, ", "))
-
+		fmt.Printf("             Replica: %s\n", strings.Join(state, ", "))
 	}
 }
