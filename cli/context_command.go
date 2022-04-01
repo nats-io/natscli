@@ -33,6 +33,7 @@ type ctxCommand struct {
 	activate         bool
 	description      string
 	name             string
+	source           string
 	nsc              string
 	force            bool
 	validateErrors   int
@@ -48,6 +49,13 @@ func configureCtxCommand(app commandHost) {
 	save.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
 	save.Flag("select", "Select the saved context as the default one").BoolVar(&c.activate)
 	save.Flag("nsc", "URL to a nsc user, eg. nsc://<operator>/<account>/<user>").StringVar(&c.nsc)
+
+	dupe := context.Command("copy", "Copies an existing context").Alias("cp").Action(c.copyCommand)
+	dupe.Arg("source", "The name of the context to copy from").Required().StringVar(&c.source)
+	dupe.Arg("name", "The name of the context to create").Required().StringVar(&c.name)
+	dupe.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
+	dupe.Flag("select", "Select the saved context as the default one").BoolVar(&c.activate)
+	dupe.Flag("nsc", "URL to a nsc user, eg. nsc://<operator>/<account>/<user>").StringVar(&c.nsc)
 
 	edit := context.Command("edit", "Edit a context in your EDITOR").Alias("vi").Action(c.editCommand)
 	edit.Arg("name", "The context name to edit").Required().StringVar(&c.name)
@@ -132,6 +140,20 @@ func (c *ctxCommand) validateCommand(pc *kingpin.ParseContext) error {
 	}
 
 	return nil
+}
+
+func (c *ctxCommand) copyCommand(pc *kingpin.ParseContext) error {
+	if !natscontext.IsKnown(c.source) {
+		return fmt.Errorf("unknown context %q", c.source)
+	}
+
+	if natscontext.IsKnown(c.name) {
+		return fmt.Errorf("context %q already exist", c.name)
+	}
+
+	opts.CfgCtx = c.source
+
+	return c.createCommand(pc)
 }
 
 func (c *ctxCommand) editCommand(pc *kingpin.ParseContext) error {
