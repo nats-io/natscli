@@ -16,6 +16,7 @@ package cli
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"sort"
 	"strings"
@@ -592,13 +593,16 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 			fmt.Printf("  Maximum Value Size: %d\n", nfo.Config.MaxMsgSize)
 		}
 		fmt.Printf("    JetStream Stream: %s\n", nfo.Config.Name)
-		if nfo.Cluster != nil {
-			fmt.Printf("    Cluster Location: %s\n", nfo.Cluster.Name)
-		}
 		fmt.Printf("             Storage: %s\n", nfo.Config.Storage.String())
 
-		if !nfo.Config.AllowRollup || nfo.Config.Discard != nats.DiscardNew {
+		if nfo.Cluster != nil {
+			fmt.Println("\nCluster Information:")
 			fmt.Println()
+			renderNatsGoClusterInfo(nfo)
+			fmt.Println()
+		}
+
+		if !nfo.Config.AllowRollup || nfo.Config.Discard != nats.DiscardNew {
 			fmt.Println("Warning the bucket if not compatible with the latest")
 			fmt.Println("configuration format and needs a configuration upgrade.")
 			fmt.Println()
@@ -607,4 +611,38 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 	}
 
 	return nil
+}
+
+func renderNatsGoClusterInfo(info *nats.StreamInfo) {
+	fmt.Printf("                 Name: %s\n", info.Cluster.Name)
+	fmt.Printf("               Leader: %s\n", info.Cluster.Leader)
+	for _, r := range info.Cluster.Replicas {
+		state := []string{r.Name}
+
+		if r.Current {
+			state = append(state, "current")
+		} else {
+			state = append(state, "outdated")
+		}
+
+		if r.Offline {
+			state = append(state, "OFFLINE")
+		}
+
+		if r.Active > 0 && r.Active < math.MaxInt64 {
+			state = append(state, fmt.Sprintf("seen %s ago", humanizeDuration(r.Active)))
+		} else {
+			state = append(state, "not seen")
+		}
+
+		switch {
+		case r.Lag > 1:
+			state = append(state, fmt.Sprintf("%s operations behind", humanize.Comma(int64(r.Lag))))
+		case r.Lag == 1:
+			state = append(state, fmt.Sprintf("%d operation behind", r.Lag))
+		}
+
+		fmt.Printf("              Replica: %s\n", strings.Join(state, ", "))
+
+	}
 }

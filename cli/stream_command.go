@@ -1511,6 +1511,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		}
 		fmt.Println()
 	}
+
 	showSource := func(s *api.StreamSourceInfo) {
 		fmt.Printf("          Stream Name: %s\n", s.Name)
 		fmt.Printf("                  Lag: %s\n", humanize.Comma(int64(s.Lag)))
@@ -1673,7 +1674,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext) api.StreamConfig {
 		if len(c.subjects) == 0 {
 			subjects := ""
 			err = survey.AskOne(&survey.Input{
-				Message: "Subjects to consume",
+				Message: "Subjects",
 				Help:    "Streams consume messages from subjects, this is a space or comma separated list that can include wildcards. Settable using --subjects",
 			}, &subjects, survey.WithValidator(survey.Required))
 			kingpin.FatalIfError(err, "invalid input")
@@ -1690,7 +1691,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext) api.StreamConfig {
 
 	if c.storage == "" {
 		err = survey.AskOne(&survey.Select{
-			Message: "Storage backend",
+			Message: "Storage",
 			Options: []string{"file", "memory"},
 			Help:    "Streams are stored on the server, this can be one of many backends and all are usable in clustering mode. Settable using --storage",
 		}, &c.storage, survey.WithValidator(survey.Required))
@@ -1698,6 +1699,14 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext) api.StreamConfig {
 	}
 
 	storage := c.storeTypeFromString(c.storage)
+
+	if c.replicas == 0 {
+		c.replicas, err = askOneInt("Replication", "1", "When clustered, defines how many replicas of the data to store.  Settable using --replicas.")
+		kingpin.FatalIfError(err, "invalid input")
+	}
+	if c.replicas <= 0 {
+		kingpin.Fatalf("replicas should be >= 1")
+	}
 
 	if c.retentionPolicyS == "" {
 		err = survey.AskOne(&survey.Select{
@@ -1737,7 +1746,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext) api.StreamConfig {
 
 	var maxAge time.Duration
 	if c.maxBytesLimit == 0 {
-		c.maxBytesLimit, err = askOneBytes("Stream size limit", "-1", "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes")
+		c.maxBytesLimit, err = askOneBytes("Total Stream Size", "-1", "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes")
 		kingpin.FatalIfError(err, "invalid input")
 
 		if c.maxBytesLimit <= 0 {
@@ -1747,7 +1756,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext) api.StreamConfig {
 
 	if c.maxAgeLimit == "" {
 		err = survey.AskOne(&survey.Input{
-			Message: "Maximum message age limit",
+			Message: "Message TTL",
 			Default: "-1",
 			Help:    "Defines the oldest messages that can be stored in the Stream, any messages older than this period will be removed, -1 for unlimited. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --max-age",
 		}, &c.maxAgeLimit)
@@ -1760,7 +1769,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext) api.StreamConfig {
 	}
 
 	if c.maxMsgSize == 0 {
-		c.maxMsgSize, err = askOneBytes("Maximum individual message size", "-1", "Defines the maximum size any single message may be to be accepted by the Stream. Settable using --max-msg-size")
+		c.maxMsgSize, err = askOneBytes("Max Message Size", "-1", "Defines the maximum size any single message may be to be accepted by the Stream. Settable using --max-msg-size")
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
@@ -1806,14 +1815,6 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext) api.StreamConfig {
 		allow, err := askConfirmation("Allow purging subjects or the entire stream", true)
 		kingpin.FatalIfError(err, "invalid input")
 		denyPurge.SetBool(!allow)
-	}
-
-	if c.replicas == 0 {
-		c.replicas, err = askOneInt("Replicas", "1", "When clustered, defines how many replicas of the data to store.  Settable using --replicas.")
-		kingpin.FatalIfError(err, "invalid input")
-	}
-	if c.replicas <= 0 {
-		kingpin.Fatalf("replicas should be >= 1")
 	}
 
 	cfg := api.StreamConfig{

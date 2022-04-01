@@ -303,8 +303,12 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 	if status.BackingStore() == "JetStream" {
 		nfo := status.(*nats.ObjectBucketStatus).StreamInfo()
 		fmt.Printf("    JetStream Stream: %s\n", nfo.Config.Name)
+
 		if nfo.Cluster != nil {
-			fmt.Printf("    Cluster Location: %s\n", nfo.Cluster.Name)
+			fmt.Println("\nCluster Information:")
+			fmt.Println()
+			renderNatsGoClusterInfo(nfo)
+			fmt.Println()
 		}
 	}
 
