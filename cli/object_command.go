@@ -284,7 +284,19 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 		return err
 	}
 
-	fmt.Printf("%s Object Store Status\n", status.Bucket())
+	var nfo *nats.StreamInfo
+	if status.BackingStore() == "JetStream" {
+		nfo = status.(*nats.ObjectBucketStatus).StreamInfo()
+	}
+
+	if nfo == nil {
+		fmt.Printf("Information for Object Store Bucket %s\n", status.Bucket())
+	} else {
+		fmt.Printf("Information for Object Store Bucket %s created %s\n", status.Bucket(), nfo.Created.Local().Format(time.RFC3339))
+	}
+
+	fmt.Println()
+	fmt.Println("Configuration:")
 	fmt.Println()
 	fmt.Printf("         Bucket Name: %s\n", status.Bucket())
 	if status.Description() != "" {
@@ -301,7 +313,6 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 	fmt.Printf("                Size: %s\n", humanize.IBytes(status.Size()))
 	fmt.Printf("  Backing Store Kind: %s\n", status.BackingStore())
 	if status.BackingStore() == "JetStream" {
-		nfo := status.(*nats.ObjectBucketStatus).StreamInfo()
 		fmt.Printf("    JetStream Stream: %s\n", nfo.Config.Name)
 
 		if nfo.Cluster != nil {
