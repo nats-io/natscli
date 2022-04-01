@@ -140,6 +140,7 @@ func configureConsumerCommand(app commandHost) {
 	edit.Flag("backoff-max", "The longest backoff period that will be generated").PlaceHolder("MAX").DurationVar(&c.backoffMax)
 	edit.Flag("max-deliver", "Maximum amount of times a message will be delivered").PlaceHolder("TRIES").IntVar(&c.maxDeliver)
 	edit.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
+	edit.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
 	edit.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
 	edit.Flag("max-waiting", "Maximum number of outstanding pulls allowed").PlaceHolder("PULLS").IntVar(&c.maxWaiting)
 	edit.Flag("max-pull-batch", "Maximum size batch size for a pull request to accept").PlaceHolder("BATCH_SIZE").IntVar(&c.maxPullBatch)
