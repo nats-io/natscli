@@ -447,7 +447,7 @@ func prepareJSHelper() (*nats.Conn, nats.JetStreamContext, error) {
 	if opts.Trace {
 		ct := &nats.ClientTrace{
 			RequestSent: func(subj string, payload []byte) {
-				log.Printf(">>> %s: %s", subj, string(payload))
+				log.Printf(">>> %s\n%s\n\n", subj, string(payload))
 			},
 			ResponseReceived: func(subj string, payload []byte, hdr nats.Header) {
 				log.Printf("<<< %s: %s", subj, string(payload))
