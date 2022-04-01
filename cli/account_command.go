@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/dustin/go-humanize"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -62,6 +63,55 @@ func (c *actCmd) reportConnectionsAction(pc *kingpin.ParseContext) error {
 	return cmd.reportConnections(pc)
 }
 
+func (c *actCmd) renderTier(name string, tier *api.JetStreamTier) {
+	fmt.Printf("   Tier: %s\n\n", name)
+
+	fmt.Printf("      Configuration Requirements:\n\n")
+	fmt.Printf("         Stream Requires Max Bytes Set: %t\n", tier.Limits.MaxBytesRequired)
+	fmt.Printf("          Consumer Maximum Ack Pending: %s\n", humanize.Comma(int64(tier.Limits.MaxAckPending)))
+	fmt.Println()
+
+	fmt.Printf("      Stream Resource Usage Limits:\n\n")
+
+	if tier.Limits.MaxMemory == -1 {
+		fmt.Printf("                    Memory: %s of Unlimited\n", humanize.IBytes(tier.Memory))
+	} else {
+		fmt.Printf("                    Memory: %s of %s\n", humanize.IBytes(tier.Memory), humanize.IBytes(uint64(tier.Limits.MaxMemory)))
+	}
+
+	if tier.Limits.MemoryMaxStreamBytes == 0 {
+		fmt.Printf("         Memory Per Stream: Unlimited\n")
+	} else {
+		fmt.Printf("         Memory Per Stream: %s\n", humanize.IBytes(uint64(tier.Limits.MemoryMaxStreamBytes)))
+	}
+
+	if tier.Limits.MaxStore == -1 {
+		fmt.Printf("                   Storage: %s of Unlimited\n", humanize.IBytes(tier.Store))
+	} else {
+		fmt.Printf("                   Storage: %s of %s\n", humanize.IBytes(tier.Store), humanize.IBytes(uint64(tier.Limits.MaxStore)))
+	}
+
+	if tier.Limits.StoreMaxStreamBytes == 0 {
+		fmt.Printf("        Storage Per Stream: Unlimited\n")
+	} else {
+		fmt.Printf("        Storage Per Stream: %s\n", humanize.IBytes(uint64(tier.Limits.StoreMaxStreamBytes)))
+	}
+
+	if tier.Limits.MaxStreams == -1 {
+		fmt.Printf("                   Streams: %s of Unlimited\n", humanize.Comma(int64(tier.Streams)))
+	} else {
+		fmt.Printf("                   Streams: %s of %s\n", humanize.Comma(int64(tier.Streams)), humanize.Comma(int64(tier.Limits.MaxStreams)))
+	}
+
+	if tier.Limits.MaxConsumers == -1 {
+		fmt.Printf("                 Consumers: %s of Unlimited\n", humanize.Comma(int64(tier.Consumers)))
+	} else {
+		fmt.Printf("                 Consumers: %s of %s\n", humanize.Comma(int64(tier.Consumers)), humanize.Comma(int64(tier.Limits.MaxConsumers)))
+	}
+
+	fmt.Println()
+}
+
 func (c *actCmd) infoAction(_ *kingpin.ParseContext) error {
 	nc, mgr, err := prepareHelper("", natsOpts()...)
 	kingpin.FatalIfError(err, "setup failed")
@@ -94,32 +144,23 @@ func (c *actCmd) infoAction(_ *kingpin.ParseContext) error {
 	fmt.Println()
 	switch err {
 	case nil:
-		fmt.Printf("Configuration Requirements:\n\n")
-		fmt.Printf("   Requires Max Bytes Set: %t\n", info.Limits.MaxBytesRequired)
+		tiered := len(info.Tiers) > 0
+
+		fmt.Printf("Account Usage:\n\n")
+		fmt.Printf("    Storage: %s\n", humanize.IBytes(info.Store))
+		fmt.Printf("     Memory: %s\n", humanize.IBytes(info.Memory))
+		fmt.Printf("    Streams: %s\n", humanize.IBytes(uint64(info.Streams)))
+		fmt.Printf("  Consumers: %s\n", humanize.IBytes(uint64(info.Consumers)))
 		fmt.Println()
-		fmt.Printf("Stream Resource Usage Limits:\n\n")
-		if info.Limits.MaxMemory == -1 {
-			fmt.Printf("      Memory: %s of Unlimited\n", humanize.IBytes(info.Memory))
-		} else {
-			fmt.Printf("      Memory: %s of %s\n", humanize.IBytes(info.Memory), humanize.IBytes(uint64(info.Limits.MaxMemory)))
-		}
 
-		if info.Limits.MaxMemory == -1 {
-			fmt.Printf("     Storage: %s of Unlimited\n", humanize.IBytes(info.Store))
-		} else {
-			fmt.Printf("     Storage: %s of %s\n", humanize.IBytes(info.Store), humanize.IBytes(uint64(info.Limits.MaxStore)))
-		}
+		fmt.Printf("Account Limits:\n\n")
 
-		if info.Limits.MaxStreams == -1 {
-			fmt.Printf("     Streams: %s of Unlimited\n", humanize.Comma(int64(info.Streams)))
+		if tiered {
+			for n, t := range info.Tiers {
+				c.renderTier(n, &t)
+			}
 		} else {
-			fmt.Printf("     Streams: %s of %s\n", humanize.Comma(int64(info.Streams)), humanize.Comma(int64(info.Limits.MaxStreams)))
-		}
-
-		if info.Limits.MaxConsumers == -1 {
-			fmt.Printf("   Consumers: %s of Unlimited\n", humanize.Comma(int64(info.Consumers)))
-		} else {
-			fmt.Printf("   Consumers: %s of %s\n", humanize.Comma(int64(info.Consumers)), humanize.Comma(int64(info.Limits.MaxConsumers)))
+			c.renderTier("Default", &info.JetStreamTier)
 		}
 
 	case context.DeadlineExceeded:

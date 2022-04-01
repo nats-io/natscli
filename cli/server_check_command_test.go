@@ -210,15 +210,17 @@ func TestCheckAccountInfo(t *testing.T) {
 		}
 
 		info := &api.JetStreamAccountStats{
-			Store:     1024,
-			Memory:    128,
-			Streams:   10,
-			Consumers: 100,
-			Limits: api.JetStreamAccountLimits{
-				MaxMemory:    1024,
-				MaxStore:     20480,
-				MaxStreams:   200,
-				MaxConsumers: 1000,
+			JetStreamTier: api.JetStreamTier{
+				Memory:    128,
+				Store:     1024,
+				Streams:   10,
+				Consumers: 100,
+				Limits: api.JetStreamAccountLimits{
+					MaxMemory:    1024,
+					MaxStore:     20480,
+					MaxStreams:   200,
+					MaxConsumers: 1000,
+				},
 			},
 		}
 
