@@ -1358,11 +1358,11 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	if cfg.Description != "" {
 		fmt.Printf("          Description: %s\n", cfg.Description)
 	}
-	if cfg.Sealed {
-		fmt.Printf("               Sealed: true\n")
-	}
 	if len(cfg.Subjects) > 0 {
 		fmt.Printf("             Subjects: %s\n", strings.Join(cfg.Subjects, ", "))
+	}
+	if cfg.Sealed {
+		fmt.Printf("               Sealed: true\n")
 	}
 	fmt.Printf("     Acknowledgements: %v\n", !cfg.NoAck)
 	fmt.Printf("            Retention: %s - %s\n", cfg.Storage.String(), cfg.Retention.String())
