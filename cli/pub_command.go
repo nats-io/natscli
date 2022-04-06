@@ -36,7 +36,7 @@ type pubCmd struct {
 	hdrs       []string
 	cnt        int
 	sleep      time.Duration
-	waitDur    time.Duration
+	waitCount  int
 	forceStdin bool
 }
 
@@ -67,8 +67,8 @@ Available template functions are:
 	pub := app.Command("publish", pubHelp).Alias("pub").Action(c.publish)
 	pub.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	pub.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
-	pub.Flag("wait", "Wait for a reply from a service").Short('w').BoolVar(&c.req)
-	pub.Flag("wait-duration", "Wait for multiple replies from a service").Short('d').Default("2s").DurationVar(&c.waitDur)
+	pub.Flag("wait", "Wait for a single reply from a service").Short('w').BoolVar(&c.req)
+	pub.Flag("wait-multiple", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.waitCount)
 	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
 	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
@@ -131,7 +131,12 @@ func (c *pubCmd) prepareMsg(body []byte, seq int) (*nats.Msg, error) {
 	return msg, parseStringsToMsgHeader(c.hdrs, seq, msg)
 }
 
-func (c *pubCmd) doReqWait(nc *nats.Conn, progress *uiprogress.Bar) error {
+func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
+	// for the request flag (-w) override and set the wait count to 1
+	if c.req {
+		c.waitCount = 1
+	}
+
 	for i := 1; i <= c.cnt; i++ {
 		start := time.Now()
 
@@ -148,9 +153,19 @@ func (c *pubCmd) doReqWait(nc *nats.Conn, progress *uiprogress.Bar) error {
 		if err != nil {
 			return err
 		}
+
 		msg.Reply = nc.NewRespInbox()
+		waitChan := make(chan struct{})
+
+		var replyCount int
 
 		s, err := nc.Subscribe(msg.Reply, func(m *nats.Msg) {
+			if m.Header.Get("Status") == "503" {
+				close(waitChan)
+				log.Printf("No responders available", m.Subject, time.Since(start))
+				return
+			}
+
 			log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
 
 			if len(m.Header) > 0 {
@@ -159,7 +174,6 @@ func (c *pubCmd) doReqWait(nc *nats.Conn, progress *uiprogress.Bar) error {
 						log.Printf("%s: %s", h, val)
 					}
 				}
-
 				fmt.Println()
 			}
 
@@ -167,87 +181,43 @@ func (c *pubCmd) doReqWait(nc *nats.Conn, progress *uiprogress.Bar) error {
 			if !strings.HasSuffix(string(m.Data), "\n") {
 				fmt.Println()
 			}
+
+			replyCount++
+			if c.waitCount > 0 && replyCount == c.waitCount {
+				close(waitChan)
+			}
 		})
 		if err != nil {
 			return err
 		}
-		defer s.Unsubscribe()
+		if c.waitCount > 0 {
+			// if waitcount is setup, make sure we only process
+			// the # of responses we want
+			s.AutoUnsubscribe(c.waitCount)
+		}
 
 		err = nc.PublishMsg(msg)
 		if err != nil {
 			return err
 		}
 
-		// cls - TODO maybe add response count and select with
-		// channel as well to short circuit if response count
-		// is known apriori.
-		time.Sleep(c.waitDur)
+		select {
+		case <-waitChan:
+		case <-time.After(opts.Timeout):
+			close(waitChan)
+		}
 
-		// we don't want any responses after we wait.
+		// Unsubscribe for the unbound case, NOOP is already auto unsubscribed.
 		s.Unsubscribe()
 
-		// include a publish sleep in the wait duration
+		// If applicable, account for the wait duration in a publish sleep.
 		if c.cnt > 1 && c.sleep > 0 {
-			st := c.sleep - c.waitDur
+			st := c.sleep - time.Since(start)
 			if st > 0 {
 				time.Sleep(st)
 			}
 		}
 	}
-
-	return nil
-}
-
-func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
-	for i := 1; i <= c.cnt; i++ {
-		start := time.Now()
-		if !c.raw && progress == nil {
-			log.Printf("Sending request on %q\n", c.subject)
-		}
-
-		body, err := pubReplyBodyTemplate(c.body, i)
-		if err != nil {
-			log.Printf("Could not parse body template: %s", err)
-		}
-
-		msg, err := c.prepareMsg(body, i)
-		if err != nil {
-			return err
-		}
-
-		m, err := nc.RequestMsg(msg, opts.Timeout)
-		if err != nil {
-			return err
-		}
-
-		if c.raw {
-			fmt.Println(string(m.Data))
-		} else if progress != nil {
-			progress.Incr()
-		} else {
-			log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
-
-			if len(m.Header) > 0 {
-				for h, vals := range m.Header {
-					for _, val := range vals {
-						log.Printf("%s: %s", h, val)
-					}
-				}
-
-				fmt.Println()
-			}
-
-			fmt.Println(string(m.Data))
-			if !strings.HasSuffix(string(m.Data), "\n") {
-				fmt.Println()
-			}
-		}
-
-		if c.cnt > 1 && c.sleep > 0 {
-			time.Sleep(c.sleep)
-		}
-	}
-
 	return nil
 }
 
@@ -283,11 +253,7 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 		defer func() { uiprogress.Stop(); fmt.Println() }()
 	}
 
-	if c.waitDur != 0 {
-		return c.doReqWait(nc, progress)
-	}
-
-	if c.req {
+	if c.req || c.waitCount != 1 {
 		return c.doReq(nc, progress)
 	}
 
