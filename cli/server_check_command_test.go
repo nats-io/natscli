@@ -718,8 +718,8 @@ func TestCheckJSZ(t *testing.T) {
 		meta = &server.ClusterInfo{
 			Leader: "l1",
 			Replicas: []*server.PeerInfo{
-				{"replica1", true, false, 10 * time.Millisecond, 1},
-				{"replica2", true, false, 10 * time.Millisecond, 1},
+				{Name: "replica1", Current: true, Active: 10 * time.Millisecond, Lag: 1},
+				{Name: "replica2", Current: true, Active: 10 * time.Millisecond, Lag: 1},
 			},
 		}
 
@@ -733,8 +733,8 @@ func TestCheckJSZ(t *testing.T) {
 		meta = &server.ClusterInfo{
 			Leader: "l1",
 			Replicas: []*server.PeerInfo{
-				{"replica1", false, false, 10 * time.Millisecond, 1},
-				{"replica2", true, false, 10 * time.Millisecond, 1},
+				{Name: "replica1", Active: 10 * time.Millisecond, Lag: 1},
+				{Name: "replica2", Current: true, Active: 10 * time.Millisecond, Lag: 1},
 			},
 		}
 
@@ -749,8 +749,8 @@ func TestCheckJSZ(t *testing.T) {
 		meta = &server.ClusterInfo{
 			Leader: "l1",
 			Replicas: []*server.PeerInfo{
-				{"replica1", true, true, 10 * time.Millisecond, 1},
-				{"replica2", true, false, 10 * time.Millisecond, 1},
+				{Name: "replica1", Current: true, Offline: true, Active: 10 * time.Millisecond, Lag: 1},
+				{Name: "replica2", Current: true, Active: 10 * time.Millisecond, Lag: 1},
 			},
 		}
 
@@ -765,8 +765,8 @@ func TestCheckJSZ(t *testing.T) {
 		meta = &server.ClusterInfo{
 			Leader: "l1",
 			Replicas: []*server.PeerInfo{
-				{"replica1", true, false, 10 * time.Hour, 1},
-				{"replica2", true, false, 10 * time.Millisecond, 1},
+				{Name: "replica1", Current: true, Active: 10 * time.Hour, Lag: 1},
+				{Name: "replica2", Current: true, Active: 10 * time.Millisecond, Lag: 1},
 			},
 		}
 
@@ -781,8 +781,8 @@ func TestCheckJSZ(t *testing.T) {
 		meta = &server.ClusterInfo{
 			Leader: "l1",
 			Replicas: []*server.PeerInfo{
-				{"replica1", true, false, 10 * time.Millisecond, 10000},
-				{"replica2", true, false, 10 * time.Millisecond, 1},
+				{Name: "replica1", Current: true, Active: 10 * time.Millisecond, Lag: 10000},
+				{Name: "replica2", Current: true, Active: 10 * time.Millisecond, Lag: 1},
 			},
 		}
 
@@ -796,10 +796,10 @@ func TestCheckJSZ(t *testing.T) {
 		meta = &server.ClusterInfo{
 			Leader: "l1",
 			Replicas: []*server.PeerInfo{
-				{"replica1", true, false, 10 * time.Millisecond, 10000},
-				{"replica2", true, false, 10 * time.Hour, 1},
-				{"replica3", true, true, 10 * time.Millisecond, 1},
-				{"replica4", false, false, 10 * time.Millisecond, 1},
+				{Name: "replica1", Current: true, Active: 10 * time.Millisecond, Lag: 10000},
+				{Name: "replica2", Current: true, Active: 10 * time.Hour, Lag: 1},
+				{Name: "replica3", Current: true, Offline: true, Active: 10 * time.Millisecond, Lag: 1},
+				{Name: "replica4", Active: 10 * time.Millisecond, Lag: 1},
 			},
 		}
 
