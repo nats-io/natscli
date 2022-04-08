@@ -79,7 +79,7 @@ func (c *actCmd) renderTier(name string, tier *api.JetStreamTier) {
 		fmt.Printf("                    Memory: %s of %s\n", humanize.IBytes(tier.Memory), humanize.IBytes(uint64(tier.Limits.MaxMemory)))
 	}
 
-	if tier.Limits.MemoryMaxStreamBytes == 0 {
+	if tier.Limits.MemoryMaxStreamBytes <= 0 {
 		fmt.Printf("         Memory Per Stream: Unlimited\n")
 	} else {
 		fmt.Printf("         Memory Per Stream: %s\n", humanize.IBytes(uint64(tier.Limits.MemoryMaxStreamBytes)))
@@ -91,7 +91,7 @@ func (c *actCmd) renderTier(name string, tier *api.JetStreamTier) {
 		fmt.Printf("                   Storage: %s of %s\n", humanize.IBytes(tier.Store), humanize.IBytes(uint64(tier.Limits.MaxStore)))
 	}
 
-	if tier.Limits.StoreMaxStreamBytes == 0 {
+	if tier.Limits.StoreMaxStreamBytes <= 0 {
 		fmt.Printf("        Storage Per Stream: Unlimited\n")
 	} else {
 		fmt.Printf("        Storage Per Stream: %s\n", humanize.IBytes(uint64(tier.Limits.StoreMaxStreamBytes)))
