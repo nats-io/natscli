@@ -68,7 +68,6 @@ Available template functions are:
 	pub := app.Command("publish", pubHelp).Alias("pub").Action(c.publish)
 	pub.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	pub.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
-	pub.Flag("wait", "Wait for a single reply from a service").Short('w').BoolVar(&c.req)
 	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
 	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
