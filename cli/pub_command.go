@@ -28,16 +28,17 @@ import (
 )
 
 type pubCmd struct {
-	subject    string
-	body       string
-	req        bool
-	replyTo    string
-	raw        bool
-	hdrs       []string
-	cnt        int
-	sleep      time.Duration
-	waitCount  int
-	forceStdin bool
+	subject      string
+	body         string
+	req          bool
+	replyTo      string
+	raw          bool
+	hdrs         []string
+	cnt          int
+	sleep        time.Duration
+	replyCount   int
+	replyTimeout time.Duration
+	forceStdin   bool
 }
 
 func configurePubCommand(app commandHost) {
@@ -68,7 +69,6 @@ Available template functions are:
 	pub.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	pub.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	pub.Flag("wait", "Wait for a single reply from a service").Short('w').BoolVar(&c.req)
-	pub.Flag("wait-multiple", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.waitCount)
 	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
 	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
@@ -117,6 +117,9 @@ Available template functions are:
 	req.Flag("raw", "Show just the output received").Short('r').Default("false").BoolVar(&c.raw)
 	req.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
+	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)
+	req.Flag("reply-timeout", "Maximum timeout between incoming replies.").Default("250ms").DurationVar(&c.replyTimeout)
+
 }
 
 func init() {
@@ -132,14 +135,8 @@ func (c *pubCmd) prepareMsg(body []byte, seq int) (*nats.Msg, error) {
 }
 
 func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
-	// for the request flag (-w) override and set the wait count to 1
-	if c.req {
-		c.waitCount = 1
-	}
 
 	for i := 1; i <= c.cnt; i++ {
-		start := time.Now()
-
 		if !c.raw && progress == nil {
 			log.Printf("Sending request on %q\n", c.subject)
 		}
@@ -149,21 +146,46 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			log.Printf("Could not parse body template: %s", err)
 		}
 
-		msg, err := c.prepareMsg(body, 0)
+		msg, err := c.prepareMsg(body, i)
 		if err != nil {
 			return err
 		}
 
 		msg.Reply = nc.NewRespInbox()
-		waitChan := make(chan struct{})
 
-		var replyCount int
+		s, err := nc.SubscribeSync(msg.Reply)
+		if err != nil {
+			return err
+		}
 
-		s, err := nc.Subscribe(msg.Reply, func(m *nats.Msg) {
-			if m.Header.Get("Status") == "503" {
-				close(waitChan)
-				log.Printf("No responders available", m.Subject, time.Since(start))
-				return
+		err = nc.PublishMsg(msg)
+		if err != nil {
+			return err
+		}
+
+		// loop through the reply count.
+		start := time.Now()
+
+		// Honor the overall timeout for the first response.  No
+		// responders will circuit break.
+		timeout := opts.Timeout
+
+		// loop until reply count is met, or if zero, until we
+		// timeout receiving messages.
+		rc := 0
+		for {
+			m, err := s.NextMsg(timeout)
+			if err != nil {
+				if err == nats.ErrTimeout {
+					return nil
+				}
+				if err == nats.ErrNoResponders {
+					log.Printf("No responders are available")
+					return nil
+				}
+
+				log.Printf("Error receiving message: %v", err)
+				return err
 			}
 
 			log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
@@ -182,29 +204,11 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 				fmt.Println()
 			}
 
-			replyCount++
-			if c.waitCount > 0 && replyCount == c.waitCount {
-				close(waitChan)
+			rc++
+			if c.replyCount > 0 && rc == c.replyCount {
+				break
 			}
-		})
-		if err != nil {
-			return err
-		}
-		if c.waitCount > 0 {
-			// if waitcount is setup, make sure we only process
-			// the # of responses we want
-			s.AutoUnsubscribe(c.waitCount)
-		}
-
-		err = nc.PublishMsg(msg)
-		if err != nil {
-			return err
-		}
-
-		select {
-		case <-waitChan:
-		case <-time.After(opts.Timeout):
-			close(waitChan)
+			timeout = c.replyTimeout
 		}
 
 		// Unsubscribe for the unbound case, NOOP is already auto unsubscribed.
@@ -253,7 +257,7 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 		defer func() { uiprogress.Stop(); fmt.Println() }()
 	}
 
-	if c.req || c.waitCount != 1 {
+	if c.req || c.replyCount != 1 {
 		return c.doReq(nc, progress)
 	}
 
