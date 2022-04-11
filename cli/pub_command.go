@@ -28,15 +28,17 @@ import (
 )
 
 type pubCmd struct {
-	subject    string
-	body       string
-	req        bool
-	replyTo    string
-	raw        bool
-	hdrs       []string
-	cnt        int
-	sleep      time.Duration
-	forceStdin bool
+	subject      string
+	body         string
+	req          bool
+	replyTo      string
+	raw          bool
+	hdrs         []string
+	cnt          int
+	sleep        time.Duration
+	replyCount   int
+	replyTimeout time.Duration
+	forceStdin   bool
 }
 
 func configurePubCommand(app commandHost) {
@@ -66,7 +68,6 @@ Available template functions are:
 	pub := app.Command("publish", pubHelp).Alias("pub").Action(c.publish)
 	pub.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	pub.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
-	pub.Flag("wait", "Wait for a reply from a service").Short('w').BoolVar(&c.req)
 	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
 	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
@@ -115,6 +116,9 @@ Available template functions are:
 	req.Flag("raw", "Show just the output received").Short('r').Default("false").BoolVar(&c.raw)
 	req.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
+	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)
+	req.Flag("reply-timeout", "Maximum timeout between incoming replies.").Default("300ms").DurationVar(&c.replyTimeout)
+
 }
 
 func init() {
@@ -130,8 +134,8 @@ func (c *pubCmd) prepareMsg(body []byte, seq int) (*nats.Msg, error) {
 }
 
 func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
+
 	for i := 1; i <= c.cnt; i++ {
-		start := time.Now()
 		if !c.raw && progress == nil {
 			log.Printf("Sending request on %q\n", c.subject)
 		}
@@ -146,17 +150,45 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			return err
 		}
 
-		m, err := nc.RequestMsg(msg, opts.Timeout)
+		msg.Reply = nc.NewRespInbox()
+
+		s, err := nc.SubscribeSync(msg.Reply)
 		if err != nil {
 			return err
 		}
 
-		if c.raw {
-			fmt.Println(string(m.Data))
-		} else if progress != nil {
-			progress.Incr()
-		} else {
-			log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
+		err = nc.PublishMsg(msg)
+		if err != nil {
+			return err
+		}
+
+		// loop through the reply count.
+		start := time.Now()
+
+		// Honor the overall timeout for the first response.  No
+		// responders will circuit break.
+		timeout := opts.Timeout
+
+		// loop until reply count is met, or if zero, until we
+		// timeout receiving messages.
+		rc := 0
+		var rttAg time.Duration
+		for {
+			m, err := s.NextMsg(timeout)
+			if err != nil {
+				if err == nats.ErrTimeout {
+					// continue to publish additional messages.
+					break
+				}
+				if err == nats.ErrNoResponders {
+					log.Printf("No responders are available")
+					return nil
+				}
+				return err
+			}
+
+			rtt := time.Since(start)
+			log.Printf("Received on %q rtt %v", m.Subject, rtt)
 
 			if len(m.Header) > 0 {
 				for h, vals := range m.Header {
@@ -164,7 +196,6 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 						log.Printf("%s: %s", h, val)
 					}
 				}
-
 				fmt.Println()
 			}
 
@@ -172,13 +203,34 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			if !strings.HasSuffix(string(m.Data), "\n") {
 				fmt.Println()
 			}
+
+			rc++
+			if c.replyCount > 0 && rc == c.replyCount {
+				break
+			}
+
+			if c.replyCount == 0 {
+				// if we are waiting for the general timeout then
+				// calculate remaining
+				timeout = opts.Timeout - time.Since(start)
+			} else {
+				// Otherwise, use the average response deltas
+				rttAg += rtt
+				timeout = rttAg/time.Duration(rc) + c.replyTimeout
+			}
 		}
 
+		// Unsubscribe for the unbound case, NOOP is already auto unsubscribed.
+		s.Unsubscribe()
+
+		// If applicable, account for the wait duration in a publish sleep.
 		if c.cnt > 1 && c.sleep > 0 {
-			time.Sleep(c.sleep)
+			st := c.sleep - time.Since(start)
+			if st > 0 {
+				time.Sleep(st)
+			}
 		}
 	}
-
 	return nil
 }
 
@@ -214,7 +266,7 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 		defer func() { uiprogress.Stop(); fmt.Println() }()
 	}
 
-	if c.req {
+	if c.req || c.replyCount != 1 {
 		return c.doReq(nc, progress)
 	}
 
