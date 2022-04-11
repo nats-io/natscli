@@ -118,7 +118,7 @@ Available template functions are:
 	req.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)
-	req.Flag("reply-timeout", "Maximum timeout between incoming replies.").Default("250ms").DurationVar(&c.replyTimeout)
+	req.Flag("reply-timeout", "Maximum timeout between incoming replies.").Default("300ms").DurationVar(&c.replyTimeout)
 
 }
 
@@ -141,7 +141,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			log.Printf("Sending request on %q\n", c.subject)
 		}
 
-		body, err := pubReplyBodyTemplate(c.body, 0)
+		body, err := pubReplyBodyTemplate(c.body, i)
 		if err != nil {
 			log.Printf("Could not parse body template: %s", err)
 		}
@@ -173,22 +173,23 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 		// loop until reply count is met, or if zero, until we
 		// timeout receiving messages.
 		rc := 0
+		var rttAg time.Duration
 		for {
 			m, err := s.NextMsg(timeout)
 			if err != nil {
 				if err == nats.ErrTimeout {
-					return nil
+					// continue to publish additional messages.
+					break
 				}
 				if err == nats.ErrNoResponders {
 					log.Printf("No responders are available")
 					return nil
 				}
-
-				log.Printf("Error receiving message: %v", err)
 				return err
 			}
 
-			log.Printf("Received on %q rtt %v", m.Subject, time.Since(start))
+			rtt := time.Since(start)
+			log.Printf("Received on %q rtt %v", m.Subject, rtt)
 
 			if len(m.Header) > 0 {
 				for h, vals := range m.Header {
@@ -208,7 +209,16 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			if c.replyCount > 0 && rc == c.replyCount {
 				break
 			}
-			timeout = c.replyTimeout
+
+			if c.replyCount == 0 {
+				// if we are waiting for the general timeout then
+				// calculate remaining
+				timeout = opts.Timeout - time.Since(start)
+			} else {
+				// Otherwise, use the average response deltas
+				rttAg += rtt
+				timeout = rttAg/time.Duration(rc) + c.replyTimeout
+			}
 		}
 
 		// Unsubscribe for the unbound case, NOOP is already auto unsubscribed.
