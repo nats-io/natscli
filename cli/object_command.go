@@ -42,6 +42,7 @@ type objCommand struct {
 	listNames        bool
 	placementCluster string
 	placementTags    []string
+	maxBucketSize    int64
 
 	description string
 	replicas    uint
@@ -65,6 +66,7 @@ NOTE: This is an experimental feature.
 	add.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	add.Flag("ttl", "How long to keep objects for").DurationVar(&c.ttl)
 	add.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
+	add.Flag("max-bucket-size", "Maximum size for the bucket").Int64Var(&c.maxBucketSize)
 	add.Flag("description", "A description for the bucket").StringVar(&c.description)
 	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 	add.Flag("tags", "Place the store on servers that has specific tags").StringsVar(&c.placementTags)
@@ -311,6 +313,13 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 
 	fmt.Printf("              Sealed: %v\n", status.Sealed())
 	fmt.Printf("                Size: %s\n", humanize.IBytes(status.Size()))
+	if nfo != nil {
+		if nfo.Config.MaxBytes == -1 {
+			fmt.Printf(" Maximum Bucket Size: unlimited\n")
+		} else {
+			fmt.Printf(" Maximum Bucket Size: %s\n", humanize.IBytes(uint64(nfo.Config.MaxBytes)))
+		}
+	}
 	fmt.Printf("  Backing Store Kind: %s\n", status.BackingStore())
 	if status.BackingStore() == "JetStream" {
 		fmt.Printf("    JetStream Stream: %s\n", nfo.Config.Name)
@@ -638,6 +647,7 @@ func (c *objCommand) addAction(_ *kingpin.ParseContext) error {
 		Storage:     st,
 		Replicas:    int(c.replicas),
 		Placement:   placement,
+		MaxBytes:    c.maxBucketSize,
 	})
 	if err != nil {
 		return err

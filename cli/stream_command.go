@@ -1573,6 +1573,27 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	}
 
 	fmt.Printf("     Active Consumers: %d\n", info.State.Consumers)
+
+	if len(info.Alternates) > 0 {
+		fmt.Printf("              Mirrors: ")
+
+		for i, s := range info.Alternates {
+			if s.Name == info.Config.Name {
+				continue
+			}
+
+			msg := fmt.Sprintf("%s Cluster: %s", s.Name, s.Cluster)
+			if s.Domain != "" {
+				msg = fmt.Sprintf("%s Domain: %s", msg, s.Domain)
+			}
+
+			if i == 0 {
+				fmt.Println(msg)
+			} else {
+				fmt.Printf("                       %s\n", msg)
+			}
+		}
+	}
 }
 
 func (c *streamCmd) infoAction(_ *kingpin.ParseContext) error {
