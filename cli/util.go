@@ -179,6 +179,15 @@ func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string
 	}
 }
 
+func toJSON(d interface{}) (string, error) {
+	j, err := json.MarshalIndent(d, "", "  ")
+	if err != nil {
+		return "", err
+	}
+
+	return string(j), nil
+}
+
 func printJSON(d interface{}) error {
 	j, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {

@@ -379,16 +379,20 @@ func (c *streamCmd) findAction(_ *kingpin.ParseContext) (err error) {
 		return err
 	}
 
-	if c.json {
-		return printJSON(found)
+	out := ""
+	switch {
+	case c.json:
+		out, err = toJSON(found)
+	case c.listNames:
+		out = c.renderStreamsAsList(found)
+	default:
+		out, err = c.renderStreamsAsTable(found)
 	}
-
-	t, err := c.renderStreamsAsTable(found)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(t)
+	fmt.Println(out)
 
 	return nil
 }
@@ -2207,14 +2211,34 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	t, err := c.renderStreamsAsTable(streams)
+	out := ""
+	switch {
+	case c.listNames:
+		out = c.renderStreamsAsList(streams)
+	default:
+		out, err = c.renderStreamsAsTable(streams)
+	}
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(t)
+	fmt.Println(out)
 
 	return nil
+}
+
+func (c *streamCmd) renderStreamsAsList(streams []*jsm.Stream) string {
+	names := make([]string, len(streams))
+	for i, s := range streams {
+		names[i] = s.Name()
+	}
+
+	sort.Strings(names)
+	for _, n := range names {
+		fmt.Println(n)
+	}
+
+	return strings.Join(names, "\n")
 }
 
 func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream) (string, error) {
@@ -2224,20 +2248,6 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream) (string, error) 
 
 		return info.State.Bytes < jnfo.State.Bytes
 	})
-
-	if c.listNames {
-		names := make([]string, len(streams))
-		for i, s := range streams {
-			names[i] = s.Name()
-		}
-
-		sort.Strings(names)
-		for _, n := range names {
-			fmt.Println(n)
-		}
-
-		return "", nil
-	}
 
 	var table *tablewriter.Table
 	if c.filterSubject == "" {
