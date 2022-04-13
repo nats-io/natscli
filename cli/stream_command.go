@@ -1199,12 +1199,15 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.Replicas = int(c.replicas)
 	}
 
-	cfg.Placement = &api.Placement{}
+	if cfg.Placement == nil {
+		cfg.Placement = &api.Placement{}
+	}
+
 	if c.placementCluster != "" {
 		cfg.Placement.Cluster = c.placementCluster
 	}
 
-	if len(c.placementTags) == 0 {
+	if len(c.placementTags) > 0 {
 		cfg.Placement.Tags = c.placementTags
 	}
 
