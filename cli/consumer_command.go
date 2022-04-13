@@ -40,6 +40,7 @@ type consumerCmd struct {
 	consumer    string
 	stream      string
 	json        bool
+	listNames   bool
 	force       bool
 	ack         bool
 	raw         bool
@@ -157,6 +158,7 @@ func configureConsumerCommand(app commandHost) {
 	consLs := cons.Command("ls", "List known Consumers").Alias("list").Action(c.lsAction)
 	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
 	consLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	consLs.Flag("names", "Show just the consumer names").Short('n').BoolVar(&c.listNames)
 
 	consNext := cons.Command("next", "Retrieves messages from Pull Consumers without interactive prompts").Action(c.nextAction)
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
@@ -404,6 +406,14 @@ func (c *consumerCmd) lsAction(pc *kingpin.ParseContext) error {
 	if c.json {
 		err = printJSON(consumers)
 		kingpin.FatalIfError(err, "could not display Consumers")
+		return nil
+	}
+
+	if c.listNames {
+		for _, sc := range consumers {
+			fmt.Println(sc)
+		}
+
 		return nil
 	}
 
