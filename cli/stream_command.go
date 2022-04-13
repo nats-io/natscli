@@ -134,9 +134,7 @@ func configureStreamCommand(app commandHost) {
 
 	addCreateFlags := func(f *kingpin.CmdClause, edit bool) {
 		f.Flag("ack", "(--no-ack) Acknowledge publishes").Default("true").BoolVar(&c.ack)
-		if !edit {
-			f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
-		}
+		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
 		f.Flag("description", "Sets a contextual description for the stream").StringVar(&c.description)
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
 		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
@@ -155,10 +153,8 @@ func configureStreamCommand(app commandHost) {
 			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		}
 		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
-		if !edit {
-			f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
-			f.Flag("tags", "Backward compatibility only, use --tag").Hidden().StringsVar(&c.placementTags)
-		}
+		f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
+		f.Flag("tags", "Backward compatibility only, use --tag").Hidden().StringsVar(&c.placementTags)
 		OptionalBoolean(f.Flag("allow-rollup", "(--no-allow-rollup) Allows roll-ups to be done by publishing messages with special headers"))
 		OptionalBoolean(f.Flag("deny-delete", "(--no-deny-delete) Deny messages from being deleted via the API"))
 		OptionalBoolean(f.Flag("deny-purge", "(--no-deny-purge) Deny entire stream or subject purges via the API"))
@@ -1211,6 +1207,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.Placement = &api.Placement{}
 	}
 
+	if cfg.Placement == nil {
+		cfg.Placement = &api.Placement{}
+	}
+
 	if c.placementCluster != "" {
 		cfg.Placement.Cluster = c.placementCluster
 	}
@@ -1292,12 +1292,23 @@ func (c *streamCmd) editAction(_ *kingpin.ParseContext) error {
 	sourceStream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not request Stream %s configuration", c.stream)
 
+	// lazy deep copy
+	input := sourceStream.Configuration()
+	ij, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
 	var cfg api.StreamConfig
+	err = json.Unmarshal(ij, &cfg)
+	if err != nil {
+		return err
+	}
+
 	if c.interactive {
-		cfg, err = c.interactiveEdit(sourceStream.Configuration())
+		cfg, err = c.interactiveEdit(cfg)
 		kingpin.FatalIfError(err, "could not create new configuration for Stream %s", c.stream)
 	} else {
-		cfg, err = c.copyAndEditStream(sourceStream.Configuration())
+		cfg, err = c.copyAndEditStream(cfg)
 		kingpin.FatalIfError(err, "could not create new configuration for Stream %s", c.stream)
 	}
 
@@ -1346,19 +1357,31 @@ func (c *streamCmd) cpAction(_ *kingpin.ParseContext) error {
 	sourceStream, err := c.loadStream(c.stream)
 	kingpin.FatalIfError(err, "could not request Stream %s configuration", c.stream)
 
-	cfg, err := c.copyAndEditStream(sourceStream.Configuration())
+	// lazy deep copy
+	input := sourceStream.Configuration()
+	ij, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+	var cfg api.StreamConfig
+	err = json.Unmarshal(ij, &cfg)
+	if err != nil {
+		return err
+	}
+
+	cfg, err = c.copyAndEditStream(cfg)
 	kingpin.FatalIfError(err, "could not copy Stream %s", c.stream)
 
 	cfg.Name = c.destination
 
-	new, err := c.mgr.NewStreamFromDefault(cfg.Name, cfg)
+	newStream, err := c.mgr.NewStreamFromDefault(cfg.Name, cfg)
 	kingpin.FatalIfError(err, "could not create Stream")
 
 	if !c.json {
 		fmt.Printf("Stream %s was created\n\n", c.stream)
 	}
 
-	c.showStream(new)
+	c.showStream(newStream)
 
 	return nil
 }
@@ -1586,13 +1609,9 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	fmt.Printf("     Active Consumers: %d\n", info.State.Consumers)
 
 	if len(info.Alternates) > 0 {
-		fmt.Printf("              Mirrors: ")
+		fmt.Printf("           Alternates: ")
 
 		for i, s := range info.Alternates {
-			if s.Name == info.Config.Name {
-				continue
-			}
-
 			msg := fmt.Sprintf("%s Cluster: %s", s.Name, s.Cluster)
 			if s.Domain != "" {
 				msg = fmt.Sprintf("%s Domain: %s", msg, s.Domain)
