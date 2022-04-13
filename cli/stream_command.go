@@ -1633,9 +1633,19 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 
 	if len(info.Alternates) > 0 {
 		fmt.Printf("           Alternates: ")
+		lName := 0
+		lCluster := 0
+		for _, s := range info.Alternates {
+			if len(s.Name) > lName {
+				lName = len(s.Name)
+			}
+			if len(s.Cluster) > lCluster {
+				lCluster = len(s.Cluster)
+			}
+		}
 
 		for i, s := range info.Alternates {
-			msg := fmt.Sprintf("%s Cluster: %s", s.Name, s.Cluster)
+			msg := fmt.Sprintf("%s%s: Cluster: %s%s", strings.Repeat(" ", lName-len(s.Name)), s.Name, strings.Repeat(" ", lCluster-len(s.Cluster)), s.Cluster)
 			if s.Domain != "" {
 				msg = fmt.Sprintf("%s Domain: %s", msg, s.Domain)
 			}
