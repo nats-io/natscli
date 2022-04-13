@@ -122,9 +122,6 @@ func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
 	if varz.JetStream.Config != nil && varz.JetStream.Config.StoreDir != "" {
 		js := varz.JetStream
 		fmt.Printf("%s\n\n", bold("JetStream:"))
-		if len(varz.Tags) > 0 {
-			fmt.Printf("         Server Tags: %s\n", strings.Join(varz.Tags, ", "))
-		}
 		fmt.Printf("              Domain: %s\n", js.Config.Domain)
 		fmt.Printf("   Storage Directory: %s\n", js.Config.StoreDir)
 		fmt.Printf("          Max Memory: %s\n", humanize.IBytes(uint64(js.Config.MaxMemory)))
@@ -158,6 +155,9 @@ func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
 		fmt.Println()
 		fmt.Printf("%s\n\n", bold("Cluster:"))
 		fmt.Printf("            Name: %s\n", varz.Cluster.Name)
+		if len(varz.Tags) > 0 {
+			fmt.Printf("            Tags: %s\n", strings.Join(varz.Tags, ", "))
+		}
 		fmt.Printf("            Host: %s:%d\n", varz.Cluster.Host, varz.Cluster.Port)
 		fmt.Printf("            URLs: %s\n", strings.Join(varz.Cluster.URLs, "\n                  "))
 	}
