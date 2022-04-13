@@ -115,7 +115,7 @@ NOTE: This is an experimental feature.
 
 	watch := kv.Command("watch", "Watch the bucket or a specific key for updated").Action(c.watchAction)
 	watch.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	watch.Arg("key", "The key to act on").StringVar(&c.key)
+	watch.Arg("key", "The key to act on").Default(">").StringVar(&c.key)
 
 	ls := kv.Command("ls", "List available Buckets").Alias("list").Action(c.lsAction)
 	ls.Flag("names", "Show just the bucket names").Short('n').BoolVar(&c.listNames)
