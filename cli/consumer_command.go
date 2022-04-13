@@ -534,7 +534,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		fmt.Printf("        Flow Control: %v\n", config.FlowControl)
 	}
 	if config.HeadersOnly {
-		fmt.Printf("         Headers Only: true\n")
+		fmt.Printf("        Headers Only: true\n")
 	}
 	if config.InactiveThreshold > 0 && config.DeliverSubject == "" {
 		fmt.Printf("  Inactive Threshold: %s\n", humanizeDuration(config.InactiveThreshold))
