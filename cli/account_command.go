@@ -16,6 +16,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go/api"
@@ -27,6 +29,11 @@ type actCmd struct {
 	sort    string
 	subject string
 	topk    int
+
+	backupDirectory   string
+	healthCheck       bool
+	snapShotConsumers bool
+	force             bool
 }
 
 func configureActCommand(app commandHost) {
@@ -35,10 +42,17 @@ func configureActCommand(app commandHost) {
 	act.Command("info", "Account information").Alias("nfo").Action(c.infoAction)
 
 	report := act.Command("report", "Report on account metrics").Alias("rep")
+
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnectionsAction)
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
+
+	backup := act.Command("backup", "Creates a backup of all  JetStream Streams over the NATS network").Alias("snapshot").Action(c.backupAction)
+	backup.Arg("target", "Directory to create the backup in").Required().StringVar(&c.backupDirectory)
+	backup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
+	backup.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
+	backup.Flag("force", "Perform backup without prompting").Short('f').BoolVar(&c.force)
 
 	cheats["account"] = `# To view account information and connection
 nats account info
@@ -46,11 +60,80 @@ nats account info
 # To report connections for your command
 nats account report connections
 
+# To backup all JetStream streams
+nats account backup /path/to/backup --check
 `
 }
 
 func init() {
 	registerCommand("account", 0, configureActCommand)
+}
+
+func (c *actCmd) backupAction(_ *kingpin.ParseContext) error {
+	var err error
+
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	kingpin.FatalIfError(err, "setup failed")
+
+	streams, err := mgr.Streams()
+	if err != nil {
+		return err
+	}
+
+	if len(streams) == 0 {
+		return fmt.Errorf("no streams found")
+	}
+
+	totalSize := uint64(0)
+	totalConsumers := 0
+
+	for _, s := range streams {
+		state, _ := s.LatestState()
+		totalConsumers += state.Consumers
+		totalSize += state.Bytes
+	}
+
+	fmt.Printf("Performing backup of all streams to %s\n\n", c.backupDirectory)
+	fmt.Printf("    Streams: %s\n", humanize.Comma(int64(len(streams))))
+	fmt.Printf("       Size: %s\n", humanize.IBytes(totalSize))
+	fmt.Printf("  Consumers: %s\n", humanize.Comma(int64(totalConsumers)))
+	fmt.Println()
+
+	if !c.force {
+		ok, err := askConfirmation("Perform backup", false)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			return nil
+		}
+	}
+
+	err = os.MkdirAll(c.backupDirectory, 0700)
+	if err != nil {
+		return err
+	}
+
+	var errors []error
+	for _, s := range streams {
+		err = backupStream(s, false, c.snapShotConsumers, c.healthCheck, filepath.Join(c.backupDirectory, s.Name()))
+		if err != nil {
+			fmt.Printf("Backup of %s failed: %s\n", s.Name(), err)
+			errors = append(errors, fmt.Errorf("%s: %s", s.Name(), err))
+		}
+		fmt.Println()
+	}
+
+	if len(errors) > 0 {
+		fmt.Printf("Backup failures: \n")
+		for _, err := range errors {
+			fmt.Printf("  %s", err)
+		}
+		return fmt.Errorf("backup failed")
+	}
+
+	return nil
 }
 
 func (c *actCmd) reportConnectionsAction(pc *kingpin.ParseContext) error {

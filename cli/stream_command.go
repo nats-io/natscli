@@ -699,6 +699,94 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
+func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check bool, target string) error {
+	first := true
+	inprogress := true
+	pmu := sync.Mutex{}
+	var bar *uiprogress.Bar
+	var bps uint64
+	var progress *uiprogress.Progress
+	expected := 1
+
+	cb := func(p jsm.SnapshotProgress) {
+		if bar == nil && showProgress {
+			if p.BytesExpected() > 0 {
+				expected = int(p.BytesExpected())
+			}
+			bar = progress.AddBar(expected).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
+				return humanize.IBytes(bps) + "/s"
+			})
+			bar.Width = progressWidth()
+		}
+
+		if first {
+			fmt.Printf("Starting backup of Stream %q with %s\n", stream.Name(), humanize.IBytes(p.BytesExpected()))
+			if showProgress {
+				fmt.Println()
+			}
+
+			if p.HealthCheck() {
+				fmt.Printf("Health Check was requested, this can take a long time without progress reports\n\n")
+			}
+
+			first = false
+		}
+
+		bps = p.BytesPerSecond()
+
+		if showProgress {
+			bar.Set(int(p.BytesReceived()))
+		}
+
+		if p.Finished() {
+			pmu.Lock()
+			if inprogress {
+				if showProgress {
+					progress.Stop()
+				}
+
+				inprogress = false
+			}
+			pmu.Unlock()
+		}
+	}
+
+	var opts []jsm.SnapshotOption
+
+	if consumers {
+		opts = append(opts, jsm.SnapshotConsumers())
+	}
+
+	if showProgress {
+		progress = uiprogress.New()
+		progress.Start()
+	}
+
+	opts = append(opts, jsm.SnapshotNotify(cb))
+
+	if check {
+		opts = append(opts, jsm.SnapshotHealthCheck())
+	}
+
+	fp, err := stream.SnapshotToDirectory(ctx, target, opts...)
+	if err != nil {
+		return err
+	}
+
+	pmu.Lock()
+	if showProgress && inprogress {
+		bar.Set(int(fp.BytesReceived()))
+		uiprogress.Stop()
+		inprogress = false
+	}
+	pmu.Unlock()
+
+	fmt.Println()
+	fmt.Printf("Received %s compressed data in %d chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), fp.ChunksReceived(), stream.Name(), fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), humanize.IBytes(fp.UncompressedBytesReceived()))
+
+	return nil
+}
+
 func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 	var err error
 
@@ -710,77 +798,8 @@ func (c *streamCmd) backupAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	first := true
-	inprogress := true
-	pmu := sync.Mutex{}
-	var progress *uiprogress.Bar
-	var bps uint64
-	expected := 1
-
-	cb := func(p jsm.SnapshotProgress) {
-		if progress == nil {
-			if p.BytesExpected() > 0 {
-				expected = int(p.BytesExpected())
-			}
-			progress = uiprogress.AddBar(expected).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
-				return humanize.IBytes(bps) + "/s"
-			})
-			progress.Width = progressWidth()
-		}
-
-		if first {
-			fmt.Printf("Starting backup of Stream %q with %s\n\n", c.stream, humanize.IBytes(p.BytesExpected()))
-
-			if p.HealthCheck() {
-				fmt.Printf("Health Check was requested, this can take a long time without progress reports\n\n")
-			}
-
-			first = false
-		}
-
-		bps = p.BytesPerSecond()
-		progress.Set(int(p.BytesReceived()))
-
-		if p.Finished() {
-			pmu.Lock()
-			if inprogress {
-				uiprogress.Stop()
-				inprogress = false
-			}
-			pmu.Unlock()
-		}
-	}
-
-	var opts []jsm.SnapshotOption
-
-	if c.snapShotConsumers {
-		opts = append(opts, jsm.SnapshotConsumers())
-	}
-
-	if c.showProgress {
-		uiprogress.Start()
-		opts = append(opts, jsm.SnapshotNotify(cb))
-	} else {
-		opts = append(opts, jsm.SnapshotDebug())
-	}
-
-	if c.healthCheck {
-		opts = append(opts, jsm.SnapshotHealthCheck())
-	}
-
-	fp, err := stream.SnapshotToDirectory(ctx, c.backupDirectory, opts...)
+	err = backupStream(stream, c.showProgress, c.snapShotConsumers, c.healthCheck, c.backupDirectory)
 	kingpin.FatalIfError(err, "snapshot failed")
-
-	pmu.Lock()
-	if c.showProgress && inprogress {
-		progress.Set(int(fp.BytesReceived()))
-		uiprogress.Stop()
-		inprogress = false
-	}
-	pmu.Unlock()
-
-	fmt.Println()
-	fmt.Printf("Received %s compressed data in %d chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), fp.ChunksReceived(), c.stream, fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), humanize.IBytes(fp.UncompressedBytesReceived()))
 
 	return nil
 }
