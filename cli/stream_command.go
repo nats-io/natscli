@@ -513,6 +513,10 @@ func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	if str.Retention() == api.WorkQueuePolicy {
+		return fmt.Errorf("work queue stream contents can not be viewed")
+	}
+
 	pops := []jsm.PagerOption{
 		jsm.PagerSize(c.vwPageSize),
 	}
