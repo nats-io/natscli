@@ -2203,6 +2203,11 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
+	if c.listNames {
+		fmt.Println(c.renderStreamsAsList(streams))
+		return nil
+	}
+
 	if len(streams) == 0 && skipped {
 		fmt.Println("No Streams defined, pass -a to include system streams")
 		return nil
@@ -2211,13 +2216,7 @@ func (c *streamCmd) lsAction(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	out := ""
-	switch {
-	case c.listNames:
-		out = c.renderStreamsAsList(streams)
-	default:
-		out, err = c.renderStreamsAsTable(streams)
-	}
+	out, err := c.renderStreamsAsTable(streams)
 	if err != nil {
 		return err
 	}
