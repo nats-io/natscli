@@ -127,6 +127,7 @@ type streamStat struct {
 	Deleted   int
 	Mirror    *api.StreamSourceInfo
 	Sources   []*api.StreamSourceInfo
+	Placement *api.Placement
 }
 
 func configureStreamCommand(app commandHost) {
@@ -939,7 +940,19 @@ func (c *streamCmd) reportAction(_ *kingpin.ParseContext) error {
 		if len(info.State.Deleted) > 0 {
 			deleted = len(info.State.Deleted)
 		}
-		s := streamStat{Name: info.Config.Name, Consumers: info.State.Consumers, Msgs: int64(info.State.Msgs), Bytes: info.State.Bytes, Storage: info.Config.Storage.String(), Template: info.Config.Template, Cluster: info.Cluster, Deleted: deleted, Mirror: info.Mirror, Sources: info.Sources}
+		s := streamStat{
+			Name:      info.Config.Name,
+			Consumers: info.State.Consumers,
+			Msgs:      int64(info.State.Msgs),
+			Bytes:     info.State.Bytes,
+			Storage:   info.Config.Storage.String(),
+			Template:  info.Config.Template,
+			Cluster:   info.Cluster,
+			Deleted:   deleted,
+			Mirror:    info.Mirror,
+			Sources:   info.Sources,
+			Placement: info.Config.Placement,
+		}
 		if info.State.Lost != nil {
 			s.LostBytes = info.State.Lost.Bytes
 			s.LostMsgs = len(info.State.Lost.Msgs)
@@ -1069,20 +1082,30 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 
 func (c *streamCmd) renderStreams(stats []streamStat) {
 	table := newTableWriter("Stream Report")
-	table.AddHeaders("Stream", "Storage", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Replicas")
+	table.AddHeaders("Stream", "Storage", "Placement", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Replicas")
 
 	for _, s := range stats {
 		lost := "0"
+		placement := ""
+		if s.Placement != nil {
+			if s.Placement.Cluster != "" {
+				placement = fmt.Sprintf("cluster: %s ", s.Placement.Cluster)
+			}
+			if len(s.Placement.Tags) > 0 {
+				placement = fmt.Sprintf("%stags: %s", placement, strings.Join(s.Placement.Tags, ", "))
+			}
+		}
+
 		if c.reportRaw {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%d (%d)", s.LostMsgs, s.LostBytes)
 			}
-			table.AddRow(s.Name, s.Storage, s.Consumers, s.Msgs, s.Bytes, lost, s.Deleted, renderCluster(s.Cluster))
+			table.AddRow(s.Name, s.Storage, placement, s.Consumers, s.Msgs, s.Bytes, lost, s.Deleted, renderCluster(s.Cluster))
 		} else {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%s (%s)", humanize.Comma(int64(s.LostMsgs)), humanize.IBytes(s.LostBytes))
 			}
-			table.AddRow(s.Name, s.Storage, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), lost, s.Deleted, renderCluster(s.Cluster))
+			table.AddRow(s.Name, s.Storage, placement, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), lost, s.Deleted, renderCluster(s.Cluster))
 		}
 	}
 
