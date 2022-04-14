@@ -307,31 +307,37 @@ func askConfirmation(prompt string, dflt bool) (bool, error) {
 	return ans, err
 }
 
-func askOneBytes(prompt string, dflt string, help string) (int64, error) {
+func askOneBytes(prompt string, dflt string, help string, required bool) (int64, error) {
 	if !isTerminal() {
 		return 0, fmt.Errorf("cannot ask for confirmation without a terminal")
 	}
 
-	val := ""
-	err := survey.AskOne(&survey.Input{
-		Message: prompt,
-		Default: dflt,
-		Help:    help,
-	}, &val, survey.WithValidator(survey.Required))
-	if err != nil {
-		return 0, err
-	}
+	for {
+		val := ""
+		err := survey.AskOne(&survey.Input{
+			Message: prompt,
+			Default: dflt,
+			Help:    help,
+		}, &val, survey.WithValidator(survey.Required))
+		if err != nil {
+			return 0, err
+		}
 
-	if val == "-1" {
-		val = "0"
-	}
+		if val == "-1" {
+			val = "0"
+		}
 
-	i, err := humanize.ParseBytes(val)
-	if err != nil {
-		return 0, err
-	}
+		i, err := humanize.ParseBytes(val)
+		if err != nil {
+			return 0, err
+		}
 
-	return int64(i), nil
+		if required && i <= 0 {
+			fmt.Printf("A value larger than 0 is required\n")
+			continue
+		}
+		return int64(i), nil
+	}
 }
 
 func askOneInt(prompt string, dflt string, help string) (int64, error) {
