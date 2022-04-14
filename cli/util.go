@@ -307,7 +307,7 @@ func askConfirmation(prompt string, dflt bool) (bool, error) {
 	return ans, err
 }
 
-func askOneBytes(prompt string, dflt string, help string, required bool) (int64, error) {
+func askOneBytes(prompt string, dflt string, help string, required string) (int64, error) {
 	if !isTerminal() {
 		return 0, fmt.Errorf("cannot ask for confirmation without a terminal")
 	}
@@ -332,8 +332,8 @@ func askOneBytes(prompt string, dflt string, help string, required bool) (int64,
 			return 0, err
 		}
 
-		if required && i <= 0 {
-			fmt.Printf("A value larger than 0 is required\n")
+		if required != "" && i <= 0 {
+			fmt.Println(required)
 			continue
 		}
 		return int64(i), nil

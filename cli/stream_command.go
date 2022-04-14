@@ -1849,7 +1849,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 
 	var maxAge time.Duration
 	if c.maxBytesLimit == 0 {
-		c.maxBytesLimit, err = askOneBytes("Total Stream Size", "-1", "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes", requireSize)
+		c.maxBytesLimit, err = askOneBytes("Total Stream Size", "-1", "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes", "MaxBytes is required per Account Settings")
 		kingpin.FatalIfError(err, "invalid input")
 
 		if c.maxBytesLimit <= 0 {
@@ -1872,7 +1872,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 	}
 
 	if c.maxMsgSize == 0 {
-		c.maxMsgSize, err = askOneBytes("Max Message Size", "-1", "Defines the maximum size any single message may be to be accepted by the Stream. Settable using --max-msg-size", false)
+		c.maxMsgSize, err = askOneBytes("Max Message Size", "-1", "Defines the maximum size any single message may be to be accepted by the Stream. Settable using --max-msg-size", "")
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
