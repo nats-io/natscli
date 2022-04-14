@@ -134,7 +134,6 @@ func (c *pubCmd) prepareMsg(body []byte, seq int) (*nats.Msg, error) {
 }
 
 func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
-
 	for i := 1; i <= c.cnt; i++ {
 		if !c.raw && progress == nil {
 			log.Printf("Sending request on %q\n", c.subject)
@@ -188,7 +187,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			}
 
 			rtt := time.Since(start)
-			log.Printf("Received on %q rtt %v", m.Subject, rtt)
+			log.Printf("Received with rtt %v", rtt)
 
 			if len(m.Header) > 0 {
 				for h, vals := range m.Header {
@@ -266,7 +265,7 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 		defer func() { uiprogress.Stop(); fmt.Println() }()
 	}
 
-	if c.req || c.replyCount != 1 {
+	if c.req || c.replyCount >= 1 {
 		return c.doReq(nc, progress)
 	}
 
