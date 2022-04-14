@@ -830,7 +830,7 @@ func (c *streamCmd) streamTemplateRm(_ *kingpin.ParseContext) error {
 }
 
 func (c *streamCmd) streamTemplateAdd(pc *kingpin.ParseContext) (err error) {
-	cfg := c.prepareConfig(pc)
+	cfg := c.prepareConfig(pc, false)
 
 	if c.maxStreams == -1 {
 		err = survey.AskOne(&survey.Input{
@@ -1744,7 +1744,7 @@ func (c *streamCmd) retentionPolicyFromString() api.RetentionPolicy {
 	}
 }
 
-func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext) api.StreamConfig {
+func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) api.StreamConfig {
 	var err error
 
 	if c.inputFile != "" {
@@ -1849,7 +1849,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext) api.StreamConfig {
 
 	var maxAge time.Duration
 	if c.maxBytesLimit == 0 {
-		c.maxBytesLimit, err = askOneBytes("Total Stream Size", "-1", "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes")
+		c.maxBytesLimit, err = askOneBytes("Total Stream Size", "-1", "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes", requireSize)
 		kingpin.FatalIfError(err, "invalid input")
 
 		if c.maxBytesLimit <= 0 {
@@ -1872,7 +1872,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext) api.StreamConfig {
 	}
 
 	if c.maxMsgSize == 0 {
-		c.maxMsgSize, err = askOneBytes("Max Message Size", "-1", "Defines the maximum size any single message may be to be accepted by the Stream. Settable using --max-msg-size")
+		c.maxMsgSize, err = askOneBytes("Max Message Size", "-1", "Defines the maximum size any single message may be to be accepted by the Stream. Settable using --max-msg-size", false)
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
@@ -2150,7 +2150,12 @@ func (c *streamCmd) validateCfg(cfg *api.StreamConfig) (bool, []byte, []string, 
 }
 
 func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
-	cfg := c.prepareConfig(pc)
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	kingpin.FatalIfError(err, "could not create Stream")
+
+	requireSize, _ := mgr.IsStreamMaxBytesRequired()
+
+	cfg := c.prepareConfig(pc, requireSize)
 
 	switch {
 	case c.validateOnly:
@@ -2178,9 +2183,6 @@ func (c *streamCmd) addAction(pc *kingpin.ParseContext) (err error) {
 
 		return ioutil.WriteFile(c.outFile, j, 0644)
 	}
-
-	_, mgr, err := prepareHelper("", natsOpts()...)
-	kingpin.FatalIfError(err, "could not create Stream")
 
 	str, err := mgr.NewStreamFromDefault(c.stream, cfg)
 	kingpin.FatalIfError(err, "could not create Stream")

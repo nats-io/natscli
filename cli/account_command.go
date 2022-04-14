@@ -151,7 +151,11 @@ func (c *actCmd) renderTier(name string, tier *api.JetStreamTier) {
 
 	fmt.Printf("      Configuration Requirements:\n\n")
 	fmt.Printf("         Stream Requires Max Bytes Set: %t\n", tier.Limits.MaxBytesRequired)
-	fmt.Printf("          Consumer Maximum Ack Pending: %s\n", humanize.Comma(int64(tier.Limits.MaxAckPending)))
+	if tier.Limits.MaxAckPending <= 0 {
+		fmt.Printf("          Consumer Maximum Ack Pending: Unlimited\n")
+	} else {
+		fmt.Printf("          Consumer Maximum Ack Pending: %s\n", humanize.Comma(int64(tier.Limits.MaxAckPending)))
+	}
 	fmt.Println()
 
 	fmt.Printf("      Stream Resource Usage Limits:\n\n")
