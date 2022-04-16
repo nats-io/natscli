@@ -60,9 +60,9 @@ type streamCmd struct {
 	storage               string
 	maxMsgLimit           int64
 	maxMsgPerSubjectLimit int64
-	maxBytesLimit         int64
+	maxBytesLimit         string
 	maxAgeLimit           string
-	maxMsgSize            int64
+	maxMsgSize            string
 	maxConsumers          int
 	reportSortConsumers   bool
 	reportSortMsgs        bool
@@ -141,9 +141,9 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
 		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
-		f.Flag("max-bytes", "Maximum bytes to keep").Int64Var(&c.maxBytesLimit)
+		f.Flag("max-bytes", "Maximum bytes to keep").StringVar(&c.maxBytesLimit)
 		f.Flag("max-consumers", "Maximum number of consumers to allow").Default("-1").IntVar(&c.maxConsumers)
-		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int64Var(&c.maxMsgSize)
+		f.Flag("max-msg-size", "Maximum size any 1 message may be").StringVar(&c.maxMsgSize)
 		f.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
 		f.Flag("max-msgs-per-subject", "Maximum amount of messages to keep per subject").Default("0").Int64Var(&c.maxMsgPerSubjectLimit)
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
@@ -1172,6 +1172,25 @@ func (c *streamCmd) loadConfigFile(file string) (*api.StreamConfig, error) {
 	return &cfg, nil
 }
 
+func parseBytesLimitString(value string) (int64, error) {
+	if value == "" {
+		return -1, nil
+	}
+	s := strings.TrimSpace(value)
+	if strings.HasPrefix(s, "-") {
+		return -1, nil
+	}
+	v, err := humanize.ParseBytes(s)
+	if err != nil {
+		return 0, err
+	}
+	rv := int64(v)
+	if rv <= 0 {
+		rv = -1
+	}
+	return rv, nil
+}
+
 func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, error) {
 	var err error
 
@@ -1206,8 +1225,12 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		cfg.Retention = c.retentionPolicyFromString()
 	}
 
-	if c.maxBytesLimit != 0 {
-		cfg.MaxBytes = c.maxBytesLimit
+	if c.maxBytesLimit != "" {
+		v, err := parseBytesLimitString(c.maxBytesLimit)
+		if err != nil {
+			return api.StreamConfig{}, fmt.Errorf("invalid maximum byte limit format: %q", c.maxBytesLimit)
+		}
+		cfg.MaxBytes = int64(v)
 	}
 
 	if c.maxMsgLimit != 0 {
@@ -1225,8 +1248,12 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig) (api.StreamConfig, e
 		}
 	}
 
-	if c.maxMsgSize != 0 {
-		cfg.MaxMsgSize = int32(c.maxMsgSize)
+	if c.maxMsgSize != "" {
+		v, err := parseBytesLimitString(c.maxMsgSize)
+		if err != nil {
+			return api.StreamConfig{}, fmt.Errorf("invalid maximum msg size limit: %q", c.maxMsgSize)
+		}
+		cfg.MaxMsgSize = int32(v)
 	}
 
 	if c.maxConsumers != -1 {
@@ -1847,16 +1874,17 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 		}
 	}
 
-	var maxAge time.Duration
-	if c.maxBytesLimit == 0 {
-		c.maxBytesLimit, err = askOneBytes("Total Stream Size", "-1", "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes", "MaxBytes is required per Account Settings")
+	if c.maxBytesLimit == "" {
+		c.maxBytesLimit, err = askOneBytes("Total Stream Size", "256MB", "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes", "MaxBytes is required per Account Settings")
 		kingpin.FatalIfError(err, "invalid input")
-
-		if c.maxBytesLimit <= 0 {
-			c.maxBytesLimit = -1
-		}
 	}
 
+	maxBytesLimit, err := parseBytesLimitString(c.maxBytesLimit)
+	if err != nil {
+		kingpin.FatalIfError(err, "invalid maximum bytes size limit format")
+	}
+
+	var maxAge time.Duration
 	if c.maxAgeLimit == "" {
 		err = survey.AskOne(&survey.Input{
 			Message: "Message TTL",
@@ -1871,13 +1899,14 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 		kingpin.FatalIfError(err, "invalid maximum age limit format")
 	}
 
-	if c.maxMsgSize == 0 {
+	if c.maxMsgSize == "" {
 		c.maxMsgSize, err = askOneBytes("Max Message Size", "-1", "Defines the maximum size any single message may be to be accepted by the Stream. Settable using --max-msg-size", "")
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
-	if c.maxMsgSize == 0 {
-		c.maxMsgSize = -1
+	maxMsgSize, err := parseBytesLimitString(c.maxMsgSize)
+	if err != nil {
+		kingpin.FatalIfError(err, "invalid maximum message size limit format")
 	}
 
 	var dupeWindow time.Duration
@@ -1926,8 +1955,8 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 		Subjects:      c.subjects,
 		MaxMsgs:       c.maxMsgLimit,
 		MaxMsgsPer:    c.maxMsgPerSubjectLimit,
-		MaxBytes:      c.maxBytesLimit,
-		MaxMsgSize:    int32(c.maxMsgSize),
+		MaxBytes:      maxBytesLimit,
+		MaxMsgSize:    int32(maxMsgSize),
 		Duplicates:    dupeWindow,
 		MaxAge:        maxAge,
 		Storage:       storage,
