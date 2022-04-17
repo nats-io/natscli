@@ -1875,7 +1875,11 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 	}
 
 	if c.maxBytesLimit == "" {
-		c.maxBytesLimit, err = askOneBytes("Total Stream Size", "256MB", "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes", "MaxBytes is required per Account Settings")
+		var required string
+		if requireSize {
+			required = "MaxBytes is required per Account Settings"
+		}
+		c.maxBytesLimit, err = askOneBytes("Total Stream Size", "256MB", "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes", required)
 		kingpin.FatalIfError(err, "invalid input")
 	}
 
