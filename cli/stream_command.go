@@ -254,6 +254,8 @@ func configureStreamCommand(app commandHost) {
 	strRestore.Arg("file", "The directory holding the backup to restore").Required().ExistingDirVar(&c.backupDirectory)
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	strRestore.Flag("config", "Load a different configuration when restoring the stream").ExistingFileVar(&c.inputFile)
+	strRestore.Flag("cluster", "Place the stream in a specific cluster").StringVar(&c.placementCluster)
+	strRestore.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
 
 	strSeal := str.Command("seal", "Seals a stream preventing further updates").Action(c.sealAction)
 	strSeal.Arg("stream", "The name of the Stream to seal").Required().StringVar(&c.stream)
@@ -631,6 +633,8 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 	err = json.Unmarshal(bmj, &bm)
 	kingpin.FatalIfError(err, "restore failed")
 
+	var cfg *api.StreamConfig
+
 	known, err := mgr.IsKnownStream(bm.Config.Name)
 	kingpin.FatalIfError(err, "Could not check if the stream already exist")
 	if known {
@@ -674,9 +678,18 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 		if bm.Config.Name != cfg.Name {
 			return fmt.Errorf("stream names may not be changed during restore")
 		}
-
-		opts = append(opts, jsm.RestoreConfiguration(*cfg))
+	} else {
+		cfg = &bm.Config
 	}
+
+	if c.placementCluster != "" || len(c.placementTags) > 0 {
+		cfg.Placement = &api.Placement{
+			Cluster: c.placementCluster,
+			Tags:    c.placementTags,
+		}
+	}
+
+	opts = append(opts, jsm.RestoreConfiguration(*cfg))
 
 	fmt.Printf("Starting restore of Stream %q from file %q\n\n", bm.Config.Name, c.backupDirectory)
 
