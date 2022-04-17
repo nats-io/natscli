@@ -60,8 +60,10 @@ type streamCmd struct {
 	storage               string
 	maxMsgLimit           int64
 	maxMsgPerSubjectLimit int64
+	maxBytesLimitString   string
 	maxBytesLimit         int64
 	maxAgeLimit           string
+	maxMsgSizeString      string
 	maxMsgSize            int64
 	maxConsumers          int
 	reportSortConsumers   bool
@@ -141,9 +143,9 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
 		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
-		f.Flag("max-bytes", "Maximum bytes to keep").Int64Var(&c.maxBytesLimit)
+		f.Flag("max-bytes", "Maximum bytes to keep").StringVar(&c.maxBytesLimitString)
 		f.Flag("max-consumers", "Maximum number of consumers to allow").Default("-1").IntVar(&c.maxConsumers)
-		f.Flag("max-msg-size", "Maximum size any 1 message may be").Int64Var(&c.maxMsgSize)
+		f.Flag("max-msg-size", "Maximum size any 1 message may be").StringVar(&c.maxMsgSizeString)
 		f.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
 		f.Flag("max-msgs-per-subject", "Maximum amount of messages to keep per subject").Default("0").Int64Var(&c.maxMsgPerSubjectLimit)
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
@@ -159,6 +161,8 @@ func configureStreamCommand(app commandHost) {
 		OptionalBoolean(f.Flag("allow-rollup", "(--no-allow-rollup) Allows roll-ups to be done by publishing messages with special headers"))
 		OptionalBoolean(f.Flag("deny-delete", "(--no-deny-delete) Deny messages from being deleted via the API"))
 		OptionalBoolean(f.Flag("deny-purge", "(--no-deny-purge) Deny entire stream or subject purges via the API"))
+
+		f.PreAction(c.parseLimitStrings)
 	}
 
 	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
@@ -342,6 +346,24 @@ stream cluster peer-remove ORDERS nats1.example.net
 
 func init() {
 	registerCommand("stream", 16, configureStreamCommand)
+}
+
+func (c *streamCmd) parseLimitStrings(_ *kingpin.ParseContext) (err error) {
+	if c.maxBytesLimitString != "" {
+		c.maxBytesLimit, err = parseStringAsBytes(c.maxBytesLimitString)
+		if err != nil {
+			return err
+		}
+	}
+
+	if c.maxMsgSizeString != "" {
+		c.maxMsgSize, err = parseStringAsBytes(c.maxMsgSizeString)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (c *streamCmd) findAction(_ *kingpin.ParseContext) (err error) {
@@ -1862,12 +1884,19 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 
 	var maxAge time.Duration
 	if c.maxBytesLimit == 0 {
-		c.maxBytesLimit, err = askOneBytes("Total Stream Size", "-1", "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes", "MaxBytes is required per Account Settings")
-		kingpin.FatalIfError(err, "invalid input")
-
-		if c.maxBytesLimit <= 0 {
-			c.maxBytesLimit = -1
+		reqd := ""
+		defltSize := "-1"
+		if requireSize {
+			reqd = "MaxBytes is required per Account Settings"
+			defltSize = "256MB"
 		}
+
+		c.maxBytesLimit, err = askOneBytes("Total Stream Size", defltSize, "Defines the combined size of all messages in a Stream, when exceeded messages are removed or new ones are rejected, -1 for unlimited. Settable using --max-bytes", reqd)
+		kingpin.FatalIfError(err, "invalid input")
+	}
+
+	if c.maxBytesLimit <= 0 {
+		c.maxBytesLimit = -1
 	}
 
 	if c.maxAgeLimit == "" {

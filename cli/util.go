@@ -27,6 +27,7 @@ import (
 	"math/rand"
 	"net/textproto"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -327,7 +328,7 @@ func askOneBytes(prompt string, dflt string, help string, required string) (int6
 			val = "0"
 		}
 
-		i, err := humanize.ParseBytes(val)
+		i, err := parseStringAsBytes(val)
 		if err != nil {
 			return 0, err
 		}
@@ -336,7 +337,8 @@ func askOneBytes(prompt string, dflt string, help string, required string) (int6
 			fmt.Println(required)
 			continue
 		}
-		return int64(i), nil
+
+		return i, nil
 	}
 }
 
@@ -1123,4 +1125,52 @@ func (pr *progressRW) Write(p []byte) (n int, err error) {
 	n, err = pr.w.Write(p)
 	pr.p.Set(pr.p.Current() + n)
 	return n, err
+}
+
+var bytesUnitSplitter = regexp.MustCompile(`^(\d+)(\w+)`)
+var errInvalidByteString = errors.New("bytes must end in K, KB, M, MB, G, GB, T or TB")
+
+// nats-server derived string parse, empty string and any negative is -1,
+// others are parsed as 1024 based bytes
+func parseStringAsBytes(s string) (int64, error) {
+	if s == "" {
+		return -1, nil
+	}
+
+	s = strings.TrimSpace(s)
+
+	if strings.HasPrefix(s, "-") {
+		return -1, nil
+	}
+
+	// first we try just parsing it to handle numbers without units
+	num, err := strconv.ParseInt(s, 10, 64)
+	if err == nil {
+		if num < 0 {
+			return -1, nil
+		}
+		return num, nil
+	}
+
+	matches := bytesUnitSplitter.FindStringSubmatch(s)
+
+	if len(matches) == 0 {
+		return 0, fmt.Errorf("invalid bytes specification %v: %w", s, errInvalidByteString)
+	}
+
+	num, err = strconv.ParseInt(matches[1], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	suffix := matches[2]
+	suffixMap := map[string]int64{"K": 10, "KB": 10, "KIB": 10, "M": 20, "MB": 20, "MIB": 20, "G": 30, "GB": 30, "GIB": 30, "T": 40, "TB": 40, "TIB": 40}
+
+	mult, ok := suffixMap[strings.ToUpper(suffix)]
+	if !ok {
+		return 0, fmt.Errorf("invalid bytes specification %v: %w", s, errInvalidByteString)
+	}
+	num *= 1 << mult
+
+	return num, nil
 }

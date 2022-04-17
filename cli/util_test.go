@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"errors"
 	"sort"
 	"testing"
 
@@ -54,6 +55,56 @@ func assertListEquals(t *testing.T, list []string, crits ...string) {
 
 	if !cmp.Equal(list, crits) {
 		t.Fatalf("invalid items: %v", list)
+	}
+}
+
+func TestParseStringAsBytes(t *testing.T) {
+	cases := []struct {
+		input  string
+		expect int64
+		error  bool
+	}{
+		{input: "1", expect: 1},
+		{input: "1000", expect: 1000},
+		{input: "1K", expect: 1024},
+		{input: "1k", expect: 1024},
+		{input: "1KB", expect: 1024},
+		{input: "1KiB", expect: 1024},
+		{input: "1kb", expect: 1024},
+		{input: "1M", expect: 1024 * 1024},
+		{input: "1MB", expect: 1024 * 1024},
+		{input: "1MiB", expect: 1024 * 1024},
+		{input: "1m", expect: 1024 * 1024},
+		{input: "1G", expect: 1024 * 1024 * 1024},
+		{input: "1GB", expect: 1024 * 1024 * 1024},
+		{input: "1GiB", expect: 1024 * 1024 * 1024},
+		{input: "1g", expect: 1024 * 1024 * 1024},
+		{input: "1T", expect: 1024 * 1024 * 1024 * 1024},
+		{input: "1TB", expect: 1024 * 1024 * 1024 * 1024},
+		{input: "1TiB", expect: 1024 * 1024 * 1024 * 1024},
+		{input: "1t", expect: 1024 * 1024 * 1024 * 1024},
+		{input: "-1", expect: -1},
+		{input: "-10", expect: -1},
+		{input: "-10GB", expect: -1},
+		{input: "1B", error: true},
+		{input: "1FOO", error: true},
+		{input: "FOO", error: true},
+	}
+
+	for _, c := range cases {
+		v, err := parseStringAsBytes(c.input)
+		if c.error {
+			if !errors.Is(err, errInvalidByteString) {
+				t.Fatalf("expected an invalid bytes error got: %v", err)
+			}
+		} else {
+			if err != nil {
+				t.Fatalf("did not expect an error parsing %v: %v", c.input, err)
+			}
+			if v != c.expect {
+				t.Fatalf("expected %v to parse as %d got %d", c.input, c.expect, v)
+			}
+		}
 	}
 }
 
