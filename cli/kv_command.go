@@ -30,22 +30,24 @@ import (
 )
 
 type kvCommand struct {
-	bucket           string
-	key              string
-	val              string
-	raw              bool
-	history          uint64
-	ttl              time.Duration
-	replicas         uint
-	force            bool
-	maxValueSize     int32
-	maxBucketSize    int64
-	revision         uint64
-	description      string
-	listNames        bool
-	storage          string
-	placementCluster string
-	placementTags    []string
+	bucket              string
+	key                 string
+	val                 string
+	raw                 bool
+	history             uint64
+	ttl                 time.Duration
+	replicas            uint
+	force               bool
+	maxValueSize        int64
+	maxValueSizeString  string
+	maxBucketSize       int64
+	maxBucketSizeString string
+	revision            uint64
+	description         string
+	listNames           bool
+	storage             string
+	placementCluster    string
+	placementTags       []string
 }
 
 func configureKVCommand(app commandHost) {
@@ -68,12 +70,13 @@ NOTE: This is an experimental feature.
 	add.Flag("history", "How many historic values to keep per key").Default("1").Uint64Var(&c.history)
 	add.Flag("ttl", "How long to keep values for").DurationVar(&c.ttl)
 	add.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
-	add.Flag("max-value-size", "Maximum size for any single value").Int32Var(&c.maxValueSize)
-	add.Flag("max-bucket-size", "Maximum size for the bucket").Int64Var(&c.maxBucketSize)
+	add.Flag("max-value-size", "Maximum size for any single value").StringVar(&c.maxValueSizeString)
+	add.Flag("max-bucket-size", "Maximum size for the bucket").StringVar(&c.maxBucketSizeString)
 	add.Flag("description", "A description for the bucket").StringVar(&c.description)
 	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 	add.Flag("tags", "Place the bucket on servers that has specific tags").StringsVar(&c.placementTags)
 	add.Flag("cluster", "Place the bucket on a specific cluster").StringVar(&c.placementCluster)
+	add.PreAction(c.parseLimitStrings)
 
 	put := kv.Command("put", "Puts a value into a key").Action(c.putAction)
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -162,6 +165,24 @@ nats kv ls
 
 func init() {
 	registerCommand("kv", 9, configureKVCommand)
+}
+
+func (c *kvCommand) parseLimitStrings(_ *kingpin.ParseContext) (err error) {
+	if c.maxValueSizeString != "" {
+		c.maxValueSize, err = parseStringAsBytes(c.maxValueSizeString)
+		if err != nil {
+			return err
+		}
+	}
+
+	if c.maxBucketSizeString != "" {
+		c.maxBucketSize, err = parseStringAsBytes(c.maxBucketSizeString)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (c *kvCommand) strForOp(op nats.KeyValueOp) string {
@@ -351,7 +372,7 @@ func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
 	store, err := js.CreateKeyValue(&nats.KeyValueConfig{
 		Bucket:       c.bucket,
 		Description:  c.description,
-		MaxValueSize: c.maxValueSize,
+		MaxValueSize: int32(c.maxValueSize),
 		History:      uint8(c.history),
 		TTL:          c.ttl,
 		MaxBytes:     c.maxBucketSize,

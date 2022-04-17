@@ -32,17 +32,18 @@ import (
 )
 
 type objCommand struct {
-	bucket           string
-	file             string
-	overrideName     string
-	hdrs             []string
-	force            bool
-	noProgress       bool
-	storage          string
-	listNames        bool
-	placementCluster string
-	placementTags    []string
-	maxBucketSize    int64
+	bucket              string
+	file                string
+	overrideName        string
+	hdrs                []string
+	force               bool
+	noProgress          bool
+	storage             string
+	listNames           bool
+	placementCluster    string
+	placementTags       []string
+	maxBucketSize       int64
+	maxBucketSizeString string
 
 	description string
 	replicas    uint
@@ -66,11 +67,12 @@ NOTE: This is an experimental feature.
 	add.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	add.Flag("ttl", "How long to keep objects for").DurationVar(&c.ttl)
 	add.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
-	add.Flag("max-bucket-size", "Maximum size for the bucket").Int64Var(&c.maxBucketSize)
+	add.Flag("max-bucket-size", "Maximum size for the bucket").StringVar(&c.maxBucketSizeString)
 	add.Flag("description", "A description for the bucket").StringVar(&c.description)
 	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 	add.Flag("tags", "Place the store on servers that has specific tags").StringsVar(&c.placementTags)
 	add.Flag("cluster", "Place the store on a specific cluster").StringVar(&c.placementCluster)
+	add.PreAction(c.parseLimitStrings)
 
 	put := obj.Command("put", "Puts a file into the store").Action(c.putAction)
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -152,6 +154,17 @@ nats stream restore <stream name> backups/FILES
 
 func init() {
 	registerCommand("object", 10, configureObjectCommand)
+}
+
+func (c *objCommand) parseLimitStrings(_ *kingpin.ParseContext) (err error) {
+	if c.maxBucketSizeString != "" {
+		c.maxBucketSize, err = parseStringAsBytes(c.maxBucketSizeString)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (c *objCommand) watchAction(_ *kingpin.ParseContext) error {
@@ -647,7 +660,7 @@ func (c *objCommand) addAction(_ *kingpin.ParseContext) error {
 		Storage:     st,
 		Replicas:    int(c.replicas),
 		Placement:   placement,
-		MaxBytes:    c.maxBucketSize,
+		MaxBytes:    int64(c.maxBucketSize),
 	})
 	if err != nil {
 		return err
