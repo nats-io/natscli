@@ -319,7 +319,7 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 	}
 	fmt.Printf("            Replicas: %d\n", status.Replicas())
 	if status.TTL() == 0 {
-		fmt.Printf("                 TTL: unlimitd\n")
+		fmt.Printf("                 TTL: unlimited\n")
 	} else {
 		fmt.Printf("                 TTL: %s\n", humanizeDuration(status.TTL()))
 	}
