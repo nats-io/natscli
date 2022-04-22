@@ -136,37 +136,68 @@ func configureStreamCommand(app commandHost) {
 	c := &streamCmd{msgID: -1}
 
 	addCreateFlags := func(f *kingpin.CmdClause, edit bool) {
-		f.Flag("ack", "(--no-ack) Acknowledge publishes").Default("true").BoolVar(&c.ack)
-		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
+		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
 		f.Flag("description", "Sets a contextual description for the stream").StringVar(&c.description)
+		if !edit {
+			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
+		}
+		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
+		f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
+		f.Flag("tags", "Backward compatibility only, use --tag").Hidden().StringsVar(&c.placementTags)
+		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
+		f.Flag("ack", "(--no-ack) Acknowledge publishes").Default("true").BoolVar(&c.ack)
+		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
-		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
-		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
 		f.Flag("max-bytes", "Maximum bytes to keep").StringVar(&c.maxBytesLimitString)
 		f.Flag("max-consumers", "Maximum number of consumers to allow").Default("-1").IntVar(&c.maxConsumers)
 		f.Flag("max-msg-size", "Maximum size any 1 message may be").StringVar(&c.maxMsgSizeString)
 		f.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
 		f.Flag("max-msgs-per-subject", "Maximum amount of messages to keep per subject").Default("0").Int64Var(&c.maxMsgPerSubjectLimit)
+		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
-		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
-		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
-		if !edit {
-			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
-		}
-		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
-		f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
-		f.Flag("tags", "Backward compatibility only, use --tag").Hidden().StringsVar(&c.placementTags)
+
 		OptionalBoolean(f.Flag("allow-rollup", "(--no-allow-rollup) Allows roll-ups to be done by publishing messages with special headers"))
 		OptionalBoolean(f.Flag("deny-delete", "(--no-deny-delete) Deny messages from being deleted via the API"))
 		OptionalBoolean(f.Flag("deny-purge", "(--no-deny-purge) Deny entire stream or subject purges via the API"))
+
+		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 		f.PreAction(c.parseLimitStrings)
 	}
 
 	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
 	str.Flag("all", "When listing or selecting streams show all streams including system ones").Short('a').BoolVar(&c.showAll)
+
+	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
+	strLs.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
+	strLs.Flag("names", "Show just the stream names").Short('n').BoolVar(&c.listNames)
+	strLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+
+	strReport := str.Command("report", "Reports on Stream statistics").Action(c.reportAction)
+	strReport.Flag("cluster", "Limit report to streams within a specific cluster").StringVar(&c.reportLimitCluster)
+	strReport.Flag("consumers", "Sort by number of Consumers").Short('o').BoolVar(&c.reportSortConsumers)
+	strReport.Flag("messages", "Sort by number of Messages").Short('m').BoolVar(&c.reportSortMsgs)
+	strReport.Flag("name", "Sort by Stream name").Short('n').BoolVar(&c.reportSortName)
+	strReport.Flag("storage", "Sort by Storage type").Short('t').BoolVar(&c.reportSortStorage)
+	strReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.reportRaw)
+	strReport.Flag("dot", "Produce a GraphViz graph of replication topology").StringVar(&c.outFile)
+	strReport.Flag("leaders", "Show details about RAFT leaders").Short('l').BoolVar(&c.reportLeaderDistrib)
+
+	strFind := str.Command("find", "Finds streams matching certain criteria").Alias("query").Action(c.findAction)
+	strFind.Flag("server-name", "Display streams present on a regular expression matched server").StringVar(&c.fServer)
+	strFind.Flag("cluster", "Display streams present on a regular expression matched cluster").StringVar(&c.fCluster)
+	strFind.Flag("empty", "Display streams with no messages").BoolVar(&c.fEmpty)
+	strFind.Flag("idle", "Display streams with no new messages or consumer deliveries for a period").PlaceHolder("DURATION").DurationVar(&c.fIdle)
+	strFind.Flag("created", "Display streams created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
+	strFind.Flag("consumers", "Display streams with fewer consumers than threshold").PlaceHolder("THRESHOLD").Default("-1").IntVar(&c.fConsumers)
+	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
+	strFind.Flag("names", "Show just the stream names").Short('n').BoolVar(&c.listNames)
+
+	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
+	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
+	strInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 	strAdd := str.Command("add", "Create a new Stream").Alias("create").Alias("new").Action(c.addAction)
 	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -181,25 +212,6 @@ func configureStreamCommand(app commandHost) {
 	strEdit.Flag("force", "Force edit without prompting").Short('f').BoolVar(&c.force)
 	strEdit.Flag("interactive", "Edit the configuring using your editor").Short('i').BoolVar(&c.interactive)
 	addCreateFlags(strEdit, true)
-
-	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
-	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
-	strInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-
-	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
-	strLs.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
-	strLs.Flag("names", "Show just the stream names").Short('n').BoolVar(&c.listNames)
-	strLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-
-	strFind := str.Command("find", "Finds streams matching certain criteria").Alias("query").Action(c.findAction)
-	strFind.Flag("server-name", "Display streams present on a regular expression matched server").StringVar(&c.fServer)
-	strFind.Flag("cluster", "Display streams present on a regular expression matched cluster").StringVar(&c.fCluster)
-	strFind.Flag("empty", "Display streams with no messages").BoolVar(&c.fEmpty)
-	strFind.Flag("idle", "Display streams with no new messages or consumer deliveries for a period").PlaceHolder("DURATION").DurationVar(&c.fIdle)
-	strFind.Flag("created", "Display streams created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
-	strFind.Flag("consumers", "Display streams with fewer consumers than threshold").PlaceHolder("THRESHOLD").Default("-1").IntVar(&c.fConsumers)
-	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
-	strFind.Flag("names", "Show just the stream names").Short('n').BoolVar(&c.listNames)
 
 	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
 	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -218,12 +230,6 @@ func configureStreamCommand(app commandHost) {
 	strCopy.Arg("destination", "New Stream to create").Required().StringVar(&c.destination)
 	addCreateFlags(strCopy, false)
 
-	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
-	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
-	strGet.Arg("id", "Message Sequence to retrieve").Int64Var(&c.msgID)
-	strGet.Flag("last-for", "Retrieves the message for a specific subject").Short('S').PlaceHolder("SUBJECT").StringVar(&c.filterSubject)
-	strGet.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-
 	strRmMsg := str.Command("rmm", "Securely removes an individual message from a Stream").Action(c.rmMsgAction)
 	strRmMsg.Arg("stream", "Stream name").StringVar(&c.stream)
 	strRmMsg.Arg("id", "Message Sequence to remove").Int64Var(&c.msgID)
@@ -237,15 +243,11 @@ func configureStreamCommand(app commandHost) {
 	strView.Flag("raw", "Show the raw data received").BoolVar(&c.vwRaw)
 	strView.Flag("subject", "Filter the stream using a subject").StringVar(&c.vwSubject)
 
-	strReport := str.Command("report", "Reports on Stream statistics").Action(c.reportAction)
-	strReport.Flag("cluster", "Limit report to streams within a specific cluster").StringVar(&c.reportLimitCluster)
-	strReport.Flag("consumers", "Sort by number of Consumers").Short('o').BoolVar(&c.reportSortConsumers)
-	strReport.Flag("messages", "Sort by number of Messages").Short('m').BoolVar(&c.reportSortMsgs)
-	strReport.Flag("name", "Sort by Stream name").Short('n').BoolVar(&c.reportSortName)
-	strReport.Flag("storage", "Sort by Storage type").Short('t').BoolVar(&c.reportSortStorage)
-	strReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.reportRaw)
-	strReport.Flag("dot", "Produce a GraphViz graph of replication topology").StringVar(&c.outFile)
-	strReport.Flag("leaders", "Show details about RAFT leaders").Short('l').BoolVar(&c.reportLeaderDistrib)
+	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
+	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
+	strGet.Arg("id", "Message Sequence to retrieve").Int64Var(&c.msgID)
+	strGet.Flag("last-for", "Retrieves the message for a specific subject").Short('S').PlaceHolder("SUBJECT").StringVar(&c.filterSubject)
+	strGet.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
 	strBackup := str.Command("backup", "Creates a backup of a Stream over the NATS network").Alias("snapshot").Action(c.backupAction)
 	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)

@@ -227,6 +227,7 @@ func (c *actCmd) infoAction(_ *kingpin.ParseContext) error {
 	fmt.Println()
 
 	info, err := mgr.JetStreamAccountInfo()
+
 	fmt.Println("JetStream Account Information:")
 	fmt.Println()
 	switch err {
@@ -236,11 +237,13 @@ func (c *actCmd) infoAction(_ *kingpin.ParseContext) error {
 		fmt.Printf("Account Usage:\n\n")
 		fmt.Printf("    Storage: %s\n", humanize.IBytes(info.Store))
 		fmt.Printf("     Memory: %s\n", humanize.IBytes(info.Memory))
-		fmt.Printf("    Streams: %s\n", humanize.IBytes(uint64(info.Streams)))
-		fmt.Printf("  Consumers: %s\n", humanize.IBytes(uint64(info.Consumers)))
+		fmt.Printf("    Streams: %d\n", info.Streams)
+		fmt.Printf("  Consumers: %d\n", info.Consumers)
 		fmt.Println()
 
 		fmt.Printf("Account Limits:\n\n")
+
+		fmt.Printf("   Max Message Payload: %s (%d bytes) \n\n", humanize.IBytes(uint64(nc.MaxPayload())), nc.MaxPayload())
 
 		if tiered {
 			for n, t := range info.Tiers {
