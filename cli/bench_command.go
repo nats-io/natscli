@@ -69,9 +69,9 @@ func configureBenchCommand(app commandHost) {
 	bench.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
 	bench.Flag("pub", "Number of concurrent publishers").Default("0").IntVar(&c.numPubs)
 	bench.Flag("sub", "Number of concurrent subscribers").Default("0").IntVar(&c.numSubs)
-	bench.Flag("js", "Use JetStream streaming").Default("false").BoolVar(&c.js)
-	bench.Flag("request", "Request/Reply mode: publishers send requests waits for a reply").Default("false").BoolVar(&c.request)
-	bench.Flag("reply", "Request/Reply mode: subscribers send replies").Default("false").BoolVar(&c.reply)
+	bench.Flag("js", "Use JetStream").Default("false").BoolVar(&c.js)
+	bench.Flag("request", "Request-Reply mode: publishers send requests waits for a reply").Default("false").BoolVar(&c.request)
+	bench.Flag("reply", "Request-Reply mode: subscribers send replies").Default("false").BoolVar(&c.reply)
 	bench.Flag("kv", "KV mode, subscribers get from the bucket and publishers put in the bucket").Default("false").BoolVar(&c.kv)
 	bench.Flag("msgs", "Number of messages to publish").Default("100000").IntVar(&c.numMsg)
 	bench.Flag("size", "Size of the test messages").Default("128").StringVar(&c.msgSizeString)
@@ -80,7 +80,7 @@ func configureBenchCommand(app commandHost) {
 	bench.Flag("purge", "Purge the stream before running").Default("false").BoolVar(&c.purge)
 	bench.Flag("storage", "JetStream storage (memory/file) for the \"benchstream\" stream").Default("memory").EnumVar(&c.storage, "memory", "file")
 	bench.Flag("replicas", "Number of stream replicas for the \"benchstream\" stream").Default("1").IntVar(&c.replicas)
-	bench.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes (1GB by default)").Default("1GB").StringVar(&c.streamMaxBytesString)
+	bench.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes").Default("1GB").StringVar(&c.streamMaxBytesString)
 	bench.Flag("stream", "When set to something else than \"benchstream\": use (and do not attempt to define) the specified stream when creating durable subscribers. Otherwise define and use the \"benchstream\" stream").Default(DEFAULT_STREAM_NAME).StringVar(&c.streamName)
 	bench.Flag("consumername", "Specify the durable consumer name to use").Default(DEFAULT_DURABLE_CONSUMER_NAME).StringVar(&c.consumerName)
 	bench.Flag("jstimeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
@@ -97,10 +97,10 @@ func configureBenchCommand(app commandHost) {
 	cheats["bench"] = `# benchmark core nats publish and subscribe with 10 publishers and subscribers
 nats bench testsubject --pub 10 --sub 10 --msgs 10000 --size 512
 
-# benchmark core nats request/reply without subscribers using a queue
+# benchmark core nats request-reply without subscribers using a queue
 nats bench testsubject --pub 1 --sub 1 --msgs 10000 --no-queue
 
-# benchmark core nats request/reply with queuing
+# benchmark core nats request-reply with queuing
 nats bench testsubject --sub 4 --reply
 nats bench testsubject --pub 4 --request --msgs 20000
 
@@ -160,20 +160,20 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		log.Fatal("You must have at least one publisher or at least one subscriber... try adding --pub 1 and/or --sub 1 to the arguments")
 	}
 	if (c.request || c.reply) && c.js {
-		log.Fatal("Request/Reply mode is not applicable to JetStream benchmarking")
+		log.Fatal("Request-reply mode is not applicable to JetStream benchmarking")
 	} else if !c.js && !c.kv {
 		if c.request || c.reply {
-			log.Print("Benchmark in request/reply mode")
+			log.Print("Benchmark in request-reply mode")
 			if c.reply {
 				// reply mode is open-ended for the number of messages, so don't show the progress bar
 				c.noProgress = true
 			}
 		}
 		if c.request && c.reply {
-			log.Fatal("Request/Reply mode error: can not be both a requester and a replier at the same time, please use at least two instances of nats bench to benchmark request/reply")
+			log.Fatal("Request-reply mode error: can not be both a requester and a replier at the same time, please use at least two instances of nats bench to benchmark request/reply")
 		}
 		if c.reply && c.numPubs > 0 && c.numSubs > 0 {
-			log.Fatal("Request/Reply mode error: can not have a publisher while in --reply mode")
+			log.Fatal("Request-reply mode error: can not have a publisher while in --reply mode")
 		}
 	} else if c.kv {
 		if c.js {
@@ -202,7 +202,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		log.Printf("Starting KV benchmark [bucket=%s, kv=%v, msgs=%s, msgsize=%s, maxbytes=%s, pubs=%d, sub=%d, storage=%s, replicas=%d, pubsleep=%v, subsleep=%v]", c.subject, c.kv, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), humanize.IBytes(uint64(c.streamMaxBytes)), c.numPubs, c.numSubs, c.storage, c.replicas, c.pubSleep, c.subSleep)
 	} else {
 		if c.request || c.reply {
-			log.Printf("Starting request/reply benchmark [subject=%s, request=%v, reply=%v, msgs=%s, msgsize=%s, pubs=%d, subs=%d, pubsleep=%v, subsleep=%v]", c.subject, c.request, c.reply, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.pubSleep, c.subSleep)
+			log.Printf("Starting request-reply benchmark [subject=%s, request=%v, reply=%v, msgs=%s, msgsize=%s, pubs=%d, subs=%d, pubsleep=%v, subsleep=%v]", c.subject, c.request, c.reply, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.pubSleep, c.subSleep)
 		} else {
 			log.Printf("Starting Core NATS pub/sub benchmark [subject=%s, msgs=%s, msgsize=%s, pubs=%d, subs=%d, pubsleep=%v, subsleep=%v]", c.subject, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.pubSleep, c.subSleep)
 		}
@@ -233,33 +233,34 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 		// create the stream for the benchmark (and purge it)
 		nc, err := nats.Connect(opts.Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			log.Fatalf("NATS connection failed %s", err)
+			log.Fatalf("NATS connection failed: %v", err)
 		}
 
 		js, err = nc.JetStream(nats.MaxWait(c.jsTimeout))
 		if err != nil {
-			log.Fatalf("Couldn't get the JetStream context %v", err)
+			log.Fatalf("Couldn't get the JetStream context: %v", err)
 		}
 		if c.kv {
 			// There is no way to purge all the keys in a KV bucket in a single operation so deleting the bucket instead
 			if c.purge {
-				err = js.DeleteKeyValue(c.subject)
+				err = js.PurgeStream("KV_" + c.subject)
+				//err = js.DeleteKeyValue(c.subject)
 				if err != nil {
-					log.Fatalf("Can not purge the bucket %v", err)
+					log.Fatalf("Can not purge the bucket: %v", err)
 				}
 			}
 
 			// create bucket
 			_, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: c.subject, History: c.history, Storage: storageType, Description: "nats bench bucket", Replicas: c.replicas, MaxBytes: c.streamMaxBytes})
 			if err != nil {
-				log.Fatalf("Couldn't create the KV bucket %v", err)
+				log.Fatalf("Couldn't create the KV bucket: %v", err)
 			}
 		} else if c.js {
 			if c.streamName == DEFAULT_STREAM_NAME {
 				// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
 				_, err = js.AddStream(&nats.StreamConfig{Name: c.streamName, Subjects: []string{c.subject}, Retention: nats.LimitsPolicy, Discard: nats.DiscardNew, Storage: storageType, Replicas: c.replicas, MaxBytes: c.streamMaxBytes})
 				if err != nil {
-					log.Fatalf("Error %v. If you want to delete and re-define the stream use `nats stream delete %s`.", err, c.streamName)
+					log.Fatalf("%v. If you want to delete and re-define the stream use `nats stream delete %s`.", err, c.streamName)
 				}
 			} else if (c.pull || c.pushDurable) && c.numSubs > 0 {
 				log.Printf("Using stream: %s", c.streamName)
@@ -269,7 +270,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 				log.Printf("Purging the stream")
 				err = js.PurgeStream(c.streamName)
 				if err != nil {
-					log.Fatalf("Error purging stream %s, %v", c.streamName, err)
+					log.Fatalf("Error purging stream %s: %v", c.streamName, err)
 				}
 			}
 
@@ -290,7 +291,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 						}(c.numSubs * c.consumerBatch),
 					})
 					if err != nil {
-						log.Fatalf("Error creating the pull consumer %v", err)
+						log.Fatalf("Error creating the pull consumer: %v", err)
 					}
 					defer func() {
 						err := js.DeleteConsumer(c.streamName, c.consumerName)
@@ -317,7 +318,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 					defer func() {
 						err := js.DeleteConsumer(c.streamName, c.consumerName)
 						if err != nil {
-							log.Fatalf("Error deleting the durable push consumer on stream %s, %v", c.streamName, err)
+							log.Fatalf("Error deleting the durable push consumer on stream %s: %v", c.streamName, err)
 						}
 						log.Printf("Deleted durable consumer: %s\n", c.consumerName)
 					}()
@@ -435,12 +436,12 @@ func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg 
 		if !c.request {
 			err = nc.Publish(c.subject, msg)
 			if err != nil {
-				log.Fatalf("Publish error: %s", err)
+				log.Fatalf("Publish error: %v", err)
 			}
 		} else {
 			m, err = nc.Request(c.subject, msg, time.Second)
 			if err != nil {
-				log.Fatalf("Request error %s", err)
+				log.Fatalf("Request error %v", err)
 			}
 
 			if len(m.Data) == 0 || m.Data[0] == minusByte || bytes.Contains(m.Data, errBytes) {
@@ -455,7 +456,7 @@ func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg 
 func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int) {
 	js, err := nc.JetStream()
 	if err != nil {
-		log.Fatalf("Couldn't get the JetStream context %v", err)
+		log.Fatalf("Couldn't get the JetStream context: %v", err)
 	}
 
 	var state string
@@ -473,7 +474,7 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 			for j := 0; j < c.pubBatch && i+j < c.numMsg; j++ {
 				futures[j], err = js.PublishAsync(c.subject, msg)
 				if err != nil {
-					log.Fatalf("PubAsync error %v", err)
+					log.Fatalf("PubAsync error: %v", err)
 				}
 				if progress != nil {
 					progress.Incr()
@@ -490,7 +491,7 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 					select {
 					case <-futures[future].Ok():
 					case e := <-futures[future].Err():
-						log.Fatalf("PubAsync %v not OK, error %v", future, e)
+						log.Fatalf("PubAsyncFuture for message %v in batch not OK: %v", future, e)
 					}
 				}
 			case <-time.After(c.jsTimeout):
@@ -506,7 +507,7 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 			}
 			_, err = js.Publish(c.subject, msg)
 			if err != nil {
-				log.Fatalf("Publish error %s", err)
+				log.Fatalf("Publish: %v", err)
 			}
 			time.Sleep(c.pubSleep)
 		}
@@ -516,12 +517,12 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 func kvPutter(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) {
 	js, err := nc.JetStream()
 	if err != nil {
-		log.Fatalf("Couldn't get the JetStream context %v", err)
+		log.Fatalf("Couldn't get the JetStream context: %v", err)
 	}
 
 	kvBucket, err := js.KeyValue(c.subject)
 	if err != nil {
-		log.Fatalf("Couldn't find kv store %s %v", c.subject, err)
+		log.Fatalf("Couldn't find kv store %s: %v", c.subject, err)
 	}
 
 	var state string = "Putting   "
@@ -538,7 +539,7 @@ func kvPutter(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, n
 		}
 		_, err = kvBucket.Put(fmt.Sprintf("%d", offset+i), msg)
 		if err != nil {
-			log.Fatalf("Put error %s", err)
+			log.Fatalf("Put: %s", err)
 		}
 		time.Sleep(c.pubSleep)
 	}
@@ -579,7 +580,7 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 
 	err := nc.Flush()
 	if err != nil {
-		log.Fatalf("Error flushing %v", err)
+		log.Fatalf("Could not flush the connection: %v", err)
 	}
 
 	bm.AddPubSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
@@ -625,7 +626,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 			time.Sleep(c.subSleep)
 			err := msg.Ack()
 			if err != nil {
-				log.Fatalf("Error sending a reply message %v", err)
+				log.Fatalf("Error sending a reply message: %v", err)
 			}
 		}
 
@@ -650,7 +651,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 
 			js, err = nc.JetStream()
 			if err != nil {
-				log.Fatalf("Couldn't get the JetStream context %v", err)
+				log.Fatalf("Couldn't get the JetStream context: %v", err)
 			}
 			// start the timer now rather than when the first message is received in JS mode
 
@@ -662,13 +663,13 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 			if c.pull {
 				sub, err = js.PullSubscribe(c.subject, c.consumerName)
 				if err != nil {
-					log.Fatalf("Error PullSubscribe " + err.Error())
+					log.Fatalf("Error PullSubscribe: %v", err)
 				}
 			} else if c.pushDurable {
 				state = "Receiving "
 				sub, err = js.QueueSubscribe(c.subject, c.consumerName+"-GROUP", mh, nats.Bind(c.streamName, c.consumerName), nats.ManualAck())
 				if err != nil {
-					log.Fatalf("Error push durable Subscribe " + err.Error())
+					log.Fatalf("Error push durable Subscribe: %v", err)
 				}
 				_ = sub.AutoUnsubscribe(numMsg)
 
@@ -677,7 +678,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 				// ordered push consumer
 				sub, err = js.Subscribe(c.subject, mh, nats.OrderedConsumer())
 				if err != nil {
-					log.Fatalf("Push consumer Subscribe error %v", err)
+					log.Fatalf("Push consumer Subscribe error: %v", err)
 				}
 			}
 		} else {
@@ -685,25 +686,25 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 			if !c.reply {
 				sub, err = nc.Subscribe(c.subject, mh)
 				if err != nil {
-					log.Fatalf("Subscribe error %v", err)
+					log.Fatalf("Subscribe error: %v", err)
 				}
 			} else {
 				sub, err = nc.QueueSubscribe(c.subject, "bench-reply", mh)
 				if err != nil {
-					log.Fatalf("QueueSubscribe error %v", err)
+					log.Fatalf("QueueSubscribe error: %v", err)
 				}
 			}
 		}
 
 		err = sub.SetPendingLimits(-1, -1)
 		if err != nil {
-			log.Fatalf("Error setting pending limits on the subscriber %v", err)
+			log.Fatalf("Error setting pending limits on the subscriber: %v", err)
 		}
 	}
 
 	err = nc.Flush()
 	if err != nil {
-		log.Fatalf("Error flushing %v", err)
+		log.Fatalf("Error flushing: %v", err)
 	}
 
 	startwg.Done()
@@ -713,12 +714,12 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 
 		js, err = nc.JetStream()
 		if err != nil {
-			log.Fatalf("Couldn't get the JetStream context %v", err)
+			log.Fatalf("Couldn't get the JetStream context: %v", err)
 		}
 
 		kvBucket, err := js.KeyValue(c.subject)
 		if err != nil {
-			log.Fatalf("Couldn't find kv store %s %v", c.subject, err)
+			log.Fatalf("Couldn't find kv store %s: %v", c.subject, err)
 		}
 
 		// start the timer now rather than when the first message is received in JS mode
@@ -732,7 +733,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 		for i := 0; i < numMsg; i++ {
 			entry, err := kvBucket.Get(fmt.Sprintf("%d", offset+i))
 			if err != nil {
-				log.Fatalf("Error getting key %d", offset+i)
+				log.Fatalf("Error getting key %d: %v", offset+i, err)
 			}
 			if entry.Value() == nil {
 				log.Printf("Warning: got no value for key %d", offset+i)
@@ -769,7 +770,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 				}
 				i += len(msgs)
 			} else {
-				log.Fatalf("Pull consumer error %v", err)
+				log.Fatalf("Pull consumer error: %v", err)
 			}
 		}
 	}

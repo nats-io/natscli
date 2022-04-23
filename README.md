@@ -355,7 +355,7 @@ Sub stats: 1,522,920 msgs/sec ~ 185.90 MB/sec
  min 381,060 | avg 382,244 | max 382,772 | stddev 698 msgs
 ```
 
-Similarily you can benchmark synchronous request/reply type of interactions using the `--request` and `--reply` flags. For example you can first start one (or more) replier(s)
+Similarily you can benchmark synchronous request-reply type of interactions using the `--request` and `--reply` flags. For example you can first start one (or more) replier(s)
 
 ```
 nats bench test --sub 2 --reply
@@ -369,7 +369,7 @@ nats bench test --pub 10 --request
 Output
 ```
 03:04:56 Starting benchmark [msgs=100,000, msgsize=128 B, pubs=10, subs=0, js=false, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=true, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
-03:04:56 Benchmark in request/reply mode
+03:04:56 Benchmark in request-reply mode
 Finished      2s [================================================] 100%
 Finished      2s [================================================] 100%
 Finished      2s [================================================] 100%
@@ -442,7 +442,7 @@ Various flags exist to adjust message size and target rates, see `nats latency -
 
 ## Super Cluster observation
 
-NATS publish a number of events and have a Request/Reply API that expose a wealth of internal information about the
+NATS publish a number of events and have a Request-Reply API that expose a wealth of internal information about the
 state of the network.
 
 For most of these features you will need a [System Account](https://docs.nats.io/nats-server/configuration/sys_accounts)
