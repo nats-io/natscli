@@ -154,7 +154,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("max-msg-size", "Maximum size any 1 message may be").StringVar(&c.maxMsgSizeString)
 		f.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
 		f.Flag("max-msgs-per-subject", "Maximum amount of messages to keep per subject").Default("0").Int64Var(&c.maxMsgPerSubjectLimit)
-		f.Flag("dupe-window", "Window size for duplicate tracking").Default("").StringVar(&c.dupeWindow)
+		f.Flag("dupe-window", "Duration of the duplicate message tracking window").Default("").StringVar(&c.dupeWindow)
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
 
