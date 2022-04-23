@@ -117,6 +117,21 @@ func configureConsumerCommand(app commandHost) {
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
 	cons.Flag("all", "Operate on all streams including system ones").Short('a').BoolVar(&c.showAll)
 
+	consLs := cons.Command("ls", "List known Consumers").Alias("list").Action(c.lsAction)
+	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
+	consLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	consLs.Flag("names", "Show just the consumer names").Short('n').BoolVar(&c.listNames)
+
+	conReport := cons.Command("report", "Reports on Consmer statistics").Action(c.reportAction)
+	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
+	conReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.raw)
+	conReport.Flag("leaders", "Show details about the leaders").Short('l').BoolVar(&c.reportLeaderDistrib)
+
+	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
+	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
+	consInfo.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	consInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+
 	consAdd := cons.Command("add", "Creates a new Consumer").Alias("create").Alias("new").Action(c.createAction)
 	consAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	consAdd.Arg("consumer", "Consumer name").StringVar(&c.consumer)
@@ -124,12 +139,6 @@ func configureConsumerCommand(app commandHost) {
 	consAdd.Flag("validate", "Only validates the configuration against the official Schema").BoolVar(&c.validateOnly)
 	consAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
 	addCreateFlags(consAdd)
-
-	consCp := cons.Command("copy", "Creates a new Consumer based on the configuration of another").Alias("cp").Action(c.cpAction)
-	consCp.Arg("stream", "Stream name").Required().StringVar(&c.stream)
-	consCp.Arg("source", "Source Consumer name").Required().StringVar(&c.consumer)
-	consCp.Arg("destination", "Destination Consumer name").Required().StringVar(&c.destination)
-	addCreateFlags(consCp)
 
 	edit := cons.Command("edit", "Edits the configuration of a consumer").Action(c.editAction)
 	edit.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -150,15 +159,16 @@ func configureConsumerCommand(app commandHost) {
 	OptionalBoolean(edit.Flag("headers-only", "Deliver only headers and no bodies (--no-headers-only disables)"))
 	edit.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
-	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
-	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
-	consInfo.Arg("consumer", "Consumer name").StringVar(&c.consumer)
-	consInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
+	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
+	consRm.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	consRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
-	consLs := cons.Command("ls", "List known Consumers").Alias("list").Action(c.lsAction)
-	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
-	consLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	consLs.Flag("names", "Show just the consumer names").Short('n').BoolVar(&c.listNames)
+	consCp := cons.Command("copy", "Creates a new Consumer based on the configuration of another").Alias("cp").Action(c.cpAction)
+	consCp.Arg("stream", "Stream name").Required().StringVar(&c.stream)
+	consCp.Arg("source", "Source Consumer name").Required().StringVar(&c.consumer)
+	consCp.Arg("destination", "Destination Consumer name").Required().StringVar(&c.destination)
+	addCreateFlags(consCp)
 
 	consNext := cons.Command("next", "Retrieves messages from Pull Consumers without interactive prompts").Action(c.nextAction)
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
@@ -167,11 +177,6 @@ func configureConsumerCommand(app commandHost) {
 	consNext.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
 	consNext.Flag("wait", "Wait up to this period to acknowledge messages").DurationVar(&c.ackWait)
 	consNext.Flag("count", "Number of messages to try to fetch from the pull consumer").Default("1").IntVar(&c.pullCount)
-
-	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
-	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
-	consRm.Arg("consumer", "Consumer name").StringVar(&c.consumer)
-	consRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 
 	consSub := cons.Command("sub", "Retrieves messages from Consumers").Action(c.subAction)
 	consSub.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -183,11 +188,6 @@ func configureConsumerCommand(app commandHost) {
 	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	conClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterDown.Arg("consumer", "Consumer to act on").StringVar(&c.consumer)
-
-	conReport := cons.Command("report", "Reports on Consmer statistics").Action(c.reportAction)
-	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
-	conReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.raw)
-	conReport.Flag("leaders", "Show details about the leaders").Short('l').BoolVar(&c.reportLeaderDistrib)
 
 	cheats["consumer"] = `# Adding, Removing, Viewing a Consumer
 nats consumer add
