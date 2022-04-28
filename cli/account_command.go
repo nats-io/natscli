@@ -34,6 +34,10 @@ type actCmd struct {
 	healthCheck       bool
 	snapShotConsumers bool
 	force             bool
+
+	showProgress     bool
+	placementCluster string
+	placementTags    []string
 }
 
 func configureActCommand(app commandHost) {
@@ -53,6 +57,12 @@ func configureActCommand(app commandHost) {
 	backup.Flag("check", "Checks the Stream for health prior to backup").Default("false").BoolVar(&c.healthCheck)
 	backup.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
 	backup.Flag("force", "Perform backup without prompting").Short('f').BoolVar(&c.force)
+
+	restore := act.Command("restore", "Restore an account backup over the NATS network").Action(c.restoreAction)
+	restore.Arg("directory", "The directory holding the account backup to restore").Required().ExistingDirVar(&c.backupDirectory)
+	restore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
+	restore.Flag("cluster", "Place the stream in a specific cluster").StringVar(&c.placementCluster)
+	restore.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
 
 	cheats["account"] = `# To view account information and connection
 nats account info
@@ -133,6 +143,39 @@ func (c *actCmd) backupAction(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("backup failed")
 	}
 
+	return nil
+}
+
+func (c *actCmd) restoreAction(kp *kingpin.ParseContext) error {
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	kingpin.FatalIfError(err, "setup failed")
+	streams, err := mgr.StreamNames(nil)
+	if err != nil {
+		return err
+	}
+	existingStreams := map[string]struct{}{}
+	for _, n := range streams {
+		existingStreams[n] = struct{}{}
+	}
+	de, err := os.ReadDir(c.backupDirectory)
+	kingpin.FatalIfError(err, "setup failed")
+	for _, d := range de {
+		if !d.IsDir() {
+			kingpin.FatalIfError(err, "expected a directory")
+		}
+		if _, ok := existingStreams[d.Name()]; ok {
+			kingpin.Fatalf("stream %q exists already", d.Name())
+		}
+		_, err := os.Stat(filepath.Join(c.backupDirectory, d.Name(), "backup.json"))
+		kingpin.FatalIfError(err, "expected backup.json")
+	}
+	fmt.Printf("Restoring backup of all %d streams in directory %q\n\n", len(streams), c.backupDirectory)
+	s := &streamCmd{msgID: -1, showProgress: c.showProgress, placementCluster: c.placementCluster, placementTags: c.placementTags}
+	for _, d := range de {
+		s.backupDirectory = filepath.Join(c.backupDirectory, d.Name())
+		err := s.restoreAction(kp)
+		kingpin.FatalIfError(err, "restore for %s failed", d.Name())
+	}
 	return nil
 }
 
