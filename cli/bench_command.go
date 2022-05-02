@@ -759,7 +759,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 				state = "Pulling   "
 			}
 
-			msgs, err := sub.Fetch(batchSize, nats.MaxWait(c.jsTimeout))
+			msgs, err := sub.Fetch(batchSize, nats.MaxWait(2*time.Second))
 			if err == nil {
 				if progress != nil {
 					state = "Handling  "
@@ -769,8 +769,6 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 					mh(msg)
 				}
 				i += len(msgs)
-			} else {
-				log.Fatalf("Pull consumer error: %v", err)
 			}
 		}
 	}
