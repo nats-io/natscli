@@ -56,6 +56,7 @@ type benchCmd struct {
 	consumerName         string
 	kv                   bool
 	history              uint8
+	fetchTimeout         bool
 }
 
 const (
@@ -283,10 +284,10 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 						AckPolicy:     nats.AckExplicitPolicy,
 						ReplayPolicy:  nats.ReplayInstantPolicy,
 						MaxAckPending: func(a int) int {
-							if a >= 20000 {
+							if a >= 10000 {
 								return a
 							} else {
-								return 20000
+								return 10000
 							}
 						}(c.numSubs * c.consumerBatch),
 					})
@@ -388,6 +389,10 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 
 	if !c.noProgress {
 		uiprogress.Stop()
+	}
+
+	if c.fetchTimeout {
+		log.Print("WARNING: at least one of the pull consumer Fetch operation timed out, the results may not be accurate!")
 	}
 
 	fmt.Println()
@@ -590,6 +595,7 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 
 func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, offset int) {
 	received := 0
+	fetchTimeout := false
 
 	ch := make(chan time.Time, 2)
 
@@ -770,7 +776,14 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 				}
 				i += len(msgs)
 			} else {
-				log.Fatalf("Pull consumer error: %v", err)
+				if err == nats.ErrTimeout {
+					if c.noProgress {
+						log.Print("Fetch timeout!")
+					}
+					fetchTimeout = true
+				} else {
+					log.Fatalf("Pull consumer Fetch error: %v", err)
+				}
 			}
 		}
 	}
@@ -785,6 +798,8 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 	state = "Finished  "
 
 	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
+
+	c.fetchTimeout = fetchTimeout
 
 	donewg.Done()
 }
