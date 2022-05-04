@@ -16,14 +16,14 @@ require (
 	github.com/klauspost/compress v1.15.1
 	github.com/nats-io/jsm.go v0.0.31
 	github.com/nats-io/nats-server/v2 v2.7.5-0.20220418055348-79b4374d01d8
-	github.com/nats-io/nats.go v1.14.1-0.20220416014530-9c077d0ebaf3
+	github.com/nats-io/nats.go v1.14.1-0.20220503230705-96c14456be81
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/common v0.33.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.0.0
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
-	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
+	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
