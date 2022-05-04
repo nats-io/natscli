@@ -799,7 +799,9 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 
 	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
 
-	c.fetchTimeout = fetchTimeout
+	if fetchTimeout {
+		c.fetchTimeout = true
+	}
 
 	donewg.Done()
 }
