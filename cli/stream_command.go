@@ -2354,9 +2354,6 @@ func (c *streamCmd) renderStreamsAsList(streams []*jsm.Stream) string {
 	}
 
 	sort.Strings(names)
-	for _, n := range names {
-		fmt.Println(n)
-	}
 
 	return strings.Join(names, "\n")
 }
