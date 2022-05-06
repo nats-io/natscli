@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/gosuri/uiprogress"
@@ -95,8 +96,8 @@ NOTE: This is an experimental feature.
 	get.Flag("no-progress", "Disables progress bars").Default("false").BoolVar(&c.noProgress)
 	get.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
 
-	info := obj.Command("info", "Get information about a bucket or object").Action(c.infoAction)
-	info.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+	info := obj.Command("info", "Get information about a bucket or object").Alias("show").Alias("i").Action(c.infoAction)
+	info.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
 	info.Arg("file", "The file to retrieve").StringVar(&c.file)
 
 	ls := obj.Command("ls", "List buckets or contents of a specific bucket").Action(c.lsAction)
@@ -675,10 +676,51 @@ func (c *objCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.Objec
 		return nil, nil, nil, err
 	}
 
+	if c.bucket == "" {
+		known, err := c.knownBuckets(nc)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		if len(known) == 0 {
+			return nil, nil, nil, fmt.Errorf("no Object buckets found")
+		}
+
+		err = survey.AskOne(&survey.Select{
+			Message:  "Select a Bucket",
+			Options:  known,
+			PageSize: selectPageSize(len(known)),
+		}, &c.bucket)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
 	store, err := js.ObjectStore(c.bucket)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	return nc, js, store, err
+}
+
+func (c *objCommand) knownBuckets(nc *nats.Conn) ([]string, error) {
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		return nil, err
+	}
+
+	streams, err := mgr.StreamNames(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var found []string
+	for _, stream := range streams {
+		if jsm.IsObjectBucketStream(stream) {
+			found = append(found, strings.TrimPrefix(stream, "OBJ_"))
+		}
+	}
+
+	return found, nil
 }
