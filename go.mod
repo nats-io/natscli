@@ -9,13 +9,13 @@ require (
 	github.com/emicklei/dot v0.16.0
 	github.com/fatih/color v1.13.0
 	github.com/ghodss/yaml v1.0.0
-	github.com/google/go-cmp v0.5.7
+	github.com/google/go-cmp v0.5.8
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.3
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.15.1
-	github.com/nats-io/jsm.go v0.0.31
-	github.com/nats-io/nats-server/v2 v2.7.5-0.20220418055348-79b4374d01d8
+	github.com/klauspost/compress v1.15.2
+	github.com/nats-io/jsm.go v0.0.32-0.20220506065209-61a1b67e1c24
+	github.com/nats-io/nats-server/v2 v2.8.3-0.20220504192053-f20fe2c2d8b8
 	github.com/nats-io/nats.go v1.15.0
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.12.1

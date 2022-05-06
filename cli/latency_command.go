@@ -73,6 +73,9 @@ func (c *latencyCmd) latencyAction(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	// reset to not use the stored conn or context
+	opts.Conn = nil
+
 	c2, err := newNatsConn(c.serverB, natsOpts()...)
 	if err != nil {
 		return err
