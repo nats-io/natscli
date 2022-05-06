@@ -1202,7 +1202,7 @@ func (c *streamCmd) loadConfigFile(file string) (*api.StreamConfig, error) {
 		}
 	}
 
-	if cfg.Name != c.stream {
+	if cfg.Name != c.stream && c.stream != "" {
 		cfg.Name = c.stream
 	}
 
