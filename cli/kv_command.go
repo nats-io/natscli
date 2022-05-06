@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go"
@@ -113,8 +114,8 @@ NOTE: This is an experimental feature.
 	history.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	history.Arg("key", "The key to act on").Required().StringVar(&c.key)
 
-	status := kv.Command("status", "View the status of a KV store").Alias("view").Alias("info").Action(c.statusAction)
-	status.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+	status := kv.Command("info", "View the status of a KV store").Alias("view").Alias("status").Action(c.infoAction)
+	status.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
 
 	watch := kv.Command("watch", "Watch the bucket or a specific key for updated").Action(c.watchAction)
 	watch.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -496,6 +497,26 @@ func (c *kvCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.KeyVal
 		return nil, nil, nil, err
 	}
 
+	if c.bucket == "" {
+		known, err := c.knownBuckets(nc)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		if len(known) == 0 {
+			return nil, nil, nil, fmt.Errorf("no KV buckets found")
+		}
+
+		err = survey.AskOne(&survey.Select{
+			Message:  "Select a Bucket",
+			Options:  known,
+			PageSize: selectPageSize(len(known)),
+		}, &c.bucket)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
 	store, err := js.KeyValue(c.bucket)
 	if err != nil {
 		return nil, nil, nil, err
@@ -504,7 +525,28 @@ func (c *kvCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.KeyVal
 	return nc, js, store, err
 }
 
-func (c *kvCommand) statusAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) knownBuckets(nc *nats.Conn) ([]string, error) {
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		return nil, err
+	}
+
+	streams, err := mgr.StreamNames(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var found []string
+	for _, stream := range streams {
+		if jsm.IsKVBucketStream(stream) {
+			found = append(found, strings.TrimPrefix(stream, "KV_"))
+		}
+	}
+
+	return found, nil
+}
+
+func (c *kvCommand) infoAction(_ *kingpin.ParseContext) error {
 	_, _, store, err := c.loadBucket()
 	if err != nil {
 		return err
