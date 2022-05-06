@@ -35,7 +35,6 @@ type actCmd struct {
 	snapShotConsumers bool
 	force             bool
 
-	showProgress     bool
 	placementCluster string
 	placementTags    []string
 }
@@ -60,7 +59,6 @@ func configureActCommand(app commandHost) {
 
 	restore := act.Command("restore", "Restore an account backup over the NATS network").Action(c.restoreAction)
 	restore.Arg("directory", "The directory holding the account backup to restore").Required().ExistingDirVar(&c.backupDirectory)
-	restore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	restore.Flag("cluster", "Place the stream in a specific cluster").StringVar(&c.placementCluster)
 	restore.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
 
@@ -169,8 +167,8 @@ func (c *actCmd) restoreAction(kp *kingpin.ParseContext) error {
 		_, err := os.Stat(filepath.Join(c.backupDirectory, d.Name(), "backup.json"))
 		kingpin.FatalIfError(err, "expected backup.json")
 	}
-	fmt.Printf("Restoring backup of all %d streams in directory %q\n\n", len(streams), c.backupDirectory)
-	s := &streamCmd{msgID: -1, showProgress: c.showProgress, placementCluster: c.placementCluster, placementTags: c.placementTags}
+	fmt.Printf("Restoring backup of all %d streams in directory %q\n\n", len(de), c.backupDirectory)
+	s := &streamCmd{msgID: -1, showProgress: false, placementCluster: c.placementCluster, placementTags: c.placementTags}
 	for _, d := range de {
 		s.backupDirectory = filepath.Join(c.backupDirectory, d.Name())
 		err := s.restoreAction(kp)
