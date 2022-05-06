@@ -180,13 +180,17 @@ func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
 	}
 
 	for i, ssm := range results {
+		cluster := ssm.Server.Cluster
+		if ssm.Server.Domain != "" {
+			cluster = fmt.Sprintf("%s domain %s", ssm.Server.Cluster, ssm.Server.Domain)
+		}
 		jsEnabled := "no"
 		if ssm.Server.JetStream {
 			jsEnabled = "yes"
 		}
 		table.AddRow(
 			cNames[i],
-			ssm.Server.Cluster,
+			cluster,
 			ssm.Server.Host,
 			ssm.Server.Version,
 			jsEnabled,
