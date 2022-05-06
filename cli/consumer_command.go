@@ -78,8 +78,9 @@ type consumerCmd struct {
 	backoffMin          time.Duration
 	backoffMax          time.Duration
 
-	mgr *jsm.Manager
-	nc  *nats.Conn
+	dryRun bool
+	mgr    *jsm.Manager
+	nc     *nats.Conn
 }
 
 func configureConsumerCommand(app commandHost) {
@@ -143,6 +144,7 @@ func configureConsumerCommand(app commandHost) {
 	edit := cons.Command("edit", "Edits the configuration of a consumer").Action(c.editAction)
 	edit.Arg("stream", "Stream name").StringVar(&c.stream)
 	edit.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	edit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	edit.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
 	edit.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (none, linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear", "none")
 	edit.Flag("backoff-steps", "Number of steps to use when creating the backoff policy").PlaceHolder("STEPS").UintVar(&c.backoffSteps)
@@ -158,6 +160,7 @@ func configureConsumerCommand(app commandHost) {
 	edit.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
 	OptionalBoolean(edit.Flag("headers-only", "Deliver only headers and no bodies (--no-headers-only disables)"))
 	edit.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+	edit.Flag("dry-run", "Only shows differences, do not edit the stream").BoolVar(&c.dryRun)
 
 	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
 	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -277,49 +280,72 @@ func (c *consumerCmd) editAction(pc *kingpin.ParseContext) error {
 		return fmt.Errorf("only durable consumers can be edited")
 	}
 
-	ncfg := c.selectedConsumer.Configuration()
-	if c.description != "" {
-		ncfg.Description = c.description
+	// lazy deep copy
+	t := c.selectedConsumer.Configuration()
+	tj, err := json.Marshal(t)
+	if err != nil {
+		return err
 	}
+	var ncfg api.ConsumerConfig
 
-	if c.maxDeliver != 0 {
-		ncfg.MaxDeliver = c.maxDeliver
-	}
-
-	if c.maxAckPending != -1 {
-		ncfg.MaxAckPending = c.maxAckPending
-	}
-
-	if c.ackWait != -1*time.Second {
-		ncfg.AckWait = c.ackWait
-	}
-
-	if c.maxWaiting != 0 {
-		ncfg.MaxWaiting = c.maxWaiting
-	}
-
-	if c.samplePct != -1 {
-		ncfg.SampleFrequency = c.sampleFreqFromInt(c.samplePct)
-	}
-
-	if c.maxPullBatch > 0 {
-		ncfg.MaxRequestBatch = c.maxPullBatch
-	}
-
-	if c.maxPullExpire > 0 {
-		ncfg.MaxRequestExpires = c.maxPullExpire
-	}
-
-	if c.backoffMode != "" {
-		ncfg.BackOff, err = c.backoffPolicy()
+	if c.inputFile != "" {
+		cf, err := os.ReadFile(c.inputFile)
 		if err != nil {
-			return fmt.Errorf("could not determine backoff policy: %v", err)
+			return err
 		}
-	}
+		err = json.Unmarshal(cf, &ncfg)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = json.Unmarshal(tj, &ncfg)
+		if err != nil {
+			return err
+		}
 
-	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
-	if hOnly.IsSetByUser() {
-		ncfg.HeadersOnly = hOnly.Value()
+		if c.description != "" {
+			ncfg.Description = c.description
+		}
+
+		if c.maxDeliver != 0 {
+			ncfg.MaxDeliver = c.maxDeliver
+		}
+
+		if c.maxAckPending != -1 {
+			ncfg.MaxAckPending = c.maxAckPending
+		}
+
+		if c.ackWait != -1*time.Second {
+			ncfg.AckWait = c.ackWait
+		}
+
+		if c.maxWaiting != 0 {
+			ncfg.MaxWaiting = c.maxWaiting
+		}
+
+		if c.samplePct != -1 {
+			ncfg.SampleFrequency = c.sampleFreqFromInt(c.samplePct)
+		}
+
+		if c.maxPullBatch > 0 {
+			ncfg.MaxRequestBatch = c.maxPullBatch
+		}
+
+		if c.maxPullExpire > 0 {
+			ncfg.MaxRequestExpires = c.maxPullExpire
+		}
+
+		if c.backoffMode != "" {
+			ncfg.BackOff, err = c.backoffPolicy()
+			if err != nil {
+				return fmt.Errorf("could not determine backoff policy: %v", err)
+			}
+		}
+
+		hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
+		if hOnly.IsSetByUser() {
+			ncfg.HeadersOnly = hOnly.Value()
+		}
 	}
 
 	// sort strings to subject lists that only differ in ordering is considered equal
@@ -331,11 +357,18 @@ func (c *consumerCmd) editAction(pc *kingpin.ParseContext) error {
 
 	diff := cmp.Diff(c.selectedConsumer.Configuration(), ncfg, sorter)
 	if diff == "" {
-		fmt.Printf("No difference in configuration")
+		if !c.dryRun {
+			fmt.Println("No difference in configuration")
+		}
+
 		return nil
 	}
 
 	fmt.Printf("Differences (-old +new):\n%s", diff)
+	if c.dryRun {
+		os.Exit(1)
+	}
+
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really edit Consumer %s > %s", c.stream, c.consumer), false)
 		kingpin.FatalIfError(err, "could not obtain confirmation")
