@@ -111,6 +111,7 @@ type streamCmd struct {
 	vwRaw        bool
 	vwSubject    string
 
+	dryRun         bool
 	selectedStream *jsm.Stream
 	nc             *nats.Conn
 	mgr            *jsm.Manager
@@ -211,6 +212,7 @@ func configureStreamCommand(app commandHost) {
 	strEdit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	strEdit.Flag("force", "Force edit without prompting").Short('f').BoolVar(&c.force)
 	strEdit.Flag("interactive", "Edit the configuring using your editor").Short('i').BoolVar(&c.interactive)
+	strEdit.Flag("dry-run", "Only shows differences, do not edit the stream").BoolVar(&c.dryRun)
 	addCreateFlags(strEdit, true)
 
 	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
@@ -1400,11 +1402,18 @@ func (c *streamCmd) editAction(_ *kingpin.ParseContext) error {
 
 	diff := cmp.Diff(sourceStream.Configuration(), cfg, sorter)
 	if diff == "" {
-		fmt.Printf("No difference in configuration\n")
+		if !c.dryRun {
+			fmt.Println("No difference in configuration")
+		}
+
 		return nil
 	}
 
 	fmt.Printf("Differences (-old +new):\n%s", diff)
+	if c.dryRun {
+		os.Exit(1)
+	}
+
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really edit Stream %s", c.stream), false)
 		kingpin.FatalIfError(err, "could not obtain confirmation")
