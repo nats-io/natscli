@@ -665,26 +665,28 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 		kingpin.Fatalf("Stream %q already exist", bm.Config.Name)
 	}
 
-	var progress *uiprogress.Bar
+	var progress *uiprogress.Progress
+	var bar *uiprogress.Bar
 	var bps uint64
 
 	cb := func(p jsm.RestoreProgress) {
 		bps = p.BytesPerSecond()
 
-		if progress == nil {
-			progress = uiprogress.AddBar(p.ChunksToSend()).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
+		if bar == nil {
+			bar = progress.AddBar(p.ChunksToSend()).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
 				return humanize.IBytes(bps) + "/s"
 			})
-			progress.Width = progressWidth()
+			bar.Width = progressWidth()
 		}
 
-		progress.Set(int(p.ChunksSent()))
+		bar.Set(int(p.ChunksSent()))
 	}
 
 	var opts []jsm.SnapshotOption
 
 	if c.showProgress {
-		uiprogress.Start()
+		progress = uiprogress.New()
+		progress.Start()
 		opts = append(opts, jsm.RestoreNotify(cb))
 	} else {
 		opts = append(opts, jsm.SnapshotDebug())
@@ -720,8 +722,8 @@ func (c *streamCmd) restoreAction(_ *kingpin.ParseContext) error {
 	fp, _, err := mgr.RestoreSnapshotFromDirectory(ctx, bm.Config.Name, c.backupDirectory, opts...)
 	kingpin.FatalIfError(err, "restore failed")
 	if c.showProgress {
-		progress.Set(int(fp.ChunksSent()))
-		uiprogress.Stop()
+		bar.Set(int(fp.ChunksSent()))
+		progress.Stop()
 	}
 
 	fmt.Println()

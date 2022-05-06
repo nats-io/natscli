@@ -169,7 +169,7 @@ func (c *actCmd) restoreAction(kp *kingpin.ParseContext) error {
 		_, err := os.Stat(filepath.Join(c.backupDirectory, d.Name(), "backup.json"))
 		kingpin.FatalIfError(err, "expected backup.json")
 	}
-	fmt.Printf("Restoring backup of all %d streams in directory %q\n\n", len(streams), c.backupDirectory)
+	fmt.Printf("Restoring backup of all %d streams in directory %q\n\n", len(de), c.backupDirectory)
 	s := &streamCmd{msgID: -1, showProgress: c.showProgress, placementCluster: c.placementCluster, placementTags: c.placementTags}
 	for _, d := range de {
 		s.backupDirectory = filepath.Join(c.backupDirectory, d.Name())
