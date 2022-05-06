@@ -130,8 +130,10 @@ func (c *rttCmd) performTest(targets []*rttTarget) (err error) {
 	return nil
 }
 
-func (c *rttCmd) calcRTT(server string, opts []nats.Option) (string, time.Duration, error) {
-	nc, err := newNatsConn("", opts...)
+func (c *rttCmd) calcRTT(server string, copts []nats.Option) (string, time.Duration, error) {
+	opts.Conn = nil
+
+	nc, err := newNatsConn(server, copts...)
 	if err != nil {
 		return "", 0, err
 	}
@@ -140,10 +142,13 @@ func (c *rttCmd) calcRTT(server string, opts []nats.Option) (string, time.Durati
 	time.Sleep(25 * time.Millisecond)
 
 	var totalTime time.Duration
+
 	for i := 1; i <= c.iterations; i++ {
-		start := time.Now()
-		nc.Flush()
-		rtt := time.Since(start)
+		rtt, err := nc.RTT()
+		if err != nil {
+			return "", 0, fmt.Errorf("rtt failed: %v", err)
+		}
+
 		totalTime += rtt
 	}
 
