@@ -134,8 +134,10 @@ func (c *pubCmd) prepareMsg(body []byte, seq int) (*nats.Msg, error) {
 }
 
 func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
+	logOutput := !c.raw && progress == nil
+
 	for i := 1; i <= c.cnt; i++ {
-		if !c.raw && progress == nil {
+		if logOutput {
 			log.Printf("Sending request on %q\n", c.subject)
 		}
 
@@ -159,6 +161,10 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 		err = nc.PublishMsg(msg)
 		if err != nil {
 			return err
+		}
+
+		if progress != nil {
+			progress.Incr()
 		}
 
 		// loop through the reply count.
@@ -187,20 +193,22 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			}
 
 			rtt := time.Since(start)
-			log.Printf("Received with rtt %v", rtt)
+			if logOutput {
+				log.Printf("Received with rtt %v", rtt)
 
-			if len(m.Header) > 0 {
-				for h, vals := range m.Header {
-					for _, val := range vals {
-						log.Printf("%s: %s", h, val)
+				if len(m.Header) > 0 {
+					for h, vals := range m.Header {
+						for _, val := range vals {
+							log.Printf("%s: %s", h, val)
+						}
 					}
+					fmt.Println()
 				}
-				fmt.Println()
-			}
 
-			fmt.Println(string(m.Data))
-			if !strings.HasSuffix(string(m.Data), "\n") {
-				fmt.Println()
+				fmt.Println(string(m.Data))
+				if !strings.HasSuffix(string(m.Data), "\n") {
+					fmt.Println()
+				}
 			}
 
 			rc++
@@ -255,13 +263,15 @@ func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
 
 	var progress *uiprogress.Bar
 	if c.cnt > 20 && !c.raw {
+		progressFormat := fmt.Sprintf("%%%dd / %%d", len(fmt.Sprintf("%d", c.cnt)))
 		progress = uiprogress.AddBar(c.cnt).PrependFunc(func(b *uiprogress.Bar) string {
-			return fmt.Sprintf("%d / %d", b.Current(), c.cnt)
+			return fmt.Sprintf(progressFormat, b.Current(), c.cnt)
 		}).AppendElapsed()
 		progress.Width = progressWidth()
 
 		fmt.Println()
 		uiprogress.Start()
+		uiprogress.RefreshInterval = 100 * time.Millisecond
 		defer func() { uiprogress.Stop(); fmt.Println() }()
 	}
 

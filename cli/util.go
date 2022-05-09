@@ -972,6 +972,7 @@ func doReqAsync(req interface{}, subj string, waitFor int, nc *nats.Conn, cb fun
 
 	return err
 }
+
 func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
 	res := [][]byte{}
 	mu := sync.Mutex{}
