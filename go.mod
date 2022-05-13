@@ -11,19 +11,19 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.5.8
 	github.com/gosuri/uiprogress v0.0.1
-	github.com/guptarohit/asciigraph v0.5.3
+	github.com/guptarohit/asciigraph v0.5.5
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.15.2
-	github.com/nats-io/jsm.go v0.0.32-0.20220506065209-61a1b67e1c24
-	github.com/nats-io/nats-server/v2 v2.8.3-0.20220504192053-f20fe2c2d8b8
-	github.com/nats-io/nats.go v1.15.0
+	github.com/klauspost/compress v1.15.4
+	github.com/nats-io/jsm.go v0.0.32-0.20220513090927-15c2dbec2581
+	github.com/nats-io/nats-server/v2 v2.8.3-0.20220512230344-3aa7965ad7e5
+	github.com/nats-io/nats.go v1.15.1-0.20220510154044-144a3b25a04c
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.12.1
-	github.com/prometheus/common v0.33.0
+	github.com/prometheus/common v0.34.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.0.0
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
-	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
+	golang.org/x/crypto v0.0.0-20220511200225-c6db032c6c88
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
