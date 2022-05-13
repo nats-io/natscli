@@ -239,7 +239,7 @@ func (c *kvCommand) lsAction(_ *kingpin.ParseContext) error {
 	for _, s := range found {
 		nfo, _ := s.LatestInformation()
 
-		table.AddRow(strings.TrimPrefix(s.Name(), "KV_"), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), humanize.IBytes(nfo.State.Bytes), humanize.Comma(int64(nfo.State.Msgs)), humanizeDuration(time.Since(nfo.State.LastTime)))
+		table.AddRow(strings.TrimPrefix(s.Name(), "KV_"), s.Description(), nfo.Created.Format("2006-01-02 15:04:05"), humanize.IBytes(nfo.State.Bytes), humanize.Comma(int64(nfo.State.Msgs)), humanizeDuration(time.Since(nfo.State.LastTime)))
 	}
 
 	fmt.Println(table.Render())
