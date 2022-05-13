@@ -92,7 +92,7 @@ func configureServerCheckCommand(srv *kingpin.CmdClause) {
    meta        - JetStream Meta Cluster health
 `
 	check := srv.Command("check", help)
-	check.Flag("format", "Render the check in a specific format").Default("nagios").EnumVar(&checkRenderFormat, "nagios", "json", "prometheus")
+	check.Flag("format", "Render the check in a specific format").Default("nagios").EnumVar(&checkRenderFormat, "nagios", "json", "prometheus", "text")
 	check.Flag("outfile", "Save output to a file rather than STDOUT").StringVar(&checkRenderOutFile)
 
 	conn := check.Command("connection", "Checks basic server connection").Alias("conn").Default().Action(c.checkConnection)
@@ -227,6 +227,51 @@ func (r *result) Exit() {
 	os.Exit(r.exitCode())
 }
 
+func (r *result) renderHuman() string {
+	buf := bytes.NewBuffer([]byte{})
+
+	fmt.Fprintf(buf, "%s: %s\n\n", r.Name, r.Status)
+
+	table := newTableWriter("")
+	table.AddHeaders("Status", "Message")
+	lines := 0
+	for _, ok := range r.OKs {
+		table.AddRow("OK", ok)
+		lines++
+	}
+	for _, warn := range r.Warnings {
+		table.AddRow("Warning", warn)
+		lines++
+	}
+	for _, crit := range r.Criticals {
+		table.AddRow("Critical", crit)
+		lines++
+	}
+
+	if lines > 0 {
+		fmt.Fprintln(buf, "Status Detail")
+		fmt.Fprintln(buf)
+		fmt.Fprint(buf, table.Render())
+		fmt.Fprintln(buf)
+	}
+
+	table = newTableWriter("")
+	table.AddHeaders("Metric", "Value", "Unit", "Critical Threshold", "Warning Threshold")
+	lines = 0
+	for _, pd := range r.PerfData {
+		table.AddRow(pd.Name, pd.Value, pd.Unit, pd.Crit, pd.Warn)
+		lines++
+	}
+	if lines > 0 {
+		fmt.Fprintln(buf, "Check Metrics")
+		fmt.Fprintln(buf)
+		fmt.Fprint(buf, table.Render())
+		fmt.Fprintln(buf)
+	}
+
+	return buf.String()
+}
+
 func (r *result) renderPrometheus() string {
 	if r.Check == "" {
 		r.Check = r.Name
@@ -328,6 +373,8 @@ func (r *result) String() string {
 		return r.renderJSON()
 	case "prometheus":
 		return r.renderPrometheus()
+	case "text":
+		return r.renderHuman()
 	default:
 		return r.renderNagios()
 	}
