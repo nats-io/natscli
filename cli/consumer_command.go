@@ -1085,7 +1085,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 		}
 
 		// hopefully this is just to work around a temporary bug in the server
-		if c.maxDeliver == -1 {
+		if c.maxDeliver == -1 && len(cfg.BackOff) > 0 {
 			c.maxDeliver = len(cfg.BackOff) + 1
 		}
 	}

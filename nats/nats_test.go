@@ -595,7 +595,7 @@ func TestCLIConsumerAdd(t *testing.T) {
 	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 pull1 --config testdata/mem1_pull1_consumer.json", srv.ClientURL()))
 	consumerShouldExist(t, mgr, "mem1", "pull1")
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --filter 'js.mem.>' --max-pending 10 --replay instant --deliver subject --target out.push1 --ack explicit --deliver-group BOB --max-deliver 20 --bps 1024 --heartbeat=1s --flow-control --description 'test suite' --no-headers-only --backoff linear", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' con add mem1 push1 --filter 'js.mem.>' --max-pending 10 --replay instant --deliver subject --target out.push1 --ack explicit --deliver-group BOB --max-deliver=-1 --bps 1024 --heartbeat=1s --flow-control --description 'test suite' --no-headers-only --backoff none", srv.ClientURL()))
 	consumerShouldExist(t, mgr, "mem1", "push1")
 	push1, err = mgr.LoadConsumer("mem1", "push1")
 	checkErr(t, err, "push1 could not be loaded")
@@ -604,6 +604,12 @@ func TestCLIConsumerAdd(t *testing.T) {
 	}
 	if push1.DeliverGroup() != "BOB" {
 		t.Fatalf("deliver group '%s' != 'BOB'", push1.DeliverGroup())
+	}
+	if push1.MaxDeliver() != -1 {
+		t.Fatalf("max_deliver %d is not -1", push1.MaxDeliver())
+	}
+	if len(push1.Backoff()) != 0 {
+		t.Fatalf("unexpected backoff policy: %v", push1.Backoff())
 	}
 }
 
