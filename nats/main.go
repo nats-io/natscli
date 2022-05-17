@@ -44,12 +44,10 @@ See 'nats cheat' for a quick cheatsheet of commands
 	}
 	cli.SetVersion(version)
 
-	defaultConnectionName := "NATS CLI Version " + version
-
 	ncli.Flag("server", "NATS server urls").Short('s').Envar("NATS_URL").PlaceHolder("NATS_URL").StringVar(&opts.Servers)
 	ncli.Flag("user", "Username or Token").Envar("NATS_USER").PlaceHolder("NATS_USER").StringVar(&opts.Username)
 	ncli.Flag("password", "Password").Envar("NATS_PASSWORD").PlaceHolder("NATS_PASSWORD").StringVar(&opts.Password)
-	ncli.Flag("connection-name", "Nickname to use for the underlying NATS Connection (Default is '"+defaultConnectionName+"')").Default(defaultConnectionName).PlaceHolder("NAME").StringVar(&opts.ConnectionName)
+	ncli.Flag("connection-name", "Nickname to use for the underlying NATS Connection").Default("NATS CLI Version " + version).PlaceHolder("NAME").StringVar(&opts.ConnectionName)
 	ncli.Flag("creds", "User credentials").Envar("NATS_CREDS").PlaceHolder("NATS_CREDS").StringVar(&opts.Creds)
 	ncli.Flag("nkey", "User NKEY").Envar("NATS_NKEY").PlaceHolder("NATS_NKEY").StringVar(&opts.Nkey)
 	ncli.Flag("tlscert", "TLS public certificate").Envar("NATS_CERT").PlaceHolder("NATS_CERT").ExistingFileVar(&opts.TlsCert)
