@@ -696,7 +696,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 				progress.TimeStarted = startTime
 			}
 			if c.pull {
-				sub, err = js.PullSubscribe("getSubscribeSubject(c)", c.consumerName, nats.BindStream(c.streamName))
+				sub, err = js.PullSubscribe("", c.consumerName, nats.BindStream(c.streamName))
 				if err != nil {
 					log.Fatalf("Error PullSubscribe: %v", err)
 				}
