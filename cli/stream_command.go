@@ -95,6 +95,8 @@ type streamCmd struct {
 	allowRollup           bool
 	denyDelete            bool
 	denyPurge             bool
+	repubSource           string
+	repubDest             string
 
 	fServer    string
 	fCluster   string
@@ -206,6 +208,8 @@ func configureStreamCommand(app commandHost) {
 	strAdd.Flag("validate", "Only validates the configuration against the official Schema").BoolVar(&c.validateOnly)
 	strAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
 	addCreateFlags(strAdd, false)
+	strAdd.Flag("republish-source", "Republish messages to --republish-destination").StringVar(&c.repubSource)
+	strAdd.Flag("republish-destination", "Republish destination for messages in --republish-source").StringVar(&c.repubDest)
 
 	strEdit := str.Command("edit", "Edits an existing stream").Alias("update").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
@@ -1536,6 +1540,9 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 			fmt.Printf("       Placement Tags: %s\n", strings.Join(cfg.Placement.Tags, ", "))
 		}
 	}
+	if cfg.RePublish != nil {
+		fmt.Printf("         Republishing: %s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
+	}
 	if cfg.Mirror != nil {
 		fmt.Printf("               Mirror: %s\n", c.renderSource(cfg.Mirror))
 	}
@@ -2021,6 +2028,13 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 		} else {
 			ss := c.askSource(source, fmt.Sprintf("%s Source", source))
 			cfg.Sources = append(cfg.Sources, ss)
+		}
+	}
+
+	if c.repubSource != "" && c.repubDest != "" {
+		cfg.RePublish = &api.SubjectMapping{
+			Source:      c.repubSource,
+			Destination: c.repubDest,
 		}
 	}
 
