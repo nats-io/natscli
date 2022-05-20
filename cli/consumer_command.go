@@ -72,6 +72,7 @@ type consumerCmd struct {
 	description         string
 	inactiveThreshold   time.Duration
 	maxPullExpire       time.Duration
+	maxPullBytes        int
 	maxPullBatch        int
 	backoffMode         string
 	backoffSteps        uint
@@ -86,20 +87,27 @@ type consumerCmd struct {
 func configureConsumerCommand(app commandHost) {
 	c := &consumerCmd{}
 
-	addCreateFlags := func(f *kingpin.CmdClause) {
-		f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
-		f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
+	addCreateFlags := func(f *kingpin.CmdClause, edit bool) {
+		if !edit {
+			f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
+			f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
+		}
 		f.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (none, linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear", "none")
 		f.Flag("backoff-steps", "Number of steps to use when creating the backoff policy").PlaceHolder("STEPS").Default("10").UintVar(&c.backoffSteps)
 		f.Flag("backoff-min", "The shortest backoff period that will be generated").PlaceHolder("MIN").Default("1m").DurationVar(&c.backoffMin)
 		f.Flag("backoff-max", "The longest backoff period that will be generated").PlaceHolder("MAX").Default("20m").DurationVar(&c.backoffMax)
-		f.Flag("deliver", "Start policy (all, new, last, subject, 1h, msg sequence)").PlaceHolder("POLICY").StringVar(&c.startPolicy)
-		f.Flag("deliver-group", "Delivers push messages only to subscriptions matching this group").Default("_unset_").PlaceHolder("GROUP").StringVar(&c.deliveryGroup)
+		if !edit {
+			f.Flag("deliver", "Start policy (all, new, last, subject, 1h, msg sequence)").PlaceHolder("POLICY").StringVar(&c.startPolicy)
+			f.Flag("deliver-group", "Delivers push messages only to subscriptions matching this group").Default("_unset_").PlaceHolder("GROUP").StringVar(&c.deliveryGroup)
+		}
 		f.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
-		f.Flag("ephemeral", "Create an ephemeral Consumer").Default("false").BoolVar(&c.ephemeral)
-		f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
-		OptionalBoolean(f.Flag("flow-control", "Enable Push consumer flow control"))
-		f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
+		if !edit {
+			f.Flag("ephemeral", "Create an ephemeral Consumer").Default("false").BoolVar(&c.ephemeral)
+			f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
+			OptionalBoolean(f.Flag("flow-control", "Enable Push consumer flow control"))
+			f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
+		}
+
 		OptionalBoolean(f.Flag("headers-only", "Deliver only headers and no bodies (--no-headers-only disables)"))
 		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").PlaceHolder("TRIES").IntVar(&c.maxDeliver)
 		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
@@ -107,12 +115,17 @@ func configureConsumerCommand(app commandHost) {
 		f.Flag("max-waiting", "Maximum number of outstanding pulls allowed").PlaceHolder("PULLS").IntVar(&c.maxWaiting)
 		f.Flag("max-pull-batch", "Maximum size batch size for a pull request to accept").PlaceHolder("BATCH_SIZE").IntVar(&c.maxPullBatch)
 		f.Flag("max-pull-expire", "Maximum expire duration for a pull request to accept").PlaceHolder("EXPIRES").DurationVar(&c.maxPullExpire)
-		f.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
-		f.Flag("replay", "Replay Policy (instant, original)").PlaceHolder("POLICY").EnumVar(&c.replayPolicy, "instant", "original")
+		f.Flag("max-pull-bytes", "Maximum max bytes for a pull request to accept").PlaceHolder("BYTES").IntVar(&c.maxPullBytes)
+		if !edit {
+			f.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
+			f.Flag("replay", "Replay Policy (instant, original)").PlaceHolder("POLICY").EnumVar(&c.replayPolicy, "instant", "original")
+		}
 		f.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
 		f.Flag("target", "Push based delivery target subject").PlaceHolder("SUBJECT").StringVar(&c.delivery)
 		f.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
-		f.Flag("inactive-threshold", "How long to allow an ephemeral consumer to be idle before removing it").PlaceHolder("THRESHOLD").DurationVar(&c.inactiveThreshold)
+		if !edit {
+			f.Flag("inactive-threshold", "How long to allow an ephemeral consumer to be idle before removing it").PlaceHolder("THRESHOLD").DurationVar(&c.inactiveThreshold)
+		}
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
@@ -139,28 +152,16 @@ func configureConsumerCommand(app commandHost) {
 	consAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	consAdd.Flag("validate", "Only validates the configuration against the official Schema").BoolVar(&c.validateOnly)
 	consAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
-	addCreateFlags(consAdd)
+	addCreateFlags(consAdd, false)
 
 	edit := cons.Command("edit", "Edits the configuration of a consumer").Action(c.editAction)
 	edit.Arg("stream", "Stream name").StringVar(&c.stream)
 	edit.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	edit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
-	edit.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
-	edit.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (none, linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear", "none")
-	edit.Flag("backoff-steps", "Number of steps to use when creating the backoff policy").PlaceHolder("STEPS").UintVar(&c.backoffSteps)
-	edit.Flag("backoff-min", "The shortest backoff period that will be generated").PlaceHolder("MIN").DurationVar(&c.backoffMin)
-	edit.Flag("backoff-max", "The longest backoff period that will be generated").PlaceHolder("MAX").DurationVar(&c.backoffMax)
-	edit.Flag("max-deliver", "Maximum amount of times a message will be delivered").PlaceHolder("TRIES").IntVar(&c.maxDeliver)
-	edit.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
-	edit.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
-	edit.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
-	edit.Flag("max-waiting", "Maximum number of outstanding pulls allowed").PlaceHolder("PULLS").IntVar(&c.maxWaiting)
-	edit.Flag("max-pull-batch", "Maximum size batch size for a pull request to accept").PlaceHolder("BATCH_SIZE").IntVar(&c.maxPullBatch)
-	edit.Flag("max-pull-expire", "Maximum expire duration for a pull request to accept").PlaceHolder("EXPIRES").DurationVar(&c.maxPullExpire)
-	edit.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
-	OptionalBoolean(edit.Flag("headers-only", "Deliver only headers and no bodies (--no-headers-only disables)"))
 	edit.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 	edit.Flag("dry-run", "Only shows differences, do not edit the stream").BoolVar(&c.dryRun)
+
+	addCreateFlags(edit, true)
 
 	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
 	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -171,7 +172,7 @@ func configureConsumerCommand(app commandHost) {
 	consCp.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consCp.Arg("source", "Source Consumer name").Required().StringVar(&c.consumer)
 	consCp.Arg("destination", "Destination Consumer name").Required().StringVar(&c.destination)
-	addCreateFlags(consCp)
+	addCreateFlags(consCp, false)
 
 	consNext := cons.Command("next", "Retrieves messages from Pull Consumers without interactive prompts").Action(c.nextAction)
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
@@ -335,11 +336,19 @@ func (c *consumerCmd) editAction(pc *kingpin.ParseContext) error {
 			ncfg.MaxRequestExpires = c.maxPullExpire
 		}
 
+		if c.maxPullBytes > 0 {
+			ncfg.MaxRequestMaxBytes = c.maxPullBytes
+		}
+
 		if c.backoffMode != "" {
 			ncfg.BackOff, err = c.backoffPolicy()
 			if err != nil {
 				return fmt.Errorf("could not determine backoff policy: %v", err)
 			}
+		}
+
+		if c.delivery != "" {
+			ncfg.DeliverSubject = c.delivery
 		}
 
 		hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
@@ -577,6 +586,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	}
 	if config.MaxRequestBatch > 0 {
 		fmt.Printf("      Max Pull Batch: %s\n", humanize.Comma(int64(config.MaxRequestBatch)))
+	}
+	if config.MaxRequestMaxBytes > 0 {
+		fmt.Printf("   Max Pull MaxBytes: %s\n", humanize.Comma(int64(config.MaxRequestMaxBytes)))
 	}
 	if len(config.BackOff) > 0 {
 		fmt.Printf("             Backoff: %s\n", c.renderBackoff(config.BackOff))
@@ -835,6 +847,10 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 
 	if c.maxPullBatch > 0 {
 		cfg.MaxRequestBatch = c.maxPullBatch
+	}
+
+	if c.maxPullBytes > 0 {
+		cfg.MaxRequestMaxBytes = c.maxPullBytes
 	}
 
 	if c.backoffMode != "" {
@@ -1103,6 +1119,10 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 
 	if c.maxPullExpire > 0 {
 		cfg.MaxRequestExpires = c.maxPullExpire
+	}
+
+	if c.maxPullBytes > 0 {
+		cfg.MaxRequestMaxBytes = c.maxPullBytes
 	}
 
 	if cfg.DeliverSubject == "" {
