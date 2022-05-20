@@ -75,12 +75,12 @@ func (c *SrvPasswdCmd) askPassword() (string, error) {
 	bp1 := ""
 	bp2 := ""
 
-	err := survey.AskOne(&survey.Password{Message: "Enter password", Help: "Enter a password string that's minimum 22 characters long"}, &bp1)
+	err := askOne(&survey.Password{Message: "Enter password", Help: "Enter a password string that's minimum 22 characters long"}, &bp1)
 	if err != nil {
 		return "", fmt.Errorf("could not read password: %w", err)
 	}
 	fmt.Println()
-	err = survey.AskOne(&survey.Password{Message: "Reenter password", Help: "Enter the same password again"}, &bp2)
+	err = askOne(&survey.Password{Message: "Reenter password", Help: "Enter the same password again"}, &bp2)
 	if err != nil {
 		return "", fmt.Errorf("could not read password: %w", err)
 	}

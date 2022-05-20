@@ -505,7 +505,7 @@ func (c *streamCmd) removePeer(_ *kingpin.ParseContext) error {
 			peerNames = append(peerNames, r.Name)
 		}
 
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message: "Select a Peer",
 			Options: peerNames,
 		}, &c.peerName)
@@ -620,7 +620,7 @@ func (c *streamCmd) viewAction(_ *kingpin.ParseContext) error {
 
 		if last {
 			next := false
-			survey.AskOne(&survey.Confirm{Message: "Next Page?", Default: true}, &next)
+			askOne(&survey.Confirm{Message: "Next Page?", Default: true}, &next)
 			if !next {
 				return nil
 			}
@@ -872,7 +872,7 @@ func (c *streamCmd) streamTemplateAdd(pc *kingpin.ParseContext) (err error) {
 	cfg := c.prepareConfig(pc, false)
 
 	if c.maxStreams == -1 {
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Maximum Streams",
 		}, &c.maxStreams, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "invalid input")
@@ -1813,7 +1813,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 	}
 
 	if c.stream == "" {
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Stream Name",
 		}, &c.stream, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "invalid input")
@@ -1822,7 +1822,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 	if c.mirror == "" && len(c.sources) == 0 {
 		if len(c.subjects) == 0 {
 			subjects := ""
-			err = survey.AskOne(&survey.Input{
+			err = askOne(&survey.Input{
 				Message: "Subjects",
 				Help:    "Streams consume messages from subjects, this is a space or comma separated list that can include wildcards. Settable using --subjects",
 			}, &subjects, survey.WithValidator(survey.Required))
@@ -1839,7 +1839,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 	}
 
 	if c.storage == "" {
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message: "Storage",
 			Options: []string{"file", "memory"},
 			Help:    "Streams are stored on the server, this can be one of many backends and all are usable in clustering mode. Settable using --storage",
@@ -1858,7 +1858,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 	}
 
 	if c.retentionPolicyS == "" {
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message: "Retention Policy",
 			Options: []string{"Limits", "Interest", "Work Queue"},
 			Help:    "Messages are retained either based on limits like size and age (Limits), as long as there are Consumers (Interest) or until any worker processed them (Work Queue)",
@@ -1868,7 +1868,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 	}
 
 	if c.discardPolicy == "" {
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message: "Discard Policy",
 			Options: []string{"New", "Old"},
 			Help:    "Once the Stream reach it's limits of size or messages the New policy will prevent further messages from being added while Old will delete old messages.",
@@ -1911,7 +1911,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 	}
 
 	if c.maxAgeLimit == "" {
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Message TTL",
 			Default: "-1",
 			Help:    "Defines the oldest messages that can be stored in the Stream, any messages older than this period will be removed, -1 for unlimited. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --max-age",
@@ -1939,7 +1939,7 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 		if maxAge > 0 && maxAge < 2*time.Minute {
 			defaultDW = maxAge.String()
 		}
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Duplicate tracking time window",
 			Default: defaultDW,
 			Help:    "Duplicate messages are identified by the Msg-Id headers and tracked within a window of this size. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --dupe-window.",
@@ -2035,7 +2035,7 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 
 		if mirror.OptStartSeq == 0 {
 			ts := ""
-			err = survey.AskOne(&survey.Input{
+			err = askOne(&survey.Input{
 				Message: "Mirror Start Time (YYYY:MM:DD HH:MM:SS)",
 				Help:    "Start replicating as a specific time stamp in UTC time",
 			}, &ts)
@@ -2053,14 +2053,14 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 	if ok {
 		mirror.External = &api.ExternalStream{}
 		domainName := ""
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Foreign JetStream domain name",
 			Help:    "The domain name from where to import the JetStream API",
 		}, &domainName, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "Could not request mirror details")
 		mirror.External.ApiPrefix = fmt.Sprintf("$JS.%s.API", domainName)
 
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Delivery prefix",
 			Help:    "Optional prefix of the delivery subject",
 		}, &mirror.External.DeliverPrefix)
@@ -2075,13 +2075,13 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 	}
 
 	mirror.External = &api.ExternalStream{}
-	err = survey.AskOne(&survey.Input{
+	err = askOne(&survey.Input{
 		Message: "Foreign account API prefix",
 		Help:    "The prefix where the foreign account JetStream API has been imported",
 	}, &mirror.External.ApiPrefix, survey.WithValidator(survey.Required))
 	kingpin.FatalIfError(err, "Could not request mirror details")
 
-	err = survey.AskOne(&survey.Input{
+	err = askOne(&survey.Input{
 		Message: "Foreign account delivery prefix",
 		Help:    "The prefix where the foreign account JetStream delivery subjects has been imported",
 	}, &mirror.External.DeliverPrefix, survey.WithValidator(survey.Required))
@@ -2101,7 +2101,7 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 		cfg.OptStartSeq = uint64(a)
 
 		ts := ""
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: fmt.Sprintf("%s UTC Time Stamp (YYYY:MM:DD HH:MM:SS)", prefix),
 			Help:    "Start replicating as a specific time stamp",
 		}, &ts)
@@ -2112,7 +2112,7 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 			cfg.OptStartTime = &t
 		}
 
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: fmt.Sprintf("%s Filter source by subject", prefix),
 			Help:    "Only replicate data matching this subject",
 		}, &cfg.FilterSubject)
@@ -2124,14 +2124,14 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 	if ok {
 		cfg.External = &api.ExternalStream{}
 		domainName := ""
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: fmt.Sprintf("%s foreign JetStream domain name", prefix),
 			Help:    "The domain name from where to import the JetStream API",
 		}, &domainName, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "Could not request source details")
 		cfg.External.ApiPrefix = fmt.Sprintf("$JS.%s.API", domainName)
 
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: fmt.Sprintf("%s foreign JetStream domain delivery prefix", prefix),
 			Help:    "Optional prefix of the delivery subject",
 		}, &cfg.External.DeliverPrefix)
@@ -2146,13 +2146,13 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 	}
 
 	cfg.External = &api.ExternalStream{}
-	err = survey.AskOne(&survey.Input{
+	err = askOne(&survey.Input{
 		Message: fmt.Sprintf("%s foreign account API prefix", prefix),
 		Help:    "The prefix where the foreign account JetStream API has been imported",
 	}, &cfg.External.ApiPrefix, survey.WithValidator(survey.Required))
 	kingpin.FatalIfError(err, "Could not request source details")
 
-	err = survey.AskOne(&survey.Input{
+	err = askOne(&survey.Input{
 		Message: fmt.Sprintf("%s foreign account delivery prefix", prefix),
 		Help:    "The prefix where the foreign account JetStream delivery subjects has been imported",
 	}, &cfg.External.DeliverPrefix, survey.WithValidator(survey.Required))
@@ -2395,7 +2395,7 @@ func (c *streamCmd) rmMsgAction(_ *kingpin.ParseContext) (err error) {
 
 	if c.msgID == -1 {
 		id := ""
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Message Sequence to remove",
 		}, &id, survey.WithValidator(survey.Required))
 		kingpin.FatalIfError(err, "invalid input")
@@ -2429,7 +2429,7 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 
 	if c.msgID == -1 && c.filterSubject == "" {
 		id := ""
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Message Sequence to retrieve",
 			Default: "-1",
 		}, &id, survey.WithValidator(survey.Required))
@@ -2441,7 +2441,7 @@ func (c *streamCmd) getAction(_ *kingpin.ParseContext) (err error) {
 		c.msgID = int64(idint)
 
 		if c.msgID == -1 {
-			err = survey.AskOne(&survey.Input{
+			err = askOne(&survey.Input{
 				Message: "Subject to retrieve last message for",
 			}, &c.filterSubject)
 			kingpin.FatalIfError(err, "invalid subject")

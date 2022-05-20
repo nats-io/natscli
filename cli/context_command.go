@@ -407,7 +407,7 @@ func (c *ctxCommand) selectCommand(pc *kingpin.ParseContext) error {
 	}
 
 	if c.name == "" {
-		err := survey.AskOne(&survey.Select{
+		err := askOne(&survey.Select{
 			Message:  "Select a Context",
 			Options:  known,
 			PageSize: selectPageSize(len(known)),

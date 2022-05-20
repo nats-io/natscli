@@ -686,7 +686,7 @@ func (c *objCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.Objec
 			return nil, nil, nil, fmt.Errorf("no Object buckets found")
 		}
 
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message:  "Select a Bucket",
 			Options:  known,
 			PageSize: selectPageSize(len(known)),
