@@ -87,7 +87,6 @@ type Options struct {
 	Trace bool
 	// Customer inbox Prefix
 	InboxPrefix string
-
 	// Conn sets a prepared connect to connect with
 	Conn *nats.Conn
 	// Mgr sets a prepared jsm Manager to use for JetStream access

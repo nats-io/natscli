@@ -892,7 +892,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 
 	if c.consumer == "" && !c.ephemeral {
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Consumer name",
 			Help:    "This will be used for the name of the durable subscription to be used when referencing this Consumer later. Settable using 'name' CLI argument",
 		}, &c.consumer, survey.WithValidator(survey.Required))
@@ -905,7 +905,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 
 	if !c.pull && c.delivery == "" {
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Delivery target (empty for Pull Consumers)",
 			Help:    "Consumers can be in 'push' or 'pull' mode, in 'push' mode messages are dispatched in real time to a target NATS subject, this is that subject. Leaving this blank creates a 'pull' mode Consumer. Settable using --target and --pull",
 		}, &c.delivery)
@@ -915,7 +915,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	cfg.DeliverSubject = c.delivery
 
 	if cfg.DeliverSubject != "" && c.deliveryGroup == "_unset_" {
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Delivery Queue Group",
 			Help:    "When set push consumers will only deliver messages to subscriptions matching this queue group",
 		}, &c.deliveryGroup)
@@ -927,7 +927,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 
 	if c.startPolicy == "" {
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Start policy (all, new, last, subject, 1h, msg sequence)",
 			Help:    "This controls how the Consumer starts out, does it make all messages available, only the latest, latest per subject, ones after a certain time or time sequence. Settable using --deliver",
 		}, &c.startPolicy, survey.WithValidator(survey.Required))
@@ -944,7 +944,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			dflt = "explicit"
 		}
 
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message: "Acknowledgement policy",
 			Options: valid,
 			Default: dflt,
@@ -954,7 +954,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 
 	if c.replayPolicy == "" {
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message: "Replay policy",
 			Options: []string{"instant", "original"},
 			Default: "instant",
@@ -987,7 +987,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	if cfg.DeliverSubject != "" {
 		if c.replayPolicy == "" {
 			mode := ""
-			err = survey.AskOne(&survey.Select{
+			err = askOne(&survey.Select{
 				Message: "Replay policy",
 				Options: []string{"instant", "original"},
 				Default: "instant",
@@ -1003,7 +1003,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 
 	if c.filterSubject == "_unset_" {
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Filter Stream by subject (blank for all)",
 			Default: "",
 			Help:    "Stream can consume more than one subject - or a wildcard - this allows you to filter out just a single subject from all the ones entering the Stream for delivery to the Consumer. Settable using --filter",
@@ -1016,7 +1016,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 
 	if c.maxDeliver == 0 && cfg.AckPolicy != api.AckNone {
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Maximum Allowed Deliveries",
 			Default: "-1",
 			Help:    "When this is -1 unlimited attempts to deliver an un acknowledged message is made, when this is >0 it will be maximum amount of times a message is delivered after which it is ignored. Settable using --max-deliver.",
@@ -1025,7 +1025,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	}
 
 	if c.maxAckPending == -1 && cfg.AckPolicy != api.AckNone {
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Maximum Acknowledgements Pending",
 			Default: "0",
 			Help:    "The maximum number of messages without acknowledgement that can be outstanding, once this limit is reached message delivery will be suspended. Settable using --max-pending.",
@@ -1041,7 +1041,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			kingpin.FatalIfError(err, "invalid heartbeat duration")
 		} else {
 			idle := "0s"
-			err = survey.AskOne(&survey.Input{
+			err = askOne(&survey.Input{
 				Message: "Idle Heartbeat",
 				Help:    "When a Push consumer is idle for the given period an empty message with a Status header of 100 will be sent to the delivery subject, settable using --heartbeat",
 				Default: "0s",
@@ -1128,7 +1128,7 @@ func (c *consumerCmd) askBackoffPolicy() error {
 	}
 
 	if ok {
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message: "Backoff policy",
 			Options: []string{"linear", "none"},
 			Default: "none",
@@ -1143,7 +1143,7 @@ func (c *consumerCmd) askBackoffPolicy() error {
 		}
 
 		d := ""
-		err := survey.AskOne(&survey.Input{
+		err := askOne(&survey.Input{
 			Message: "Minimum retry time",
 			Help:    "Backoff policies range from min to max",
 			Default: "1m",
@@ -1156,7 +1156,7 @@ func (c *consumerCmd) askBackoffPolicy() error {
 			return err
 		}
 
-		err = survey.AskOne(&survey.Input{
+		err = askOne(&survey.Input{
 			Message: "Maximum retry time",
 			Help:    "Backoff policies range from min to max",
 			Default: "10m",

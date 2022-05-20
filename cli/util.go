@@ -75,7 +75,7 @@ func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool
 	default:
 		c := ""
 
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message:  "Select a Consumer",
 			Options:  consumers,
 			PageSize: selectPageSize(len(consumers)),
@@ -115,7 +115,7 @@ func selectStreamTemplate(mgr *jsm.Manager, template string, force bool) (string
 	default:
 		s := ""
 
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message:  "Select a Stream Template",
 			Options:  templates,
 			PageSize: selectPageSize(len(templates)),
@@ -167,7 +167,7 @@ func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string
 	default:
 		s := ""
 
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message:  "Select a Stream",
 			Options:  matched,
 			PageSize: selectPageSize(len(matched)),
@@ -178,6 +178,14 @@ func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string
 
 		return s, nil, nil
 	}
+}
+
+func askOne(p survey.Prompt, response interface{}, opts ...survey.AskOpt) error {
+	if !isTerminal() {
+		return fmt.Errorf("cannot prompt for user input without a terminal")
+	}
+
+	return survey.AskOne(p, response, opts...)
 }
 
 func toJSON(d interface{}) (string, error) {
@@ -300,7 +308,7 @@ func askConfirmation(prompt string, dflt bool) (bool, error) {
 
 	ans := dflt
 
-	err := survey.AskOne(&survey.Confirm{
+	err := askOne(&survey.Confirm{
 		Message: prompt,
 		Default: dflt,
 	}, &ans)
@@ -315,7 +323,7 @@ func askOneBytes(prompt string, dflt string, help string, required string) (int6
 
 	for {
 		val := ""
-		err := survey.AskOne(&survey.Input{
+		err := askOne(&survey.Input{
 			Message: prompt,
 			Default: dflt,
 			Help:    help,
@@ -348,7 +356,7 @@ func askOneInt(prompt string, dflt string, help string) (int64, error) {
 	}
 
 	val := ""
-	err := survey.AskOne(&survey.Input{
+	err := askOne(&survey.Input{
 		Message: prompt,
 		Default: dflt,
 		Help:    help,

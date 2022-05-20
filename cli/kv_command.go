@@ -507,7 +507,7 @@ func (c *kvCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.KeyVal
 			return nil, nil, nil, fmt.Errorf("no KV buckets found")
 		}
 
-		err = survey.AskOne(&survey.Select{
+		err = askOne(&survey.Select{
 			Message:  "Select a Bucket",
 			Options:  known,
 			PageSize: selectPageSize(len(known)),
