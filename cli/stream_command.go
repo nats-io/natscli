@@ -172,7 +172,6 @@ func configureStreamCommand(app commandHost) {
 	str.Flag("all", "When listing or selecting streams show all streams including system ones").Short('a').BoolVar(&c.showAll)
 
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
-	strLs.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
 	strLs.Flag("names", "Show just the stream names").Short('n').BoolVar(&c.listNames)
 	strLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
@@ -193,8 +192,9 @@ func configureStreamCommand(app commandHost) {
 	strFind.Flag("idle", "Display streams with no new messages or consumer deliveries for a period").PlaceHolder("DURATION").DurationVar(&c.fIdle)
 	strFind.Flag("created", "Display streams created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
 	strFind.Flag("consumers", "Display streams with fewer consumers than threshold").PlaceHolder("THRESHOLD").Default("-1").IntVar(&c.fConsumers)
-	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
+	strFind.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
 	strFind.Flag("names", "Show just the stream names").Short('n').BoolVar(&c.listNames)
+	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
@@ -397,6 +397,9 @@ func (c *streamCmd) findAction(_ *kingpin.ParseContext) (err error) {
 	}
 	if c.fInvert {
 		opts = append(opts, jsm.StreamQueryInvert())
+	}
+	if c.filterSubject != "" {
+		opts = append(opts, jsm.StreamQuerySubjectWildcard(c.filterSubject))
 	}
 
 	found, err := c.mgr.QueryStreams(opts...)
