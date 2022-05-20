@@ -78,6 +78,8 @@ type consumerCmd struct {
 	backoffSteps        uint
 	backoffMin          time.Duration
 	backoffMax          time.Duration
+	replicas            int
+	memory              bool
 
 	dryRun bool
 	mgr    *jsm.Manager
@@ -125,6 +127,8 @@ func configureConsumerCommand(app commandHost) {
 		f.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
 		if !edit {
 			f.Flag("inactive-threshold", "How long to allow an ephemeral consumer to be idle before removing it").PlaceHolder("THRESHOLD").DurationVar(&c.inactiveThreshold)
+			f.Flag("replicas", "Sets a custom replica count rather than inherit from the stream").IntVar(&c.replicas)
+			f.Flag("memory", "Force the consumer state to be stored in memory rather than inherit from the stream").BoolVar(&c.memory)
 		}
 	}
 
@@ -160,7 +164,6 @@ func configureConsumerCommand(app commandHost) {
 	edit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	edit.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 	edit.Flag("dry-run", "Only shows differences, do not edit the stream").BoolVar(&c.dryRun)
-
 	addCreateFlags(edit, true)
 
 	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
@@ -592,6 +595,12 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	}
 	if len(config.BackOff) > 0 {
 		fmt.Printf("             Backoff: %s\n", c.renderBackoff(config.BackOff))
+	}
+	if config.Replicas > 0 {
+		fmt.Printf("            Replicas: %d\n", config.Replicas)
+	}
+	if config.MemoryStorage {
+		fmt.Printf("      Memory Storage: yes\n")
 	}
 	fmt.Println()
 
@@ -1136,7 +1145,10 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	if c.bpsRateLimit > 0 && cfg.DeliverSubject == "" {
 		return nil, fmt.Errorf("rate limits are only possible on Push consumers")
 	}
+
 	cfg.RateLimit = c.bpsRateLimit
+	cfg.Replicas = c.replicas
+	cfg.MemoryStorage = c.memory
 
 	return cfg, nil
 }
