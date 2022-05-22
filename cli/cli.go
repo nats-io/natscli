@@ -71,7 +71,7 @@ type Options struct {
 	Timeout time.Duration
 	// ConnectionName is the name to use for the underlying NATS connection
 	ConnectionName string
-	// Nkey is the file holding a nkey to connect with
+	// Username is the username or token to connect with
 	Username string
 	// Password is the password to connect with
 	Password string
