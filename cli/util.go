@@ -395,8 +395,13 @@ func natsOpts() []nats.Option {
 	copts, err := opts.Config.NATSOptions()
 	kingpin.FatalIfError(err, "configuration error")
 
+	connectionName := strings.TrimSpace(opts.ConnectionName)
+	if len(connectionName) == 0 {
+		connectionName = "NATS CLI Version " + Version
+	}
+
 	return append(copts, []nats.Option{
-		nats.Name("NATS CLI Version " + Version),
+		nats.Name(connectionName),
 		nats.MaxReconnects(-1),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			if err != nil {

@@ -69,6 +69,8 @@ type Options struct {
 	TlsCA string
 	// Timeout is how long to wait for operations
 	Timeout time.Duration
+	// ConnectionName is the name to use for the underlying NATS connection
+	ConnectionName string
 	// Username is the username or token to connect with
 	Username string
 	// Password is the password to connect with
