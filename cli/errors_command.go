@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go/schemas"
 	"github.com/nats-io/nats-server/v2/server"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type errCmd struct {

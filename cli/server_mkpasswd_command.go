@@ -17,8 +17,8 @@ import (
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/alecthomas/kingpin"
 	"golang.org/x/crypto/bcrypt"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type SrvPasswdCmd struct {

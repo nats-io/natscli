@@ -18,12 +18,12 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/xlab/tablewriter"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type SrvReportCmd struct {

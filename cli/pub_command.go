@@ -21,10 +21,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/nats.go"
 	terminal "golang.org/x/term"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type pubCmd struct {

@@ -19,7 +19,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin"
 )
 
 type cheatCmd struct {

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats.go"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type trafficCmd struct {

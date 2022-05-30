@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/alecthomas/kingpin"
 	"github.com/dustin/go-humanize"
 	"github.com/emicklei/dot"
 	"github.com/google/go-cmp/cmp"
@@ -40,7 +41,6 @@ import (
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/xlab/tablewriter"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type streamCmd struct {

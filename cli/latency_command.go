@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/HdrHistogram/hdrhistogram-go"
+	"github.com/alecthomas/kingpin"
 	"github.com/nats-io/nats.go"
 	histwriter "github.com/tylertreat/hdrhistogram-writer"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type latencyCmd struct {

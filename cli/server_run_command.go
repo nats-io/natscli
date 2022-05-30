@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"text/template"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/nats-io/jsm.go/natscontext"
 	"github.com/nats-io/nats-server/v2/server"
 	"golang.org/x/crypto/bcrypt"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type SrvRunCmd struct {

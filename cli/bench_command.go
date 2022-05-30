@@ -21,11 +21,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/dustin/go-humanize"
 	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/bench"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type benchCmd struct {

@@ -23,9 +23,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type subCmd struct {

@@ -16,7 +16,7 @@ package cli
 import (
 	"fmt"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin"
 )
 
 type restoreCmd struct {
