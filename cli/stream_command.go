@@ -148,7 +148,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
 		f.Flag("tags", "Backward compatibility only, use --tag").Hidden().StringsVar(&c.placementTags)
 		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
-		f.Flag("ack", "(--no-ack) Acknowledge publishes").Default("true").BoolVar(&c.ack)
+		f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
 		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
@@ -161,9 +161,9 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
 
-		OptionalBoolean(f.Flag("allow-rollup", "(--no-allow-rollup) Allows roll-ups to be done by publishing messages with special headers"))
-		OptionalBoolean(f.Flag("deny-delete", "(--no-deny-delete) Deny messages from being deleted via the API"))
-		OptionalBoolean(f.Flag("deny-purge", "(--no-deny-purge) Deny entire stream or subject purges via the API"))
+		OptionalBoolean(f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers"))
+		OptionalBoolean(f.Flag("deny-delete", "Deny messages from being deleted via the API"))
+		OptionalBoolean(f.Flag("deny-purge", "Deny entire stream or subject purges via the API"))
 
 		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
