@@ -17,8 +17,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/nats-io/jsm.go/api"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type schemaSearchCmd struct {

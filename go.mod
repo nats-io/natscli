@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.4
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
+	github.com/alecthomas/kingpin v1.3.8-0.20211026191244-551b91efb557
 	github.com/dustin/go-humanize v1.0.0
 	github.com/emicklei/dot v0.16.0
 	github.com/fatih/color v1.13.0
@@ -25,7 +26,6 @@ require (
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
 	golang.org/x/term v0.0.0-20220526004731-065cf7ba2467
-	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
 
 require (

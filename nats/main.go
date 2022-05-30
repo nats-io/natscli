@@ -14,29 +14,99 @@
 package main
 
 import (
+	"bufio"
 	"log"
 	"os"
 	"runtime/debug"
+	"strings"
+	"text/template"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/nats-io/natscli/cli"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 var version = "development"
+
+var usageTemplate = `{{define "FormatCommand"}}\
+{{if .FlagSummary}} {{.FlagSummary}}{{end}}\
+{{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end}}\
+{{end}}\
+
+{{define "FormatCommands"}}\
+{{range .Commands}}\
+{{if not .Hidden}}\
+  {{.FullCommand}}{{if .Default}}*{{end}}{{template "FormatCommand" .}}
+{{.Help|Wrap 4}}
+{{end}}\
+{{end}}\
+{{end}}\
+
+{{ define "FormatCommandsForTopLevel" }}\
+{{range .Commands}}\
+{{if not .Hidden}}\
+{{if not (eq .FullCommand "help")}}\
+  {{.FullCommand}}{{if .Default}}*{{end}}{{template "FormatCommand" .}}
+{{.Help|FirstLine|Wrap 4}}
+{{end}}\
+{{end}}\
+{{end}}\
+{{end}}\
+
+{{define "FormatUsage"}}\
+{{template "FormatCommand" .}}{{if .Commands}} <command> [<args> ...]{{end}}
+{{if .Help}}
+{{.Help|Wrap 0}}\
+{{end}}\
+{{end}}\
+
+{{if .Context.SelectedCommand}}\
+usage: {{.App.Name}} {{.Context.SelectedCommand}}{{template "FormatUsage" .Context.SelectedCommand}}
+{{else}}\
+usage: {{.App.Name}}{{template "FormatUsage" .App}}
+{{end}}\
+{{if .Context.SelectedCommand}}\
+{{if .Context.Flags}}\
+Flags:
+{{.Context.Flags|FlagsToTwoColumns|FormatTwoColumns}}
+{{end}}\
+{{if .Context.Args}}\
+Args:
+{{.Context.Args|ArgsToTwoColumns|FormatTwoColumns}}
+{{end}}\
+{{if len .Context.SelectedCommand.Commands}}\
+Subcommands:
+{{template "FormatCommands" .Context.SelectedCommand}}
+{{end}}\
+{{else if .App.Commands}}\
+Commands:
+{{template "FormatCommandsForTopLevel" .App}}
+{{end}}\
+`
 
 func main() {
 	help := `NATS Utility
 
 NATS Server and JetStream administration.
 
-See 'nats cheat' for a quick cheatsheet of commands
-	`
+See 'nats cheat' for a quick cheatsheet of commands`
 
 	ncli := kingpin.New("nats", help)
 	ncli.Author("NATS Authors <info@nats.io>")
 	ncli.UsageWriter(os.Stdout)
 	ncli.Version(getVersion())
 	ncli.HelpFlag.Short('h')
+	ncli.UsageTemplate(usageTemplate)
+	ncli.UsageFuncs(template.FuncMap{
+		"FirstLine": func(v string) string {
+			if v == "" {
+				return v
+			}
+
+			scanner := bufio.NewScanner(strings.NewReader(v))
+			scanner.Scan()
+			return scanner.Text()
+		},
+	})
 
 	opts, err := cli.ConfigureInApp(ncli, nil, true)
 	if err != nil {

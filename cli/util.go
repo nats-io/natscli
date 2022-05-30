@@ -37,6 +37,7 @@ import (
 	"unicode"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/alecthomas/kingpin"
 	"github.com/dustin/go-humanize"
 	"github.com/gosuri/uiprogress"
 	"github.com/klauspost/compress/s2"
@@ -45,7 +46,6 @@ import (
 	"github.com/nats-io/nuid"
 	"github.com/xlab/tablewriter"
 	terminal "golang.org/x/term"
-	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go"
 

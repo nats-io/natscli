@@ -16,9 +16,9 @@ package cli
 import (
 	"fmt"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/ghodss/yaml"
 	"github.com/nats-io/jsm.go/api"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type schemaInfoCmd struct {

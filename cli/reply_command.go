@@ -23,9 +23,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/kballard/go-shellquote"
 	"github.com/nats-io/nats.go"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type replyCmd struct {

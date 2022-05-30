@@ -23,12 +23,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type SrvCheckCmd struct {
@@ -85,14 +85,14 @@ type SrvCheckCmd struct {
 func configureServerCheckCommand(srv *kingpin.CmdClause) {
 	c := &SrvCheckCmd{}
 
-	help := `Nagios protocol health check for NATS servers
+	help := `Health check for NATS servers
 
    connection  - connects and does a request-reply check
    stream      - checks JetStream streams for source, mirror and cluster health
    meta        - JetStream Meta Cluster health
 `
 	check := srv.Command("check", help)
-	check.Flag("format", "Render the check in a specific format").Default("nagios").EnumVar(&checkRenderFormat, "nagios", "json", "prometheus", "text")
+	check.Flag("format", "Render the check in a specific format (nagios, json, prometheus, text)").Default("nagios").EnumVar(&checkRenderFormat, "nagios", "json", "prometheus", "text")
 	check.Flag("outfile", "Save output to a file rather than STDOUT").StringVar(&checkRenderOutFile)
 
 	conn := check.Command("connection", "Checks basic server connection").Alias("conn").Default().Action(c.checkConnection)

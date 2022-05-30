@@ -19,9 +19,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type SrvRaftCmd struct {

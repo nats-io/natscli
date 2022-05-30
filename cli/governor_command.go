@@ -8,10 +8,10 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/kballard/go-shellquote"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/governor"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type govCmd struct {

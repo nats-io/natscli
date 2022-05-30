@@ -20,8 +20,8 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/alecthomas/kingpin"
 	"github.com/fatih/color"
-	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/nats-io/jsm.go/natscontext"
 	"github.com/nats-io/nats.go"

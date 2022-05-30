@@ -24,10 +24,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/guptarohit/asciigraph"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type SrvPingCmd struct {

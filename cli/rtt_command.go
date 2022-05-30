@@ -21,8 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/nats-io/nats.go"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type rttCmd struct {

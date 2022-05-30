@@ -19,7 +19,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin"
 )
 
 type schemaValidateCmd struct {

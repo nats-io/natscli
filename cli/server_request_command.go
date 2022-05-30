@@ -16,9 +16,9 @@ package cli
 import (
 	"fmt"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type SrvRequestCmd struct {

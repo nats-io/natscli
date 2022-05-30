@@ -20,10 +20,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/nats-server/v2/server"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type SrvInfoCmd struct {
