@@ -110,7 +110,7 @@ func configureConsumerCommand(app commandHost) {
 			f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
 		}
 
-		OptionalBoolean(f.Flag("headers-only", "Deliver only headers and no bodies (--no-headers-only disables)"))
+		OptionalBoolean(f.Flag("headers-only", "Deliver only headers and no bodies"))
 		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").PlaceHolder("TRIES").IntVar(&c.maxDeliver)
 		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
