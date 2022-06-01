@@ -1706,6 +1706,10 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 
 	fmt.Printf("     Active Consumers: %d\n", info.State.Consumers)
 
+	if info.State.NumSubjects > 0 { // available from 2.8
+		fmt.Printf("   Number of Subjects: %d\n", info.State.NumSubjects)
+	}
+
 	if len(info.Alternates) > 0 {
 		fmt.Printf("           Alternates: ")
 		lName := 0
