@@ -14,6 +14,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/alecthomas/kingpin"
 )
 
@@ -39,6 +41,15 @@ func (c *backupCmd) backupAction(_ *kingpin.ParseContext) error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("Please note this method of backup does not backup stream data")
+	fmt.Println()
+	fmt.Println("We now have the ability to backup a single stream data or all streams in")
+	fmt.Println("an account, please see the 'nats stream backup' and 'nats account backup'")
+	fmt.Println("commands, there are also matching restore commands.")
+	fmt.Println()
+	fmt.Println("This command is now deprecated and will be removed in September 2022")
+	fmt.Println()
 
 	return mgr.BackupJetStreamConfiguration(c.outDir, c.data)
 }
