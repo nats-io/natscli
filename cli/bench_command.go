@@ -282,7 +282,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 
 			// create the pull consumer
 			if c.numSubs > 0 {
-				if c.pull {
+				if c.pull && c.consumerName == DEFAULT_DURABLE_CONSUMER_NAME {
 					_, err = js.AddConsumer(c.streamName, &nats.ConsumerConfig{
 						Durable:       c.consumerName,
 						DeliverPolicy: nats.DeliverAllPolicy,
@@ -300,16 +300,14 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 						log.Fatalf("Error creating the pull consumer: %v", err)
 					}
 					defer func() {
-						if c.consumerName == DEFAULT_DURABLE_CONSUMER_NAME {
-							err := js.DeleteConsumer(c.streamName, c.consumerName)
-							if err != nil {
-								log.Printf("Error deleting the pull consumer on stream %s: %v", c.streamName, err)
-							}
-							log.Printf("Deleted durable consumer: %s\n", c.consumerName)
+						err := js.DeleteConsumer(c.streamName, c.consumerName)
+						if err != nil {
+							log.Printf("Error deleting the pull consumer on stream %s: %v", c.streamName, err)
 						}
+						log.Printf("Deleted durable consumer: %s\n", c.consumerName)
 					}()
 					log.Printf("Defined durable explicitly acked pull consumer: %s\n", c.consumerName)
-				} else if c.pushDurable {
+				} else if c.pushDurable && c.consumerName == DEFAULT_DURABLE_CONSUMER_NAME {
 					_, err = js.AddConsumer(c.streamName, &nats.ConsumerConfig{
 						Durable:        c.consumerName,
 						DeliverSubject: c.consumerName + "-DELIVERY",
@@ -323,13 +321,11 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 						log.Fatal("Error creating the durable push consumer: ", err)
 					}
 					defer func() {
-						if c.consumerName == DEFAULT_DURABLE_CONSUMER_NAME {
-							err := js.DeleteConsumer(c.streamName, c.consumerName)
-							if err != nil {
-								log.Fatalf("Error deleting the durable push consumer on stream %s: %v", c.streamName, err)
-							}
-							log.Printf("Deleted durable consumer: %s\n", c.consumerName)
+						err := js.DeleteConsumer(c.streamName, c.consumerName)
+						if err != nil {
+							log.Fatalf("Error deleting the durable push consumer on stream %s: %v", c.streamName, err)
 						}
+						log.Printf("Deleted durable consumer: %s\n", c.consumerName)
 					}()
 
 					log.Printf("Defined durable explicitly acked push consumer: %s\n", c.consumerName)
@@ -506,7 +502,7 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 			state = "Publishing"
 			futures := make([]nats.PubAckFuture, min(c.pubBatch, c.numMsg-i))
 			for j := 0; j < c.pubBatch && i+j < c.numMsg; j++ {
-				futures[j], err = js.PublishAsync(getPublishSubject(&c, i), msg)
+				futures[j], err = js.PublishAsync(getPublishSubject(&c, i+j), msg)
 				if err != nil {
 					log.Fatalf("PubAsync error: %v", err)
 				}
@@ -696,7 +692,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 				progress.TimeStarted = startTime
 			}
 			if c.pull {
-				sub, err = js.PullSubscribe("", c.consumerName, nats.BindStream(c.streamName))
+				sub, err = js.PullSubscribe(getSubscribeSubject(c), c.consumerName, nats.BindStream(c.streamName))
 				if err != nil {
 					log.Fatalf("Error PullSubscribe: %v", err)
 				}
