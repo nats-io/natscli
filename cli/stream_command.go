@@ -97,6 +97,7 @@ type streamCmd struct {
 	denyPurge             bool
 	repubSource           string
 	repubDest             string
+	repubHeadersOnly      bool
 
 	fServer    string
 	fCluster   string
@@ -210,6 +211,7 @@ func configureStreamCommand(app commandHost) {
 	addCreateFlags(strAdd, false)
 	strAdd.Flag("republish-source", "Republish messages to --republish-destination").StringVar(&c.repubSource)
 	strAdd.Flag("republish-destination", "Republish destination for messages in --republish-source").StringVar(&c.repubDest)
+	strAdd.Flag("republish-headers", "Republish only message headers, no bodies").BoolVar(&c.repubHeadersOnly)
 
 	strEdit := str.Command("edit", "Edits an existing stream").Alias("update").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
@@ -1562,7 +1564,11 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 		}
 	}
 	if cfg.RePublish != nil {
-		fmt.Printf("         Republishing: %s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
+		if cfg.RePublish.HeadersOnly {
+			fmt.Printf(" Republishing Headers: %s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
+		} else {
+			fmt.Printf("         Republishing: %s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
+		}
 	}
 	if cfg.Mirror != nil {
 		fmt.Printf("               Mirror: %s\n", c.renderSource(cfg.Mirror))
@@ -2057,9 +2063,10 @@ func (c *streamCmd) prepareConfig(pc *kingpin.ParseContext, requireSize bool) ap
 	}
 
 	if c.repubSource != "" && c.repubDest != "" {
-		cfg.RePublish = &api.SubjectMapping{
+		cfg.RePublish = &api.RePublish{
 			Source:      c.repubSource,
 			Destination: c.repubDest,
+			HeadersOnly: c.repubHeadersOnly,
 		}
 	}
 
