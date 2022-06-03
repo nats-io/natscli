@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"text/template"
@@ -215,6 +216,10 @@ func (c *SrvRunCmd) prepareConfig() error {
 			return err
 		}
 		c.config.StoreDir = filepath.Join(parent, "nats", c.config.Name)
+		if runtime.GOOS == "windows" {
+			//escape path separator in file
+			c.config.StoreDir = strings.ReplaceAll(c.config.StoreDir, "\\", "\\\\")
+		}
 		if c.config.ExtendWithContext || c.config.ExtendDemoNetwork {
 			c.config.JSDomain = strings.ToUpper(c.config.Name)
 		}
