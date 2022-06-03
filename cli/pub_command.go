@@ -194,7 +194,13 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 
 			rtt := time.Since(start)
 
-			if logOutput {
+			switch {
+			case c.raw:
+				fmt.Println(string(m.Data))
+				if !strings.HasSuffix(string(m.Data), "\n") {
+					fmt.Println()
+				}
+			case logOutput:
 				log.Printf("Received with rtt %v", rtt)
 
 				if len(m.Header) > 0 {
@@ -205,11 +211,11 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 					}
 					fmt.Println()
 				}
-			}
 
-			fmt.Println(string(m.Data))
-			if !strings.HasSuffix(string(m.Data), "\n") {
-				fmt.Println()
+				fmt.Println(string(m.Data))
+				if !strings.HasSuffix(string(m.Data), "\n") {
+					fmt.Println()
+				}
 			}
 
 			rc++
