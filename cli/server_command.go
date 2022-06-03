@@ -21,6 +21,7 @@ func configureServerCommand(app commandHost) {
 	configureServerReportCommand(srv)
 	configureServerRequestCommand(srv)
 	configureServerRaftCommand(srv)
+	configureServerMappingCommand(srv)
 	configureServerPasswdCommand(srv)
 	configureServerCheckCommand(srv)
 	configureServerRunCommand(srv)
