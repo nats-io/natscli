@@ -753,6 +753,17 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 	var bps uint64
 	var progress *uiprogress.Progress
 	expected := 1
+	timedOut := false
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	timeout := time.AfterFunc(5*time.Second, func() {
+		cancel()
+		timedOut = true
+	})
+
+	var received uint32
 
 	cb := func(p jsm.SnapshotProgress) {
 		if bar == nil && showProgress {
@@ -776,6 +787,11 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 			}
 
 			first = false
+		}
+
+		if p.ChunksReceived() != received {
+			timeout.Reset(5 * time.Second)
+			received = p.ChunksReceived()
 		}
 
 		bps = p.BytesPerSecond()
@@ -828,6 +844,11 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 	pmu.Unlock()
 
 	fmt.Println()
+
+	if timedOut {
+		return fmt.Errorf("backup timed out after receiving no data for a long period")
+	}
+
 	fmt.Printf("Received %s compressed data in %d chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), fp.ChunksReceived(), stream.Name(), fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), humanize.IBytes(fp.UncompressedBytesReceived()))
 
 	return nil
