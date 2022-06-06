@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/nats.go"
 	terminal "golang.org/x/term"
@@ -43,9 +43,8 @@ type pubCmd struct {
 
 func configurePubCommand(app commandHost) {
 	c := &pubCmd{}
-	pubHelp := `Generic data publish utility
 
-Body and Header values of the messages may use Go templates to 
+	pubHelp := `Body and Header values of the messages may use Go templates to 
 create unique messages.
 
    nats pub test --count 10 "Message {{Count}} @ {{Time}}"
@@ -62,10 +61,11 @@ Available template functions are:
    UnixNano         nano seconds since 1970 in UTC
    Time             the current time
    ID               an unique ID
-   Random(min, max) random string at least min long, at most max 
-
+   Random(min, max) random string at least min long, at most max
 `
-	pub := app.Command("publish", pubHelp).Alias("pub").Action(c.publish)
+
+	pub := app.Command("publish", "Generic data publish utility").Alias("pub").Action(c.publish)
+	pub.HelpLong(pubHelp)
 	pub.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	pub.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
@@ -87,9 +87,7 @@ echo "hello world" | nats pub --force-stdin destination.subject
 nats request destination.subject "hello world" -H "Content-type:text/plain" --raw
 `
 
-	requestHelp := `Generic request-reply request utility
-
-Body and Header values of the messages may use Go templates to 
+	requestHelp := `Body and Header values of the messages may use Go templates to 
 create unique messages.
 
    nats request test --count 10 "Message {{Count}} @ {{Time}}"
@@ -106,10 +104,11 @@ Available template functions are:
    UnixNano         nano seconds since 1970 in UTC
    Time             the current time
    ID               an unique ID
-   Random(min, max) random string at least min long, at most max 
-
+   Random(min, max) random string at least min long, at most max
 `
-	req := app.Command("request", requestHelp).Alias("req").Action(c.publish)
+
+	req := app.Command("request", "Generic request-reply request utility").Alias("req").Action(c.publish)
+	req.HelpLong(requestHelp)
 	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	req.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	req.Flag("wait", "Wait for a reply from a service").Short('w').Default("true").Hidden().BoolVar(&c.req)
@@ -248,7 +247,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 	return nil
 }
 
-func (c *pubCmd) publish(_ *kingpin.ParseContext) error {
+func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err

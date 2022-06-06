@@ -16,7 +16,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 )
 
 type restoreCmd struct {
@@ -38,7 +38,7 @@ func init() {
 	registerCommand("restore", 12, configureRestoreCommand)
 }
 
-func (c *restoreCmd) restoreAction(_ *kingpin.ParseContext) error {
+func (c *restoreCmd) restoreAction(_ *fisk.ParseContext) error {
 	fmt.Println("Please note this method of backup does not backup stream data")
 	fmt.Println()
 	fmt.Println("We now have the ability to backup a single stream data or all streams in")

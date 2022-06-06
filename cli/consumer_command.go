@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/nats-io/jsm.go/api"
@@ -89,7 +89,7 @@ type consumerCmd struct {
 func configureConsumerCommand(app commandHost) {
 	c := &consumerCmd{}
 
-	addCreateFlags := func(f *kingpin.CmdClause, edit bool) {
+	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		if !edit {
 			f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
 			f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
@@ -218,7 +218,7 @@ func init() {
 	registerCommand("consumer", 4, configureConsumerCommand)
 }
 
-func (c *consumerCmd) leaderStandDown(_ *kingpin.ParseContext) error {
+func (c *consumerCmd) leaderStandDown(_ *fisk.ParseContext) error {
 	c.connectAndSetup(true, true)
 
 	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
@@ -271,13 +271,13 @@ func (c *consumerCmd) leaderStandDown(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *consumerCmd) editAction(pc *kingpin.ParseContext) error {
+func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 	c.connectAndSetup(true, true)
 	var err error
 
 	if c.selectedConsumer == nil {
 		c.selectedConsumer, err = c.mgr.LoadConsumer(c.stream, c.consumer)
-		kingpin.FatalIfError(err, "could not load Consumer")
+		fisk.FatalIfError(err, "could not load Consumer")
 	}
 
 	if !c.selectedConsumer.IsDurable() {
@@ -383,7 +383,7 @@ func (c *consumerCmd) editAction(pc *kingpin.ParseContext) error {
 
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really edit Consumer %s > %s", c.stream, c.consumer), false)
-		kingpin.FatalIfError(err, "could not obtain confirmation")
+		fisk.FatalIfError(err, "could not obtain confirmation")
 
 		if !ok {
 			return nil
@@ -417,14 +417,14 @@ func (c *consumerCmd) backoffPolicy() ([]time.Duration, error) {
 	}
 }
 
-func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
+func (c *consumerCmd) rmAction(_ *fisk.ParseContext) error {
 	c.connectAndSetup(true, true)
 
 	var err error
 
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really delete Consumer %s > %s", c.stream, c.consumer), false)
-		kingpin.FatalIfError(err, "could not obtain confirmation")
+		fisk.FatalIfError(err, "could not obtain confirmation")
 
 		if !ok {
 			return nil
@@ -433,24 +433,24 @@ func (c *consumerCmd) rmAction(_ *kingpin.ParseContext) error {
 
 	if c.selectedConsumer == nil {
 		c.selectedConsumer, err = c.mgr.LoadConsumer(c.stream, c.consumer)
-		kingpin.FatalIfError(err, "could not load Consumer")
+		fisk.FatalIfError(err, "could not load Consumer")
 	}
 
 	return c.selectedConsumer.Delete()
 }
 
-func (c *consumerCmd) lsAction(pc *kingpin.ParseContext) error {
+func (c *consumerCmd) lsAction(pc *fisk.ParseContext) error {
 	c.connectAndSetup(true, false)
 
 	stream, err := c.mgr.LoadStream(c.stream)
-	kingpin.FatalIfError(err, "could not load Consumers")
+	fisk.FatalIfError(err, "could not load Consumers")
 
 	consumers, err := stream.ConsumerNames()
-	kingpin.FatalIfError(err, "could not load Consumers")
+	fisk.FatalIfError(err, "could not load Consumers")
 
 	if c.json {
 		err = printJSON(consumers)
-		kingpin.FatalIfError(err, "could not display Consumers")
+		fisk.FatalIfError(err, "could not display Consumers")
 		return nil
 	}
 
@@ -480,7 +480,7 @@ func (c *consumerCmd) lsAction(pc *kingpin.ParseContext) error {
 func (c *consumerCmd) showConsumer(consumer *jsm.Consumer) {
 	config := consumer.Configuration()
 	state, err := consumer.LatestState()
-	kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
+	fisk.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
 
 	c.showInfo(config, state)
 }
@@ -668,14 +668,14 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	fmt.Println()
 }
 
-func (c *consumerCmd) infoAction(_ *kingpin.ParseContext) error {
+func (c *consumerCmd) infoAction(_ *fisk.ParseContext) error {
 	c.connectAndSetup(true, true)
 
 	var err error
 	consumer := c.selectedConsumer
 	if consumer == nil {
 		consumer, err = c.mgr.LoadConsumer(c.stream, c.consumer)
-		kingpin.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
+		fisk.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
 	}
 
 	c.showConsumer(consumer)
@@ -690,7 +690,7 @@ func (c *consumerCmd) replayPolicyFromString(p string) api.ReplayPolicy {
 	case "original":
 		return api.ReplayOriginal
 	default:
-		kingpin.Fatalf("invalid replay policy '%s'", p)
+		fisk.Fatalf("invalid replay policy '%s'", p)
 		return api.ReplayInstant
 	}
 }
@@ -704,7 +704,7 @@ func (c *consumerCmd) ackPolicyFromString(p string) api.AckPolicy {
 	case "explicit":
 		return api.AckExplicit
 	default:
-		kingpin.Fatalf("invalid ack policy '%s'", p)
+		fisk.Fatalf("invalid ack policy '%s'", p)
 		// unreachable
 		return api.AckExplicit
 	}
@@ -712,7 +712,7 @@ func (c *consumerCmd) ackPolicyFromString(p string) api.AckPolicy {
 
 func (c *consumerCmd) sampleFreqFromInt(s int) string {
 	if s > 100 || s < 0 {
-		kingpin.Fatalf("sample percent is not between 0 and 100")
+		fisk.Fatalf("sample percent is not between 0 and 100")
 	}
 
 	if s > 0 {
@@ -748,18 +748,18 @@ func (c *consumerCmd) setStartPolicy(cfg *api.ConsumerConfig, policy string) {
 		cfg.OptStartSeq = uint64(seq)
 	} else {
 		d, err := parseDurationString(policy)
-		kingpin.FatalIfError(err, "could not parse starting delta")
+		fisk.FatalIfError(err, "could not parse starting delta")
 		t := time.Now().UTC().Add(-d)
 		cfg.DeliverPolicy = api.DeliverByStartTime
 		cfg.OptStartTime = &t
 	}
 }
 
-func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
+func (c *consumerCmd) cpAction(pc *fisk.ParseContext) (err error) {
 	c.connectAndSetup(true, false)
 
 	source, err := c.mgr.LoadConsumer(c.stream, c.consumer)
-	kingpin.FatalIfError(err, "could not load source Consumer")
+	fisk.FatalIfError(err, "could not load source Consumer")
 
 	cfg := source.Configuration()
 
@@ -816,7 +816,7 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 
 	if c.idleHeartbeat != "" && c.idleHeartbeat != "-" {
 		hb, err := parseDurationString(c.idleHeartbeat)
-		kingpin.FatalIfError(err, "Invalid heartbeat duration")
+		fisk.FatalIfError(err, "Invalid heartbeat duration")
 		cfg.Heartbeat = hb
 	}
 
@@ -875,7 +875,7 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 	}
 
 	consumer, err := c.mgr.NewConsumerFromDefault(c.stream, cfg)
-	kingpin.FatalIfError(err, "Consumer creation failed")
+	fisk.FatalIfError(err, "Consumer creation failed")
 
 	if cfg.Durable == "" {
 		return nil
@@ -888,7 +888,7 @@ func (c *consumerCmd) cpAction(pc *kingpin.ParseContext) (err error) {
 	return nil
 }
 
-func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.ConsumerConfig, err error) {
+func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerConfig, err error) {
 	cfg = c.defaultConsumer()
 	cfg.Description = c.description
 
@@ -921,12 +921,12 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			Message: "Consumer name",
 			Help:    "This will be used for the name of the durable subscription to be used when referencing this Consumer later. Settable using 'name' CLI argument",
 		}, &c.consumer, survey.WithValidator(survey.Required))
-		kingpin.FatalIfError(err, "could not request durable name")
+		fisk.FatalIfError(err, "could not request durable name")
 	}
 	cfg.Durable = c.consumer
 
 	if ok, _ := regexp.MatchString(`\.|\*|>`, cfg.Durable); ok {
-		kingpin.Fatalf("durable name can not contain '.', '*', '>'")
+		fisk.Fatalf("durable name can not contain '.', '*', '>'")
 	}
 
 	if !c.pull && c.delivery == "" {
@@ -934,7 +934,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			Message: "Delivery target (empty for Pull Consumers)",
 			Help:    "Consumers can be in 'push' or 'pull' mode, in 'push' mode messages are dispatched in real time to a target NATS subject, this is that subject. Leaving this blank creates a 'pull' mode Consumer. Settable using --target and --pull",
 		}, &c.delivery)
-		kingpin.FatalIfError(err, "could not request delivery target")
+		fisk.FatalIfError(err, "could not request delivery target")
 	}
 
 	cfg.DeliverSubject = c.delivery
@@ -944,7 +944,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			Message: "Delivery Queue Group",
 			Help:    "When set push consumers will only deliver messages to subscriptions matching this queue group",
 		}, &c.deliveryGroup)
-		kingpin.FatalIfError(err, "could not request delivery group")
+		fisk.FatalIfError(err, "could not request delivery group")
 	}
 	cfg.DeliverGroup = c.deliveryGroup
 	if cfg.DeliverGroup == "_unset_" {
@@ -956,7 +956,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			Message: "Start policy (all, new, last, subject, 1h, msg sequence)",
 			Help:    "This controls how the Consumer starts out, does it make all messages available, only the latest, latest per subject, ones after a certain time or time sequence. Settable using --deliver",
 		}, &c.startPolicy, survey.WithValidator(survey.Required))
-		kingpin.FatalIfError(err, "could not request start policy")
+		fisk.FatalIfError(err, "could not request start policy")
 	}
 
 	c.setStartPolicy(cfg, c.startPolicy)
@@ -975,7 +975,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			Default: dflt,
 			Help:    "Messages that are not acknowledged will be redelivered at a later time. 'none' means no acknowledgement is needed only 1 delivery ever, 'all' means acknowledging message 10 will also acknowledge 0-9 and 'explicit' means each has to be acknowledged specifically. Settable using --ack",
 		}, &c.ackPolicy)
-		kingpin.FatalIfError(err, "could not ask acknowledgement policy")
+		fisk.FatalIfError(err, "could not ask acknowledgement policy")
 	}
 
 	if c.replayPolicy == "" {
@@ -985,12 +985,12 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			Default: "instant",
 			Help:    "Messages can be replayed at the rate they arrived in or as fast as possible. Settable using --replay",
 		}, &c.replayPolicy)
-		kingpin.FatalIfError(err, "could not ask replay policy")
+		fisk.FatalIfError(err, "could not ask replay policy")
 	}
 
 	cfg.AckPolicy = c.ackPolicyFromString(c.ackPolicy)
 	if cfg.AckPolicy == api.AckNone && cfg.DeliverSubject == "" {
-		kingpin.Fatalf("pull consumers can only be explicit or all acknowledgement modes")
+		fisk.Fatalf("pull consumers can only be explicit or all acknowledgement modes")
 	}
 
 	if cfg.AckPolicy == api.AckNone {
@@ -1003,7 +1003,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 
 	if c.samplePct > 0 {
 		if c.samplePct > 100 {
-			kingpin.Fatalf("sample percent is not between 0 and 100")
+			fisk.Fatalf("sample percent is not between 0 and 100")
 		}
 
 		cfg.SampleFrequency = strconv.Itoa(c.samplePct)
@@ -1018,7 +1018,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 				Default: "instant",
 				Help:    "Replay policy is the time interval at which messages are delivered to interested parties. 'instant' means deliver all as soon as possible while 'original' will match the time intervals in which messages were received, useful for replaying production traffic in development. Settable using --replay",
 			}, &mode)
-			kingpin.FatalIfError(err, "could not ask replay policy")
+			fisk.FatalIfError(err, "could not ask replay policy")
 			c.replayPolicy = mode
 		}
 	}
@@ -1033,7 +1033,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			Default: "",
 			Help:    "Stream can consume more than one subject - or a wildcard - this allows you to filter out just a single subject from all the ones entering the Stream for delivery to the Consumer. Settable using --filter",
 		}, &c.filterSubject)
-		kingpin.FatalIfError(err, "could not ask for filtering subject")
+		fisk.FatalIfError(err, "could not ask for filtering subject")
 	}
 	cfg.FilterSubject = c.filterSubject
 	if cfg.FilterSubject == "" && cfg.DeliverPolicy == api.DeliverLastPerSubject {
@@ -1046,7 +1046,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			Default: "-1",
 			Help:    "When this is -1 unlimited attempts to deliver an un acknowledged message is made, when this is >0 it will be maximum amount of times a message is delivered after which it is ignored. Settable using --max-deliver.",
 		}, &c.maxDeliver)
-		kingpin.FatalIfError(err, "could not ask for maximum allowed deliveries")
+		fisk.FatalIfError(err, "could not ask for maximum allowed deliveries")
 	}
 
 	if c.maxAckPending == -1 && cfg.AckPolicy != api.AckNone {
@@ -1055,7 +1055,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			Default: "0",
 			Help:    "The maximum number of messages without acknowledgement that can be outstanding, once this limit is reached message delivery will be suspended. Settable using --max-pending.",
 		}, &c.maxAckPending)
-		kingpin.FatalIfError(err, "could not ask for maximum outstanding acknowledgements")
+		fisk.FatalIfError(err, "could not ask for maximum outstanding acknowledgements")
 	}
 
 	if cfg.DeliverSubject != "" {
@@ -1063,7 +1063,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 			cfg.Heartbeat = 0
 		} else if c.idleHeartbeat != "" {
 			cfg.Heartbeat, err = parseDurationString(c.idleHeartbeat)
-			kingpin.FatalIfError(err, "invalid heartbeat duration")
+			fisk.FatalIfError(err, "invalid heartbeat duration")
 		} else {
 			idle := "0s"
 			err = askOne(&survey.Input{
@@ -1071,9 +1071,9 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 				Help:    "When a Push consumer is idle for the given period an empty message with a Status header of 100 will be sent to the delivery subject, settable using --heartbeat",
 				Default: "0s",
 			}, &idle)
-			kingpin.FatalIfError(err, "could not ask for idle heartbeat")
+			fisk.FatalIfError(err, "could not ask for idle heartbeat")
 			cfg.Heartbeat, err = parseDurationString(idle)
-			kingpin.FatalIfError(err, "invalid heartbeat duration")
+			fisk.FatalIfError(err, "invalid heartbeat duration")
 		}
 	}
 
@@ -1081,7 +1081,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 		fc := pc.SelectedCommand.GetFlag("flow-control").Model().Value.(*OptionalBoolValue)
 		if !fc.IsSetByUser() {
 			flow, err := askConfirmation("Enable Flow Control, ie --flow-control", false)
-			kingpin.FatalIfError(err, "could not ask flow control")
+			fisk.FatalIfError(err, "could not ask flow control")
 			fc.SetBool(flow)
 		}
 
@@ -1091,7 +1091,7 @@ func (c *consumerCmd) prepareConfig(pc *kingpin.ParseContext) (cfg *api.Consumer
 	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
 	if !hOnly.IsSetByUser() {
 		v, err := askConfirmation("Deliver headers only without bodies", false)
-		kingpin.FatalIfError(err, "could not ask headers only")
+		fisk.FatalIfError(err, "could not ask headers only")
 		hOnly.SetBool(v)
 	}
 	cfg.HeadersOnly = hOnly.Value()
@@ -1229,7 +1229,7 @@ func (c *consumerCmd) validateCfg(cfg *api.ConsumerConfig) (bool, []byte, []stri
 	return valid, j, errs, nil
 }
 
-func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
+func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
 	cfg, err := c.prepareConfig(pc)
 	if err != nil {
 		return err
@@ -1238,12 +1238,12 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	switch {
 	case c.validateOnly:
 		valid, j, errs, err := c.validateCfg(cfg)
-		kingpin.FatalIfError(err, "Could not validate configuration")
+		fisk.FatalIfError(err, "Could not validate configuration")
 
 		fmt.Println(string(j))
 		fmt.Println()
 		if !valid {
-			kingpin.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
+			fisk.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
 		}
 
 		fmt.Println("Configuration is a valid Consumer")
@@ -1251,10 +1251,10 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 
 	case c.outFile != "":
 		valid, j, errs, err := c.validateCfg(cfg)
-		kingpin.FatalIfError(err, "Could not validate configuration")
+		fisk.FatalIfError(err, "Could not validate configuration")
 
 		if !valid {
-			kingpin.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
+			fisk.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
 		}
 
 		return ioutil.WriteFile(c.outFile, j, 0644)
@@ -1263,7 +1263,7 @@ func (c *consumerCmd) createAction(pc *kingpin.ParseContext) (err error) {
 	c.connectAndSetup(true, false)
 
 	created, err := c.mgr.NewConsumerFromDefault(c.stream, *cfg)
-	kingpin.FatalIfError(err, "Consumer creation failed")
+	fisk.FatalIfError(err, "Consumer creation failed")
 
 	c.consumer = created.Name()
 
@@ -1276,18 +1276,18 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	req := &api.JSApiConsumerGetNextRequest{Batch: 1, Expires: opts.Timeout}
 
 	sub, err := c.nc.SubscribeSync(c.nc.NewRespInbox())
-	kingpin.FatalIfError(err, "subscribe failed")
+	fisk.FatalIfError(err, "subscribe failed")
 	sub.AutoUnsubscribe(1)
 
 	err = c.mgr.NextMsgRequest(stream, consumer, sub.Subject, req)
-	kingpin.FatalIfError(err, "could not request next message")
+	fisk.FatalIfError(err, "could not request next message")
 
 	fatalIfNotPull := func() {
 		cons, err := c.mgr.LoadConsumer(stream, consumer)
-		kingpin.FatalIfError(err, "could not load consumer %q", consumer)
+		fisk.FatalIfError(err, "could not load consumer %q", consumer)
 
 		if !cons.IsPullMode() {
-			kingpin.Fatalf("consumer %q is not a Pull consumer", consumer)
+			fisk.Fatalf("consumer %q is not a Pull consumer", consumer)
 		}
 	}
 
@@ -1295,7 +1295,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	if err != nil {
 		fatalIfNotPull()
 	}
-	kingpin.FatalIfError(err, "no message received")
+	fisk.FatalIfError(err, "no message received")
 
 	if msg.Header != nil && msg.Header.Get("Status") == "503" {
 		fatalIfNotPull()
@@ -1348,7 +1348,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 		}
 
 		err = msg.Respond(nil)
-		kingpin.FatalIfError(err, "could not Acknowledge message")
+		fisk.FatalIfError(err, "could not Acknowledge message")
 		c.nc.Flush()
 		if !c.raw {
 			if stime > 0 {
@@ -1393,7 +1393,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 			msginfo, err = jsm.ParseJSMsgMetadata(m)
 		}
 
-		kingpin.FatalIfError(err, "could not parse JetStream metadata: '%s'", m.Reply)
+		fisk.FatalIfError(err, "could not parse JetStream metadata: '%s'", m.Reply)
 
 		if !c.raw {
 			now := time.Now().Format("15:04:05")
@@ -1439,18 +1439,18 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 			}
 		}
 	})
-	kingpin.FatalIfError(err, "could not subscribe")
+	fisk.FatalIfError(err, "could not subscribe")
 
 	<-ctx.Done()
 
 	return nil
 }
 
-func (c *consumerCmd) subAction(_ *kingpin.ParseContext) error {
+func (c *consumerCmd) subAction(_ *fisk.ParseContext) error {
 	c.connectAndSetup(true, true, nats.UseOldRequestStyle())
 
 	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
-	kingpin.FatalIfError(err, "could not load Consumer")
+	fisk.FatalIfError(err, "could not load Consumer")
 
 	if consumer.AckPolicy() == api.AckNone {
 		c.ack = false
@@ -1466,7 +1466,7 @@ func (c *consumerCmd) subAction(_ *kingpin.ParseContext) error {
 	}
 }
 
-func (c *consumerCmd) nextAction(_ *kingpin.ParseContext) error {
+func (c *consumerCmd) nextAction(_ *fisk.ParseContext) error {
 	c.connectAndSetup(false, false, nats.UseOldRequestStyle())
 
 	var err error
@@ -1484,7 +1484,7 @@ func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool, opts ...
 	var err error
 
 	c.nc, c.mgr, err = prepareHelper("", append(natsOpts(), opts...)...)
-	kingpin.FatalIfError(err, "setup failed")
+	fisk.FatalIfError(err, "setup failed")
 
 	if c.stream != "" && c.consumer != "" {
 		c.selectedConsumer, err = c.mgr.LoadConsumer(c.stream, c.consumer)
@@ -1495,16 +1495,16 @@ func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool, opts ...
 
 	if askStream {
 		c.stream, _, err = selectStream(c.mgr, c.stream, c.force, c.showAll)
-		kingpin.FatalIfError(err, "could not select Stream")
+		fisk.FatalIfError(err, "could not select Stream")
 
 		if askConsumer {
 			c.consumer, c.selectedConsumer, err = selectConsumer(c.mgr, c.stream, c.consumer, c.force)
-			kingpin.FatalIfError(err, "could not select Consumer")
+			fisk.FatalIfError(err, "could not select Consumer")
 		}
 	}
 }
 
-func (c *consumerCmd) reportAction(_ *kingpin.ParseContext) error {
+func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 	c.connectAndSetup(true, false)
 
 	s, err := c.mgr.LoadStream(c.stream)

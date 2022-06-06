@@ -16,7 +16,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 )
 
 type backupCmd struct {
@@ -36,7 +36,7 @@ func init() {
 	registerCommand("backup", 1, configureBackupCommand)
 }
 
-func (c *backupCmd) backupAction(_ *kingpin.ParseContext) error {
+func (c *backupCmd) backupAction(_ *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err

@@ -16,7 +16,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
@@ -49,7 +49,7 @@ type SrvRequestCmd struct {
 	nameFilter    string
 }
 
-func configureServerRequestCommand(srv *kingpin.CmdClause) {
+func configureServerRequestCommand(srv *fisk.CmdClause) {
 	c := &SrvRequestCmd{}
 
 	req := srv.Command("request", "Request monitoring data from a specific server").Alias("req")
@@ -107,7 +107,7 @@ func configureServerRequestCommand(srv *kingpin.CmdClause) {
 	jsz.Flag("all", "Include accounts, streams, consumers and configuration").BoolVar(&c.includeAll)
 }
 
-func (c *SrvRequestCmd) jsz(_ *kingpin.ParseContext) error {
+func (c *SrvRequestCmd) jsz(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -153,7 +153,7 @@ func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
 	}
 }
 
-func (c *SrvRequestCmd) accountz(_ *kingpin.ParseContext) error {
+func (c *SrvRequestCmd) accountz(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -176,7 +176,7 @@ func (c *SrvRequestCmd) accountz(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *SrvRequestCmd) leafz(_ *kingpin.ParseContext) error {
+func (c *SrvRequestCmd) leafz(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -199,7 +199,7 @@ func (c *SrvRequestCmd) leafz(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *SrvRequestCmd) gwyz(_ *kingpin.ParseContext) error {
+func (c *SrvRequestCmd) gwyz(_ *fisk.ParseContext) error {
 	if c.accountFilter != "" {
 		c.detail = true
 	}
@@ -230,7 +230,7 @@ func (c *SrvRequestCmd) gwyz(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *SrvRequestCmd) routez(_ *kingpin.ParseContext) error {
+func (c *SrvRequestCmd) routez(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -256,7 +256,7 @@ func (c *SrvRequestCmd) routez(_ *kingpin.ParseContext) error {
 	return nil
 
 }
-func (c *SrvRequestCmd) conns(_ *kingpin.ParseContext) error {
+func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 	opts := &server.ConnzEventOptions{
 		ConnzOptions: server.ConnzOptions{
 			Sort:                server.SortOpt(c.sortOpt),
@@ -300,7 +300,7 @@ func (c *SrvRequestCmd) conns(_ *kingpin.ParseContext) error {
 
 }
 
-func (c *SrvRequestCmd) varz(_ *kingpin.ParseContext) error {
+func (c *SrvRequestCmd) varz(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -324,7 +324,7 @@ func (c *SrvRequestCmd) varz(_ *kingpin.ParseContext) error {
 
 }
 
-func (c *SrvRequestCmd) subs(_ *kingpin.ParseContext) error {
+func (c *SrvRequestCmd) subs(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err

@@ -17,7 +17,7 @@ import (
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 )
 
@@ -27,7 +27,7 @@ type SrvMappingCmd struct {
 	subj string
 }
 
-func configureServerMappingCommand(srv *kingpin.CmdClause) {
+func configureServerMappingCommand(srv *fisk.CmdClause) {
 	c := &SrvMappingCmd{}
 
 	m := srv.Command("mappings", "Test subject mapping patterns").Alias("mapping").Action(c.mappingAction)
@@ -36,7 +36,7 @@ func configureServerMappingCommand(srv *kingpin.CmdClause) {
 	m.Arg("subject", "Subject to transform").StringVar(&c.subj)
 }
 
-func (c *SrvMappingCmd) mappingAction(_ *kingpin.ParseContext) error {
+func (c *SrvMappingCmd) mappingAction(_ *fisk.ParseContext) error {
 	if c.src == "" {
 		err := askOne(&survey.Input{
 			Message: "Source subject pattern",

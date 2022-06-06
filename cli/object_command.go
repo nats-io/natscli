@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/gosuri/uiprogress"
@@ -157,7 +157,7 @@ func init() {
 	registerCommand("object", 10, configureObjectCommand)
 }
 
-func (c *objCommand) parseLimitStrings(_ *kingpin.ParseContext) (err error) {
+func (c *objCommand) parseLimitStrings(_ *fisk.ParseContext) (err error) {
 	if c.maxBucketSizeString != "" {
 		c.maxBucketSize, err = parseStringAsBytes(c.maxBucketSizeString)
 		if err != nil {
@@ -168,7 +168,7 @@ func (c *objCommand) parseLimitStrings(_ *kingpin.ParseContext) (err error) {
 	return nil
 }
 
-func (c *objCommand) watchAction(_ *kingpin.ParseContext) error {
+func (c *objCommand) watchAction(_ *fisk.ParseContext) error {
 	_, _, obj, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -195,10 +195,10 @@ func (c *objCommand) watchAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *objCommand) sealAction(_ *kingpin.ParseContext) error {
+func (c *objCommand) sealAction(_ *fisk.ParseContext) error {
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really seal Bucket %s, sealed buckets can not be unsealed or modified", c.bucket), false)
-		kingpin.FatalIfError(err, "could not obtain confirmation")
+		fisk.FatalIfError(err, "could not obtain confirmation")
 
 		if !ok {
 			return nil
@@ -220,7 +220,7 @@ func (c *objCommand) sealAction(_ *kingpin.ParseContext) error {
 	return c.showBucketInfo(obj)
 }
 
-func (c *objCommand) delAction(_ *kingpin.ParseContext) error {
+func (c *objCommand) delAction(_ *fisk.ParseContext) error {
 	_, _, obj, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -274,7 +274,7 @@ func (c *objCommand) delAction(_ *kingpin.ParseContext) error {
 	}
 }
 
-func (c *objCommand) infoAction(_ *kingpin.ParseContext) error {
+func (c *objCommand) infoAction(_ *fisk.ParseContext) error {
 	_, _, obj, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -428,7 +428,7 @@ func (c *objCommand) listBuckets() error {
 	return nil
 }
 
-func (c *objCommand) lsAction(_ *kingpin.ParseContext) error {
+func (c *objCommand) lsAction(_ *fisk.ParseContext) error {
 	if c.bucket == "" {
 		return c.listBuckets()
 	}
@@ -460,7 +460,7 @@ func (c *objCommand) lsAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
+func (c *objCommand) putAction(_ *fisk.ParseContext) error {
 	_, _, obj, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -480,7 +480,7 @@ func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 		c.showObjectInfo(nfo)
 		fmt.Println()
 		ok, err := askConfirmation(fmt.Sprintf("Replace existing file %s > %s", c.bucket, name), false)
-		kingpin.FatalIfError(err, "could not obtain confirmation")
+		fisk.FatalIfError(err, "could not obtain confirmation")
 
 		if !ok {
 			return nil
@@ -547,7 +547,7 @@ func (c *objCommand) putAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *objCommand) getAction(_ *kingpin.ParseContext) error {
+func (c *objCommand) getAction(_ *fisk.ParseContext) error {
 	_, _, obj, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -581,7 +581,7 @@ func (c *objCommand) getAction(_ *kingpin.ParseContext) error {
 		_, err = os.Stat(out)
 		if !os.IsNotExist(err) {
 			ok, err := askConfirmation(fmt.Sprintf("Replace existing target file %s", out), false)
-			kingpin.FatalIfError(err, "could not obtain confirmation")
+			fisk.FatalIfError(err, "could not obtain confirmation")
 
 			if !ok {
 				return nil
@@ -638,7 +638,7 @@ func (c *objCommand) getAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *objCommand) addAction(_ *kingpin.ParseContext) error {
+func (c *objCommand) addAction(_ *fisk.ParseContext) error {
 	_, js, err := prepareJSHelper()
 	if err != nil {
 		return err

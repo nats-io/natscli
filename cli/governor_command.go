@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/kballard/go-shellquote"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/governor"
@@ -97,7 +97,7 @@ func init() {
 	registerCommand("governor", 8, configureGovernorCommand)
 }
 
-func (c *govCmd) rmAction(_ *kingpin.ParseContext) error {
+func (c *govCmd) rmAction(_ *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -121,7 +121,7 @@ func (c *govCmd) rmAction(_ *kingpin.ParseContext) error {
 	return gmgr.Stream().Delete()
 }
 
-func (c *govCmd) addAction(pc *kingpin.ParseContext) error {
+func (c *govCmd) addAction(pc *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -154,7 +154,7 @@ func (c *govCmd) addAction(pc *kingpin.ParseContext) error {
 	return c.viewAction(pc)
 }
 
-func (c *govCmd) viewAction(_ *kingpin.ParseContext) error {
+func (c *govCmd) viewAction(_ *fisk.ParseContext) error {
 	nc, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -227,7 +227,7 @@ func (c *govCmd) viewAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *govCmd) resetAction(pc *kingpin.ParseContext) error {
+func (c *govCmd) resetAction(pc *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -251,7 +251,7 @@ func (c *govCmd) resetAction(pc *kingpin.ParseContext) error {
 	return gmgr.Reset()
 }
 
-func (c *govCmd) evictAction(pc *kingpin.ParseContext) error {
+func (c *govCmd) evictAction(pc *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -291,7 +291,7 @@ func (c *govCmd) evictAction(pc *kingpin.ParseContext) error {
 	return err
 }
 
-func (c *govCmd) runAction(_ *kingpin.ParseContext) error {
+func (c *govCmd) runAction(_ *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err

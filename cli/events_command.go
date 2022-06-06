@@ -20,7 +20,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -131,16 +131,16 @@ func (c *eventsCmd) Printf(f string, arg ...interface{}) {
 	}
 }
 
-func (c *eventsCmd) eventsAction(_ *kingpin.ParseContext) error {
+func (c *eventsCmd) eventsAction(_ *fisk.ParseContext) error {
 	if c.ce {
 		c.json = true
 	}
 
 	nc, _, err := prepareHelper("", natsOpts()...)
-	kingpin.FatalIfError(err, "setup failed")
+	fisk.FatalIfError(err, "setup failed")
 
 	c.bodyFRe, err = regexp.Compile(strings.ToUpper(c.bodyF))
-	kingpin.FatalIfError(err, "invalid body regular expression")
+	fisk.FatalIfError(err, "invalid body regular expression")
 
 	if !c.showAll && !c.showJsAdvisories && !c.showJsMetrics && !c.showServerAdvisories && len(c.extraSubjects) == 0 {
 		return fmt.Errorf("no events were chosen")

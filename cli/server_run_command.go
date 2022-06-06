@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"text/template"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/natscontext"
 	"github.com/nats-io/nats-server/v2/server"
 	"golang.org/x/crypto/bcrypt"
@@ -115,7 +115,7 @@ leafnodes {
 }
 `
 
-func configureServerRunCommand(srv *kingpin.CmdClause) {
+func configureServerRunCommand(srv *fisk.CmdClause) {
 	c := &SrvRunCmd{}
 
 	run := srv.Command("run", "Runs a local development NATS server").Hidden().Action(c.runAction)
@@ -217,7 +217,7 @@ func (c *SrvRunCmd) prepareConfig() error {
 		}
 		c.config.StoreDir = filepath.Join(parent, "nats", c.config.Name)
 		if runtime.GOOS == "windows" {
-			//escape path separator in file
+			// escape path separator in file
 			c.config.StoreDir = strings.ReplaceAll(c.config.StoreDir, "\\", "\\\\")
 		}
 		if c.config.ExtendWithContext || c.config.ExtendDemoNetwork {
@@ -321,7 +321,7 @@ func (c *SrvRunCmd) configureContexts(url string) (string, string, string, error
 	return c.config.Name, svcName, sysName, nil
 }
 
-func (c *SrvRunCmd) runAction(_ *kingpin.ParseContext) error {
+func (c *SrvRunCmd) runAction(_ *fisk.ParseContext) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

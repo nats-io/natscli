@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 )
 
-// OptionalBoolValue is contains a *bool and implements kingpin.Value
+// OptionalBoolValue is contains a *bool and implements fisk.Value
 type OptionalBoolValue struct {
 	val *bool
 }
 
-func OptionalBoolean(s kingpin.Settings) *OptionalBoolValue {
+func OptionalBoolean(s fisk.Settings) *OptionalBoolValue {
 	target := &OptionalBoolValue{}
 	s.SetValue(target)
 	return target

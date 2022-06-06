@@ -37,7 +37,7 @@ import (
 	"unicode"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/gosuri/uiprogress"
 	"github.com/klauspost/compress/s2"
@@ -393,7 +393,7 @@ func natsOpts() []nats.Option {
 	}
 
 	copts, err := opts.Config.NATSOptions()
-	kingpin.FatalIfError(err, "configuration error")
+	fisk.FatalIfError(err, "configuration error")
 
 	connectionName := strings.TrimSpace(opts.ConnectionName)
 	if len(connectionName) == 0 {

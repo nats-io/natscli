@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/nats-server/v2/server"
@@ -50,7 +50,7 @@ type srvReportAccountInfo struct {
 	Server      []*server.ServerInfo `json:"server"`
 }
 
-func configureServerReportCommand(srv *kingpin.CmdClause) {
+func configureServerReportCommand(srv *fisk.CmdClause) {
 	c := &SrvReportCmd{}
 
 	report := srv.Command("report", "Report on various server metrics").Alias("rep")
@@ -77,7 +77,7 @@ func configureServerReportCommand(srv *kingpin.CmdClause) {
 	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 }
 
-func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
+func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -288,7 +288,7 @@ func (c *SrvReportCmd) reportJetStream(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *SrvReportCmd) reportAccount(_ *kingpin.ParseContext) error {
+func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -407,7 +407,7 @@ type connInfo struct {
 	Info *server.ServerInfo `json:"server"`
 }
 
-func (c *SrvReportCmd) reportConnections(_ *kingpin.ParseContext) error {
+func (c *SrvReportCmd) reportConnections(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err

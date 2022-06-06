@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats.go"
 )
 
@@ -55,7 +55,7 @@ func init() {
 	registerCommand("rtt", 13, configureRTTCommand)
 }
 
-func (c *rttCmd) rtt(_ *kingpin.ParseContext) error {
+func (c *rttCmd) rtt(_ *fisk.ParseContext) error {
 	targets, err := c.targets()
 	if err != nil {
 		return err

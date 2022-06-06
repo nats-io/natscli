@@ -20,7 +20,7 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/fatih/color"
 
 	"github.com/nats-io/jsm.go/natscontext"
@@ -117,7 +117,7 @@ func (c *ctxCommand) overrideVars() []string {
 
 	return list
 }
-func (c *ctxCommand) validateCommand(pc *kingpin.ParseContext) error {
+func (c *ctxCommand) validateCommand(pc *fisk.ParseContext) error {
 	var contexts []string
 	if c.name == "" {
 		contexts = natscontext.KnownContexts()
@@ -142,7 +142,7 @@ func (c *ctxCommand) validateCommand(pc *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *ctxCommand) copyCommand(pc *kingpin.ParseContext) error {
+func (c *ctxCommand) copyCommand(pc *fisk.ParseContext) error {
 	if !natscontext.IsKnown(c.source) {
 		return fmt.Errorf("unknown context %q", c.source)
 	}
@@ -156,7 +156,7 @@ func (c *ctxCommand) copyCommand(pc *kingpin.ParseContext) error {
 	return c.createCommand(pc)
 }
 
-func (c *ctxCommand) editCommand(pc *kingpin.ParseContext) error {
+func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
 		return fmt.Errorf("set EDITOR environment variable to your chosen editor")
@@ -228,7 +228,7 @@ func (c *ctxCommand) renderListTable(current string, known []*natscontext.Contex
 	fmt.Println(table.Render())
 
 }
-func (c *ctxCommand) listCommand(_ *kingpin.ParseContext) error {
+func (c *ctxCommand) listCommand(_ *fisk.ParseContext) error {
 	names := natscontext.KnownContexts()
 	current := natscontext.SelectedContext()
 	var contexts []*natscontext.Context
@@ -254,7 +254,7 @@ func (c *ctxCommand) listCommand(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
+func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	if c.name == "" {
 		c.name = natscontext.SelectedContext()
 	}
@@ -339,7 +339,7 @@ func (c *ctxCommand) showCommand(_ *kingpin.ParseContext) error {
 
 	return nil
 }
-func (c *ctxCommand) createCommand(pc *kingpin.ParseContext) error {
+func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 	lname := ""
 	load := false
 
@@ -384,7 +384,7 @@ func (c *ctxCommand) createCommand(pc *kingpin.ParseContext) error {
 	return c.showCommand(pc)
 }
 
-func (c *ctxCommand) removeCommand(_ *kingpin.ParseContext) error {
+func (c *ctxCommand) removeCommand(_ *fisk.ParseContext) error {
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really delete context %q", c.name), false)
 		if err != nil {
@@ -399,7 +399,7 @@ func (c *ctxCommand) removeCommand(_ *kingpin.ParseContext) error {
 	return natscontext.DeleteContext(c.name)
 }
 
-func (c *ctxCommand) selectCommand(pc *kingpin.ParseContext) error {
+func (c *ctxCommand) selectCommand(pc *fisk.ParseContext) error {
 	known := natscontext.KnownContexts()
 
 	if len(known) == 0 {

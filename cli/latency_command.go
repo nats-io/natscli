@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/HdrHistogram/hdrhistogram-go"
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats.go"
 	histwriter "github.com/tylertreat/hdrhistogram-writer"
 )
@@ -60,7 +60,7 @@ func init() {
 	registerCommand("latency", 11, configureLatencyCommand)
 }
 
-func (c *latencyCmd) latencyAction(_ *kingpin.ParseContext) error {
+func (c *latencyCmd) latencyAction(_ *fisk.ParseContext) error {
 	start := time.Now()
 	c.numPubs = int(c.testDuration/time.Second) * c.targetPubRate
 

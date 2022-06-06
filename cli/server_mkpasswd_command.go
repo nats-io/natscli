@@ -17,7 +17,7 @@ import (
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -27,7 +27,7 @@ type SrvPasswdCmd struct {
 	generate bool
 }
 
-func configureServerPasswdCommand(srv *kingpin.CmdClause) {
+func configureServerPasswdCommand(srv *fisk.CmdClause) {
 	c := &SrvPasswdCmd{}
 
 	passwd := srv.Command("passwd", "Creates encrypted passwords for use in NATS Server").Alias("mkpasswd").Alias("pass").Alias("password").Action(c.mkpasswd)
@@ -36,7 +36,7 @@ func configureServerPasswdCommand(srv *kingpin.CmdClause) {
 	passwd.Flag("generate", "Generates a secure passphrase and encrypt it").Short('g').Default("false").BoolVar(&c.generate)
 }
 
-func (c *SrvPasswdCmd) mkpasswd(_ *kingpin.ParseContext) error {
+func (c *SrvPasswdCmd) mkpasswd(_ *fisk.ParseContext) error {
 	if int(c.cost) < bcrypt.MinCost || int(c.cost) > bcrypt.MaxCost {
 		return fmt.Errorf("bcrypt cost should be between %d and %d", bcrypt.MinCost, bcrypt.MaxCost)
 	}

@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats-server/v2/server"
 )
@@ -43,7 +43,7 @@ type srvListCluster struct {
 	conns int
 }
 
-func configureServerListCommand(srv *kingpin.CmdClause) {
+func configureServerListCommand(srv *fisk.CmdClause) {
 	c := &SrvLsCmd{}
 
 	ls := srv.Command("ls", "List known servers").Alias("list").Action(c.list)
@@ -54,7 +54,7 @@ func configureServerListCommand(srv *kingpin.CmdClause) {
 	ls.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 }
 
-func (c *SrvLsCmd) list(_ *kingpin.ParseContext) error {
+func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
