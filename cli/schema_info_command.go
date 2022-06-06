@@ -16,7 +16,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/ghodss/yaml"
 	"github.com/nats-io/jsm.go/api"
 )
@@ -26,14 +26,14 @@ type schemaInfoCmd struct {
 	yaml   bool
 }
 
-func configureSchemaInfoCommand(schema *kingpin.CmdClause) {
+func configureSchemaInfoCommand(schema *fisk.CmdClause) {
 	c := &schemaInfoCmd{}
 	info := schema.Command("info", "Display schema contents").Alias("show").Alias("view").Action(c.info)
 	info.Arg("schema", "Schema ID to show").Required().StringVar(&c.schema)
 	info.Flag("yaml", "Produce YAML format output").BoolVar(&c.yaml)
 }
 
-func (c *schemaInfoCmd) info(_ *kingpin.ParseContext) error {
+func (c *schemaInfoCmd) info(_ *fisk.ParseContext) error {
 	schema, err := api.Schema(c.schema)
 	if err != nil {
 		return fmt.Errorf("could not load schema %q: %s", c.schema, err)

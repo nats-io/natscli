@@ -19,7 +19,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 )
@@ -31,7 +31,7 @@ type SrvRaftCmd struct {
 	placementCluster string
 }
 
-func configureServerRaftCommand(srv *kingpin.CmdClause) {
+func configureServerRaftCommand(srv *fisk.CmdClause) {
 	c := &SrvRaftCmd{}
 
 	raft := srv.Command("raft", "Manage JetStream Clustering").Alias("r")
@@ -45,7 +45,7 @@ func configureServerRaftCommand(srv *kingpin.CmdClause) {
 	rm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
 }
 
-func (c *SrvRaftCmd) metaPeerRemove(_ *kingpin.ParseContext) error {
+func (c *SrvRaftCmd) metaPeerRemove(_ *fisk.ParseContext) error {
 	nc, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (c *SrvRaftCmd) metaPeerRemove(_ *kingpin.ParseContext) error {
 		fmt.Printf("Removing %s can not be reversed, data on this node will be\ninaccessible and another one called %s can not join again.\n\n", c.peer, c.peer)
 
 		remove, err := askConfirmation(fmt.Sprintf("Really remove peer %s", c.peer), false)
-		kingpin.FatalIfError(err, "Could not prompt for confirmation")
+		fisk.FatalIfError(err, "Could not prompt for confirmation")
 		if !remove {
 			fmt.Println("Removal canceled")
 			os.Exit(0)
@@ -97,12 +97,12 @@ func (c *SrvRaftCmd) metaPeerRemove(_ *kingpin.ParseContext) error {
 	}
 
 	err = mgr.MetaPeerRemove(c.peer)
-	kingpin.FatalIfError(err, "Could not remove %s", c.peer)
+	fisk.FatalIfError(err, "Could not remove %s", c.peer)
 
 	return nil
 }
 
-func (c *SrvRaftCmd) metaLeaderStandDown(_ *kingpin.ParseContext) error {
+func (c *SrvRaftCmd) metaLeaderStandDown(_ *fisk.ParseContext) error {
 	nc, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err

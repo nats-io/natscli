@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -82,7 +82,7 @@ type SrvCheckCmd struct {
 	kvKey        string
 }
 
-func configureServerCheckCommand(srv *kingpin.CmdClause) {
+func configureServerCheckCommand(srv *fisk.CmdClause) {
 	c := &SrvCheckCmd{}
 
 	help := `Health check for NATS servers
@@ -535,7 +535,7 @@ func (c *SrvCheckCmd) checkKVStatusAndBucket(check *result, nc *nats.Conn) {
 	}
 }
 
-func (c *SrvCheckCmd) checkKV(_ *kingpin.ParseContext) error {
+func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
 	check := &result{Name: c.kvBucket, Check: "kv"}
 	defer check.GenericExit()
 
@@ -547,7 +547,7 @@ func (c *SrvCheckCmd) checkKV(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *SrvCheckCmd) checkSrv(_ *kingpin.ParseContext) error {
+func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
 	check := &result{Name: c.srvName, Check: "server"}
 	defer check.GenericExit()
 
@@ -705,7 +705,7 @@ func (c *SrvCheckCmd) fetchVarz() (*server.Varz, error) {
 	return varz, nil
 }
 
-func (c *SrvCheckCmd) checkJS(_ *kingpin.ParseContext) error {
+func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 	check := &result{Name: "JetStream", Check: "jetstream"}
 	defer check.GenericExit()
 
@@ -770,7 +770,7 @@ func (c *SrvCheckCmd) checkAccountInfo(check *result, info *api.JetStreamAccount
 	return nil
 }
 
-func (c *SrvCheckCmd) checkRaft(_ *kingpin.ParseContext) error {
+func (c *SrvCheckCmd) checkRaft(_ *fisk.ParseContext) error {
 	check := &result{Name: "JetStream Meta Cluster", Check: "meta"}
 	defer check.GenericExit()
 
@@ -900,7 +900,7 @@ func (c *SrvCheckCmd) checkClusterInfo(check *result, ci *server.ClusterInfo) er
 	return nil
 }
 
-func (c *SrvCheckCmd) checkStream(_ *kingpin.ParseContext) error {
+func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	check := &result{Name: c.sourcesStream, Check: "stream"}
 	defer check.GenericExit()
 
@@ -1019,7 +1019,7 @@ func (c *SrvCheckCmd) checkSources(check *result, info *api.StreamInfo) error {
 	return nil
 }
 
-func (c *SrvCheckCmd) checkConnection(_ *kingpin.ParseContext) error {
+func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 	check := &result{Name: "Connection", Check: "connections"}
 	defer check.GenericExit()
 

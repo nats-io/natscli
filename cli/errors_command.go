@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go/schemas"
 	"github.com/nats-io/nats-server/v2/server"
@@ -63,7 +63,7 @@ func init() {
 	registerCommand("errors", 6, configureErrCommand)
 }
 
-func (c *errCmd) validateAction(_ *kingpin.ParseContext) error {
+func (c *errCmd) validateAction(_ *fisk.ParseContext) error {
 	if c.file == "" {
 		return fmt.Errorf("errors file is required")
 	}
@@ -89,7 +89,7 @@ func (c *errCmd) validateAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *errCmd) listAction(_ *kingpin.ParseContext) error {
+func (c *errCmd) listAction(_ *fisk.ParseContext) error {
 	re := regexp.MustCompile(".")
 	if c.match != "" {
 		re = regexp.MustCompile(strings.ToLower(c.match))
@@ -120,7 +120,7 @@ func (c *errCmd) listAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *errCmd) editAction(pc *kingpin.ParseContext) error {
+func (c *errCmd) editAction(pc *fisk.ParseContext) error {
 	if os.Getenv("EDITOR") == "" {
 		return fmt.Errorf("EDITOR variable is not set")
 	}
@@ -215,7 +215,7 @@ func (c *errCmd) editAction(pc *kingpin.ParseContext) error {
 	return c.validateAction(pc)
 }
 
-func (c *errCmd) lookupAction(_ *kingpin.ParseContext) error {
+func (c *errCmd) lookupAction(_ *fisk.ParseContext) error {
 	errs, err := c.loadErrors(nil)
 	if err != nil {
 		return err

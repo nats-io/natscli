@@ -19,7 +19,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 )
 
 type cheatCmd struct {
@@ -83,7 +83,7 @@ func (c *cheatCmd) saveCheats() error {
 	return nil
 }
 
-func (c *cheatCmd) cheat(_ *kingpin.ParseContext) error {
+func (c *cheatCmd) cheat(_ *fisk.ParseContext) error {
 	if c.save != "" {
 		return c.saveCheats()
 	}

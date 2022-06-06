@@ -19,7 +19,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -77,11 +77,11 @@ func init() {
 	registerCommand("account", 0, configureActCommand)
 }
 
-func (c *actCmd) backupAction(_ *kingpin.ParseContext) error {
+func (c *actCmd) backupAction(_ *fisk.ParseContext) error {
 	var err error
 
 	_, mgr, err := prepareHelper("", natsOpts()...)
-	kingpin.FatalIfError(err, "setup failed")
+	fisk.FatalIfError(err, "setup failed")
 
 	streams, err := mgr.Streams()
 	if err != nil {
@@ -144,9 +144,9 @@ func (c *actCmd) backupAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *actCmd) restoreAction(kp *kingpin.ParseContext) error {
+func (c *actCmd) restoreAction(kp *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
-	kingpin.FatalIfError(err, "setup failed")
+	fisk.FatalIfError(err, "setup failed")
 	streams, err := mgr.StreamNames(nil)
 	if err != nil {
 		return err
@@ -156,28 +156,28 @@ func (c *actCmd) restoreAction(kp *kingpin.ParseContext) error {
 		existingStreams[n] = struct{}{}
 	}
 	de, err := os.ReadDir(c.backupDirectory)
-	kingpin.FatalIfError(err, "setup failed")
+	fisk.FatalIfError(err, "setup failed")
 	for _, d := range de {
 		if !d.IsDir() {
-			kingpin.FatalIfError(err, "expected a directory")
+			fisk.FatalIfError(err, "expected a directory")
 		}
 		if _, ok := existingStreams[d.Name()]; ok {
-			kingpin.Fatalf("stream %q exists already", d.Name())
+			fisk.Fatalf("stream %q exists already", d.Name())
 		}
 		_, err := os.Stat(filepath.Join(c.backupDirectory, d.Name(), "backup.json"))
-		kingpin.FatalIfError(err, "expected backup.json")
+		fisk.FatalIfError(err, "expected backup.json")
 	}
 	fmt.Printf("Restoring backup of all %d streams in directory %q\n\n", len(de), c.backupDirectory)
 	s := &streamCmd{msgID: -1, showProgress: false, placementCluster: c.placementCluster, placementTags: c.placementTags}
 	for _, d := range de {
 		s.backupDirectory = filepath.Join(c.backupDirectory, d.Name())
 		err := s.restoreAction(kp)
-		kingpin.FatalIfError(err, "restore for %s failed", d.Name())
+		fisk.FatalIfError(err, "restore for %s failed", d.Name())
 	}
 	return nil
 }
 
-func (c *actCmd) reportConnectionsAction(pc *kingpin.ParseContext) error {
+func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
 	cmd := SrvReportCmd{
 		topk:    c.topk,
 		sort:    c.sort,
@@ -240,9 +240,9 @@ func (c *actCmd) renderTier(name string, tier *api.JetStreamTier) {
 	fmt.Println()
 }
 
-func (c *actCmd) infoAction(_ *kingpin.ParseContext) error {
+func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 	nc, mgr, err := prepareHelper("", natsOpts()...)
-	kingpin.FatalIfError(err, "setup failed")
+	fisk.FatalIfError(err, "setup failed")
 
 	id, _ := nc.GetClientID()
 	ip, _ := nc.GetClientIP()

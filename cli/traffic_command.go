@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats.go"
 )
@@ -82,7 +82,7 @@ func init() {
 	registerCommand("traffic", 18, configureTrafficCommand)
 }
 
-func (c *trafficCmd) monitor(_ *kingpin.ParseContext) error {
+func (c *trafficCmd) monitor(_ *fisk.ParseContext) error {
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err

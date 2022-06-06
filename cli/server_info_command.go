@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/nats-server/v2/server"
@@ -30,14 +30,14 @@ type SrvInfoCmd struct {
 	id string
 }
 
-func configureServerInfoCommand(srv *kingpin.CmdClause) {
+func configureServerInfoCommand(srv *fisk.CmdClause) {
 	c := &SrvInfoCmd{}
 
 	info := srv.Command("info", "Show information about a single server").Alias("i").Action(c.info)
 	info.Arg("server", "Server ID or Name to inspect").StringVar(&c.id)
 }
 
-func (c *SrvInfoCmd) info(_ *kingpin.ParseContext) error {
+func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err

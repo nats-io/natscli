@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 )
@@ -82,7 +82,7 @@ func init() {
 	registerCommand("sub", 17, configureSubCommand)
 }
 
-func (c *subCmd) subscribe(_ *kingpin.ParseContext) error {
+func (c *subCmd) subscribe(_ *fisk.ParseContext) error {
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err

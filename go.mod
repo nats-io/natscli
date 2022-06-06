@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.4
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
-	github.com/alecthomas/kingpin v1.3.8-0.20211026191244-551b91efb557
+	github.com/choria-io/fisk v0.1.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/emicklei/dot v0.16.0
 	github.com/fatih/color v1.13.0
@@ -29,8 +29,6 @@ require (
 )
 
 require (
-	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
-	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect

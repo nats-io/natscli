@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/nats.go"
@@ -140,7 +140,7 @@ func init() {
 	registerCommand("bench", 2, configureBenchCommand)
 }
 
-func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
+func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 	// first check the sanity of the arguments
 	if c.numMsg <= 0 {
 		return fmt.Errorf("number of messages should be greater than 0")
@@ -250,7 +250,7 @@ func (c *benchCmd) bench(_ *kingpin.ParseContext) error {
 			// There is no way to purge all the keys in a KV bucket in a single operation so deleting the bucket instead
 			if c.purge {
 				err = js.PurgeStream("KV_" + c.subject)
-				//err = js.DeleteKeyValue(c.subject)
+				// err = js.DeleteKeyValue(c.subject)
 				if err != nil {
 					log.Fatalf("Can not purge the bucket: %v", err)
 				}

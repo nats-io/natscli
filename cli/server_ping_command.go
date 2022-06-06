@@ -24,7 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/guptarohit/asciigraph"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -36,7 +36,7 @@ type SrvPingCmd struct {
 	showId bool
 }
 
-func configureServerPingCommand(srv *kingpin.CmdClause) {
+func configureServerPingCommand(srv *fisk.CmdClause) {
 	c := &SrvPingCmd{}
 
 	ls := srv.Command("ping", "Ping all servers").Action(c.ping)
@@ -45,7 +45,7 @@ func configureServerPingCommand(srv *kingpin.CmdClause) {
 	ls.Flag("id", "Include the Server ID in the output").BoolVar(&c.showId)
 }
 
-func (c *SrvPingCmd) ping(_ *kingpin.ParseContext) error {
+func (c *SrvPingCmd) ping(_ *fisk.ParseContext) error {
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err

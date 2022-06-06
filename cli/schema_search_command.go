@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/api"
 )
 
@@ -26,14 +26,14 @@ type schemaSearchCmd struct {
 	json   bool
 }
 
-func configureSchemaSearchCommand(schema *kingpin.CmdClause) {
+func configureSchemaSearchCommand(schema *fisk.CmdClause) {
 	c := &schemaSearchCmd{}
 	search := schema.Command("search", "Search schemas using a pattern").Alias("find").Alias("list").Alias("ls").Action(c.search)
 	search.Arg("pattern", "Regular expression to search for").Default(".").StringVar(&c.filter)
 	search.Flag("json", "Produce JSON format output").BoolVar(&c.json)
 }
 
-func (c *schemaSearchCmd) search(_ *kingpin.ParseContext) error {
+func (c *schemaSearchCmd) search(_ *fisk.ParseContext) error {
 	found, err := api.SchemaSearch(c.filter)
 	if err != nil {
 		return fmt.Errorf("search failed: %s", err)

@@ -19,7 +19,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 )
 
 type schemaValidateCmd struct {
@@ -28,7 +28,7 @@ type schemaValidateCmd struct {
 	json   bool
 }
 
-func configureSchemaValidateCommand(schema *kingpin.CmdClause) {
+func configureSchemaValidateCommand(schema *fisk.CmdClause) {
 	c := &schemaValidateCmd{}
 	validate := schema.Command("validate", "Validates a JSON file against a schema").Alias("check").Action(c.validate)
 	validate.Arg("schema", "Schema ID to validate against").Required().StringVar(&c.schema)
@@ -37,7 +37,7 @@ func configureSchemaValidateCommand(schema *kingpin.CmdClause) {
 
 }
 
-func (c *schemaValidateCmd) validate(_ *kingpin.ParseContext) error {
+func (c *schemaValidateCmd) validate(_ *fisk.ParseContext) error {
 	file, err := ioutil.ReadFile(c.file)
 	if err != nil {
 		return err

@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/kballard/go-shellquote"
 	"github.com/nats-io/nats.go"
 )
@@ -41,9 +41,7 @@ type replyCmd struct {
 
 func configureReplyCommand(app commandHost) {
 	c := &replyCmd{}
-	help := `Generic service reply utility
-
-The "command" supports extracting some information from the subject the request came in on.
+	help := `The "command" supports extracting some information from the subject the request came in on.
 
 When the subject being listened on is "weather.>" a request on "weather.london" can extract
 the "london" part and use it in the command string:
@@ -70,11 +68,11 @@ Available template functions are:
    UnixNano         nano seconds since 1970 in UTC
    Time             the current time
    ID               an unique ID
-   Random(min, max) random string at least min long, at most max 
-
+   Random(min, max) random string at least min long, at most max
 `
 
-	act := app.Command("reply", help).Action(c.reply)
+	act := app.Command("reply", "Generic service reply utility").Action(c.reply)
+	act.HelpLong(help)
 	act.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	act.Arg("body", "Reply body").StringVar(&c.body)
 	act.Flag("echo", "Echo back what is received").BoolVar(&c.echo)
@@ -97,7 +95,7 @@ func init() {
 	registerCommand("reply", 12, configureReplyCommand)
 }
 
-func (c *replyCmd) reply(_ *kingpin.ParseContext) error {
+func (c *replyCmd) reply(_ *fisk.ParseContext) error {
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err

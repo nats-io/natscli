@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/natscontext"
 	"github.com/nats-io/nats.go"
@@ -21,7 +21,7 @@ type command struct {
 }
 
 type commandHost interface {
-	Command(name string, help string) *kingpin.CmdClause
+	Command(name string, help string) *fisk.CmdClause
 }
 
 // Logger provides a plugable logger implementation
@@ -160,7 +160,7 @@ func commonConfigure(cmd commandHost, cliOpts *Options, disable ...string) error
 
 // ConfigureInCommand attaches the cli commands to cmd, prepare will load the context on demand and should be true unless override nats,
 // manager and js context is given in a custom PreAction in the caller.  Disable is a list of command names to skip.
-func ConfigureInCommand(cmd *kingpin.CmdClause, cliOpts *Options, prepare bool, disable ...string) (*Options, error) {
+func ConfigureInCommand(cmd *fisk.CmdClause, cliOpts *Options, prepare bool, disable ...string) (*Options, error) {
 	err := commonConfigure(cmd, cliOpts, disable...)
 	if err != nil {
 		return nil, err
@@ -175,7 +175,7 @@ func ConfigureInCommand(cmd *kingpin.CmdClause, cliOpts *Options, prepare bool, 
 
 // ConfigureInApp attaches the cli commands to app, prepare will load the context on demand and should be true unless override nats,
 // manager and js context is given in a custom PreAction in the caller.  Disable is a list of command names to skip.
-func ConfigureInApp(app *kingpin.Application, cliOpts *Options, prepare bool, disable ...string) (*Options, error) {
+func ConfigureInApp(app *fisk.Application, cliOpts *Options, prepare bool, disable ...string) (*Options, error) {
 	err := commonConfigure(app, cliOpts, disable...)
 	if err != nil {
 		return nil, err
@@ -188,7 +188,7 @@ func ConfigureInApp(app *kingpin.Application, cliOpts *Options, prepare bool, di
 	return opts, nil
 }
 
-func preAction(_ *kingpin.ParseContext) (err error) {
+func preAction(_ *fisk.ParseContext) (err error) {
 	loadContext()
 
 	rand.Seed(time.Now().UnixNano())

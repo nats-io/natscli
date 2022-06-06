@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/alecthomas/kingpin"
+	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go"
@@ -168,7 +168,7 @@ func init() {
 	registerCommand("kv", 9, configureKVCommand)
 }
 
-func (c *kvCommand) parseLimitStrings(_ *kingpin.ParseContext) (err error) {
+func (c *kvCommand) parseLimitStrings(_ *fisk.ParseContext) (err error) {
 	if c.maxValueSizeString != "" {
 		c.maxValueSize, err = parseStringAsBytes(c.maxValueSizeString)
 		if err != nil {
@@ -199,7 +199,7 @@ func (c *kvCommand) strForOp(op nats.KeyValueOp) string {
 	}
 }
 
-func (c *kvCommand) lsAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) lsAction(_ *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -247,7 +247,7 @@ func (c *kvCommand) lsAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *kvCommand) upgradeAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) upgradeAction(_ *fisk.ParseContext) error {
 	_, js, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -281,7 +281,7 @@ func (c *kvCommand) upgradeAction(_ *kingpin.ParseContext) error {
 	return c.showStatus(store)
 }
 
-func (c *kvCommand) historyAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) historyAction(_ *fisk.ParseContext) error {
 	_, _, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -308,7 +308,7 @@ func (c *kvCommand) historyAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *kvCommand) compactAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) compactAction(_ *fisk.ParseContext) error {
 	_, _, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -329,7 +329,7 @@ func (c *kvCommand) compactAction(_ *kingpin.ParseContext) error {
 	return store.PurgeDeletes()
 }
 
-func (c *kvCommand) deleteAction(pc *kingpin.ParseContext) error {
+func (c *kvCommand) deleteAction(pc *fisk.ParseContext) error {
 	if c.key == "" {
 		return c.rmBucketAction(pc)
 	}
@@ -354,7 +354,7 @@ func (c *kvCommand) deleteAction(pc *kingpin.ParseContext) error {
 	return store.Delete(c.key)
 }
 
-func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 	_, js, err := prepareJSHelper()
 	if err != nil {
 		return err
@@ -388,7 +388,7 @@ func (c *kvCommand) addAction(_ *kingpin.ParseContext) error {
 	return c.showStatus(store)
 }
 
-func (c *kvCommand) getAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) getAction(_ *fisk.ParseContext) error {
 	_, _, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -420,7 +420,7 @@ func (c *kvCommand) getAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *kvCommand) putAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) putAction(_ *fisk.ParseContext) error {
 	_, _, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -441,7 +441,7 @@ func (c *kvCommand) putAction(_ *kingpin.ParseContext) error {
 	return err
 }
 
-func (c *kvCommand) createAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) createAction(_ *fisk.ParseContext) error {
 	_, _, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -462,7 +462,7 @@ func (c *kvCommand) createAction(_ *kingpin.ParseContext) error {
 	return err
 }
 
-func (c *kvCommand) updateAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) updateAction(_ *fisk.ParseContext) error {
 	_, _, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -546,7 +546,7 @@ func (c *kvCommand) knownBuckets(nc *nats.Conn) ([]string, error) {
 	return found, nil
 }
 
-func (c *kvCommand) infoAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) infoAction(_ *fisk.ParseContext) error {
 	_, _, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -555,7 +555,7 @@ func (c *kvCommand) infoAction(_ *kingpin.ParseContext) error {
 	return c.showStatus(store)
 }
 
-func (c *kvCommand) watchAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) watchAction(_ *fisk.ParseContext) error {
 	_, _, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -585,7 +585,7 @@ func (c *kvCommand) watchAction(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *kvCommand) purgeAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) purgeAction(_ *fisk.ParseContext) error {
 	_, _, store, err := c.loadBucket()
 	if err != nil {
 		return err
@@ -606,7 +606,7 @@ func (c *kvCommand) purgeAction(_ *kingpin.ParseContext) error {
 	return store.Purge(c.key)
 }
 
-func (c *kvCommand) rmBucketAction(_ *kingpin.ParseContext) error {
+func (c *kvCommand) rmBucketAction(_ *fisk.ParseContext) error {
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Deleted bucket %s?", c.bucket), false)
 		if err != nil {
