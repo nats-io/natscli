@@ -140,7 +140,7 @@ func configureConsumerCommand(app commandHost) {
 	consLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	consLs.Flag("names", "Show just the consumer names").Short('n').BoolVar(&c.listNames)
 
-	conReport := cons.Command("report", "Reports on Consmer statistics").Action(c.reportAction)
+	conReport := cons.Command("report", "Reports on Consumer statistics").Action(c.reportAction)
 	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
 	conReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.raw)
 	conReport.Flag("leaders", "Show details about the leaders").Short('l').BoolVar(&c.reportLeaderDistrib)
