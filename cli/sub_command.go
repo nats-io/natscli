@@ -148,6 +148,8 @@ func (c *subCmd) subscribe(_ *fisk.ParseContext) error {
 
 		ctr++
 		if dump {
+			// Output format 1/3: dumping, to stdout or files
+
 			stdout := c.dump == "-"
 			outFile := ""
 			if !stdout {
@@ -167,10 +169,7 @@ func (c *subCmd) subscribe(_ *fisk.ParseContext) error {
 			jm, err := json.Marshal(msg)
 			if err != nil {
 				log.Printf("Could not JSON encode message: %s", err)
-				return
-			}
-
-			if stdout {
+			} else if stdout {
 				os.Stdout.WriteString(fmt.Sprintf("%s\000", jm))
 			} else {
 				err = os.WriteFile(outFile, jm, 0600)
@@ -183,40 +182,44 @@ func (c *subCmd) subscribe(_ *fisk.ParseContext) error {
 				}
 			}
 
-			return
 		} else if c.raw {
+			// Output format 2/3: raw
+
 			fmt.Println(string(m.Data))
-			return
-		}
 
-		if info == nil {
-			if m.Reply != "" {
-				fmt.Printf("[#%d] Received on %q with reply %q\n", ctr, m.Subject, m.Reply)
-			} else {
-				fmt.Printf("[#%d] Received on %q\n", ctr, m.Subject)
-			}
-		} else if jetStream {
-			fmt.Printf("[#%d] Received JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, info.Stream(), info.StreamSequence(), m.Subject, info.TimeStamp().Format(time.RFC3339))
 		} else {
-			fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, info.Stream(), info.Consumer(), m.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
-		}
+			// Output format 3/3: pretty
 
-		if len(m.Header) > 0 {
-			for h, vals := range m.Header {
-				for _, val := range vals {
-					fmt.Printf("%s: %s\n", h, val)
+			if info == nil {
+				if m.Reply != "" {
+					fmt.Printf("[#%d] Received on %q with reply %q\n", ctr, m.Subject, m.Reply)
+				} else {
+					fmt.Printf("[#%d] Received on %q\n", ctr, m.Subject)
+				}
+			} else if jetStream {
+				fmt.Printf("[#%d] Received JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, info.Stream(), info.StreamSequence(), m.Subject, info.TimeStamp().Format(time.RFC3339))
+			} else {
+				fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, info.Stream(), info.Consumer(), m.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
+			}
+
+			if len(m.Header) > 0 {
+				for h, vals := range m.Header {
+					for _, val := range vals {
+						fmt.Printf("%s: %s\n", h, val)
+					}
+				}
+
+				fmt.Println()
+			}
+
+			if !c.headersOnly {
+				fmt.Println(string(m.Data))
+				if !strings.HasSuffix(string(m.Data), "\n") {
+					fmt.Println()
 				}
 			}
 
-			fmt.Println()
-		}
-
-		if !c.headersOnly {
-			fmt.Println(string(m.Data))
-			if !strings.HasSuffix(string(m.Data), "\n") {
-				fmt.Println()
-			}
-		}
+		} // output format type dispatch
 
 		if ctr == c.limit {
 			sub.Unsubscribe()
