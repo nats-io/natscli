@@ -47,6 +47,7 @@ func configureEventsCommand(app commandHost) {
 	c := &eventsCmd{}
 
 	events := app.Command("events", "Show Advisories and Events").Alias("event").Alias("e").Action(c.eventsAction)
+	addCheat("events", events)
 	events.Flag("all", "Show all events").Default("false").Short('a').BoolVar(&c.showAll)
 	events.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 	events.Flag("cloudevent", "Produce CloudEvents v1 output").BoolVar(&c.ce)
@@ -56,13 +57,6 @@ func configureEventsCommand(app commandHost) {
 	events.Flag("js-advisory", "Shows advisory events (false)").Default("false").BoolVar(&c.showJsAdvisories)
 	events.Flag("srv-advisory", "Shows NATS Server advisories (true)").Default("true").BoolVar(&c.showServerAdvisories)
 	events.Flag("subjects", "Show Advisories and Metrics received on specific subjects").PlaceHolder("SUBJECTS").StringsVar(&c.extraSubjects)
-
-	cheats["events"] = `# To view common system events
-nats events
-nats events --short --all
-nats events --no-srv-advisory --js-metric --js-advisory
-nats events --no-srv-advisory --subjects service.latency.weather
-`
 }
 
 func init() {

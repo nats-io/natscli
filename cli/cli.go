@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"embed"
 	glog "log"
 	"math/rand"
 	"sort"
@@ -34,13 +35,15 @@ type Logger interface {
 }
 
 var (
-	cheats   = make(map[string]string)
 	opts     = &Options{}
 	commands = []*command{}
 	mu       sync.Mutex
 	Version  = "development"
 	log      Logger
 	ctx      context.Context
+
+	//go:embed cheats
+	fs embed.FS
 
 	// These are persisted by contexts, as properties thereof.
 	// So don't include NATS_CONTEXT in this list.
@@ -95,6 +98,8 @@ type Options struct {
 	Mgr *jsm.Manager
 	// JSc is a prepared NATS JetStream context to use for KV and Object access
 	JSc nats.JetStreamContext
+	// Disables registering of CLI cheats
+	NoCheats bool
 }
 
 // SkipContexts used during tests

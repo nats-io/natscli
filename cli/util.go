@@ -422,6 +422,14 @@ func natsOpts() []nats.Option {
 	}...)
 }
 
+func addCheat(name string, cmd *fisk.CmdClause) {
+	if opts.NoCheats {
+		return
+	}
+
+	cmd.CheatFile(fs, name, fmt.Sprintf("cheats/%s.md", name))
+}
+
 func newNatsConnUnlocked(servers string, copts ...nats.Option) (*nats.Conn, error) {
 	if opts.Conn != nil {
 		return opts.Conn, nil

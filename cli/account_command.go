@@ -42,6 +42,7 @@ type actCmd struct {
 func configureActCommand(app commandHost) {
 	c := &actCmd{}
 	act := app.Command("account", "Account information and status").Alias("a")
+	addCheat("account", act)
 	act.Command("info", "Account information").Alias("nfo").Action(c.infoAction)
 
 	report := act.Command("report", "Report on account metrics").Alias("rep")
@@ -61,16 +62,6 @@ func configureActCommand(app commandHost) {
 	restore.Arg("directory", "The directory holding the account backup to restore").Required().ExistingDirVar(&c.backupDirectory)
 	restore.Flag("cluster", "Place the stream in a specific cluster").StringVar(&c.placementCluster)
 	restore.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
-
-	cheats["account"] = `# To view account information and connection
-nats account info
-
-# To report connections for your command
-nats account report connections
-
-# To backup all JetStream streams
-nats account backup /path/to/backup --check
-`
 }
 
 func init() {

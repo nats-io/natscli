@@ -73,6 +73,7 @@ Available template functions are:
 
 	act := app.Command("reply", "Generic service reply utility").Action(c.reply)
 	act.HelpLong(help)
+	addCheat("reply", act)
 	act.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	act.Arg("body", "Reply body").StringVar(&c.body)
 	act.Flag("echo", "Echo back what is received").BoolVar(&c.echo)
@@ -81,14 +82,6 @@ Available template functions are:
 	act.Flag("sleep", "Inject a random sleep delay between replies up to this duration max").PlaceHolder("MAX").DurationVar(&c.sleep)
 	act.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
-
-	cheats["reply"] = `# To set up a responder that runs an external command with the 3rd subject token as argument
-nats reply "service.requests.>" --command "service.sh {{2}}"
-
-# To set up basic responder
-nats reply service.requests "Message {{Count}} @ {{Time}}"
-nats reply service.requests --echo --sleep 10
-`
 }
 
 func init() {

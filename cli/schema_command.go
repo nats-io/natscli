@@ -15,16 +15,7 @@ package cli
 
 func configureSchemaCommand(app commandHost) {
 	schema := app.Command("schema", "Schema tools")
-
-	cheats["schemas"] = `# To see all available schemas using regular expressions
-nats schema search 'response|request'
-
-# To view a specific schema
-nats schema info io.nats.jetstream.api.v1.stream_msg_get_request --yaml
-
-# To validate a JSON input against a specific schema
-nats schema validate io.nats.jetstream.api.v1.stream_msg_get_request request.json
-`
+	addCheat("schemas", schema)
 
 	configureSchemaSearchCommand(schema)
 	configureSchemaInfoCommand(schema)

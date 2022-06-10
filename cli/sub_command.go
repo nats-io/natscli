@@ -47,6 +47,8 @@ type subCmd struct {
 func configureSubCommand(app commandHost) {
 	c := &subCmd{}
 	act := app.Command("subscribe", "Generic subscription client").Alias("sub").Action(c.subscribe)
+	addCheat("sub", act)
+
 	act.Arg("subject", "Subject to subscribe to").StringVar(&c.subject)
 	act.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)
 	act.Flag("raw", "Show the raw data received").Short('r').BoolVar(&c.raw)
@@ -60,22 +62,6 @@ func configureSubCommand(app commandHost) {
 	act.Flag("new", "Delivers only future messages (requires JetStream)").BoolVar(&c.deliverNew)
 	act.Flag("last", "Delivers the most recent and all future messages (requires JetStream)").BoolVar(&c.deliverLast)
 	act.Flag("since", "Delivers messages received since a duration (requires JetStream)").PlaceHolder("DURATION").StringVar(&c.deliverSince)
-
-	cheats["sub"] = `# To subscribe to messages, in a queue group and acknowledge any JetStream ones
-nats sub source.subject --queue work --ack
-
-# To subscribe to a randomly generated inbox
-nats sub --inbox
-
-# To dump all messages to files, 1 file per message
-nats sub --inbox --dump /tmp/archive
-
-# To process all messages using xargs 1 message at a time through a shell command
-nats sub subject --dump=- | xargs -0 -n 1 -I "{}" sh -c "echo '{}' | wc -c"
-
-# To receive new messages received in a stream with the subject ORDERS.new
-nats sub ORDERS.new --next
-`
 }
 
 func init() {

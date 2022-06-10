@@ -63,13 +63,16 @@ type benchCmd struct {
 }
 
 const (
-	DEFAULT_DURABLE_CONSUMER_NAME string = "natscli-bench"
-	DEFAULT_STREAM_NAME           string = "benchstream"
+	DefaultDurableConsumerName string = "natscli-bench"
+	DefaultStreamName          string = "benchstream"
 )
 
 func configureBenchCommand(app commandHost) {
 	c := &benchCmd{}
 	bench := app.Command("bench", "Benchmark utility").Action(c.bench)
+	if !opts.NoCheats {
+		bench.CheatFile(fs, "bench", "cheats/bench.md")
+	}
 	bench.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
 	bench.Flag("pub", "Number of concurrent publishers").Default("0").IntVar(&c.numPubs)
 	bench.Flag("sub", "Number of concurrent subscribers").Default("0").IntVar(&c.numSubs)
@@ -85,8 +88,8 @@ func configureBenchCommand(app commandHost) {
 	bench.Flag("storage", "JetStream storage (memory/file) for the \"benchstream\" stream").Default("memory").EnumVar(&c.storage, "memory", "file")
 	bench.Flag("replicas", "Number of stream replicas for the \"benchstream\" stream").Default("1").IntVar(&c.replicas)
 	bench.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes").Default("1GB").StringVar(&c.streamMaxBytesString)
-	bench.Flag("stream", "When set to something else than \"benchstream\": use (and do not attempt to define) the specified stream when creating durable subscribers. Otherwise define and use the \"benchstream\" stream").Default(DEFAULT_STREAM_NAME).StringVar(&c.streamName)
-	bench.Flag("consumer", "Specify the durable consumer name to use").Default(DEFAULT_DURABLE_CONSUMER_NAME).StringVar(&c.consumerName)
+	bench.Flag("stream", "When set to something else than \"benchstream\": use (and do not attempt to define) the specified stream when creating durable subscribers. Otherwise define and use the \"benchstream\" stream").Default(DefaultStreamName).StringVar(&c.streamName)
+	bench.Flag("consumer", "Specify the durable consumer name to use").Default(DefaultDurableConsumerName).StringVar(&c.consumerName)
 	bench.Flag("jstimeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	bench.Flag("syncpub", "Synchronously publish to the stream").Default("false").BoolVar(&c.syncPub)
 	bench.Flag("pubbatch", "Sets the batch size for JS asynchronous publishing").Default("100").IntVar(&c.pubBatch)
@@ -99,41 +102,6 @@ func configureBenchCommand(app commandHost) {
 	bench.Flag("history", "History depth for the bucket in KV mode").Default("1").Uint8Var(&c.history)
 	bench.Flag("multisubject", "Multi-subject mode, each message is published on a subject that includes the publisher's message sequence number as a token").Default("false").BoolVar(&c.multiSubject)
 	bench.Flag("multisubjectmax", "The maximum number of subjects to use in multi-subject mode (0 means no max)").Default("0").IntVar(&c.multiSubjectMax)
-
-	cheats["bench"] = `# benchmark core nats publish and subscribe with 10 publishers and subscribers
-nats bench testsubject --pub 10 --sub 10 --msgs 10000 --size 512
-
-# benchmark core nats request-reply without subscribers using a queue
-nats bench testsubject --pub 1 --sub 1 --msgs 10000 --no-queue
-
-# benchmark core nats request-reply with queuing
-nats bench testsubject --sub 4 --reply
-nats bench testsubject --pub 4 --request --msgs 20000
-
-# benchmark JetStream synchronously acknowledged publishing purging the data first
-nats bench testsubject --js --syncpub --pub 10  --msgs 10000 --purge
-
-# benchmark JS publish and push consumers at the same time purging the data first
-nats bench testsubject --js --pub 4 --sub 4 --purge
-
-# benchmark JS stream purge and async batched publishing to the stream
-nats bench testsubject --js --pub 4 --purge
-
-# benchmark JS stream get replay from the stream using a push consumer
-nats bench testsubject --js --sub 4
-
-# benchmark JS stream get replay from the stream using a pull consumer
-nats bench testsubject --js --sub 4 --pull
-
-# simulate a message processing time (for reply mode and pull JS consumers) of 50 microseconds
-nats bench testsubject --reply --sub 1 --acksleep 50us
-
-# generate load by publishing messages at an interval of 100 nanoseconds rather than back to back
-nats bench testsubject --pub 1 --pubsleep 100ns
-
-# remember when benchmarking JetStream
-Once you are finished benchmarking, remember to free up the resources (i.e. memory and files) consumed by the stream using 'nats stream rm'
-`
 }
 
 func init() {
@@ -199,7 +167,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 
 	// Print the banner to repeat the arguments being used
 	if c.js {
-		if c.streamName == DEFAULT_STREAM_NAME {
+		if c.streamName == DefaultStreamName {
 			log.Printf("Starting JetStream benchmark [subject=%s, multisubject=%v, multisubjectmax=%d, js=%v, msgs=%s, msgsize=%s, pubs=%d, subs=%d, stream=%s, maxbytes=%s, storage=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, consumerbatch=%s, push=%v, consumername=%s, replicas=%d, purge=%v, pubsleep=%v, subsleep=%v]", c.subject, c.multiSubject, c.multiSubjectMax, c.js, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.streamName, humanize.IBytes(uint64(c.streamMaxBytes)), c.storage, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.consumerBatch)), c.pushDurable, c.consumerName, c.replicas, c.purge, c.pubSleep, c.subSleep)
 		} else {
 			log.Printf("Starting JetStream benchmark [subject=%s,  multisubject=%v, multisubjectmax=%d, js=%v, msgs=%s, msgsize=%s, pubs=%d, subs=%d, stream=%s, maxbytes=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, consumerbatch=%s, push=%v, consumername=%s, purge=%v, pubsleep=%v, subsleep=%v]", c.subject, c.multiSubject, c.multiSubjectMax, c.js, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.streamName, humanize.IBytes(uint64(c.streamMaxBytes)), c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.consumerBatch)), c.pushDurable, c.consumerName, c.purge, c.pubSleep, c.subSleep)
@@ -262,7 +230,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 				log.Fatalf("Couldn't create the KV bucket: %v", err)
 			}
 		} else if c.js {
-			if c.streamName == DEFAULT_STREAM_NAME {
+			if c.streamName == DefaultStreamName {
 				// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
 				_, err = js.AddStream(&nats.StreamConfig{Name: c.streamName, Subjects: []string{getSubscribeSubject(c)}, Retention: nats.LimitsPolicy, Discard: nats.DiscardNew, Storage: storageType, Replicas: c.replicas, MaxBytes: c.streamMaxBytes})
 				if err != nil {
@@ -282,7 +250,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 
 			// create the pull consumer
 			if c.numSubs > 0 {
-				if c.pull && c.consumerName == DEFAULT_DURABLE_CONSUMER_NAME {
+				if c.pull && c.consumerName == DefaultDurableConsumerName {
 					_, err = js.AddConsumer(c.streamName, &nats.ConsumerConfig{
 						Durable:       c.consumerName,
 						DeliverPolicy: nats.DeliverAllPolicy,
@@ -307,7 +275,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 						log.Printf("Deleted durable consumer: %s\n", c.consumerName)
 					}()
 					log.Printf("Defined durable explicitly acked pull consumer: %s\n", c.consumerName)
-				} else if c.pushDurable && c.consumerName == DEFAULT_DURABLE_CONSUMER_NAME {
+				} else if c.pushDurable && c.consumerName == DefaultDurableConsumerName {
 					_, err = js.AddConsumer(c.streamName, &nats.ConsumerConfig{
 						Durable:        c.consumerName,
 						DeliverSubject: c.consumerName + "-DELIVERY",
