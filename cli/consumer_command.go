@@ -133,6 +133,7 @@ func configureConsumerCommand(app commandHost) {
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
+	addCheat("consumer", cons)
 	cons.Flag("all", "Operate on all streams including system ones").Short('a').BoolVar(&c.showAll)
 
 	consLs := cons.Command("ls", "List known Consumers").Alias("list").Action(c.lsAction)
@@ -195,23 +196,6 @@ func configureConsumerCommand(app commandHost) {
 	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	conClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterDown.Arg("consumer", "Consumer to act on").StringVar(&c.consumer)
-
-	cheats["consumer"] = `# Adding, Removing, Viewing a Consumer
-nats consumer add
-nats consumer info ORDERS NEW
-nats consumer rm ORDERS NEW
-
-# Editing a consumer
-nats consumer edit ORDERS NEW --description "new description"
-
-# Get messages from a consumer
-nats consumer next ORDERS NEW --ack
-nats consumer next ORDERS NEW --no-ack
-nats consumer sub ORDERS NEW --ack
-
-# Force leader election on a consumer
-nats consumer cluster down ORDERS NEW
-`
 }
 
 func init() {

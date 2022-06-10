@@ -36,6 +36,7 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	ncli.UsageWriter(os.Stdout)
 	ncli.Version(getVersion())
 	ncli.HelpFlag.Short('h')
+	ncli.WithCheats().CheatCommand.Hidden()
 
 	opts, err := cli.ConfigureInApp(ncli, nil, true)
 	if err != nil {

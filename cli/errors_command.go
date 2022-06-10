@@ -29,6 +29,7 @@ func configureErrCommand(app commandHost) {
 	c := &errCmd{}
 	cmd := app.Command("errors", "Error code documentation").Alias("err").Alias("error")
 	cmd.Flag("errors", "The errors.json file to use as input").PlaceHolder("FILE").ExistingFileVar(&c.file)
+	addCheat("errors", cmd)
 
 	ls := cmd.Command("ls", "List all known error codes").Alias("list").Action(c.listAction)
 	ls.Arg("match", "Regular expression match to limit the displayed results").StringVar(&c.match)
@@ -44,19 +45,6 @@ func configureErrCommand(app commandHost) {
 
 	validate := cmd.Command("validate", "Validates the validity of the errors definition").Action(c.validateAction)
 	validate.Arg("file", "The file to validate").ExistingFileVar(&c.file)
-
-	cheats["errors"] = `# To look up information for error code 1000
-nats errors lookup 1000
-
-# To list all errors mentioning stream using regular expression matches
-nats errors ls stream
-
-# As a NATS Server developer edit an existing code in errors.json
-nats errors edit errors.json 10013
-
-# As a NATS Server developer add a new code to the errors.json, auto picking a code 
-nats errors add errors.json 
-`
 }
 
 func init() {

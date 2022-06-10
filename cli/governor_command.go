@@ -48,6 +48,7 @@ NOTE: This is an experimental feature.
 `
 
 	gov := app.Command("governor", help).Alias("gov")
+	addCheat("governor", gov)
 
 	add := gov.Command("add", "Adds a new Governor to JetStream").Action(c.addAction)
 	add.Arg("name", "Governor name").Required().StringVar(&c.name)
@@ -78,19 +79,6 @@ NOTE: This is an experimental feature.
 	run.Arg("command", "Command to execute").Required().StringVar(&c.command)
 	run.Flag("max-wait", "Maximum amount of time to wait to obtain a lease").Default("5m").DurationVar(&c.age)
 	run.Flag("interval", "Interval for attempting to get an execution slot").Default("2s").DurationVar(&c.interval)
-
-	cheats["governor"] = `# to create governor with 10 slots and 1 minute timeout
-nats governor add cron 10 1m
-
-# to view the configuration and state
-nats governor view cron
-
-# to reset the governor, clearing all slots
-nats governor reset cron
-
-# to run long-job.sh when a slot is available, giving up after 20 minutes without a slot
-nats governor run cron $(hostname -f) --max-wait 20m long-job.sh'
-`
 }
 
 func init() {

@@ -43,7 +43,7 @@ func configureCtxCommand(app commandHost) {
 	c := ctxCommand{}
 
 	context := app.Command("context", "Manage nats configuration contexts").Alias("ctx")
-
+	addCheat("contexts", context)
 	save := context.Command("save", "Update or create a context").Alias("add").Alias("create").Action(c.createCommand)
 	save.Arg("name", "The context name to act on").Required().StringVar(&c.name)
 	save.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
@@ -78,25 +78,6 @@ func configureCtxCommand(app commandHost) {
 	validate := context.Command("validate", "Validate one or all contexts").Action(c.validateCommand)
 	validate.Arg("name", "Validate a specific context, validates all when not supplied").StringVar(&c.name)
 	validate.Flag("connect", "Attempts to connect to NATS using the context while validating").BoolVar(&c.activate)
-
-	cheats["contexts"] = `# Create or update
-nats context add development --server nats.dev.example.net:4222 [other standard connection properties]
-nats context add ngs --description "NGS Connection in Orders Account" --nsc nsc://acme/orders/new
-nats context edit development [standard connection properties]
-
-# View contexts
-nats context ls
-nats context info development --json
-
-# Validate all connections are valid and that connections can be established
-nats context validate --connect
-
-# Select a new default context
-nats context select
-
-# Connecting using a context
-nats pub --context development subject body
-`
 }
 
 func init() {
