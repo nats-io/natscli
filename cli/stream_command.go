@@ -95,6 +95,14 @@ type streamCmd struct {
 	repubSource           string
 	repubDest             string
 	repubHeadersOnly      bool
+	allowRollup           bool
+	allowRollupSet        bool
+	denyDelete            bool
+	denyDeleteSet         bool
+	denyPurge             bool
+	denyPurgeSet          bool
+	allowDirect           bool
+	allowDirectSet        bool
 
 	fServer    string
 	fCluster   string
@@ -159,10 +167,10 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
 
-		OptionalBoolean(f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers"))
-		OptionalBoolean(f.Flag("deny-delete", "Deny messages from being deleted via the API"))
-		OptionalBoolean(f.Flag("deny-purge", "Deny entire stream or subject purges via the API"))
-		OptionalBoolean(f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API"))
+		f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers").IsSetByUser(&c.allowRollupSet).BoolVar(&c.allowRollup)
+		f.Flag("deny-delete", "Deny messages from being deleted via the API").IsSetByUser(&c.denyDeleteSet).BoolVar(&c.denyDelete)
+		f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
+		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).BoolVar(&c.allowDirect)
 
 		f.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
 
@@ -1289,24 +1297,20 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		cfg.Description = c.description
 	}
 
-	allowRollup := pc.SelectedCommand.GetFlag("allow-rollup").Model().Value.(*OptionalBoolValue)
-	if allowRollup.IsSetByUser() {
-		cfg.RollupAllowed = allowRollup.Value()
+	if c.allowRollupSet {
+		cfg.RollupAllowed = c.allowRollup
 	}
 
-	denyPurge := pc.SelectedCommand.GetFlag("deny-purge").Model().Value.(*OptionalBoolValue)
-	if denyPurge.IsSetByUser() {
-		cfg.DenyPurge = denyPurge.Value()
+	if c.denyPurgeSet {
+		cfg.DenyPurge = c.denyPurge
 	}
 
-	denyDelete := pc.SelectedCommand.GetFlag("deny-delete").Model().Value.(*OptionalBoolValue)
-	if denyDelete.IsSetByUser() {
-		cfg.DenyDelete = denyDelete.Value()
+	if c.denyDeleteSet {
+		cfg.DenyDelete = c.denyDelete
 	}
 
-	allowDirect := pc.SelectedCommand.GetFlag("allow-direct").Model().Value.(*OptionalBoolValue)
-	if allowDirect.IsSetByUser() {
-		cfg.AllowDirect = allowDirect.Value()
+	if c.allowDirectSet {
+		cfg.AllowDirect = c.allowDirect
 	}
 
 	return cfg, nil
@@ -1954,29 +1958,21 @@ func (c *streamCmd) prepareConfig(pc *fisk.ParseContext, requireSize bool) api.S
 		fisk.FatalIfError(err, "invalid duplicate window format")
 	}
 
-	allowRollup := pc.SelectedCommand.GetFlag("allow-rollup").Model().Value.(*OptionalBoolValue)
-	if !allowRollup.IsSetByUser() {
-		allow, err := askConfirmation("Allow message Roll-ups", false)
+	if !c.allowRollupSet {
+		c.allowRollup, err = askConfirmation("Allow message Roll-ups", false)
 		fisk.FatalIfError(err, "invalid input")
-		allowRollup.SetBool(allow)
 	}
 
-	denyDelete := pc.SelectedCommand.GetFlag("deny-delete").Model().Value.(*OptionalBoolValue)
-	if !denyDelete.IsSetByUser() {
-		allow, err := askConfirmation("Allow message deletion", true)
+	if !c.denyDeleteSet {
+		c.denyPurge, err = askConfirmation("Allow message deletion", true)
 		fisk.FatalIfError(err, "invalid input")
-		denyDelete.SetBool(!allow)
 	}
 
-	denyPurge := pc.SelectedCommand.GetFlag("deny-purge").Model().Value.(*OptionalBoolValue)
-	if !denyPurge.IsSetByUser() {
-		allow, err := askConfirmation("Allow purging subjects or the entire stream", true)
+	if !c.denyPurgeSet {
+		deny, err := askConfirmation("Allow purging subjects or the entire stream", true)
 		fisk.FatalIfError(err, "invalid input")
-		denyPurge.SetBool(!allow)
+		c.denyPurge = deny
 	}
-
-	// special case feature, not prompting for it
-	allowDirect := pc.SelectedCommand.GetFlag("allow-direct").Model().Value.(*OptionalBoolValue)
 
 	cfg := api.StreamConfig{
 		Name:          c.stream,
@@ -1994,10 +1990,10 @@ func (c *streamCmd) prepareConfig(pc *fisk.ParseContext, requireSize bool) api.S
 		Discard:       c.discardPolicyFromString(),
 		MaxConsumers:  c.maxConsumers,
 		Replicas:      int(c.replicas),
-		RollupAllowed: allowRollup.Value(),
-		DenyPurge:     denyPurge.Value(),
-		DenyDelete:    denyDelete.Value(),
-		AllowDirect:   allowDirect.Value(),
+		RollupAllowed: c.allowRollup,
+		DenyPurge:     c.denyPurge,
+		DenyDelete:    c.denyDelete,
+		AllowDirect:   c.allowDirect,
 	}
 
 	if c.placementCluster != "" || len(c.placementTags) > 0 {
