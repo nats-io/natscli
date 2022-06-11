@@ -80,6 +80,10 @@ type consumerCmd struct {
 	backoffMax          time.Duration
 	replicas            int
 	memory              bool
+	hdrsOnly            bool
+	hdrsOnlySet         bool
+	fc                  bool
+	fcSet               bool
 
 	dryRun bool
 	mgr    *jsm.Manager
@@ -106,11 +110,11 @@ func configureConsumerCommand(app commandHost) {
 		if !edit {
 			f.Flag("ephemeral", "Create an ephemeral Consumer").Default("false").BoolVar(&c.ephemeral)
 			f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
-			OptionalBoolean(f.Flag("flow-control", "Enable Push consumer flow control"))
+			f.Flag("flow-control", "Enable Push consumer flow control").IsSetByUser(&c.fcSet).BoolVar(&c.fc)
 			f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
 		}
 
-		OptionalBoolean(f.Flag("headers-only", "Deliver only headers and no bodies"))
+		f.Flag("headers-only", "Deliver only headers and no bodies").IsSetByUser(&c.hdrsOnlySet).BoolVar(&c.hdrsOnly)
 		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").PlaceHolder("TRIES").IntVar(&c.maxDeliver)
 		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
@@ -338,9 +342,8 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 			ncfg.DeliverSubject = c.delivery
 		}
 
-		hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
-		if hOnly.IsSetByUser() {
-			ncfg.HeadersOnly = hOnly.Value()
+		if c.hdrsOnlySet {
+			ncfg.HeadersOnly = c.hdrsOnly
 		}
 	}
 
@@ -808,9 +811,8 @@ func (c *consumerCmd) cpAction(pc *fisk.ParseContext) (err error) {
 		cfg.Description = c.description
 	}
 
-	fc := pc.SelectedCommand.GetFlag("flow-control").Model().Value.(*OptionalBoolValue)
-	if fc.IsSetByUser() {
-		cfg.FlowControl = fc.Value()
+	if c.fcSet {
+		cfg.FlowControl = c.fc
 	}
 
 	if cfg.DeliverSubject == "" {
@@ -853,9 +855,8 @@ func (c *consumerCmd) cpAction(pc *fisk.ParseContext) (err error) {
 		}
 	}
 
-	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
-	if !hOnly.IsSetByUser() {
-		cfg.HeadersOnly = hOnly.Value()
+	if c.hdrsOnlySet {
+		cfg.HeadersOnly = c.hdrsOnly
 	}
 
 	consumer, err := c.mgr.NewConsumerFromDefault(c.stream, cfg)
@@ -1062,23 +1063,19 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 
 	if cfg.DeliverSubject != "" {
-		fc := pc.SelectedCommand.GetFlag("flow-control").Model().Value.(*OptionalBoolValue)
-		if !fc.IsSetByUser() {
-			flow, err := askConfirmation("Enable Flow Control, ie --flow-control", false)
+		if !c.fcSet {
+			c.fc, err = askConfirmation("Enable Flow Control, ie --flow-control", false)
 			fisk.FatalIfError(err, "could not ask flow control")
-			fc.SetBool(flow)
 		}
 
-		cfg.FlowControl = fc.Value()
+		cfg.FlowControl = c.fc
 	}
 
-	hOnly := pc.SelectedCommand.GetFlag("headers-only").Model().Value.(*OptionalBoolValue)
-	if !hOnly.IsSetByUser() {
-		v, err := askConfirmation("Deliver headers only without bodies", false)
+	if !c.hdrsOnlySet {
+		c.hdrsOnly, err = askConfirmation("Deliver headers only without bodies", false)
 		fisk.FatalIfError(err, "could not ask headers only")
-		hOnly.SetBool(v)
 	}
-	cfg.HeadersOnly = hOnly.Value()
+	cfg.HeadersOnly = c.hdrsOnly
 
 	if c.backoffMode == "" {
 		err = c.askBackoffPolicy()
