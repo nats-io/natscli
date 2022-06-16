@@ -348,6 +348,7 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 		natscontext.WithJSAPIPrefix(opts.JsApiPrefix),
 		natscontext.WithJSEventPrefix(opts.JsEventPrefix),
 		natscontext.WithJSDomain(opts.JsDomain),
+		natscontext.WithUserJWT(opts.UserJwt),
 	)
 	if err != nil {
 		return err
