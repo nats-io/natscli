@@ -64,6 +64,8 @@ type Options struct {
 	Servers string
 	// Creds is nats credentials to authenticate with
 	Creds string
+	// JWT is nats bearer user JWT to authenticate with
+	UserJwt string
 	// TlsCert is the TLS Public Certificate
 	TlsCert string
 	// TlsKey is the TLS Private Key
