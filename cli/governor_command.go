@@ -55,23 +55,23 @@ NOTE: This is an experimental feature.
 	add.Arg("limit", "Maximum executions allowed").Required().Uint64Var(&c.limit)
 	add.Arg("age", "Maximum time a entry can stay before being timed out").Required().DurationVar(&c.age)
 	add.Flag("replicas", "Stream replica level").Default("1").UintVar(&c.replicas)
-	add.Flag("force", "Force the create/update without prompting").BoolVar(&c.force)
+	add.Flag("force", "Force the create/update without prompting").UnNegatableBoolVar(&c.force)
 
 	view := gov.Command("view", "Views the status of the Governor").Alias("info").Alias("v").Action(c.viewAction)
 	view.Arg("name", "Governor name").Required().StringVar(&c.name)
 
 	reset := gov.Command("reset", "Resets the Governor by removing all entries").Action(c.resetAction)
 	reset.Arg("name", "Governor name").Required().StringVar(&c.name)
-	reset.Flag("force", "Force reset without prompting").BoolVar(&c.force)
+	reset.Flag("force", "Force reset without prompting").UnNegatableBoolVar(&c.force)
 
 	evict := gov.Command("evict", "Removes a entry from the Governor").Action(c.evictAction)
 	evict.Arg("name", "Governor name").Required().StringVar(&c.name)
 	evict.Arg("id", "The ID to remove").Uint64Var(&c.id)
-	evict.Flag("force", "Force eviction without prompting").BoolVar(&c.force)
+	evict.Flag("force", "Force eviction without prompting").UnNegatableBoolVar(&c.force)
 
 	rm := gov.Command("rm", "Removes a Governor").Action(c.rmAction)
 	rm.Arg("name", "Governor name").Required().StringVar(&c.name)
-	rm.Flag("force", "Force eviction without prompting").BoolVar(&c.force)
+	rm.Flag("force", "Force eviction without prompting").UnNegatableBoolVar(&c.force)
 
 	run := gov.Command("run", "Runs a command limited by the Governor").Action(c.runAction)
 	run.Arg("name", "Governor name").Required().StringVar(&c.name)

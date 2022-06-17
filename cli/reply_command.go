@@ -76,7 +76,7 @@ Available template functions are:
 	addCheat("reply", act)
 	act.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	act.Arg("body", "Reply body").StringVar(&c.body)
-	act.Flag("echo", "Echo back what is received").BoolVar(&c.echo)
+	act.Flag("echo", "Echo back what is received").UnNegatableBoolVar(&c.echo)
 	act.Flag("command", "Runs a command and responds with the output if exit code was 0").StringVar(&c.command)
 	act.Flag("queue", "Queue group name").Default("NATS-RPLY-22").Short('q').StringVar(&c.queue)
 	act.Flag("sleep", "Inject a random sleep delay between replies up to this duration max").PlaceHolder("MAX").DurationVar(&c.sleep)

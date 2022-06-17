@@ -30,7 +30,7 @@ func configureSchemaSearchCommand(schema *fisk.CmdClause) {
 	c := &schemaSearchCmd{}
 	search := schema.Command("search", "Search schemas using a pattern").Alias("find").Alias("list").Alias("ls").Action(c.search)
 	search.Arg("pattern", "Regular expression to search for").Default(".").StringVar(&c.filter)
-	search.Flag("json", "Produce JSON format output").BoolVar(&c.json)
+	search.Flag("json", "Produce JSON format output").UnNegatableBoolVar(&c.json)
 }
 
 func (c *schemaSearchCmd) search(_ *fisk.ParseContext) error {

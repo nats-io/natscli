@@ -120,11 +120,11 @@ func configureServerRunCommand(srv *fisk.CmdClause) {
 
 	run := srv.Command("run", "Runs a local development NATS server").Hidden().Action(c.runAction)
 	run.Arg("name", "Uses a named context for local access to the server").Default("nats_development").StringVar(&c.config.Name)
-	run.Flag("extend-demo", "Extends the NATS demo network").BoolVar(&c.config.ExtendDemoNetwork)
-	run.Flag("extend", "Extends a NATS network using a context").BoolVar(&c.config.ExtendWithContext)
-	run.Flag("jetstream", "Enables JetStream support").BoolVar(&c.config.JetStream)
+	run.Flag("extend-demo", "Extends the NATS demo network").UnNegatableBoolVar(&c.config.ExtendDemoNetwork)
+	run.Flag("extend", "Extends a NATS network using a context").UnNegatableBoolVar(&c.config.ExtendWithContext)
+	run.Flag("jetstream", "Enables JetStream support").UnNegatableBoolVar(&c.config.JetStream)
 	run.Flag("port", "Sets the local listening port").Default("-1").StringVar(&c.config.Port)
-	run.Flag("verbose", "Log in debug mode").BoolVar(&c.config.Debug)
+	run.Flag("verbose", "Log in debug mode").UnNegatableBoolVar(&c.config.Debug)
 }
 
 // server doesnt know what port -1 will pick since its the os at Listen time that does it

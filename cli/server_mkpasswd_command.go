@@ -33,7 +33,7 @@ func configureServerPasswdCommand(srv *fisk.CmdClause) {
 	passwd := srv.Command("passwd", "Creates encrypted passwords for use in NATS Server").Alias("mkpasswd").Alias("pass").Alias("password").Action(c.mkpasswd)
 	passwd.Flag("pass", "The password to encrypt (PASSWORD)").Short('p').Envar("PASSWORD").StringVar(&c.pass)
 	passwd.Flag("cost", "The cost to use in the bcrypt argument").Short('c').Default("11").UintVar(&c.cost)
-	passwd.Flag("generate", "Generates a secure passphrase and encrypt it").Short('g').Default("false").BoolVar(&c.generate)
+	passwd.Flag("generate", "Generates a secure passphrase and encrypt it").Short('g').UnNegatableBoolVar(&c.generate)
 }
 
 func (c *SrvPasswdCmd) mkpasswd(_ *fisk.ParseContext) error {

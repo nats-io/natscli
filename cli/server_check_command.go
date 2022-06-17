@@ -142,9 +142,9 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	serv.Flag("subs-critical", "Critical threshold for number of active subscriptions, supports inversion").IntVar(&c.srvSubCrit)
 	serv.Flag("uptime-warn", "Warning threshold for server uptime as duration").DurationVar(&c.srvUptimeWarn)
 	serv.Flag("uptime-critical", "Critical threshold for server uptime as duration").DurationVar(&c.srvUptimeCrit)
-	serv.Flag("auth-required", "Checks that authentication is enabled").Default("false").BoolVar(&c.srvAuthRequire)
-	serv.Flag("tls-required", "Checks that TLS is required").Default("false").BoolVar(&c.srvTLSRequired)
-	serv.Flag("js-required", "Checks that JetStream is enabled").Default("false").BoolVar(&c.srvJSRequired)
+	serv.Flag("auth-required", "Checks that authentication is enabled").UnNegatableBoolVar(&c.srvAuthRequire)
+	serv.Flag("tls-required", "Checks that TLS is required").UnNegatableBoolVar(&c.srvTLSRequired)
+	serv.Flag("js-required", "Checks that JetStream is enabled").UnNegatableBoolVar(&c.srvJSRequired)
 
 	kv := check.Command("kv", "Checks a NATS KV Bucket").Action(c.checkKV)
 	kv.Flag("bucket", "Checks a specific bucket").Required().StringVar(&c.kvBucket)

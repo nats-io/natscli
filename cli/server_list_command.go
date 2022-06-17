@@ -48,9 +48,9 @@ func configureServerListCommand(srv *fisk.CmdClause) {
 
 	ls := srv.Command("ls", "List known servers").Alias("list").Action(c.list)
 	ls.Arg("expect", "How many servers to expect").Uint32Var(&c.expect)
-	ls.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	ls.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	ls.Flag("sort", "Sort servers by a specific key (name,conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("name,conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
-	ls.Flag("reverse", "Reverse sort servers").Short('R').Default("false").BoolVar(&c.reverse)
+	ls.Flag("reverse", "Reverse sort servers").Short('R').UnNegatableBoolVar(&c.reverse)
 	ls.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 }
 

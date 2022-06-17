@@ -35,14 +35,14 @@ func configureServerRaftCommand(srv *fisk.CmdClause) {
 	c := &SrvRaftCmd{}
 
 	raft := srv.Command("raft", "Manage JetStream Clustering").Alias("r")
-	raft.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	raft.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	sd := raft.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDown)
 	sd.Flag("cluster", "Request placement of the leader in a specific cluster").StringVar(&c.placementCluster)
 
 	rm := raft.Command("peer-remove", "Removes a server from a JetStream cluster").Alias("rm").Alias("pr").Action(c.metaPeerRemove)
 	rm.Arg("name", "The Server Name to remove from the JetStream cluster").StringVar(&c.peer)
-	rm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+	rm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 }
 
 func (c *SrvRaftCmd) metaPeerRemove(_ *fisk.ParseContext) error {

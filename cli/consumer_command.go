@@ -108,9 +108,9 @@ func configureConsumerCommand(app commandHost) {
 		}
 		f.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
 		if !edit {
-			f.Flag("ephemeral", "Create an ephemeral Consumer").Default("false").BoolVar(&c.ephemeral)
+			f.Flag("ephemeral", "Create an ephemeral Consumer").UnNegatableBoolVar(&c.ephemeral)
 			f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
-			f.Flag("flow-control", "Enable Push consumer flow control").IsSetByUser(&c.fcSet).BoolVar(&c.fc)
+			f.Flag("flow-control", "Enable Push consumer flow control").IsSetByUser(&c.fcSet).UnNegatableBoolVar(&c.fc)
 			f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
 		}
 
@@ -123,7 +123,7 @@ func configureConsumerCommand(app commandHost) {
 		f.Flag("max-pull-expire", "Maximum expire duration for a pull request to accept").PlaceHolder("EXPIRES").DurationVar(&c.maxPullExpire)
 		f.Flag("max-pull-bytes", "Maximum max bytes for a pull request to accept").PlaceHolder("BYTES").IntVar(&c.maxPullBytes)
 		if !edit {
-			f.Flag("pull", "Deliver messages in 'pull' mode").BoolVar(&c.pull)
+			f.Flag("pull", "Deliver messages in 'pull' mode").UnNegatableBoolVar(&c.pull)
 			f.Flag("replay", "Replay Policy (instant, original)").PlaceHolder("POLICY").EnumVar(&c.replayPolicy, "instant", "original")
 		}
 		f.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
@@ -132,34 +132,34 @@ func configureConsumerCommand(app commandHost) {
 		if !edit {
 			f.Flag("inactive-threshold", "How long to allow an ephemeral consumer to be idle before removing it").PlaceHolder("THRESHOLD").DurationVar(&c.inactiveThreshold)
 			f.Flag("replicas", "Sets a custom replica count rather than inherit from the stream").IntVar(&c.replicas)
-			f.Flag("memory", "Force the consumer state to be stored in memory rather than inherit from the stream").BoolVar(&c.memory)
+			f.Flag("memory", "Force the consumer state to be stored in memory rather than inherit from the stream").UnNegatableBoolVar(&c.memory)
 		}
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
 	addCheat("consumer", cons)
-	cons.Flag("all", "Operate on all streams including system ones").Short('a').BoolVar(&c.showAll)
+	cons.Flag("all", "Operate on all streams including system ones").Short('a').UnNegatableBoolVar(&c.showAll)
 
 	consLs := cons.Command("ls", "List known Consumers").Alias("list").Action(c.lsAction)
 	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
-	consLs.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
-	consLs.Flag("names", "Show just the consumer names").Short('n').BoolVar(&c.listNames)
+	consLs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	consLs.Flag("names", "Show just the consumer names").Short('n').UnNegatableBoolVar(&c.listNames)
 
 	conReport := cons.Command("report", "Reports on Consumer statistics").Action(c.reportAction)
 	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
-	conReport.Flag("raw", "Show un-formatted numbers").Short('r').BoolVar(&c.raw)
-	conReport.Flag("leaders", "Show details about the leaders").Short('l').BoolVar(&c.reportLeaderDistrib)
+	conReport.Flag("raw", "Show un-formatted numbers").Short('r').UnNegatableBoolVar(&c.raw)
+	conReport.Flag("leaders", "Show details about the leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
 
 	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
 	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
 	consInfo.Arg("consumer", "Consumer name").StringVar(&c.consumer)
-	consInfo.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	consInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	consAdd := cons.Command("add", "Creates a new Consumer").Alias("create").Alias("new").Action(c.createAction)
 	consAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	consAdd.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
-	consAdd.Flag("validate", "Only validates the configuration against the official Schema").BoolVar(&c.validateOnly)
+	consAdd.Flag("validate", "Only validates the configuration against the official Schema").UnNegatableBoolVar(&c.validateOnly)
 	consAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
 	addCreateFlags(consAdd, false)
 
@@ -167,14 +167,14 @@ func configureConsumerCommand(app commandHost) {
 	edit.Arg("stream", "Stream name").StringVar(&c.stream)
 	edit.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	edit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
-	edit.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
-	edit.Flag("dry-run", "Only shows differences, do not edit the stream").BoolVar(&c.dryRun)
+	edit.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
+	edit.Flag("dry-run", "Only shows differences, do not edit the stream").UnNegatableBoolVar(&c.dryRun)
 	addCreateFlags(edit, true)
 
 	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
 	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
 	consRm.Arg("consumer", "Consumer name").StringVar(&c.consumer)
-	consRm.Flag("force", "Force removal without prompting").Short('f').BoolVar(&c.force)
+	consRm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	consCp := cons.Command("copy", "Creates a new Consumer based on the configuration of another").Alias("cp").Action(c.cpAction)
 	consCp.Arg("stream", "Stream name").Required().StringVar(&c.stream)
@@ -186,7 +186,7 @@ func configureConsumerCommand(app commandHost) {
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
-	consNext.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
+	consNext.Flag("raw", "Show only the message").Short('r').UnNegatableBoolVar(&c.raw)
 	consNext.Flag("wait", "Wait up to this period to acknowledge messages").DurationVar(&c.ackWait)
 	consNext.Flag("count", "Number of messages to try to fetch from the pull consumer").Default("1").IntVar(&c.pullCount)
 
@@ -194,7 +194,7 @@ func configureConsumerCommand(app commandHost) {
 	consSub.Arg("stream", "Stream name").StringVar(&c.stream)
 	consSub.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consSub.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
-	consSub.Flag("raw", "Show only the message").Short('r').BoolVar(&c.raw)
+	consSub.Flag("raw", "Show only the message").Short('r').UnNegatableBoolVar(&c.raw)
 
 	conCluster := cons.Command("cluster", "Manages a clustered Consumer").Alias("c")
 	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)

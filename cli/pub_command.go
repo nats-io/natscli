@@ -73,7 +73,7 @@ Available template functions are:
 	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 	pub.Flag("sleep", "When publishing multiple messages, sleep between publishes").DurationVar(&c.sleep)
-	pub.Flag("force-stdin", "Force reading from stdin").Default("false").BoolVar(&c.forceStdin)
+	pub.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
 
 	requestHelp := `Body and Header values of the messages may use Go templates to 
 create unique messages.
@@ -100,7 +100,7 @@ Available template functions are:
 	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	req.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	req.Flag("wait", "Wait for a reply from a service").Short('w').Default("true").Hidden().BoolVar(&c.req)
-	req.Flag("raw", "Show just the output received").Short('r').Default("false").BoolVar(&c.raw)
+	req.Flag("raw", "Show just the output received").Short('r').UnNegatableBoolVar(&c.raw)
 	req.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
 	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)

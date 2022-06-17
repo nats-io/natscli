@@ -54,7 +54,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	c := &SrvReportCmd{}
 
 	report := srv.Command("report", "Report on various server metrics").Alias("rep")
-	report.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	report.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	report.Flag("reverse", "Reverse sort connections").Short('R').Default("true").BoolVar(&c.reverse)
 
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnections)
