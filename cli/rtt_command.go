@@ -48,7 +48,7 @@ func configureRTTCommand(app commandHost) {
 
 	rtt := app.Command("rtt", "Compute round-trip time to NATS server").Action(c.rtt)
 	rtt.Arg("iterations", "How many round trips to do when testing").Default("5").IntVar(&c.iterations)
-	rtt.Flag("json", "Produce JSON output").Short('j').BoolVar(&c.json)
+	rtt.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 }
 
 func init() {

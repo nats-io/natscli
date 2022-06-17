@@ -62,7 +62,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 
 	subz := req.Command("subscriptions", "Show subscription information").Alias("sub").Alias("subsz").Action(c.subs)
 	subz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
-	subz.Flag("detail", "Include detail about all subscriptions").Default("false").BoolVar(&c.detail)
+	subz.Flag("detail", "Include detail about all subscriptions").UnNegatableBoolVar(&c.detail)
 	subz.Flag("filter-account", "Filter on a specific account").StringVar(&c.accountFilter)
 
 	varz := req.Command("variables", "Show runtime variables").Alias("var").Alias("varz").Action(c.varz)
@@ -71,7 +71,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	connz := req.Command("connections", "Show connection details").Alias("conn").Alias("connz").Action(c.conns)
 	connz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	connz.Flag("sort", "Sort by a specific property").Default("cid").EnumVar(&c.sortOpt, "cid", "start", "subs", "pending", "msgs_to", "msgs_from", "bytes_to", "bytes_from", "last", "idle", "uptime", "stop", "reason")
-	connz.Flag("subscriptions", "Show subscriptions").Default("false").BoolVar(&c.detail)
+	connz.Flag("subscriptions", "Show subscriptions").UnNegatableBoolVar(&c.detail)
 	connz.Flag("filter-cid", "Filter on a specific CID").Uint64Var(&c.cidFilter)
 	connz.Flag("filter-state", "Filter on a specific account state (open, closed, all)").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
 	connz.Flag("filter-user", "Filter on a specific username").StringVar(&c.userFilter)
@@ -80,17 +80,17 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 
 	routez := req.Command("routes", "Show route details").Alias("route").Alias("routez").Action(c.routez)
 	routez.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
-	routez.Flag("subscriptions", "Show subscription detail").Default("false").BoolVar(&c.detail)
+	routez.Flag("subscriptions", "Show subscription detail").UnNegatableBoolVar(&c.detail)
 
 	gwyz := req.Command("gateways", "Show gateway details").Alias("gateway").Alias("gwy").Alias("gatewayz").Action(c.gwyz)
 	gwyz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	gwyz.Arg("filter-name", "Filter results on gateway name").StringVar(&c.nameFilter)
 	gwyz.Flag("filter-account", "Show only a certain account in account detail").StringVar(&c.accountFilter)
-	gwyz.Flag("accounts", "Show account detail").Default("false").BoolVar(&c.detail)
+	gwyz.Flag("accounts", "Show account detail").UnNegatableBoolVar(&c.detail)
 
 	leafz := req.Command("leafnodes", "Show leafnode details").Alias("leaf").Alias("leafz").Action(c.leafz)
 	leafz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
-	leafz.Flag("subscriptions", "Show subscription detail").Default("false").BoolVar(&c.detail)
+	leafz.Flag("subscriptions", "Show subscription detail").UnNegatableBoolVar(&c.detail)
 
 	accountz := req.Command("accounts", "Show account details").Alias("accountz").Alias("acct").Action(c.accountz)
 	accountz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
@@ -99,12 +99,12 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	jsz := req.Command("jetstream", "Show JetStream details").Alias("jsz").Alias("js").Action(c.jsz)
 	jsz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	jsz.Flag("account", "Show statistics scoped to a specific account").StringVar(&c.account)
-	jsz.Flag("accounts", "Include details about accounts").BoolVar(&c.includeAccounts)
-	jsz.Flag("streams", "Include details about Streams").BoolVar(&c.includeStreams)
-	jsz.Flag("consumer", "Include details about Consumers").BoolVar(&c.includeConsumers)
-	jsz.Flag("config", "Include details about configuration").BoolVar(&c.includeConfig)
-	jsz.Flag("leader", "Request a response from the Meta-group leader only").BoolVar(&c.leaderOnly)
-	jsz.Flag("all", "Include accounts, streams, consumers and configuration").BoolVar(&c.includeAll)
+	jsz.Flag("accounts", "Include details about accounts").UnNegatableBoolVar(&c.includeAccounts)
+	jsz.Flag("streams", "Include details about Streams").UnNegatableBoolVar(&c.includeStreams)
+	jsz.Flag("consumer", "Include details about Consumers").UnNegatableBoolVar(&c.includeConsumers)
+	jsz.Flag("config", "Include details about configuration").UnNegatableBoolVar(&c.includeConfig)
+	jsz.Flag("leader", "Request a response from the Meta-group leader only").UnNegatableBoolVar(&c.leaderOnly)
+	jsz.Flag("all", "Include accounts, streams, consumers and configuration").UnNegatableBoolVar(&c.includeAll)
 }
 
 func (c *SrvRequestCmd) jsz(_ *fisk.ParseContext) error {

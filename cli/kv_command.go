@@ -88,7 +88,7 @@ NOTE: This is an experimental feature.
 	get := kv.Command("get", "Gets a value for a key").Action(c.getAction)
 	get.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	get.Arg("key", "The key to act on").Required().StringVar(&c.key)
-	get.Flag("raw", "Show only the value string").BoolVar(&c.raw)
+	get.Flag("raw", "Show only the value string").UnNegatableBoolVar(&c.raw)
 
 	create := kv.Command("create", "Puts a value into a key only if the key is new or it's last operation was a delete").Action(c.createAction)
 	create.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -104,12 +104,12 @@ NOTE: This is an experimental feature.
 	del := kv.Command("del", "Deletes a key or the entire bucket").Alias("rm").Action(c.deleteAction)
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	del.Arg("key", "The key to act on").StringVar(&c.key)
-	del.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
+	del.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	purge := kv.Command("purge", "Deletes a key from the bucket, clearing history before creating a delete marker").Action(c.purgeAction)
 	purge.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	purge.Arg("key", "The key to act on").Required().StringVar(&c.key)
-	purge.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
+	purge.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	history := kv.Command("history", "Shows the full history for a key").Action(c.historyAction)
 	history.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -123,11 +123,11 @@ NOTE: This is an experimental feature.
 	watch.Arg("key", "The key to act on").Default(">").StringVar(&c.key)
 
 	ls := kv.Command("ls", "List available Buckets").Alias("list").Action(c.lsAction)
-	ls.Flag("names", "Show just the bucket names").Short('n').BoolVar(&c.listNames)
+	ls.Flag("names", "Show just the bucket names").Short('n').UnNegatableBoolVar(&c.listNames)
 
 	rmHistory := kv.Command("compact", "Removes all historic values from the store where the last value is a delete").Action(c.compactAction)
 	rmHistory.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	rmHistory.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
+	rmHistory.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	upgrade := kv.Command("upgrade", "Upgrades a early tech-preview bucket to current format").Action(c.upgradeAction)
 	upgrade.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)

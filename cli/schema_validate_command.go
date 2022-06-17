@@ -33,7 +33,7 @@ func configureSchemaValidateCommand(schema *fisk.CmdClause) {
 	validate := schema.Command("validate", "Validates a JSON file against a schema").Alias("check").Action(c.validate)
 	validate.Arg("schema", "Schema ID to validate against").Required().StringVar(&c.schema)
 	validate.Arg("file", "JSON data to validate").Required().StringVar(&c.file)
-	validate.Flag("json", "Produce JSON format output").BoolVar(&c.json)
+	validate.Flag("json", "Produce JSON format output").UnNegatableBoolVar(&c.json)
 
 }
 

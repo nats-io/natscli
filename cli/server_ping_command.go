@@ -41,8 +41,8 @@ func configureServerPingCommand(srv *fisk.CmdClause) {
 
 	ls := srv.Command("ping", "Ping all servers").Action(c.ping)
 	ls.Arg("expect", "How many servers to expect").Uint32Var(&c.expect)
-	ls.Flag("graph", "Produce a response distribution graph").BoolVar(&c.graph)
-	ls.Flag("id", "Include the Server ID in the output").BoolVar(&c.showId)
+	ls.Flag("graph", "Produce a response distribution graph").UnNegatableBoolVar(&c.graph)
+	ls.Flag("id", "Include the Server ID in the output").UnNegatableBoolVar(&c.showId)
 }
 
 func (c *SrvPingCmd) ping(_ *fisk.ParseContext) error {

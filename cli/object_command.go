@@ -82,20 +82,20 @@ NOTE: This is an experimental feature.
 	put.Flag("name", "Override the name supplied to the object store").StringVar(&c.overrideName)
 	put.Flag("description", "Sets an optional description for the object").StringVar(&c.description)
 	put.Flag("header", "Adds headers to the object").Short('H').StringsVar(&c.hdrs)
-	put.Flag("no-progress", "Disables progress bars").Default("false").BoolVar(&c.noProgress)
-	put.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
+	put.Flag("progress", "Disables progress bars").Default("true").BoolVar(&c.noProgress)
+	put.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	del := obj.Command("del", "Deletes a file or bucket from the store").Action(c.delAction).Alias("rm")
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	del.Arg("file", "The file to retrieve").StringVar(&c.file)
-	del.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
+	del.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	get := obj.Command("get", "Retrieves a file from the store").Action(c.getAction)
 	get.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	get.Arg("file", "The file to retrieve").Required().StringVar(&c.file)
 	get.Flag("output", "Override the output file name").Short('O').StringVar(&c.overrideName)
-	get.Flag("no-progress", "Disables progress bars").Default("false").BoolVar(&c.noProgress)
-	get.Flag("force", "Act without confirmation").Short('f').BoolVar(&c.force)
+	get.Flag("progress", "Disables progress bars").Default("true").BoolVar(&c.noProgress)
+	get.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	info := obj.Command("info", "Get information about a bucket or object").Alias("show").Alias("i").Action(c.infoAction)
 	info.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
@@ -103,11 +103,11 @@ NOTE: This is an experimental feature.
 
 	ls := obj.Command("ls", "List buckets or contents of a specific bucket").Action(c.lsAction)
 	ls.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
-	ls.Flag("names", "When listing buckets, show just the bucket names").Short('n').BoolVar(&c.listNames)
+	ls.Flag("names", "When listing buckets, show just the bucket names").Short('n').UnNegatableBoolVar(&c.listNames)
 
 	seal := obj.Command("seal", "Seals a bucket preventing further updates").Action(c.sealAction)
 	seal.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	seal.Flag("force", "Force sealing without prompting").Short('f').BoolVar(&c.force)
+	seal.Flag("force", "Force sealing without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	watch := obj.Command("watch", "Watch a bucket for changes").Action(c.watchAction)
 	watch.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)

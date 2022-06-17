@@ -30,7 +30,7 @@ func configureSchemaInfoCommand(schema *fisk.CmdClause) {
 	c := &schemaInfoCmd{}
 	info := schema.Command("info", "Display schema contents").Alias("show").Alias("view").Action(c.info)
 	info.Arg("schema", "Schema ID to show").Required().StringVar(&c.schema)
-	info.Flag("yaml", "Produce YAML format output").BoolVar(&c.yaml)
+	info.Flag("yaml", "Produce YAML format output").UnNegatableBoolVar(&c.yaml)
 }
 
 func (c *schemaInfoCmd) info(_ *fisk.ParseContext) error {

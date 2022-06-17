@@ -60,7 +60,7 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	ncli.Flag("inbox-prefix", "Custom inbox prefix to use for inboxes").PlaceHolder("PREFIX").StringVar(&opts.InboxPrefix)
 	ncli.Flag("domain", "JetStream domain to access").PlaceHolder("DOMAIN").Hidden().StringVar(&opts.JsDomain)
 	ncli.Flag("context", "Configuration context").Envar("NATS_CONTEXT").PlaceHolder("NAME").StringVar(&opts.CfgCtx)
-	ncli.Flag("trace", "Trace API interactions").BoolVar(&opts.Trace)
+	ncli.Flag("trace", "Trace API interactions").UnNegatableBoolVar(&opts.Trace)
 
 	log.SetFlags(log.Ltime)
 

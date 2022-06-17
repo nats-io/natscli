@@ -47,37 +47,37 @@ func configureCtxCommand(app commandHost) {
 	save := context.Command("save", "Update or create a context").Alias("add").Alias("create").Action(c.createCommand)
 	save.Arg("name", "The context name to act on").Required().StringVar(&c.name)
 	save.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
-	save.Flag("select", "Select the saved context as the default one").BoolVar(&c.activate)
+	save.Flag("select", "Select the saved context as the default one").UnNegatableBoolVar(&c.activate)
 	save.Flag("nsc", "URL to a nsc user, eg. nsc://<operator>/<account>/<user>").StringVar(&c.nsc)
 
 	dupe := context.Command("copy", "Copies an existing context").Alias("cp").Action(c.copyCommand)
 	dupe.Arg("source", "The name of the context to copy from").Required().StringVar(&c.source)
 	dupe.Arg("name", "The name of the context to create").Required().StringVar(&c.name)
 	dupe.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
-	dupe.Flag("select", "Select the saved context as the default one").BoolVar(&c.activate)
+	dupe.Flag("select", "Select the saved context as the default one").UnNegatableBoolVar(&c.activate)
 	dupe.Flag("nsc", "URL to a nsc user, eg. nsc://<operator>/<account>/<user>").StringVar(&c.nsc)
 
 	edit := context.Command("edit", "Edit a context in your EDITOR").Alias("vi").Action(c.editCommand)
 	edit.Arg("name", "The context name to edit").Required().StringVar(&c.name)
 
 	ls := context.Command("ls", "List known contexts").Alias("list").Alias("l").Action(c.listCommand)
-	ls.Flag("completion", "Format the list for use by shell completion").Hidden().BoolVar(&c.completionFormat)
+	ls.Flag("completion", "Format the list for use by shell completion").Hidden().UnNegatableBoolVar(&c.completionFormat)
 
 	rm := context.Command("rm", "Remove a context").Alias("remove").Action(c.removeCommand)
 	rm.Arg("name", "The context name to remove").Required().StringVar(&c.name)
-	rm.Flag("force", "Force remove without prompting").Short('f').BoolVar(&c.force)
+	rm.Flag("force", "Force remove without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	pick := context.Command("select", "Select the default context").Alias("switch").Alias("set").Action(c.selectCommand)
 	pick.Arg("name", "The context name to select").StringVar(&c.name)
 
 	info := context.Command("info", "Display information on the current or named context").Alias("show").Action(c.showCommand)
 	info.Arg("name", "The context name to show").StringVar(&c.name)
-	info.Flag("json", "Show the context in JSON format").Short('j').BoolVar(&c.json)
-	info.Flag("connect", "Attempts to connect to NATS using the context while validating").BoolVar(&c.activate)
+	info.Flag("json", "Show the context in JSON format").Short('j').UnNegatableBoolVar(&c.json)
+	info.Flag("connect", "Attempts to connect to NATS using the context while validating").UnNegatableBoolVar(&c.activate)
 
 	validate := context.Command("validate", "Validate one or all contexts").Action(c.validateCommand)
 	validate.Arg("name", "Validate a specific context, validates all when not supplied").StringVar(&c.name)
-	validate.Flag("connect", "Attempts to connect to NATS using the context while validating").BoolVar(&c.activate)
+	validate.Flag("connect", "Attempts to connect to NATS using the context while validating").UnNegatableBoolVar(&c.activate)
 }
 
 func init() {
