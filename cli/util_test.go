@@ -130,7 +130,7 @@ func TestParseDurationString(t *testing.T) {
 	}
 
 	_, err = parseDurationString("1f")
-	if err.Error() != "invalid time unit f" {
+	if err.Error() != "invalid duration: invalid unit f" {
 		t.Fatal("expected time unit 'f' to fail but it did not")
 	}
 
