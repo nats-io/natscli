@@ -195,6 +195,7 @@ func configureConsumerCommand(app commandHost) {
 	consSub.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consSub.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consSub.Flag("raw", "Show only the message").Short('r').UnNegatableBoolVar(&c.raw)
+	consSub.Flag("deliver-group", "Deliver group of the consumer").StringVar(&c.deliveryGroup)
 
 	conCluster := cons.Command("cluster", "Manages a clustered Consumer").Alias("c")
 	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
@@ -1355,7 +1356,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 		fmt.Println()
 	}
 
-	_, err = c.nc.Subscribe(consumer.DeliverySubject(), func(m *nats.Msg) {
+	handler := func(m *nats.Msg) {
 		if len(m.Data) == 0 && m.Header.Get("Status") == "100" {
 			stalled := m.Header.Get("Nats-Consumer-Stalled")
 			if stalled != "" {
@@ -1419,7 +1420,14 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 				fmt.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
 			}
 		}
-	})
+	}
+
+	if consumer.DeliverGroup() == "" {
+		_, err = c.nc.Subscribe(consumer.DeliverySubject(), handler)
+	} else {
+		_, err = c.nc.QueueSubscribe(consumer.DeliverySubject(), consumer.DeliverGroup(), handler)
+	}
+
 	fisk.FatalIfError(err, "could not subscribe")
 
 	<-ctx.Done()
