@@ -1594,7 +1594,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		return
 	}
 
-	fmt.Printf("Information for Stream %s created %s\n", c.stream, info.Created.Local().Format(time.RFC3339))
+	fmt.Printf("Information for Stream %s created %s\n", c.stream, info.Created.Local().Format("2006-01-02 15:04:05"))
 	fmt.Println()
 	c.showStreamConfig(info.Config)
 	fmt.Println()
@@ -2394,7 +2394,7 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream) (string, error) 
 	table.AddHeaders("Name", "Description", "Created", "Messages", "Size", "Last Message")
 	for _, s := range streams {
 		nfo, _ := s.LatestInformation()
-		table.AddRow(s.Name(), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), humanize.Comma(int64(nfo.State.Msgs)), humanize.IBytes(nfo.State.Bytes), humanizeDuration(time.Since(nfo.State.LastTime)))
+		table.AddRow(s.Name(), s.Description(), nfo.Created.Local().Format("2006-01-02 15:04:05"), humanize.Comma(int64(nfo.State.Msgs)), humanize.IBytes(nfo.State.Bytes), humanizeDuration(time.Since(nfo.State.LastTime)))
 	}
 
 	return table.Render(), nil
