@@ -15,6 +15,7 @@ package cli
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -238,6 +239,7 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 	id, _ := nc.GetClientID()
 	ip, _ := nc.GetClientIP()
 	rtt, _ := nc.RTT()
+	tlsc, _ := nc.TLSConnectionState()
 
 	fmt.Println("Connection Information:")
 	fmt.Println()
@@ -255,7 +257,31 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 	if nc.ConnectedServerId() != nc.ConnectedServerName() {
 		fmt.Printf("   Connected Server Name: %v\n", nc.ConnectedServerName())
 	}
+	if tlsc.HandshakeComplete {
+		version := ""
+		switch tlsc.Version {
+		case tls.VersionTLS10:
+			version = "1.0"
+		case tls.VersionTLS11:
+			version = "1.1"
+		case tls.VersionTLS12:
+			version = "1.2"
+		case tls.VersionTLS13:
+			version = "1.3"
+		default:
+			version = fmt.Sprintf("unknown (%x)", tlsc.Version)
+		}
 
+		fmt.Printf("             TLS Version: %s using %s\n", version, tls.CipherSuiteName(tlsc.CipherSuite))
+		fmt.Printf("              TLS Server: %v\n", tlsc.ServerName)
+		if len(tlsc.VerifiedChains) > 0 {
+			fmt.Printf("            TLS Verified: issuer %s\n", tlsc.PeerCertificates[0].Issuer.String())
+		} else {
+			fmt.Printf("            TLS Verified: no\n")
+		}
+	} else {
+		fmt.Printf("          TLS Connection: no\n")
+	}
 	fmt.Println()
 
 	info, err := mgr.JetStreamAccountInfo()
