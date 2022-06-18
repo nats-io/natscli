@@ -29,19 +29,20 @@ import (
 )
 
 type subCmd struct {
-	subject      string
-	queue        string
-	raw          bool
-	jsAck        bool
-	inbox        bool
-	dump         string
-	limit        uint
-	sseq         uint64
-	deliverAll   bool
-	deliverNew   bool
-	deliverLast  bool
-	deliverSince string
-	headersOnly  bool
+	subject               string
+	queue                 string
+	raw                   bool
+	jsAck                 bool
+	inbox                 bool
+	dump                  string
+	limit                 uint
+	sseq                  uint64
+	deliverAll            bool
+	deliverNew            bool
+	deliverLast           bool
+	deliverSince          string
+	deliverLastPerSubject bool
+	headersOnly           bool
 }
 
 func configureSubCommand(app commandHost) {
@@ -62,6 +63,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("new", "Delivers only future messages (requires JetStream)").UnNegatableBoolVar(&c.deliverNew)
 	act.Flag("last", "Delivers the most recent and all future messages (requires JetStream)").UnNegatableBoolVar(&c.deliverLast)
 	act.Flag("since", "Delivers messages received since a duration (requires JetStream)").PlaceHolder("DURATION").StringVar(&c.deliverSince)
+	act.Flag("lastpersubject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
 }
 
 func init() {
@@ -85,7 +87,7 @@ func (c *subCmd) subscribe(_ *fisk.ParseContext) error {
 		return fmt.Errorf("generating inboxes is not compatible with dumping to stdout using null terminated strings")
 	}
 
-	jetStream := c.sseq > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != ""
+	jetStream := c.sseq > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject
 
 	if c.inbox && jetStream {
 		return fmt.Errorf("generating inboxes is not compatible with JetStream subscriptions")
@@ -268,6 +270,9 @@ func (c *subCmd) subscribe(_ *fisk.ParseContext) error {
 			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with messages since %s", c.subject, humanizeDuration(d))
 
 			opts = append(opts, nats.StartTime(start))
+		case c.deliverLastPerSubject:
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s for the last messages for each subject in the Stream", c.subject)
+			opts = append(opts, nats.DeliverLastPerSubject())
 		}
 
 		c.jsAck = false
