@@ -73,33 +73,33 @@ func configureBenchCommand(app commandHost) {
 	benchHelp := `
 Core NATS publish and subscribe:
 
-nats bench benchsubject --pub 1 --sub 10
+  nats bench benchsubject --pub 1 --sub 10
 
 Request reply with queue group:
 
-nats bench benchsubject --sub 1 --reply
+  nats bench benchsubject --sub 1 --reply
 
-nats bench benchsubject --pub 10 --request
+  nats bench benchsubject --pub 10 --request
 
 JetStream publish:
 
-nats bench benchsubject --js --purge --pub 1
+  nats bench benchsubject --js --purge --pub 1
 
 JetStream ordered ephemeral consumers:
 
-nats bench benchsubject --js --sub 10
+  nats bench benchsubject --js --sub 10
 
 JetStream durable pull and push consumers:
 
-nats bench benchsubject --js --sub 5 --pull
+  nats bench benchsubject --js --sub 5 --pull
 
-nats bench benchsubject --js --sub 5 --push
+  nats bench benchsubject --js --sub 5 --push
 
 JetStream KV put and get:
 
-nats bench benchsubject --kv --pub 1
+  nats bench benchsubject --kv --pub 1
 
-nats bench benchsubject --kv --sub 10
+  nats bench benchsubject --kv --sub 10
 
 Remember to use --no-progress to measure performance more accurately
 `
