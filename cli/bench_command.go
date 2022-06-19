@@ -69,10 +69,45 @@ const (
 
 func configureBenchCommand(app commandHost) {
 	c := &benchCmd{}
+
+	benchHelp := `
+Core NATS publish and subscribe:
+
+nats bench benchsubject --pub 1 --sub 10
+
+Request reply with queue group:
+
+nats bench benchsubject --sub 1 --reply
+
+nats bench benchsubject --pub 10 --request
+
+JetStream publish:
+
+nats bench benchsubject --js --purge --pub 1
+
+JetStream ordered ephemeral consumers:
+
+nats bench benchsubject --js --sub 10
+
+JetStream durable pull and push consumers:
+
+nats bench benchsubject --js --sub 5 --pull
+
+nats bench benchsubject --js --sub 5 --push
+
+JetStream KV put and get:
+
+nats bench benchsubject --kv --pub 1
+
+nats bench benchsubject --kv --sub 10
+
+Remember to use --no-progress to measure performance more accurately
+`
 	bench := app.Command("bench", "Benchmark utility").Action(c.bench)
 	if !opts.NoCheats {
 		bench.CheatFile(fs, "bench", "cheats/bench.md")
 	}
+	bench.HelpLong(benchHelp)
 	bench.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
 	bench.Flag("pub", "Number of concurrent publishers").Default("0").IntVar(&c.numPubs)
 	bench.Flag("sub", "Number of concurrent subscribers").Default("0").IntVar(&c.numSubs)
