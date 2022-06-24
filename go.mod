@@ -3,28 +3,28 @@ module github.com/nats-io/natscli
 go 1.17
 
 require (
-	github.com/AlecAivazis/survey/v2 v2.3.4
+	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/choria-io/fisk v0.1.3
 	github.com/dustin/go-humanize v1.0.0
-	github.com/emicklei/dot v0.16.0
+	github.com/emicklei/dot v1.0.0
 	github.com/fatih/color v1.13.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.5.8
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.5
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.15.5
-	github.com/nats-io/jsm.go v0.0.34-0.20220610113917-5a299917dacd
+	github.com/klauspost/compress v1.15.6
+	github.com/nats-io/jsm.go v0.0.34-0.20220624081812-70883a58262d
 	github.com/nats-io/nats-server/v2 v2.8.5-0.20220607144903-0794eafa6f0e
 	github.com/nats-io/nats.go v1.16.1-0.20220610202224-dcbb65a13ee9
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.12.2
-	github.com/prometheus/common v0.34.0
+	github.com/prometheus/common v0.35.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.0.0
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
+	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
 	golang.org/x/term v0.0.0-20220526004731-065cf7ba2467
 )
 
