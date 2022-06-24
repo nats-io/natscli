@@ -16,12 +16,14 @@ package cli
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 )
@@ -35,6 +37,7 @@ type actCmd struct {
 	healthCheck       bool
 	snapShotConsumers bool
 	force             bool
+	failOnWarn        bool
 
 	placementCluster string
 	placementTags    []string
@@ -58,6 +61,7 @@ func configureActCommand(app commandHost) {
 	backup.Flag("check", "Checks the Stream for health prior to backup").UnNegatableBoolVar(&c.healthCheck)
 	backup.Flag("consumers", "Enable or disable consumer backups").Default("true").UnNegatableBoolVar(&c.snapShotConsumers)
 	backup.Flag("force", "Perform backup without prompting").Short('f').UnNegatableBoolVar(&c.force)
+	backup.Flag("critical-warnings", "Treat warnings as failures").Short('w').UnNegatableBoolVar(&c.failOnWarn)
 
 	restore := act.Command("restore", "Restore an account backup over the NATS network").Action(c.restoreAction)
 	restore.Arg("directory", "The directory holding the account backup to restore").Required().ExistingDirVar(&c.backupDirectory)
@@ -115,21 +119,38 @@ func (c *actCmd) backupAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	var errors []error
+	var errs []error
+	var warns []error
+
 	for _, s := range streams {
 		err = backupStream(s, false, c.snapShotConsumers, c.healthCheck, filepath.Join(c.backupDirectory, s.Name()))
-		if err != nil {
+		if errors.Is(err, jsm.ErrMemoryStreamNotSupported) {
+			fmt.Printf("Backup of %s failed: %v\n", s.Name(), err)
+			warns = append(warns, fmt.Errorf("%s: %w", s.Name(), err))
+		} else if err != nil {
 			fmt.Printf("Backup of %s failed: %s\n", s.Name(), err)
-			errors = append(errors, fmt.Errorf("%s: %s", s.Name(), err))
+			errs = append(errs, fmt.Errorf("%s: %s", s.Name(), err))
 		}
 		fmt.Println()
 	}
 
-	if len(errors) > 0 {
-		fmt.Printf("Backup failures: \n")
-		for _, err := range errors {
-			fmt.Printf("  %s", err)
+	if len(warns) > 0 {
+		fmt.Printf("Backup Warnings: \n")
+		for _, err := range warns {
+			fmt.Printf("  %s\n", err)
 		}
+		fmt.Println()
+	}
+
+	if len(errs) > 0 {
+		fmt.Printf("Backup failures: \n")
+		for _, err := range errs {
+			fmt.Printf("  %s\n", err)
+		}
+		fmt.Println()
+	}
+
+	if len(errs) > 0 || len(warns) > 0 && c.failOnWarn {
 		return fmt.Errorf("backup failed")
 	}
 
