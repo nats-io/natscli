@@ -64,7 +64,7 @@ See 'nats cheat' for a quick cheatsheet of commands`
 
 	log.SetFlags(log.Ltime)
 
-	fisk.MustParse(ncli.Parse(os.Args[1:]))
+	ncli.MustParseWithUsage(os.Args[1:])
 }
 
 func getVersion() string {
