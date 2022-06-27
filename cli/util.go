@@ -446,16 +446,6 @@ func newNatsConnUnlocked(servers string, copts ...nats.Option) (*nats.Conn, erro
 		servers = opts.Config.ServerURL()
 	}
 
-	if opts.UserJwt != "" {
-		copts = append(copts, []nats.Option{
-			nats.UserJWT(func() (string, error) {
-				return opts.UserJwt, nil
-			}, func(sign []byte) ([]byte, error) {
-				return []byte(""), nil
-			}),
-		}...)
-	}
-
 	var err error
 
 	opts.Conn, err = nats.Connect(servers, copts...)
