@@ -16,7 +16,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.15.6
 	github.com/nats-io/jsm.go v0.0.34-0.20220624081812-70883a58262d
-	github.com/nats-io/nats-server/v2 v2.8.5-0.20220607144903-0794eafa6f0e
+	github.com/nats-io/nats-server/v2 v2.8.5-0.20220629014533-b0580cdfc297
 	github.com/nats-io/nats.go v1.16.1-0.20220610202224-dcbb65a13ee9
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.12.2
@@ -47,4 +47,5 @@ require (
 	golang.org/x/time v0.0.0-20220609170525-579cf78fd858 // indirect
 	google.golang.org/protobuf v1.26.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
