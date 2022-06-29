@@ -109,7 +109,9 @@ func configureConsumerCommand(app commandHost) {
 		f.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
 		if !edit {
 			f.Flag("ephemeral", "Create an ephemeral Consumer").UnNegatableBoolVar(&c.ephemeral)
-			f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
+		}
+		f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
+		if !edit {
 			f.Flag("flow-control", "Enable Push consumer flow control").IsSetByUser(&c.fcSet).UnNegatableBoolVar(&c.fc)
 			f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
 		}
@@ -345,6 +347,10 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 
 		if c.hdrsOnlySet {
 			ncfg.HeadersOnly = c.hdrsOnly
+		}
+
+		if c.filterSubject != "_unset_" {
+			ncfg.FilterSubject = c.filterSubject
 		}
 	}
 
