@@ -31,6 +31,7 @@ import (
 type subCmd struct {
 	subject               string
 	queue                 string
+	durable               string
 	raw                   bool
 	jsAck                 bool
 	inbox                 bool
@@ -52,6 +53,7 @@ func configureSubCommand(app commandHost) {
 
 	act.Arg("subject", "Subject to subscribe to").StringVar(&c.subject)
 	act.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)
+	act.Flag("durable", "Use a durable consumer (requires JetStream)").StringVar(&c.durable)
 	act.Flag("raw", "Show the raw data received").Short('r').UnNegatableBoolVar(&c.raw)
 	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
 	act.Flag("inbox", "Subscribes to a generate inbox").Short('i').UnNegatableBoolVar(&c.inbox)
@@ -87,7 +89,7 @@ func (c *subCmd) subscribe(_ *fisk.ParseContext) error {
 		return fmt.Errorf("generating inboxes is not compatible with dumping to stdout using null terminated strings")
 	}
 
-	jetStream := c.sseq > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject
+	jetStream := c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject
 
 	if c.inbox && jetStream {
 		return fmt.Errorf("generating inboxes is not compatible with JetStream subscriptions")
@@ -242,6 +244,10 @@ func (c *subCmd) subscribe(_ *fisk.ParseContext) error {
 
 		if c.headersOnly {
 			opts = append(opts, nats.HeadersOnly())
+		}
+
+		if len(c.durable) > 0 {
+			opts = append(opts, nats.Durable(c.durable))
 		}
 
 		switch {
