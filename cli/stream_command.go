@@ -2055,6 +2055,12 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 				mirror.OptStartTime = &t
 			}
 		}
+
+		err = askOne(&survey.Input{
+			Message: "Filter mirror by subject",
+			Help:    "Only replicate data matching this subject",
+		}, &mirror.FilterSubject)
+		fisk.FatalIfError(err, "could not request filter")
 	}
 
 	ok, err = askConfirmation("Import mirror from a different JetStream domain", false)
