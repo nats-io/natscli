@@ -44,6 +44,7 @@ type subCmd struct {
 	deliverSince          string
 	deliverLastPerSubject bool
 	headersOnly           bool
+	stream                string
 }
 
 func configureSubCommand(app commandHost) {
@@ -66,6 +67,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("last", "Delivers the most recent and all future messages (requires JetStream)").UnNegatableBoolVar(&c.deliverLast)
 	act.Flag("since", "Delivers messages received since a duration (requires JetStream)").PlaceHolder("DURATION").StringVar(&c.deliverSince)
 	act.Flag("last-per-subject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
+	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
 }
 
 func init() {
@@ -81,7 +83,7 @@ func (c *subCmd) subscribe(_ *fisk.ParseContext) error {
 
 	if c.subject == "" && c.inbox {
 		c.subject = nc.NewRespInbox()
-	} else if c.subject == "" {
+	} else if c.subject == "" && c.stream == "" {
 		return fmt.Errorf("subject is required")
 	}
 
@@ -89,7 +91,7 @@ func (c *subCmd) subscribe(_ *fisk.ParseContext) error {
 		return fmt.Errorf("generating inboxes is not compatible with dumping to stdout using null terminated strings")
 	}
 
-	jetStream := c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject
+	jetStream := c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.stream != ""
 
 	if c.inbox && jetStream {
 		return fmt.Errorf("generating inboxes is not compatible with JetStream subscriptions")
@@ -248,6 +250,10 @@ func (c *subCmd) subscribe(_ *fisk.ParseContext) error {
 
 		if len(c.durable) > 0 {
 			opts = append(opts, nats.Durable(c.durable))
+		}
+
+		if c.stream != "" {
+			opts = append(opts, nats.BindStream(c.stream))
 		}
 
 		switch {
