@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/choria-io/fisk"
@@ -29,12 +30,17 @@ type SrvRaftCmd struct {
 	force            bool
 	peer             string
 	placementCluster string
+
+	moveServer  string
+	moveAccount string
+	moveStream  string
+	moveTags    []string
 }
 
 func configureServerRaftCommand(srv *fisk.CmdClause) {
 	c := &SrvRaftCmd{}
 
-	raft := srv.Command("raft", "Manage JetStream Clustering").Alias("r")
+	raft := srv.Command("raft", "Manage JetStream Clustering").Alias("r").Alias("jetstream")
 	raft.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	sd := raft.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDown)
@@ -43,6 +49,47 @@ func configureServerRaftCommand(srv *fisk.CmdClause) {
 	rm := raft.Command("peer-remove", "Removes a server from a JetStream cluster").Alias("rm").Alias("pr").Action(c.metaPeerRemove)
 	rm.Arg("name", "The Server Name to remove from the JetStream cluster").StringVar(&c.peer)
 	rm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
+
+	move := raft.Command("stream-move", "Moves a stream between servers").Hidden().Action(c.metaStreamMove)
+	move.Arg("server", "The name of the server to move the stream from").StringVar(&c.moveServer)
+	move.Arg("account", "The account the stream belong to").StringVar(&c.moveAccount)
+	move.Arg("stream", "The stream to move").StringVar(&c.moveStream)
+	move.Flag("tags", "Placement tags to use when deciding the new location for the stream").StringsVar(&c.moveTags)
+}
+
+func (c *SrvRaftCmd) metaStreamMove(_ *fisk.ParseContext) error {
+	nc, mgr, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	res, err := doReq(server.JSzOptions{LeaderOnly: true}, "$SYS.REQ.SERVER.PING.JSZ", 1, nc)
+	if err != nil {
+		return err
+	}
+
+	if len(res) != 1 {
+		return fmt.Errorf("did not receive a response from the meta leader, ensure the account used has system privileges and appropriate permissions")
+	}
+
+	if len(c.moveTags) == 0 {
+		fmt.Printf("Moving %s > %s from %s\n", c.moveAccount, c.moveStream, c.moveServer)
+	} else {
+		fmt.Printf("Moving %s > %s from %s using placement tags %s\n", c.moveAccount, c.moveStream, c.moveServer, strings.Join(c.moveTags, ", "))
+	}
+
+	resp, err := mgr.MetaServerStreamMove(&api.JSApiMetaServerStreamMoveRequest{
+		Server:  c.moveServer,
+		Account: c.moveAccount,
+		Stream:  c.moveStream,
+		Tags:    c.moveTags,
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%#v\n", resp)
+	return nil
 }
 
 func (c *SrvRaftCmd) metaPeerRemove(_ *fisk.ParseContext) error {
