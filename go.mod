@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
-	github.com/choria-io/fisk v0.1.5
+	github.com/choria-io/fisk v0.1.6-0.20220704204204-31c4e55ecb26
 	github.com/dustin/go-humanize v1.0.0
 	github.com/emicklei/dot v1.0.0
 	github.com/fatih/color v1.13.0
