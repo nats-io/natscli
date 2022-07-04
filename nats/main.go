@@ -14,15 +14,66 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"runtime/debug"
+	"strings"
+	"text/tabwriter"
+	"text/template"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/natscli/cli"
 )
 
 var version = "development"
+
+var ShorterMainUsageTemplate = `{{define "FormatCommand"}}\
+{{if .FlagSummary}} {{.FlagSummary}}{{end}}\
+{{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end}}\
+{{end}}\
+
+{{define "FormatCommands"}}\
+{{.Commands|FormatCommandColumns}}
+{{end}}\
+
+{{ define "FormatCommandsForTopLevel" }}\
+{{.Commands|FormatCommandColumns}}
+{{end}}\
+
+{{define "FormatUsage"}}\
+{{template "FormatCommand" .}}{{if .Commands}} <command> [<args> ...]{{end}}
+{{if .Help}}
+{{.Help|Wrap 0}}\
+{{end}}\
+{{end}}\
+
+{{if .Context.SelectedCommand}}\
+usage: {{.App.Name}} {{.Context.SelectedCommand}}{{template "FormatUsage" .Context.SelectedCommand}}
+{{if .Context.SelectedCommand.HelpLong}}{{.Context.SelectedCommand.HelpLong|Wrap 0}}
+{{end}}
+{{else}}\
+usage: {{.App.Name}}{{template "FormatUsage" .App}}
+{{end}}\
+{{if .Context.SelectedCommand}}\
+{{if len .Context.SelectedCommand.Commands}}\
+Subcommands:
+{{template "FormatCommands" .Context.SelectedCommand}}
+{{end}}\
+{{if .Context.Flags|VisibleFlags}}\
+Flags:
+{{.Context.Flags|FlagsToTwoColumns|FormatTwoColumns}}
+{{end}}\
+{{if .Context.Args}}\
+Args:
+{{.Context.Args|ArgsToTwoColumns|FormatTwoColumns}}
+{{end}}\
+{{else if .App.Commands}}\
+Commands:
+{{template "FormatCommandsForTopLevel" .App}}
+{{end}}\
+`
 
 func main() {
 	help := `NATS Utility
@@ -34,6 +85,20 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	ncli := fisk.New("nats", help)
 	ncli.Author("NATS Authors <info@nats.io>")
 	ncli.UsageWriter(os.Stdout)
+	ncli.UsageTemplate(ShorterMainUsageTemplate)
+	ncli.UsageFuncs(template.FuncMap{
+		"FormatCommandColumns": func(commands []*fisk.CmdModel) string {
+			buf := new(bytes.Buffer)
+			tw := tabwriter.NewWriter(buf, 8, 8, 1, '\t', tabwriter.AlignRight)
+			for _, c := range commands {
+				if !c.Hidden && c.FullCommand != "help" {
+					fmt.Fprintf(tw, "  %s\t%s\n", c.FullCommand, strings.Split(c.Help, "\n")[0])
+				}
+			}
+			tw.Flush()
+			return buf.String()
+		},
+	})
 	ncli.Version(getVersion())
 	ncli.HelpFlag.Short('h')
 	ncli.WithCheats().CheatCommand.Hidden()
