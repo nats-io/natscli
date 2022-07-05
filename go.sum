@@ -56,6 +56,8 @@ github.com/cespare/xxhash/v2 v2.1.2 h1:YRXhKfTDauu4ajMg1TPgFO5jnlC2HCbmLXMcTG5cb
 github.com/cespare/xxhash/v2 v2.1.2/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/choria-io/fisk v0.1.5 h1:O0i04wHjoCgEU4dVehi5mDVEKZP8xZjOKZ8P5R4WOGQ=
 github.com/choria-io/fisk v0.1.5/go.mod h1:S+NQ8qIofXvjz4zT4t69xRudzMYNfOG3uC0lOzGNjHA=
+github.com/choria-io/fisk v0.1.6-0.20220704204204-31c4e55ecb26 h1:7t3gFNi6aMKQyQJMn1larr60Qs4KXrLD1a+fwxgdxv4=
+github.com/choria-io/fisk v0.1.6-0.20220704204204-31c4e55ecb26/go.mod h1:S+NQ8qIofXvjz4zT4t69xRudzMYNfOG3uC0lOzGNjHA=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=

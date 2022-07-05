@@ -34,6 +34,8 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	ncli := fisk.New("nats", help)
 	ncli.Author("NATS Authors <info@nats.io>")
 	ncli.UsageWriter(os.Stdout)
+	ncli.UsageTemplate(fisk.CompactMainUsageTemplate)
+	ncli.ErrorUsageTemplate(fisk.CompactMainUsageTemplate)
 	ncli.Version(getVersion())
 	ncli.HelpFlag.Short('h')
 	ncli.WithCheats().CheatCommand.Hidden()
