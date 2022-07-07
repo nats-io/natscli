@@ -227,6 +227,10 @@ func (c *consumerCmd) leaderStandDown(_ *fisk.ParseContext) error {
 	}
 
 	leader := info.Cluster.Leader
+	if leader == "" {
+		return fmt.Errorf("consumer has no current leader")
+	}
+
 	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(info.Cluster.Replicas)+1)
 	err = consumer.LeaderStepDown()
 	if err != nil {
