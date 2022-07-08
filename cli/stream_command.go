@@ -180,6 +180,16 @@ func configureStreamCommand(app commandHost) {
 	str.Flag("all", "When listing or selecting streams show all streams including system ones").Short('a').UnNegatableBoolVar(&c.showAll)
 	addCheat("stream", str)
 
+	strAdd := str.Command("add", "Create a new Stream").Alias("create").Alias("new").Action(c.addAction)
+	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
+	strAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
+	strAdd.Flag("validate", "Only validates the configuration against the official Schema").UnNegatableBoolVar(&c.validateOnly)
+	strAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
+	addCreateFlags(strAdd, false)
+	strAdd.Flag("republish-source", "Republish messages to --republish-destination").StringVar(&c.repubSource)
+	strAdd.Flag("republish-destination", "Republish destination for messages in --republish-source").StringVar(&c.repubDest)
+	strAdd.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
+
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
 	strLs.Flag("names", "Show just the stream names").Short('n').UnNegatableBoolVar(&c.listNames)
 	strLs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
@@ -209,15 +219,10 @@ func configureStreamCommand(app commandHost) {
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
 	strInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
-	strAdd := str.Command("add", "Create a new Stream").Alias("create").Alias("new").Action(c.addAction)
-	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
-	strAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
-	strAdd.Flag("validate", "Only validates the configuration against the official Schema").UnNegatableBoolVar(&c.validateOnly)
-	strAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
-	addCreateFlags(strAdd, false)
-	strAdd.Flag("republish-source", "Republish messages to --republish-destination").StringVar(&c.repubSource)
-	strAdd.Flag("republish-destination", "Republish destination for messages in --republish-source").StringVar(&c.repubDest)
-	strAdd.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
+	strSubs := str.Command("subjects", "Query subjects held in a stream").Alias("subj").Action(c.subjectsAction)
+	strSubs.Arg("stream", "Stream name").StringVar(&c.stream)
+	strSubs.Arg("filter", "Limit the subjects to those matching a filter").Default(">").StringVar(&c.filterSubject)
+	strSubs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	strEdit := str.Command("edit", "Edits an existing stream").Alias("update").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
@@ -310,6 +315,59 @@ func configureStreamCommand(app commandHost) {
 
 func init() {
 	registerCommand("stream", 16, configureStreamCommand)
+}
+
+func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
+	asked := c.connectAndAskStream()
+
+	subs, err := c.mgr.StreamContainedSubjects(c.stream, c.filterSubject)
+	if err != nil {
+		return err
+	}
+
+	if c.json {
+		printJSON(subs)
+		return nil
+	}
+
+	if asked {
+		fmt.Println()
+	}
+
+	if len(subs) == 0 {
+		fmt.Printf("No subjects found matching %s\n", c.filterSubject)
+		return nil
+	}
+
+	longest := 0
+	for _, v := range subs {
+		if len(v) > longest {
+			longest = len(v)
+		}
+	}
+
+	cols := 1
+	format := "  %s\n"
+	switch {
+	case longest < 20:
+		cols = 3
+		format = "  %-20s %-20s %-20s\n"
+	case longest < 30:
+		cols = 2
+		format = "  %-30s %-30s\n"
+	}
+
+	sliceGroups(subs, cols, func(g []string) {
+		if cols == 1 {
+			fmt.Printf(format, g[0])
+		} else if cols == 2 {
+			fmt.Printf(format, g[0], g[1])
+		} else {
+			fmt.Printf(format, g[0], g[1], g[2])
+		}
+	})
+
+	return nil
 }
 
 func (c *streamCmd) parseLimitStrings(_ *fisk.ParseContext) (err error) {
@@ -2501,12 +2559,15 @@ func (c *streamCmd) getAction(_ *fisk.ParseContext) (err error) {
 	return nil
 }
 
-func (c *streamCmd) connectAndAskStream() {
+func (c *streamCmd) connectAndAskStream() bool {
 	var err error
 
+	shouldAsk := c.stream == ""
 	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
 	fisk.FatalIfError(err, "setup failed")
 
 	c.stream, c.selectedStream, err = selectStream(c.mgr, c.stream, c.force, c.showAll)
 	fisk.FatalIfError(err, "could not pick a Stream to operate on")
+
+	return shouldAsk
 }

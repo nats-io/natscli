@@ -54,8 +54,6 @@ github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.1.2 h1:YRXhKfTDauu4ajMg1TPgFO5jnlC2HCbmLXMcTG5cbYE=
 github.com/cespare/xxhash/v2 v2.1.2/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
-github.com/choria-io/fisk v0.1.5 h1:O0i04wHjoCgEU4dVehi5mDVEKZP8xZjOKZ8P5R4WOGQ=
-github.com/choria-io/fisk v0.1.5/go.mod h1:S+NQ8qIofXvjz4zT4t69xRudzMYNfOG3uC0lOzGNjHA=
 github.com/choria-io/fisk v0.1.6-0.20220704204204-31c4e55ecb26 h1:7t3gFNi6aMKQyQJMn1larr60Qs4KXrLD1a+fwxgdxv4=
 github.com/choria-io/fisk v0.1.6-0.20220704204204-31c4e55ecb26/go.mod h1:S+NQ8qIofXvjz4zT4t69xRudzMYNfOG3uC0lOzGNjHA=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
@@ -207,12 +205,12 @@ github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3Rllmb
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
-github.com/nats-io/jsm.go v0.0.34-0.20220701104412-8617c15ee4fb h1:6lyoSUgFzOW1IyTf+cE65kj3OC44+v2YhH2LhxYxCCE=
-github.com/nats-io/jsm.go v0.0.34-0.20220701104412-8617c15ee4fb/go.mod h1:QGmPROy+VAkQ2y170WYZDVbz/PmoZduVhOaopVX7PjQ=
+github.com/nats-io/jsm.go v0.0.34-0.20220708145958-5a418c85744e h1:8g+IU9onaMR4RNEs4/VB+5/rRHZbnUl7RZNSqAka9u0=
+github.com/nats-io/jsm.go v0.0.34-0.20220708145958-5a418c85744e/go.mod h1:AtShK9cW2hkuCi6FoFQd/ungu64bPyIQeTPKrcXcsSo=
 github.com/nats-io/jwt/v2 v2.3.0 h1:z2mA1a7tIf5ShggOFlR1oBPgd6hGqcDYsISxZByUzdI=
 github.com/nats-io/jwt/v2 v2.3.0/go.mod h1:0tqz9Hlu6bCBFLWAASKhE5vUA4c24L9KPUUgvwumE/k=
-github.com/nats-io/nats-server/v2 v2.8.5-0.20220630223440-b7d94e1b5211 h1:x35AjlxVvVbF+iBe7DKtq/l/6wJGgxRew2YkOW4kkA0=
-github.com/nats-io/nats-server/v2 v2.8.5-0.20220630223440-b7d94e1b5211/go.mod h1:DDSswj1ITPghvnFXGoj+aP13Zq5vTX40YJaqtiEYYkQ=
+github.com/nats-io/nats-server/v2 v2.8.5-0.20220708145433-da305f2044cb h1:d7LDYwCCBMyjjM7E+z6LYjIQ2Amel9/kjlJKA/HuL/g=
+github.com/nats-io/nats-server/v2 v2.8.5-0.20220708145433-da305f2044cb/go.mod h1:DDSswj1ITPghvnFXGoj+aP13Zq5vTX40YJaqtiEYYkQ=
 github.com/nats-io/nats.go v1.16.0/go.mod h1:BPko4oXsySz4aSWeFgOHLZs3G4Jq4ZAyE6/zMCxRT6w=
 github.com/nats-io/nats.go v1.16.1-0.20220610202224-dcbb65a13ee9 h1:gHTW4UDAOW6j9SA2DLE7aZg7cxVixYzLyestoU0ukyA=
 github.com/nats-io/nats.go v1.16.1-0.20220610202224-dcbb65a13ee9/go.mod h1:BPko4oXsySz4aSWeFgOHLZs3G4Jq4ZAyE6/zMCxRT6w=
