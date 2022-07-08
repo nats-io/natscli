@@ -1151,3 +1151,29 @@ func parseStringAsBytes(s string) (int64, error) {
 
 	return num, nil
 }
+
+func sliceGroups(input []string, size int, fn func(group []string)) {
+	// how many to add
+	padding := size - (len(input) % size)
+
+	if padding != size {
+		p := []string{}
+
+		for i := 0; i <= padding; i++ {
+			p = append(p, "")
+		}
+
+		input = append(input, p...)
+	}
+
+	// how many chunks we're making
+	count := len(input) / size
+
+	for i := 0; i < count; i++ {
+		chunk := []string{}
+		for s := 0; s < size; s++ {
+			chunk = append(chunk, input[i+s*count])
+		}
+		fn(chunk)
+	}
+}
