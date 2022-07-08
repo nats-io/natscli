@@ -8,7 +8,7 @@ This allows for a quick path to local development and exploration of the NATS ec
 
 ## Starting a server
 
-Executing `nats server run [name]` will start a local NATS instance ready to work against.  At start it will list it's credentials, url and configuration contextx that can be used to access it
+Executing `nats server run [name]` will start a local NATS instance ready to work against.  At start it will list it's credentials, url and configuration contexts that can be used to access it
 
 ```nohighlight
 nats server run
@@ -180,7 +180,7 @@ This time we access it on the Demo network:
 
 ```nohighlight
 $ nats --server demo.nats.io req 'myname.weather.london' ''
-london: ⛅️  +15°C 
+london: ⛅️  +15°C
 ```
 
 What happened here is that the request for the service went to `demo.nats.io`, while the actual weather service was connected to your laptop. Since our laptop is extending the `demo.nats.io` service communication was possible.
@@ -194,7 +194,7 @@ First we need a context that configures access to NGS:
 ```nohighlight
 $ nats context add ngs.leafnode \
    --creds /home/me/.nkeys/creds/synadia/MyAccount/leafnode.creds \
-   --server nats://connect.ngs.global:7422 \ 
+   --server nats://connect.ngs.global:7422 \
    --description "NGS Leafnode"
 ```
 We can now run a server using these credentials:
