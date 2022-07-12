@@ -53,14 +53,14 @@ trace: {{.Verbose}}
 system_account: SYSTEM
 logtime: false
 
-{{ if .JetStream }}
+{{- if .JetStream }}
 jetstream {
     store_dir: {{ .StoreDir }}
-{{ if .JSDomain }}
+{{- if .JSDomain }}
 	domain: {{ .JSDomain }}
-{{ end }}
+{{- end }}
 }
-{{ end }}
+{{- end }}
 
 accounts {
     USER: {
@@ -77,7 +77,7 @@ accounts {
         ]
     }
 
-	SERVICE: {
+    SERVICE: {
         jetstream: enabled
         users: [
             {
@@ -89,7 +89,7 @@ accounts {
         exports: [
             {service: service.>}
         ]
-	}
+    }
 
     SYSTEM: {
         users: [{"user": "system", "password": "{{.SystemPasswordCrypt}}"}],
