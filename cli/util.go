@@ -756,7 +756,7 @@ func loadContext() error {
 
 	exist, _ := fileAccessible(opts.CfgCtx)
 
-	if exist {
+	if exist && strings.HasSuffix(opts.CfgCtx, ".json") {
 		opts.Config, err = natscontext.NewFromFile(opts.CfgCtx, ctxOpts...)
 	} else {
 		opts.Config, err = natscontext.New(opts.CfgCtx, !SkipContexts, ctxOpts...)
