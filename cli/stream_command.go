@@ -2021,7 +2021,7 @@ func (c *streamCmd) prepareConfig(pc *fisk.ParseContext, requireSize bool) api.S
 	}
 
 	if !c.denyDeleteSet {
-		c.denyPurge, err = askConfirmation("Allow message deletion", true)
+		c.denyDelete, err = askConfirmation("Allow message deletion", true)
 		fisk.FatalIfError(err, "invalid input")
 	}
 
