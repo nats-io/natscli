@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -31,27 +32,29 @@ import (
 )
 
 type kvCommand struct {
-	bucket              string
-	key                 string
-	val                 string
-	raw                 bool
-	history             uint64
-	ttl                 time.Duration
-	replicas            uint
-	force               bool
-	maxValueSize        int64
-	maxValueSizeString  string
-	maxBucketSize       int64
-	maxBucketSizeString string
-	revision            uint64
-	description         string
-	listNames           bool
-	storage             string
-	placementCluster    string
-	placementTags       []string
-	repubSource         string
-	repubDest           string
-	repubHeadersOnly    bool
+	bucket                string
+	key                   string
+	val                   string
+	raw                   bool
+	history               uint64
+	ttl                   time.Duration
+	replicas              uint
+	force                 bool
+	maxValueSize          int64
+	maxValueSizeString    string
+	maxBucketSize         int64
+	maxBucketSizeString   string
+	revision              uint64
+	description           string
+	listNames             bool
+	lsVerbose             bool
+	lsVerboseDisplayValue bool
+	storage               string
+	placementCluster      string
+	placementTags         []string
+	repubSource           string
+	repubDest             string
+	repubHeadersOnly      bool
 }
 
 func configureKVCommand(app commandHost) {
@@ -129,8 +132,11 @@ NOTE: This is an experimental feature.
 	watch.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	watch.Arg("key", "The key to act on").Default(">").StringVar(&c.key)
 
-	ls := kv.Command("ls", "List available Buckets").Alias("list").Action(c.lsAction)
+	ls := kv.Command("ls", "List available buckets or the keys in a bucket").Alias("list").Action(c.lsAction)
+	ls.Arg("bucket", "The bucket to list the keys").StringVar(&c.bucket)
 	ls.Flag("names", "Show just the bucket names").Short('n').UnNegatableBoolVar(&c.listNames)
+	ls.Flag("verbose", "Show detailed info about the key").Short('v').BoolVar(&c.lsVerbose)
+	ls.Flag("display-value", "Display value in verbose output (has no effect without 'verbose')").BoolVar(&c.lsVerboseDisplayValue)
 
 	rmHistory := kv.Command("compact", "Removes all historic values from the store where the last value is a delete").Action(c.compactAction)
 	rmHistory.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -181,8 +187,95 @@ func (c *kvCommand) lsAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	if c.bucket != "" {
+		err = c.lsBucketKeys(mgr)
+	} else {
+		err = c.lsBuckets(mgr)
+	}
+
+	return err
+}
+
+func (c *kvCommand) lsBucketKeys(mgr *jsm.Manager) error {
+	if mgr == nil {
+		return errors.New("mgr cannot be nil")
+	}
+
+	// Is this a KV bucket?
+	_, js, err := prepareJSHelper()
+	if err != nil {
+		return fmt.Errorf("unable to prepare js helper: %s", err)
+	}
+
+	kv, err := js.KeyValue(c.bucket)
+	if err != nil {
+		return fmt.Errorf("unable to load bucket: %s", err)
+	}
+
+	keys, err := kv.Keys()
+	if err != nil {
+		if err == nats.ErrNoKeysFound {
+			return fmt.Errorf("no keys found in bucket %s", c.bucket)
+		}
+
+		return fmt.Errorf("unable to fetch keys in bucket: %s", err)
+	}
+
+	if c.lsVerbose {
+		if err := c.displayKeyInfo(kv, keys); err != nil {
+			return fmt.Errorf("unable to display key info: %s", err)
+		}
+	} else {
+		for _, v := range keys {
+			fmt.Println(v)
+		}
+	}
+
+	return nil
+}
+
+func (c *kvCommand) displayKeyInfo(kv nats.KeyValue, keys []string) error {
+	if kv == nil {
+		return errors.New("key value cannot be nil")
+	}
+
+	table := newTableWriter(fmt.Sprintf("Contents for bucket '%s'", c.bucket))
+
+	if c.lsVerboseDisplayValue {
+		table.AddHeaders("Key", "Created", "Delta", "Revision", "Value")
+	} else {
+		table.AddHeaders("Key", "Created", "Delta", "Revision")
+	}
+
+	for _, keyName := range keys {
+		kve, err := kv.Get(keyName)
+		if err != nil {
+			return fmt.Errorf("unable to fetch key %s: %s", keyName, err)
+		}
+
+		row := []interface{}{
+			kve.Key(),
+			kve.Created().Format("2006-01-02 15:04:05"),
+			kve.Delta(),
+			kve.Revision(),
+		}
+
+		if c.lsVerboseDisplayValue {
+			row = append(row, string(kve.Value()))
+		}
+
+		table.AddRow(row...)
+	}
+
+	fmt.Println(table.Render())
+
+	return nil
+}
+
+func (c *kvCommand) lsBuckets(mgr *jsm.Manager) error {
 	var found []*jsm.Stream
-	err = mgr.EachStream(func(s *jsm.Stream) {
+
+	err := mgr.EachStream(func(s *jsm.Stream) {
 		if s.IsKVBucket() {
 			found = append(found, s)
 		}
