@@ -21,6 +21,23 @@ and support full JetStream management.
 Releases are [published to GitHub](https://github.com/nats-io/natscli/releases/) where zip, rpm and debs for various
 operating systems can be found.
 
+#### Installation via go install
+
+The nats cli can be installed directly via `go install`.
+To install the latest version:
+
+```
+go install github.com/nats-io/natscli/nats@latest
+```
+
+To install a specific release:
+
+```
+go install github.com/nats-io/natscli/nats@v0.0.33
+```
+
+#### OS X installation via Homebrew
+
 For OS X `brew` can be used to install the latest version:
 
 ```nohighlight
@@ -28,11 +45,15 @@ brew tap nats-io/nats-tools
 brew install nats-io/nats-tools/nats
 ```
 
+#### Arch Linux installation via yay
+
 For Arch users there is an [AUR package](https://aur.archlinux.org/packages/natscli/) that you can install with:
 
 ```
 yay natscli
 ```
+
+#### Nightly docker images
 
 Nightly builds are included in the `synadia/nats-server:nightly` Docker images.
 
