@@ -2021,14 +2021,15 @@ func (c *streamCmd) prepareConfig(pc *fisk.ParseContext, requireSize bool) api.S
 	}
 
 	if !c.denyDeleteSet {
-		c.denyDelete, err = askConfirmation("Allow message deletion", true)
+		allow, err := askConfirmation("Allow message deletion", true)
 		fisk.FatalIfError(err, "invalid input")
+		c.denyDelete = !allow
 	}
 
 	if !c.denyPurgeSet {
-		deny, err := askConfirmation("Allow purging subjects or the entire stream", true)
+		allow, err := askConfirmation("Allow purging subjects or the entire stream", true)
 		fisk.FatalIfError(err, "invalid input")
-		c.denyPurge = deny
+		c.denyPurge = !allow
 	}
 
 	cfg := api.StreamConfig{
