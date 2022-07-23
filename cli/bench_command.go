@@ -845,10 +845,8 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 					} else {
 						log.Printf("Pull consumer Fetch error: %v", err)
 					}
-					c.fetchTimeout = true
-				} else {
-
 				}
+				c.fetchTimeout = true
 			}
 		}
 	}
