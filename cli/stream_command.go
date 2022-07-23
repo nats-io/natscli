@@ -22,7 +22,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -1284,7 +1283,7 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 	}
 
 	if len(c.subjects) > 0 {
-		cfg.Subjects = c.splitCLISubjects()
+		cfg.Subjects = splitCLISubjects(c.subjects)
 	}
 
 	if c.storage != "" {
@@ -1808,21 +1807,6 @@ func (c *streamCmd) infoAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *streamCmd) splitCLISubjects() []string {
-	new := []string{}
-
-	re := regexp.MustCompile(`,|\t|\s`)
-	for _, s := range c.subjects {
-		if re.MatchString(s) {
-			new = append(new, splitString(s)...)
-		} else {
-			new = append(new, s)
-		}
-	}
-
-	return new
-}
-
 func (c *streamCmd) discardPolicyFromString() api.DiscardPolicy {
 	switch strings.ToLower(c.discardPolicy) {
 	case "new":
@@ -1902,7 +1886,7 @@ func (c *streamCmd) prepareConfig(pc *fisk.ParseContext, requireSize bool) api.S
 			c.subjects = splitString(subjects)
 		}
 
-		c.subjects = c.splitCLISubjects()
+		c.subjects = splitCLISubjects(c.subjects)
 	}
 
 	if c.mirror != "" && len(c.subjects) > 0 {
