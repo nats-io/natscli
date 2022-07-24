@@ -48,7 +48,7 @@ type subCmd struct {
 	headersOnly           bool
 	stream                string
 	jetStream             bool
-	excludeSubjets        []string
+	excludeSubjects       []string
 }
 
 func configureSubCommand(app commandHost) {
@@ -73,7 +73,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("since", "Delivers messages received since a duration (requires JetStream)").PlaceHolder("DURATION").StringVar(&c.deliverSince)
 	act.Flag("last-per-subject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
 	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
-	act.Flag("exclude-subjects", "Subjects for which corresponding messages will be excluded and therefore not shown in the output").StringsVar(&c.excludeSubjets)
+	act.Flag("exclude-subjects", "Subjects for which corresponding messages will be excluded and therefore not shown in the output").StringsVar(&c.excludeSubjects)
 }
 
 func init() {
@@ -111,7 +111,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		mu              = sync.Mutex{}
 		dump            = c.dump != ""
 		ctr             = uint(0)
-		excludeSubjects = splitCLISubjects(c.excludeSubjets)
+		excludeSubjects = splitCLISubjects(c.excludeSubjects)
 		ctx, cancel     = context.WithCancel(ctx)
 
 		replySub *nats.Subscription
