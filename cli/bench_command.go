@@ -60,6 +60,10 @@ type benchCmd struct {
 	fetchTimeout         bool
 	multiSubject         bool
 	multiSubjectMax      int
+	deDuplication        bool
+	deDuplicationWindow  time.Duration
+	retries              int
+	retriesUsed          bool
 }
 
 const (
@@ -137,6 +141,9 @@ Remember to use --no-progress to measure performance more accurately
 	bench.Flag("history", "History depth for the bucket in KV mode").Default("1").Uint8Var(&c.history)
 	bench.Flag("multisubject", "Multi-subject mode, each message is published on a subject that includes the publisher's message sequence number as a token").UnNegatableBoolVar(&c.multiSubject)
 	bench.Flag("multisubjectmax", "The maximum number of subjects to use in multi-subject mode (0 means no max)").Default("0").IntVar(&c.multiSubjectMax)
+	bench.Flag("retries", "The maximum number of retries in JS operations").Default("3").IntVar(&c.retries)
+	bench.Flag("dedup", "Sets a message id in the header to use JS Publish de-duplication").Default("false").UnNegatableBoolVar(&c.deDuplication)
+	bench.Flag("dedupwindow", "Sets the duration of the stream's deduplication functionality").Default("2m").DurationVar(&c.deDuplicationWindow)
 }
 
 func init() {
@@ -203,9 +210,9 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 	// Print the banner to repeat the arguments being used
 	if c.js {
 		if c.streamName == DefaultStreamName {
-			log.Printf("Starting JetStream benchmark [subject=%s, multisubject=%v, multisubjectmax=%d, js=%v, msgs=%s, msgsize=%s, pubs=%d, subs=%d, stream=%s, maxbytes=%s, storage=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, consumerbatch=%s, push=%v, consumername=%s, replicas=%d, purge=%v, pubsleep=%v, subsleep=%v]", getSubscribeSubject(c), c.multiSubject, c.multiSubjectMax, c.js, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.streamName, humanize.IBytes(uint64(c.streamMaxBytes)), c.storage, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.consumerBatch)), c.pushDurable, c.consumerName, c.replicas, c.purge, c.pubSleep, c.subSleep)
+			log.Printf("Starting JetStream benchmark [subject=%s, multisubject=%v, multisubjectmax=%d, js=%v, msgs=%s, msgsize=%s, pubs=%d, subs=%d, stream=%s, maxbytes=%s, storage=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, consumerbatch=%s, push=%v, consumername=%s, replicas=%d, purge=%v, pubsleep=%v, subsleep=%v, dedup=%v, dedupwindow=%v]", getSubscribeSubject(c), c.multiSubject, c.multiSubjectMax, c.js, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.streamName, humanize.IBytes(uint64(c.streamMaxBytes)), c.storage, c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.consumerBatch)), c.pushDurable, c.consumerName, c.replicas, c.purge, c.pubSleep, c.subSleep, c.deDuplication, c.deDuplicationWindow)
 		} else {
-			log.Printf("Starting JetStream benchmark [subject=%s,  multisubject=%v, multisubjectmax=%d, js=%v, msgs=%s, msgsize=%s, pubs=%d, subs=%d, stream=%s, maxbytes=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, consumerbatch=%s, push=%v, consumername=%s, purge=%v, pubsleep=%v, subsleep=%v]", getSubscribeSubject(c), c.multiSubject, c.multiSubjectMax, c.js, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.streamName, humanize.IBytes(uint64(c.streamMaxBytes)), c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.consumerBatch)), c.pushDurable, c.consumerName, c.purge, c.pubSleep, c.subSleep)
+			log.Printf("Starting JetStream benchmark [subject=%s,  multisubject=%v, multisubjectmax=%d, js=%v, msgs=%s, msgsize=%s, pubs=%d, subs=%d, stream=%s, maxbytes=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, consumerbatch=%s, push=%v, consumername=%s, purge=%v, pubsleep=%v, subsleep=%v, deduplication=%c, dedupwindow=%v]", getSubscribeSubject(c), c.multiSubject, c.multiSubjectMax, c.js, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.streamName, humanize.IBytes(uint64(c.streamMaxBytes)), c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.consumerBatch)), c.pushDurable, c.consumerName, c.purge, c.pubSleep, c.subSleep, c.deDuplication, c.deDuplicationWindow)
 		}
 	} else if c.kv {
 		log.Printf("Starting KV benchmark [bucket=%s, kv=%v, msgs=%s, msgsize=%s, maxbytes=%s, pubs=%d, sub=%d, storage=%s, replicas=%d, pubsleep=%v, subsleep=%v]", getSubscribeSubject(c), c.kv, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), humanize.IBytes(uint64(c.streamMaxBytes)), c.numPubs, c.numSubs, c.storage, c.replicas, c.pubSleep, c.subSleep)
@@ -218,6 +225,8 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 	}
 
 	bm := bench.NewBenchmark("NATS", c.numSubs, c.numPubs)
+
+	benchId := strconv.FormatInt(time.Now().UnixMilli(), 16)
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
@@ -267,7 +276,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 		} else if c.js {
 			if c.streamName == DefaultStreamName {
 				// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
-				_, err = js.AddStream(&nats.StreamConfig{Name: c.streamName, Subjects: []string{getSubscribeSubject(c)}, Retention: nats.LimitsPolicy, Discard: nats.DiscardNew, Storage: storageType, Replicas: c.replicas, MaxBytes: c.streamMaxBytes})
+				_, err = js.AddStream(&nats.StreamConfig{Name: c.streamName, Subjects: []string{getSubscribeSubject(c)}, Retention: nats.LimitsPolicy, Discard: nats.DiscardNew, Storage: storageType, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow})
 				if err != nil {
 					log.Fatalf("%v. If you want to delete and re-define the stream use `nats stream delete %s`.", err, c.streamName)
 				}
@@ -382,7 +391,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runPublisher(bm, nc, startwg, donewg, trigger, pubCounts[i], offset(i, pubCounts))
+		go c.runPublisher(bm, nc, startwg, donewg, trigger, pubCounts[i], offset(i, pubCounts), benchId, strconv.Itoa(i))
 	}
 
 	if !c.noProgress {
@@ -400,7 +409,11 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 	}
 
 	if c.fetchTimeout {
-		log.Print("WARNING: at least one of the pull consumer Fetch operation timed out, the results may not be accurate!")
+		log.Print("WARNING: at least one of the pull consumer Fetch operation timed out. These results are not optimal!")
+	}
+
+	if c.retriesUsed {
+		log.Print("WARNING: at least one of the JS publish operations had to be retried. These results are not optimal!")
 	}
 
 	fmt.Println()
@@ -486,7 +499,7 @@ func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg 
 	state = "Finished  "
 }
 
-func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) {
+func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, idPrefix string, pubNumber string, offset int) {
 	js, err := nc.JetStream()
 	if err != nil {
 		log.Fatalf("Couldn't get the JetStream context: %v", err)
@@ -501,11 +514,18 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 	}
 
 	if !c.syncPub {
-		for i := 0; i < numMsg; i += c.pubBatch {
+		for i := 0; i < numMsg; {
 			state = "Publishing"
-			futures := make([]nats.PubAckFuture, min(c.pubBatch, c.numMsg-i))
-			for j := 0; j < c.pubBatch && i+j < c.numMsg; j++ {
-				futures[j], err = js.PublishAsync(getPublishSubject(&c, i+j+offset), msg)
+			futures := make([]nats.PubAckFuture, min(c.pubBatch, numMsg-i))
+			for j := 0; j < c.pubBatch && (i+j) < numMsg; j++ {
+				if c.deDuplication {
+					header := nats.Header{}
+					header.Set(nats.MsgIdHdr, idPrefix+"-"+pubNumber+"-"+strconv.Itoa(i+j+offset))
+					message := nats.Msg{Data: msg, Header: header, Subject: getPublishSubject(c, i+j+offset)}
+					futures[j], err = js.PublishMsgAsync(&message)
+				} else {
+					futures[j], err = js.PublishAsync(getPublishSubject(c, i+j+offset), msg)
+				}
 				if err != nil {
 					log.Fatalf("PubAsync error: %v", err)
 				}
@@ -523,12 +543,19 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 				for future := range futures {
 					select {
 					case <-futures[future].Ok():
+						i++
 					case e := <-futures[future].Err():
-						log.Fatalf("PubAsyncFuture for message %v in batch not OK: %v", future, e)
+						log.Printf("PubAsyncFuture for message %v in batch not OK: %v (retrying)", future, e)
+						c.retriesUsed = true
 					}
 				}
 			case <-time.After(c.jsTimeout):
-				log.Fatalf("JS PubAsync did not receive an ack/error")
+				c.retriesUsed = true
+				log.Printf("JS PubAsync ack timeout (pending=%d)", js.PublishAsyncPending())
+				js, err = nc.JetStream()
+				if err != nil {
+					log.Fatalf("Couldn't get the JetStream context: %v", err)
+				}
 			}
 		}
 		state = "Finished  "
@@ -538,9 +565,18 @@ func jsPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte
 			if progress != nil {
 				progress.Incr()
 			}
-			_, err = js.Publish(getPublishSubject(&c, i+offset), msg)
+			if c.deDuplication {
+				header := nats.Header{}
+				header.Set(nats.MsgIdHdr, idPrefix+"-"+pubNumber+"-"+strconv.Itoa(i+offset))
+				message := nats.Msg{Data: msg, Header: header, Subject: getPublishSubject(c, i+offset)}
+				_, err = js.PublishMsg(&message)
+			} else {
+				_, err = js.Publish(getPublishSubject(c, i+offset), msg)
+			}
 			if err != nil {
-				log.Fatalf("Publish: %v", err)
+				log.Printf("Publish error: %v (retrying)", err)
+				c.retriesUsed = true
+				i--
 			}
 			time.Sleep(c.pubSleep)
 		}
@@ -578,7 +614,7 @@ func kvPutter(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, n
 	}
 }
 
-func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int) {
+func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, idPrefix string, pubNumber string) {
 	startwg.Done()
 
 	var progress *uiprogress.Bar
@@ -608,7 +644,7 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 	} else if c.kv {
 		kvPutter(*c, nc, progress, msg, numMsg, offset)
 	} else if c.js {
-		jsPublisher(*c, nc, progress, msg, numMsg, offset)
+		jsPublisher(c, nc, progress, msg, numMsg, idPrefix, pubNumber, offset)
 	}
 
 	err := nc.Flush()
@@ -623,7 +659,6 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 
 func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, offset int) {
 	received := 0
-	fetchTimeout := false
 
 	ch := make(chan time.Time, 2)
 
@@ -804,14 +839,14 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 				}
 				i += len(msgs)
 			} else {
-				if err == nats.ErrTimeout {
-					if c.noProgress {
+				if c.noProgress {
+					if err == nats.ErrTimeout {
 						log.Print("Fetch timeout!")
+					} else {
+						log.Printf("Pull consumer Fetch error: %v", err)
 					}
-					fetchTimeout = true
-				} else {
-					log.Fatalf("Pull consumer Fetch error: %v", err)
 				}
+				c.fetchTimeout = true
 			}
 		}
 	}
@@ -826,10 +861,6 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 	state = "Finished  "
 
 	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
-
-	if fetchTimeout {
-		c.fetchTimeout = true
-	}
 
 	donewg.Done()
 }
