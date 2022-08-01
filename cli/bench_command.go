@@ -458,7 +458,7 @@ func getPublishSubject(c *benchCmd, number int) string {
 	}
 }
 
-func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int) {
+func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) {
 
 	var m *nats.Msg
 	var err error
@@ -480,12 +480,12 @@ func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg 
 		}
 
 		if !c.request {
-			err = nc.Publish(getPublishSubject(&c, i), msg)
+			err = nc.Publish(getPublishSubject(&c, i+offset), msg)
 			if err != nil {
 				log.Fatalf("Publish error: %v", err)
 			}
 		} else {
-			m, err = nc.Request(getPublishSubject(&c, i), msg, time.Second)
+			m, err = nc.Request(getPublishSubject(&c, i+offset), msg, time.Second)
 			if err != nil {
 				log.Fatalf("Request error %v", err)
 			}
@@ -499,7 +499,7 @@ func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg 
 	state = "Finished  "
 }
 
-func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, idPrefix string, pubNumber string) {
+func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, idPrefix string, pubNumber string, offset int) {
 	js, err := nc.JetStream()
 	if err != nil {
 		log.Fatalf("Couldn't get the JetStream context: %v", err)
@@ -520,11 +520,11 @@ func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byt
 			for j := 0; j < c.pubBatch && (i+j) < numMsg; j++ {
 				if c.deDuplication {
 					header := nats.Header{}
-					header.Set(nats.MsgIdHdr, idPrefix+"-"+pubNumber+"-"+strconv.Itoa(i+j))
-					message := nats.Msg{Data: msg, Header: header, Subject: getPublishSubject(c, i+j)}
+					header.Set(nats.MsgIdHdr, idPrefix+"-"+pubNumber+"-"+strconv.Itoa(i+j+offset))
+					message := nats.Msg{Data: msg, Header: header, Subject: getPublishSubject(c, i+j+offset)}
 					futures[j], err = js.PublishMsgAsync(&message)
 				} else {
-					futures[j], err = js.PublishAsync(getPublishSubject(c, i+j), msg)
+					futures[j], err = js.PublishAsync(getPublishSubject(c, i+j+offset), msg)
 				}
 				if err != nil {
 					log.Fatalf("PubAsync error: %v", err)
@@ -567,11 +567,11 @@ func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byt
 			}
 			if c.deDuplication {
 				header := nats.Header{}
-				header.Set(nats.MsgIdHdr, idPrefix+"-"+pubNumber+"-"+strconv.Itoa(i))
-				message := nats.Msg{Data: msg, Header: header, Subject: getPublishSubject(c, i)}
+				header.Set(nats.MsgIdHdr, idPrefix+"-"+pubNumber+"-"+strconv.Itoa(i+offset))
+				message := nats.Msg{Data: msg, Header: header, Subject: getPublishSubject(c, i+offset)}
 				_, err = js.PublishMsg(&message)
 			} else {
-				_, err = js.Publish(getPublishSubject(c, i), msg)
+				_, err = js.Publish(getPublishSubject(c, i+offset), msg)
 			}
 			if err != nil {
 				log.Printf("Publish error: %v (retrying)", err)
@@ -640,11 +640,11 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 	start := time.Now()
 
 	if !c.js && !c.kv {
-		coreNATSPublisher(*c, nc, progress, msg, numMsg)
+		coreNATSPublisher(*c, nc, progress, msg, numMsg, offset)
 	} else if c.kv {
 		kvPutter(*c, nc, progress, msg, numMsg, offset)
 	} else if c.js {
-		jsPublisher(c, nc, progress, msg, numMsg, idPrefix, pubNumber)
+		jsPublisher(c, nc, progress, msg, numMsg, idPrefix, pubNumber, offset)
 	}
 
 	err := nc.Flush()
