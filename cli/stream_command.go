@@ -2326,22 +2326,36 @@ func (c *streamCmd) addAction(pc *fisk.ParseContext) (err error) {
 }
 
 func (c *streamCmd) rmAction(_ *fisk.ParseContext) (err error) {
-	c.connectAndAskStream()
-
 	if !c.force {
+		c.connectAndAskStream()
 		ok, err := askConfirmation(fmt.Sprintf("Really delete Stream %s", c.stream), false)
 		fisk.FatalIfError(err, "could not obtain confirmation")
 
 		if !ok {
 			return nil
 		}
+
+		stream, err := c.loadStream(c.stream)
+		fisk.FatalIfError(err, "could not remove Stream")
+
+		err = stream.Delete()
+		fisk.FatalIfError(err, "could not remove Stream")
+	} else { // force delete attempt, even if somehow you can not get info on the stream in question (e.g. it's "offline")
+		c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
+		fisk.FatalIfError(err, "setup failed")
+
+		var resp api.JSApiStreamDeleteResponse
+
+		msg, err := c.nc.Request(fmt.Sprintf(api.JSApiStreamDeleteT, c.stream), []byte(""), time.Second)
+
+		fisk.FatalIfError(err, "could not force send a request to delete the Stream")
+
+		json.Unmarshal(msg.Data, &resp)
+
+		if !resp.Success {
+			return fmt.Errorf("forced stream delete failure: %v", resp.JSApiResponse.ToError())
+		}
 	}
-
-	stream, err := c.loadStream(c.stream)
-	fisk.FatalIfError(err, "could not remove Stream")
-
-	err = stream.Delete()
-	fisk.FatalIfError(err, "could not remove Stream")
 
 	return nil
 }
