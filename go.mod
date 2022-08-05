@@ -1,6 +1,6 @@
 module github.com/nats-io/natscli
 
-go 1.17
+go 1.18
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.5
@@ -15,9 +15,9 @@ require (
 	github.com/guptarohit/asciigraph v0.5.5
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.15.9
-	github.com/nats-io/jsm.go v0.0.34-0.20220708145958-5a418c85744e
-	github.com/nats-io/nats-server/v2 v2.8.5-0.20220803150712-d7847c97c116
-	github.com/nats-io/nats.go v1.16.1-0.20220803180602-ec49000ee1e2
+	github.com/nats-io/jsm.go v0.0.34-0.20220805075059-61166060fe2d
+	github.com/nats-io/nats-server/v2 v2.8.5-0.20220805010126-be54b08afd5e
+	github.com/nats-io/nats.go v1.16.1-0.20220804203020-c157d64783d9
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.12.2
 	github.com/prometheus/common v0.35.0

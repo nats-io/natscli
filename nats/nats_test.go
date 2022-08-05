@@ -1,4 +1,4 @@
-// Copyright 2019 The NATS Authors
+// Copyright 2019-2022 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,7 +17,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -40,7 +39,7 @@ func init() {
 	cli.SkipContexts = true
 }
 
-func checkErr(t *testing.T, err error, format string, a ...interface{}) {
+func checkErr(t *testing.T, err error, format string, a ...any) {
 	t.Helper()
 	if err == nil {
 		return
@@ -87,7 +86,7 @@ func prepareHelper(servers string) (*nats.Conn, *jsm.Manager, error) {
 func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) {
 	t.Helper()
 
-	dir, err := ioutil.TempDir("", "")
+	dir, err := os.MkdirTemp("", "")
 	checkErr(t, err, "could not create temporary js store: %v", err)
 
 	srv, err = server.NewServer(&server.Options{
@@ -449,7 +448,7 @@ func TestCLIStreamBackupAndRestore(t *testing.T) {
 		nc.Publish("js.file.1", []byte(RandomString(5480)))
 	}
 
-	td, err := ioutil.TempDir("", "")
+	td, err := os.MkdirTemp("", "")
 	checkErr(t, err, "temp dir failed")
 	os.RemoveAll(td)
 
@@ -745,7 +744,7 @@ func TestCLIBackupRestore(t *testing.T) {
 	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	dir, err := ioutil.TempDir("", "")
+	dir, err := os.MkdirTemp("", "")
 	checkErr(t, err, "temp dir failed")
 	defer os.RemoveAll(dir)
 
@@ -793,7 +792,7 @@ func TestCLIStreamBackupRestore(t *testing.T) {
 	srv, nc, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	dir, err := ioutil.TempDir("", "")
+	dir, err := os.MkdirTemp("", "")
 	checkErr(t, err, "temp dir failed")
 	defer os.RemoveAll(dir)
 	target := filepath.Join(dir, "backup.tgz")
@@ -829,7 +828,7 @@ func TestCLIBackupRestore_UpdateStream(t *testing.T) {
 	srv, _, mgr := setupConsTest(t)
 	defer srv.Shutdown()
 
-	dir, err := ioutil.TempDir("", "")
+	dir, err := os.MkdirTemp("", "")
 	checkErr(t, err, "temp dir failed")
 	defer os.RemoveAll(dir)
 

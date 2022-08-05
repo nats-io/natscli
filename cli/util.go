@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2022 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/textproto"
@@ -180,7 +179,7 @@ func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string
 	}
 }
 
-func askOne(p survey.Prompt, response interface{}, opts ...survey.AskOpt) error {
+func askOne(p survey.Prompt, response any, opts ...survey.AskOpt) error {
 	if !isTerminal() {
 		return fmt.Errorf("cannot prompt for user input without a terminal")
 	}
@@ -188,7 +187,7 @@ func askOne(p survey.Prompt, response interface{}, opts ...survey.AskOpt) error 
 	return survey.AskOne(p, response, opts...)
 }
 
-func toJSON(d interface{}) (string, error) {
+func toJSON(d any) (string, error) {
 	j, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return "", err
@@ -197,7 +196,7 @@ func toJSON(d interface{}) (string, error) {
 	return string(j), nil
 }
 
-func printJSON(d interface{}) error {
+func printJSON(d any) error {
 	j, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return err
@@ -831,7 +830,7 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	return strings.Join(compact, ", ")
 }
 
-func doReqAsync(req interface{}, subj string, waitFor int, nc *nats.Conn, cb func([]byte)) error {
+func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte)) error {
 	jreq := []byte("{}")
 	var err error
 
@@ -876,7 +875,7 @@ func doReqAsync(req interface{}, subj string, waitFor int, nc *nats.Conn, cb fun
 		compressed := false
 		if m.Header.Get("Content-Encoding") == "snappy" {
 			compressed = true
-			ud, err := ioutil.ReadAll(s2.NewReader(bytes.NewBuffer(data)))
+			ud, err := io.ReadAll(s2.NewReader(bytes.NewBuffer(data)))
 			if err != nil {
 				errs <- err
 				return
@@ -949,7 +948,7 @@ func doReqAsync(req interface{}, subj string, waitFor int, nc *nats.Conn, cb fun
 	return err
 }
 
-func doReq(req interface{}, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+func doReq(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
 	res := [][]byte{}
 	mu := sync.Mutex{}
 

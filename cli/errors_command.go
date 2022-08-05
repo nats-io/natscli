@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"regexp"
@@ -141,7 +140,7 @@ func (c *errCmd) editAction(pc *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
-	tfile, err := ioutil.TempFile("", "")
+	tfile, err := os.CreateTemp("", "")
 	if err != nil {
 		return err
 	}
@@ -160,7 +159,7 @@ func (c *errCmd) editAction(pc *fisk.ParseContext) error {
 			return fmt.Errorf("could not edit error: %s", err)
 		}
 
-		eb, err := ioutil.ReadFile(tfile.Name())
+		eb, err := os.ReadFile(tfile.Name())
 		if err != nil {
 			return fmt.Errorf("could not read tempoary file: %s", err)
 		}
@@ -243,7 +242,7 @@ func (c *errCmd) loadErrors(re *regexp.Regexp) ([]*server.ErrorsData, error) {
 	)
 
 	if c.file != "" {
-		ej, err = ioutil.ReadFile(c.file)
+		ej, err = os.ReadFile(c.file)
 	} else {
 		ej, err = schemas.Load("server/errors.json")
 	}

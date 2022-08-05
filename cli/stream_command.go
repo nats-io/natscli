@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2022 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,7 +17,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"os/exec"
@@ -1124,7 +1123,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 		c.renderReplication(stats)
 
 		if c.outFile != "" {
-			ioutil.WriteFile(c.outFile, []byte(dg.String()), 0644)
+			os.WriteFile(c.outFile, []byte(dg.String()), 0644)
 		}
 	}
 
@@ -1217,7 +1216,7 @@ func (c *streamCmd) renderStreams(stats []streamStat) {
 }
 
 func (c *streamCmd) loadConfigFile(file string) (*api.StreamConfig, error) {
-	f, err := ioutil.ReadFile(file)
+	f, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
@@ -1229,7 +1228,7 @@ func (c *streamCmd) loadConfigFile(file string) (*api.StreamConfig, error) {
 	// by checking if there's a config key then extract that, else
 	// we try loading it as a StreamConfig
 
-	var nfo map[string]interface{}
+	var nfo map[string]any
 	err = json.Unmarshal(f, &nfo)
 	if err != nil {
 		return nil, err
@@ -1388,7 +1387,7 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
 	}
 
-	tfile, err := ioutil.TempFile("", "")
+	tfile, err := os.CreateTemp("", "")
 	if err != nil {
 		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
 	}
@@ -2312,7 +2311,7 @@ func (c *streamCmd) addAction(pc *fisk.ParseContext) (err error) {
 			fisk.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
 		}
 
-		return ioutil.WriteFile(c.outFile, j, 0644)
+		return os.WriteFile(c.outFile, j, 0644)
 	}
 
 	str, err := mgr.NewStreamFromDefault(c.stream, cfg)
@@ -2326,15 +2325,32 @@ func (c *streamCmd) addAction(pc *fisk.ParseContext) (err error) {
 }
 
 func (c *streamCmd) rmAction(_ *fisk.ParseContext) (err error) {
+	if c.force {
+		if c.stream == "" {
+			return fmt.Errorf("--force requires a stream name")
+		}
+
+		c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
+		fisk.FatalIfError(err, "setup failed")
+
+		fmt.Printf("Performing stream delete of %q without prompts of validation\n", c.stream)
+		err = c.mgr.DeleteStream(c.stream)
+		if err != nil {
+			if err == context.DeadlineExceeded {
+				fmt.Println("Delete failed due to timeout, the stream might not exist or be in an unmanageable state")
+			}
+		}
+
+		return err
+	}
+
 	c.connectAndAskStream()
 
-	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Really delete Stream %s", c.stream), false)
-		fisk.FatalIfError(err, "could not obtain confirmation")
+	ok, err := askConfirmation(fmt.Sprintf("Really delete Stream %s", c.stream), false)
+	fisk.FatalIfError(err, "could not obtain confirmation")
 
-		if !ok {
-			return nil
-		}
+	if !ok {
+		return nil
 	}
 
 	stream, err := c.loadStream(c.stream)

@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2022 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -23,7 +23,7 @@ import (
 
 type SchemaValidator struct{}
 
-func (v SchemaValidator) ValidateStruct(data interface{}, schemaType string) (ok bool, errs []string) {
+func (v SchemaValidator) ValidateStruct(data any, schemaType string) (ok bool, errs []string) {
 	s, err := api.Schema(schemaType)
 	if err != nil {
 		return false, []string{fmt.Sprintf("unknown schema type %s", schemaType)}
@@ -33,8 +33,8 @@ func (v SchemaValidator) ValidateStruct(data interface{}, schemaType string) (ok
 		return false, []string{fmt.Sprintf("could not load schema %s: %s", s, err)}
 	}
 
-	// it only accepts basic primitives so we have to specifically convert to interface{}
-	var d interface{}
+	// it only accepts basic primitives so we have to specifically convert to any
+	var d any
 	dj, err := json.Marshal(data)
 	if err != nil {
 		return false, []string{fmt.Sprintf("could not serialize data: %s", err)}

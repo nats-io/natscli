@@ -14,9 +14,9 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"os"
@@ -416,17 +416,34 @@ func (c *consumerCmd) backoffPolicy() ([]time.Duration, error) {
 }
 
 func (c *consumerCmd) rmAction(_ *fisk.ParseContext) error {
-	c.connectAndSetup(true, true)
-
 	var err error
 
-	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Really delete Consumer %s > %s", c.stream, c.consumer), false)
-		fisk.FatalIfError(err, "could not obtain confirmation")
-
-		if !ok {
-			return nil
+	if c.force {
+		if c.stream == "" || c.consumer == "" {
+			return fmt.Errorf("--force requires a stream and consumer name")
 		}
+
+		c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
+		fisk.FatalIfError(err, "setup failed")
+
+		fmt.Printf("Performing consumer delete of %q > %q without prompts of validation\n", c.stream, c.consumer)
+		err = c.mgr.DeleteConsumer(c.stream, c.consumer)
+		if err != nil {
+			if err == context.DeadlineExceeded {
+				fmt.Println("Delete failed due to timeout, the stream or consumer might not exist or be in an unmanageable state")
+			}
+		}
+
+		return err
+	}
+
+	c.connectAndSetup(true, true)
+
+	ok, err := askConfirmation(fmt.Sprintf("Really delete Consumer %s > %s", c.stream, c.consumer), false)
+	fisk.FatalIfError(err, "could not obtain confirmation")
+
+	if !ok {
+		return nil
 	}
 
 	if c.selectedConsumer == nil {
@@ -889,7 +906,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	cfg.Description = c.description
 
 	if c.inputFile != "" {
-		f, err := ioutil.ReadFile(c.inputFile)
+		f, err := os.ReadFile(c.inputFile)
 		if err != nil {
 			return nil, err
 		}
@@ -1249,7 +1266,7 @@ func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
 			fisk.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
 		}
 
-		return ioutil.WriteFile(c.outFile, j, 0644)
+		return os.WriteFile(c.outFile, j, 0644)
 	}
 
 	c.connectAndSetup(true, false)
