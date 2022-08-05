@@ -480,8 +480,8 @@ func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 
 	ctr := 0
 	start := time.Now()
-	for range time.NewTimer(500 * time.Millisecond).C {
-		if ctr == 5 {
+	for range time.NewTicker(1 * time.Millisecond).C {
+		if ctr == 10 {
 			return fmt.Errorf("stream did not elect a new leader in time")
 		}
 		ctr++
@@ -489,6 +489,11 @@ func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 		info, err = stream.Information()
 		if err != nil {
 			log.Printf("Failed to retrieve Stream State: %s", err)
+			continue
+		}
+
+		if info.Cluster.Leader == "" {
+			log.Printf("No leader elected")
 			continue
 		}
 
