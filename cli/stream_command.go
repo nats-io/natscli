@@ -2325,15 +2325,32 @@ func (c *streamCmd) addAction(pc *fisk.ParseContext) (err error) {
 }
 
 func (c *streamCmd) rmAction(_ *fisk.ParseContext) (err error) {
+	if c.force {
+		if c.stream == "" {
+			return fmt.Errorf("--force requires a stream name")
+		}
+
+		c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
+		fisk.FatalIfError(err, "setup failed")
+
+		fmt.Printf("Performing stream delete of %q without prompts of validation\n", c.stream)
+		err = c.mgr.DeleteStream(c.stream)
+		if err != nil {
+			if err == context.DeadlineExceeded {
+				fmt.Println("Delete failed due to timeout, the stream might not exist or be in an unmanageable state")
+			}
+		}
+
+		return err
+	}
+
 	c.connectAndAskStream()
 
-	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Really delete Stream %s", c.stream), false)
-		fisk.FatalIfError(err, "could not obtain confirmation")
+	ok, err := askConfirmation(fmt.Sprintf("Really delete Stream %s", c.stream), false)
+	fisk.FatalIfError(err, "could not obtain confirmation")
 
-		if !ok {
-			return nil
-		}
+	if !ok {
+		return nil
 	}
 
 	stream, err := c.loadStream(c.stream)
