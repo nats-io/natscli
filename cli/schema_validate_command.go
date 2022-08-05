@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2022 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,7 +16,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/choria-io/fisk"
@@ -38,12 +38,12 @@ func configureSchemaValidateCommand(schema *fisk.CmdClause) {
 }
 
 func (c *schemaValidateCmd) validate(_ *fisk.ParseContext) error {
-	file, err := ioutil.ReadFile(c.file)
+	file, err := os.ReadFile(c.file)
 	if err != nil {
 		return err
 	}
 
-	var data interface{}
+	var data any
 	err = json.Unmarshal(file, &data)
 	if err != nil {
 		return fmt.Errorf("could not parse JSON data in %q: %s", c.file, err)

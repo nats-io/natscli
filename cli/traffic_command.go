@@ -1,3 +1,16 @@
+// Copyright 2020-2022 The NATS Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package cli
 
 import (
@@ -150,9 +163,9 @@ func (c *trafficCmd) monitor(_ *fisk.ParseContext) error {
 
 	ticker := time.NewTicker(time.Second)
 
-	raftRows := [][]interface{}{}
-	clusterRows := [][]interface{}{}
-	genRows := [][]interface{}{}
+	raftRows := [][]any{}
+	clusterRows := [][]any{}
+	genRows := [][]any{}
 
 	for range ticker.C {
 		if runtime.GOOS != "windows" {
@@ -164,7 +177,7 @@ func (c *trafficCmd) monitor(_ *fisk.ParseContext) error {
 			if len(raftRows) > 10 {
 				raftRows = raftRows[1:]
 			}
-			raftRows = append(raftRows, []interface{}{c.raftProp.Comma(), c.raftVote.Comma(), c.raftAppend.Comma(), c.raftRemovePeer.Comma(), c.raftReply.Comma(), c.raftC.Comma()})
+			raftRows = append(raftRows, []any{c.raftProp.Comma(), c.raftVote.Comma(), c.raftAppend.Comma(), c.raftRemovePeer.Comma(), c.raftReply.Comma(), c.raftC.Comma()})
 
 			table := newTableWriter("Raft Traffic")
 			table.AddHeaders("Proposal", "Vote", "Append", "Remove Peer", "Reply", "Total Messages")
@@ -178,7 +191,7 @@ func (c *trafficCmd) monitor(_ *fisk.ParseContext) error {
 			if len(clusterRows) > 10 {
 				clusterRows = clusterRows[1:]
 			}
-			clusterRows = append(clusterRows, []interface{}{c.clusterJSAUpdate.Comma(), c.clusterStreamInfo.Comma(), c.clusterConsumerInfo.Comma(), c.clusterStreamSync.Comma(), c.clusterReply.Comma(), c.clusterC.Comma()})
+			clusterRows = append(clusterRows, []any{c.clusterJSAUpdate.Comma(), c.clusterStreamInfo.Comma(), c.clusterConsumerInfo.Comma(), c.clusterStreamSync.Comma(), c.clusterReply.Comma(), c.clusterC.Comma()})
 
 			table := newTableWriter("Cluster Traffic")
 			table.AddHeaders("JSA Update", "Stream Info", "Consumer Info", "Stream Sync", "Reply", "Total Messages")
@@ -191,7 +204,7 @@ func (c *trafficCmd) monitor(_ *fisk.ParseContext) error {
 		if len(genRows) > 10 {
 			genRows = genRows[1:]
 		}
-		genRows = append(genRows, []interface{}{c.requests.Comma(), c.jsAPI.Comma(), c.jsAck.Comma(), c.systemMsg.Comma(), c.msgs.Comma(), c.size.IBytes(), c.genC.Comma()})
+		genRows = append(genRows, []any{c.requests.Comma(), c.jsAPI.Comma(), c.jsAck.Comma(), c.systemMsg.Comma(), c.msgs.Comma(), c.size.IBytes(), c.genC.Comma()})
 
 		table := newTableWriter("General Traffic")
 		table.AddHeaders("Requests", "JS API", "JS ACK", "System", "Rest", "Total Bytes", "Total Messages")

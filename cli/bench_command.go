@@ -16,7 +16,7 @@ package cli
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -421,7 +421,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 
 	if c.csvFile != "" {
 		csv := bm.CSV()
-		err := ioutil.WriteFile(c.csvFile, []byte(csv), 0644)
+		err := os.WriteFile(c.csvFile, []byte(csv), 0644)
 		if err != nil {
 			log.Printf("error writing file %s: %v", c.csvFile, err)
 		}

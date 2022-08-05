@@ -15,7 +15,7 @@ package cli
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
 	"os"
 	"sort"
@@ -457,7 +457,7 @@ func (c *kvCommand) valOrReadVal() ([]byte, error) {
 		return []byte(c.val), nil
 	}
 
-	return ioutil.ReadAll(os.Stdin)
+	return io.ReadAll(os.Stdin)
 }
 
 func (c *kvCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.KeyValue, error) {

@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2022 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -353,6 +353,6 @@ func (c *SrvRequestCmd) subs(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *SrvRequestCmd) doReq(kind string, req interface{}, nc *nats.Conn) ([][]byte, error) {
+func (c *SrvRequestCmd) doReq(kind string, req any, nc *nats.Conn) ([][]byte, error) {
 	return doReq(req, fmt.Sprintf("$SYS.REQ.SERVER.PING.%s", kind), int(c.waitFor), nc)
 }

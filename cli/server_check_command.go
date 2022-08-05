@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2022 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -179,24 +179,24 @@ func (r *result) pd(pd ...*perfDataItem) {
 	r.PerfData = append(r.PerfData, pd...)
 }
 
-func (r *result) criticalExit(format string, a ...interface{}) {
+func (r *result) criticalExit(format string, a ...any) {
 	r.critical(format, a...)
 	r.GenericExit()
 }
 
-func (r *result) critical(format string, a ...interface{}) {
+func (r *result) critical(format string, a ...any) {
 	r.Criticals = append(r.Criticals, fmt.Sprintf(format, a...))
 }
 
-func (r *result) warn(format string, a ...interface{}) {
+func (r *result) warn(format string, a ...any) {
 	r.Warnings = append(r.Warnings, fmt.Sprintf(format, a...))
 }
 
-func (r *result) ok(format string, a ...interface{}) {
+func (r *result) ok(format string, a ...any) {
 	r.OKs = append(r.OKs, fmt.Sprintf(format, a...))
 }
 
-func (r *result) criticalIfErr(err error, format string, a ...interface{}) bool {
+func (r *result) criticalIfErr(err error, format string, a ...any) bool {
 	if err == nil {
 		return false
 	}

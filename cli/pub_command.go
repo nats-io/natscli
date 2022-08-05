@@ -15,7 +15,7 @@ package cli
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
 	"os"
 	"strings"
@@ -248,7 +248,7 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 
 	if c.body == "!nil!" && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
 		log.Println("Reading payload from STDIN")
-		body, err := ioutil.ReadAll(os.Stdin)
+		body, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return err
 		}

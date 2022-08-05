@@ -16,7 +16,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"os"
@@ -889,7 +888,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	cfg.Description = c.description
 
 	if c.inputFile != "" {
-		f, err := ioutil.ReadFile(c.inputFile)
+		f, err := os.ReadFile(c.inputFile)
 		if err != nil {
 			return nil, err
 		}
@@ -1249,7 +1248,7 @@ func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
 			fisk.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
 		}
 
-		return ioutil.WriteFile(c.outFile, j, 0644)
+		return os.WriteFile(c.outFile, j, 0644)
 	}
 
 	c.connectAndSetup(true, false)
