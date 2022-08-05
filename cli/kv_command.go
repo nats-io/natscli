@@ -49,6 +49,9 @@ type kvCommand struct {
 	storage             string
 	placementCluster    string
 	placementTags       []string
+	repubSource         string
+	repubDest           string
+	repubHeadersOnly    bool
 }
 
 func configureKVCommand(app commandHost) {
@@ -72,12 +75,16 @@ NOTE: This is an experimental feature.
 	add.Flag("history", "How many historic values to keep per key").Default("1").Uint64Var(&c.history)
 	add.Flag("ttl", "How long to keep values for").DurationVar(&c.ttl)
 	add.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
-	add.Flag("max-value-size", "Maximum size for any single value").StringVar(&c.maxValueSizeString)
-	add.Flag("max-bucket-size", "Maximum size for the bucket").StringVar(&c.maxBucketSizeString)
+	add.Flag("max-value-size", "Maximum size for any single value").PlaceHolder("BYTES").StringVar(&c.maxValueSizeString)
+	add.Flag("max-bucket-size", "Maximum size for the bucket").PlaceHolder("BYTES").StringVar(&c.maxBucketSizeString)
 	add.Flag("description", "A description for the bucket").StringVar(&c.description)
 	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 	add.Flag("tags", "Place the bucket on servers that has specific tags").StringsVar(&c.placementTags)
 	add.Flag("cluster", "Place the bucket on a specific cluster").StringVar(&c.placementCluster)
+	add.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SRC").StringVar(&c.repubSource)
+	add.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
+	add.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
+
 	add.PreAction(c.parseLimitStrings)
 
 	put := kv.Command("put", "Puts a value into a key").Action(c.putAction)
@@ -339,7 +346,7 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 		placement.Tags = c.placementTags
 	}
 
-	store, err := js.CreateKeyValue(&nats.KeyValueConfig{
+	cfg := &nats.KeyValueConfig{
 		Bucket:       c.bucket,
 		Description:  c.description,
 		MaxValueSize: int32(c.maxValueSize),
@@ -349,7 +356,17 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 		Storage:      storage,
 		Replicas:     int(c.replicas),
 		Placement:    placement,
-	})
+	}
+
+	if c.repubSource != "" && c.repubDest != "" {
+		cfg.RePublish = &nats.RePublish{
+			Source:      c.repubSource,
+			Destination: c.repubDest,
+			HeadersOnly: c.repubHeadersOnly,
+		}
+	}
+
+	store, err := js.CreateKeyValue(cfg)
 	if err != nil {
 		return err
 	}
@@ -616,30 +633,37 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 	fmt.Println()
 	fmt.Println("Configuration:")
 	fmt.Println()
-	fmt.Printf("         Bucket Name: %s\n", status.Bucket())
-	fmt.Printf("        History Kept: %d\n", status.History())
-	fmt.Printf("       Values Stored: %d\n", status.Values())
-	fmt.Printf("  Backing Store Kind: %s\n", status.BackingStore())
+	fmt.Printf("          Bucket Name: %s\n", status.Bucket())
+	fmt.Printf("         History Kept: %d\n", status.History())
+	fmt.Printf("        Values Stored: %d\n", status.Values())
+	fmt.Printf("   Backing Store Kind: %s\n", status.BackingStore())
 
 	if nfo != nil {
 		if nfo.Config.Description != "" {
-			fmt.Printf("         Description: %s\n", nfo.Config.Description)
+			fmt.Printf("          Description: %s\n", nfo.Config.Description)
 		}
 		if nfo.Config.MaxBytes == -1 {
-			fmt.Printf(" Maximum Bucket Size: unlimited\n")
+			fmt.Printf("  Maximum Bucket Size: unlimited\n")
 		} else {
-			fmt.Printf(" Maximum Bucket Size: %d\n", nfo.Config.MaxBytes)
+			fmt.Printf("  Maximum Bucket Size: %d\n", nfo.Config.MaxBytes)
 		}
 		if nfo.Config.MaxBytes == -1 {
-			fmt.Printf("  Maximum Value Size: unlimited\n")
+			fmt.Printf("   Maximum Value Size: unlimited\n")
 		} else {
-			fmt.Printf("  Maximum Value Size: %d\n", nfo.Config.MaxMsgSize)
+			fmt.Printf("   Maximum Value Size: %d\n", nfo.Config.MaxMsgSize)
 		}
-		fmt.Printf("    JetStream Stream: %s\n", nfo.Config.Name)
-		fmt.Printf("             Storage: %s\n", nfo.Config.Storage.String())
+		fmt.Printf("     JetStream Stream: %s\n", nfo.Config.Name)
+		fmt.Printf("              Storage: %s\n", nfo.Config.Storage.String())
+		if nfo.Config.RePublish != nil {
+			if nfo.Config.RePublish.HeadersOnly {
+				fmt.Printf(" Republishing Headers: %s to %s", nfo.Config.RePublish.Source, nfo.Config.RePublish.Destination)
+			} else {
+				fmt.Printf("         Republishing: %s to %s", nfo.Config.RePublish.Source, nfo.Config.RePublish.Destination)
+			}
+		}
 
 		if nfo.Cluster != nil {
-			fmt.Println("\nCluster Information:")
+			fmt.Println("\n  Cluster Information:")
 			fmt.Println()
 			renderNatsGoClusterInfo(nfo)
 			fmt.Println()
