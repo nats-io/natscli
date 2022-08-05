@@ -866,7 +866,7 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 		return fmt.Errorf("backup timed out after receiving no data for a long period")
 	}
 
-	fmt.Printf("Received %s compressed data in %d chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), fp.ChunksReceived(), stream.Name(), fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), humanize.IBytes(fp.UncompressedBytesReceived()))
+	fmt.Printf("Received %s compressed data in %s chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), humanize.Comma(int64(fp.ChunksReceived())), stream.Name(), fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), humanize.IBytes(fp.UncompressedBytesReceived()))
 
 	return nil
 }
@@ -959,7 +959,7 @@ func (c *streamCmd) streamTemplateInfo(_ *fisk.ParseContext) error {
 	fmt.Printf("Information for Stream Template %s\n", c.stream)
 	fmt.Println()
 	c.showStreamConfig(info.StreamConfiguration())
-	fmt.Printf("      Maximum Streams: %d\n", info.MaxStreams())
+	fmt.Printf("      Maximum Streams: %s\n", humanize.Comma(int64(info.MaxStreams())))
 	fmt.Println()
 	fmt.Println("Managed Streams:")
 	fmt.Println()
@@ -1575,7 +1575,7 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	if cfg.MaxConsumers == -1 {
 		fmt.Println("    Maximum Consumers: unlimited")
 	} else {
-		fmt.Printf("    Maximum Consumers: %d\n", cfg.MaxConsumers)
+		fmt.Printf("    Maximum Consumers: %s\n", humanize.Comma(int64(cfg.MaxConsumers)))
 	}
 	if cfg.Template != "" {
 		fmt.Printf("  Managed by Template: %s\n", cfg.Template)
@@ -1687,7 +1687,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 			case r.Lag > 1:
 				state = append(state, fmt.Sprintf("%s operations behind", humanize.Comma(int64(r.Lag))))
 			case r.Lag == 1:
-				state = append(state, fmt.Sprintf("%d operation behind", r.Lag))
+				state = append(state, fmt.Sprintf("%s operation behind", humanize.Comma(int64(r.Lag))))
 			}
 
 			fmt.Printf("              Replica: %s\n", strings.Join(state, ", "))
@@ -1751,15 +1751,15 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	}
 
 	if len(info.State.Deleted) > 0 { // backwards compat with older servers
-		fmt.Printf("     Deleted Messages: %d\n", len(info.State.Deleted))
+		fmt.Printf("     Deleted Messages: %s\n", humanize.Comma(int64(len(info.State.Deleted))))
 	} else if info.State.NumDeleted > 0 {
-		fmt.Printf("     Deleted Messages: %d\n", info.State.NumDeleted)
+		fmt.Printf("     Deleted Messages: %s\n", humanize.Comma(int64(info.State.NumDeleted)))
 	}
 
-	fmt.Printf("     Active Consumers: %d\n", info.State.Consumers)
+	fmt.Printf("     Active Consumers: %s\n", humanize.Comma(int64(info.State.Consumers)))
 
 	if info.State.NumSubjects > 0 { // available from 2.8
-		fmt.Printf("   Number of Subjects: %d\n", info.State.NumSubjects)
+		fmt.Printf("   Number of Subjects: %s\n", humanize.Comma(int64(info.State.NumSubjects)))
 	}
 
 	if len(info.Alternates) > 0 {

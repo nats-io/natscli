@@ -1320,7 +1320,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 			}
 
 		} else {
-			fmt.Printf("[%s] subj: %s / tries: %d / cons seq: %d / str seq: %d / pending: %d\n", time.Now().Format("15:04:05"), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), info.Pending())
+			fmt.Printf("[%s] subj: %s / tries: %d / cons seq: %d / str seq: %d / pending: %s\n", time.Now().Format("15:04:05"), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), humanize.Comma(int64(info.Pending())))
 		}
 
 		if len(msg.Header) > 0 {
@@ -1408,7 +1408,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 			now := time.Now().Format("15:04:05")
 
 			if msginfo != nil {
-				fmt.Printf("[%s] subj: %s / tries: %d / cons seq: %d / str seq: %d / pending: %d\n", now, m.Subject, msginfo.Delivered(), msginfo.ConsumerSequence(), msginfo.StreamSequence(), msginfo.Pending())
+				fmt.Printf("[%s] subj: %s / tries: %d / cons seq: %d / str seq: %d / pending: %s\n", now, m.Subject, msginfo.Delivered(), msginfo.ConsumerSequence(), msginfo.StreamSequence(), humanize.Comma(int64(msginfo.Pending())))
 			} else {
 				fmt.Printf("[%s] %s reply: %s\n", now, m.Subject, m.Reply)
 			}
@@ -1535,7 +1535,7 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 
 	leaders := make(map[string]*raftLeader)
 
-	table := newTableWriter(fmt.Sprintf("Consumer report for %s with %d consumers", c.stream, ss.Consumers))
+	table := newTableWriter(fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, humanize.Comma(int64(ss.Consumers))))
 	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
 	err = s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
