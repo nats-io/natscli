@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
@@ -200,7 +201,7 @@ func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
 	return cmd.reportConnections(pc)
 }
 
-func (c *actCmd) renderTier(name string, tier *api.JetStreamTier) {
+func (c *actCmd) renderTier(name string, tier api.JetStreamTier) {
 	fmt.Printf("   Tier: %s\n\n", name)
 
 	fmt.Printf("      Configuration Requirements:\n\n")
@@ -325,11 +326,17 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 		fmt.Printf("   Max Message Payload: %s \n\n", humanize.IBytes(uint64(nc.MaxPayload())))
 
 		if tiered {
-			for n, t := range info.Tiers {
-				c.renderTier(n, &t)
+			var tiers []string
+			for n := range info.Tiers {
+				tiers = append(tiers, n)
+			}
+			sort.Strings(tiers)
+
+			for _, n := range tiers {
+				c.renderTier(n, info.Tiers[n])
 			}
 		} else {
-			c.renderTier("Default", &info.JetStreamTier)
+			c.renderTier("Default", info.JetStreamTier)
 		}
 
 	case context.DeadlineExceeded:
