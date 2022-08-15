@@ -184,6 +184,24 @@ Header2: Two
 hello headers
 ```
 
+### match requests and replies
+We can print matching replay-requests together
+```
+sub --match-replies subject.name
+```
+Output
+```
+[#48] Received on "cli.demo" with reply "_INBOX.12345"
+
+[#48] Matched reply on "_INBOX.12345"
+```
+
+sub --match-replies --dump subject.name
+```
+Output
+X.json
+X_reply.json
+```
 #### JetStream
 
 When receiving messages from a JetStream Push Consumer messages can be acknowledged when received by passing `--ack`, the
