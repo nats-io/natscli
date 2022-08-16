@@ -135,8 +135,8 @@ NOTE: This is an experimental feature.
 	ls := kv.Command("ls", "List available buckets or the keys in a bucket").Alias("list").Action(c.lsAction)
 	ls.Arg("bucket", "The bucket to list the keys").StringVar(&c.bucket)
 	ls.Flag("names", "Show just the bucket names").Short('n').UnNegatableBoolVar(&c.listNames)
-	ls.Flag("verbose", "Show detailed info about the key").Short('v').BoolVar(&c.lsVerbose)
-	ls.Flag("display-value", "Display value in verbose output (has no effect without 'verbose')").BoolVar(&c.lsVerboseDisplayValue)
+	ls.Flag("verbose", "Show detailed info about the key").Short('v').UnNegatableBoolVar(&c.lsVerbose)
+	ls.Flag("display-value", "Display value in verbose output (has no effect without 'verbose')").UnNegatableBoolVar(&c.lsVerboseDisplayValue)
 
 	rmHistory := kv.Command("compact", "Removes all historic values from the store where the last value is a delete").Action(c.compactAction)
 	rmHistory.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -182,26 +182,14 @@ func (c *kvCommand) strForOp(op nats.KeyValueOp) string {
 }
 
 func (c *kvCommand) lsAction(_ *fisk.ParseContext) error {
-	_, mgr, err := prepareHelper("", natsOpts()...)
-	if err != nil {
-		return err
-	}
-
 	if c.bucket != "" {
-		err = c.lsBucketKeys(mgr)
-	} else {
-		err = c.lsBuckets(mgr)
+		return c.lsBucketKeys()
 	}
 
-	return err
+	return c.lsBuckets()
 }
 
-func (c *kvCommand) lsBucketKeys(mgr *jsm.Manager) error {
-	if mgr == nil {
-		return errors.New("mgr cannot be nil")
-	}
-
-	// Is this a KV bucket?
+func (c *kvCommand) lsBucketKeys() error {
 	_, js, err := prepareJSHelper()
 	if err != nil {
 		return fmt.Errorf("unable to prepare js helper: %s", err)
@@ -215,7 +203,8 @@ func (c *kvCommand) lsBucketKeys(mgr *jsm.Manager) error {
 	keys, err := kv.Keys()
 	if err != nil {
 		if err == nats.ErrNoKeysFound {
-			return fmt.Errorf("no keys found in bucket %s", c.bucket)
+			fmt.Printf("No keys found in bucket")
+			return nil
 		}
 
 		return fmt.Errorf("unable to fetch keys in bucket: %s", err)
@@ -272,10 +261,15 @@ func (c *kvCommand) displayKeyInfo(kv nats.KeyValue, keys []string) error {
 	return nil
 }
 
-func (c *kvCommand) lsBuckets(mgr *jsm.Manager) error {
+func (c *kvCommand) lsBuckets() error {
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
 	var found []*jsm.Stream
 
-	err := mgr.EachStream(func(s *jsm.Stream) {
+	err = mgr.EachStream(func(s *jsm.Stream) {
 		if s.IsKVBucket() {
 			found = append(found, s)
 		}
