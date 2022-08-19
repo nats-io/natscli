@@ -203,7 +203,7 @@ func (c *kvCommand) lsBucketKeys() error {
 	keys, err := kv.Keys()
 	if err != nil {
 		if err == nats.ErrNoKeysFound {
-			fmt.Printf("No keys found in bucket")
+			fmt.Println("No keys found in bucket")
 			return nil
 		}
 
