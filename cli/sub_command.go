@@ -205,7 +205,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 
 	switch {
 	case c.jetStream:
-		var js nats.JetStream
+		var js nats.JetStreamContext
 		js, err = nc.JetStream()
 		if err != nil {
 			return err
@@ -225,23 +225,31 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			opts = append(opts, nats.Durable(c.durable))
 		}
 
+		subMsg := c.subject
 		if c.stream != "" {
+			if c.subject == "" {
+				str, err := js.StreamInfo(c.stream)
+				if err != nil {
+					return err
+				}
+				subMsg = strings.Join(str.Config.Subjects, ", ")
+			}
 			opts = append(opts, nats.BindStream(c.stream))
 		}
 
 		switch {
 		case c.sseq > 0:
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with sequence %d", c.subject, c.sseq)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with sequence %d", subMsg, c.sseq)
 			opts = append(opts, nats.StartSequence(c.sseq))
 		case c.deliverLast:
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the last message received", c.subject)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the last message received", subMsg)
 			opts = append(opts, nats.DeliverLast())
 		case c.deliverAll:
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the first message received", c.subject)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the first message received", subMsg)
 
 			opts = append(opts, nats.DeliverAll())
 		case c.deliverNew:
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s delivering any new messages received", c.subject)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s delivering any new messages received", subMsg)
 
 			opts = append(opts, nats.DeliverNew())
 		case c.deliverSince != "":
@@ -252,16 +260,21 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			}
 
 			start := time.Now().Add(-1 * d)
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with messages since %s", c.subject, humanizeDuration(d))
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with messages since %s", subMsg, humanizeDuration(d))
 
 			opts = append(opts, nats.StartTime(start))
 		case c.deliverLastPerSubject:
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s for the last messages for each subject in the Stream", c.subject)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s for the last messages for each subject in the Stream", subMsg)
 			opts = append(opts, nats.DeliverLastPerSubject())
 		}
 
 		c.jsAck = false
-		sub, err = js.Subscribe(c.subject, handler, opts...)
+		if c.stream != "" {
+			sub, err = js.Subscribe("", handler, opts...)
+		} else {
+			sub, err = js.Subscribe(c.subject, handler, opts...)
+		}
+
 	case c.queue != "":
 		sub, err = nc.QueueSubscribe(c.subject, c.queue, handler)
 	default:
