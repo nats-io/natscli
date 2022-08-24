@@ -64,10 +64,6 @@ func configureKVCommand(app commandHost) {
 
 The JetStream Key-Value store uses streams to store key-value pairs
 for an indefinite period or a per-bucket configured TTL.
-
-The Key-Value store supports read-after-write safety.
-
-NOTE: This is an experimental feature.
 `
 
 	kv := app.Command("kv", help)
