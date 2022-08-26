@@ -2193,13 +2193,13 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 			fisk.FatalIfError(err, "invalid time format")
 			cfg.OptStartTime = &t
 		}
-
-		err = askOne(&survey.Input{
-			Message: fmt.Sprintf("%s Filter source by subject", prefix),
-			Help:    "Only replicate data matching this subject",
-		}, &cfg.FilterSubject)
-		fisk.FatalIfError(err, "could not request filter")
 	}
+
+	err = askOne(&survey.Input{
+		Message: fmt.Sprintf("%s Filter source by subject", prefix),
+		Help:    "Only replicate data matching this subject",
+	}, &cfg.FilterSubject)
+	fisk.FatalIfError(err, "could not request filter")
 
 	ok, err = askConfirmation(fmt.Sprintf("Import %q from a different JetStream domain", name), false)
 	fisk.FatalIfError(err, "Could not request source details")
