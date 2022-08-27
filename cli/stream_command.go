@@ -2338,7 +2338,7 @@ func (c *streamCmd) rmAction(_ *fisk.ParseContext) (err error) {
 		c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
 		fisk.FatalIfError(err, "setup failed")
 
-		fmt.Printf("Performing stream delete of %q without prompts of validation\n", c.stream)
+		fmt.Printf("Performing stream delete of %q without prompts or validation\n", c.stream)
 		err = c.mgr.DeleteStream(c.stream)
 		if err != nil {
 			if err == context.DeadlineExceeded {
