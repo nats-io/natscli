@@ -48,7 +48,7 @@ type subCmd struct {
 	headersOnly           bool
 	stream                string
 	jetStream             bool
-	excludeSubjects       []string
+	ignoreSubjects        []string
 }
 
 func configureSubCommand(app commandHost) {
@@ -73,7 +73,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("since", "Delivers messages received since a duration (requires JetStream)").PlaceHolder("DURATION").StringVar(&c.deliverSince)
 	act.Flag("last-per-subject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
 	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
-	act.Flag("exclude-subjects", "Subjects for which corresponding messages will be excluded and therefore not shown in the output").StringsVar(&c.excludeSubjects)
+	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
 }
 
 func init() {
@@ -107,12 +107,12 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 
 	var (
-		sub             *nats.Subscription
-		mu              = sync.Mutex{}
-		dump            = c.dump != ""
-		ctr             = uint(0)
-		excludeSubjects = splitCLISubjects(c.excludeSubjects)
-		ctx, cancel     = context.WithCancel(ctx)
+		sub            *nats.Subscription
+		mu             = sync.Mutex{}
+		dump           = c.dump != ""
+		ctr            = uint(0)
+		ignoreSubjects = splitCLISubjects(c.ignoreSubjects)
+		ctx, cancel    = context.WithCancel(ctx)
 
 		replySub *nats.Subscription
 		matchMap map[string]*nats.Msg
@@ -148,11 +148,9 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			}
 		}
 
-		if len(excludeSubjects) > 0 {
-			for _, excludeSubj := range excludeSubjects {
-				if server.SubjectsCollide(m.Subject, excludeSubj) {
-					return
-				}
+		for _, ignoreSubj := range ignoreSubjects {
+			if server.SubjectsCollide(m.Subject, ignoreSubj) {
+				return
 			}
 		}
 
@@ -204,9 +202,9 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 	}
 
-	var excludedSubjInfo string
-	if len(excludeSubjects) > 0 {
-		excludedSubjInfo = fmt.Sprintf("\nExcluded subjects: %s", strings.Join(excludeSubjects, ", "))
+	var ignoredSubjInfo string
+	if len(ignoreSubjects) > 0 {
+		ignoredSubjInfo = fmt.Sprintf("\nIgnored subjects: %s", strings.Join(ignoreSubjects, ", "))
 	}
 
 	if (!c.raw && c.dump == "") || c.inbox {
@@ -214,9 +212,9 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		case c.jetStream:
 			// logs later depending on settings
 		case c.jsAck:
-			log.Printf("Subscribing on %s with acknowledgement of JetStream messages %s", c.subject, excludedSubjInfo)
+			log.Printf("Subscribing on %s with acknowledgement of JetStream messages %s", c.subject, ignoredSubjInfo)
 		default:
-			log.Printf("Subscribing on %s %s", c.subject, excludedSubjInfo)
+			log.Printf("Subscribing on %s %s", c.subject, ignoredSubjInfo)
 		}
 	}
 
@@ -256,17 +254,17 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 
 		switch {
 		case c.sseq > 0:
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with sequence %d %s", subMsg, c.sseq, excludedSubjInfo)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with sequence %d %s", subMsg, c.sseq, ignoredSubjInfo)
 			opts = append(opts, nats.StartSequence(c.sseq))
 		case c.deliverLast:
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the last message received %s", subMsg, excludedSubjInfo)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the last message received %s", subMsg, ignoredSubjInfo)
 			opts = append(opts, nats.DeliverLast())
 		case c.deliverAll:
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the first message received %s", subMsg, excludedSubjInfo)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the first message received %s", subMsg, ignoredSubjInfo)
 
 			opts = append(opts, nats.DeliverAll())
 		case c.deliverNew:
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s delivering any new messages received %s", subMsg, excludedSubjInfo)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s delivering any new messages received %s", subMsg, ignoredSubjInfo)
 
 			opts = append(opts, nats.DeliverNew())
 		case c.deliverSince != "":
@@ -277,11 +275,11 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			}
 
 			start := time.Now().Add(-1 * d)
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with messages since %s %s", subMsg, humanizeDuration(d), excludeSubjects)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with messages since %s %s", subMsg, humanizeDuration(d), ignoreSubjects)
 
 			opts = append(opts, nats.StartTime(start))
 		case c.deliverLastPerSubject:
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s for the last messages for each subject in the Stream %s", subMsg, excludedSubjInfo)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s for the last messages for each subject in the Stream %s", subMsg, ignoredSubjInfo)
 			opts = append(opts, nats.DeliverLastPerSubject())
 		}
 
