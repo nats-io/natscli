@@ -131,7 +131,7 @@ for an indefinite period or a per-bucket configured TTL.
 	ls := kv.Command("ls", "List available buckets or the keys in a bucket").Alias("list").Action(c.lsAction)
 	ls.Arg("bucket", "The bucket to list the keys").StringVar(&c.bucket)
 	ls.Flag("names", "Show just the bucket names").Short('n').UnNegatableBoolVar(&c.listNames)
-	ls.Flag("verbose", "Show detailed info about the key").Short('v').UnNegatableBoolVar(&c.lsVerbose)
+	ls.Flag("verbose", "Show detailed info about the key").UnNegatableBoolVar(&c.lsVerbose)
 	ls.Flag("display-value", "Display value in verbose output (has no effect without 'verbose')").UnNegatableBoolVar(&c.lsVerboseDisplayValue)
 
 	rmHistory := kv.Command("compact", "Removes all historic values from the store where the last value is a delete").Action(c.compactAction)

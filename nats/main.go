@@ -37,6 +37,7 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	ncli.UsageTemplate(fisk.CompactMainUsageTemplate)
 	ncli.ErrorUsageTemplate(fisk.CompactMainUsageTemplate)
 	ncli.Version(getVersion())
+	ncli.VersionFlag.Short('v')
 	ncli.HelpFlag.Short('h')
 	ncli.WithCheats().CheatCommand.Hidden()
 
