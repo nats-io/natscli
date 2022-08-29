@@ -302,6 +302,10 @@ func printMsg(c *subCmd, msg *nats.Msg, reply *nats.Msg, ctr uint) {
 		info, _ = jsm.ParseJSMsgMetadata(msg)
 	}
 
+	if opts.Trace && msg.Reply != "" {
+		fmt.Printf("<<< Reply Subject: %v\n", msg.Reply)
+	}
+
 	if c.dump != "" {
 		// Output format 1/3: dumping, to stdout or files
 
