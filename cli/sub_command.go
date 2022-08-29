@@ -275,7 +275,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			}
 
 			start := time.Now().Add(-1 * d)
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with messages since %s %s", subMsg, humanizeDuration(d), ignoreSubjects)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with messages since %s %s", subMsg, humanizeDuration(d), ignoredSubjInfo)
 
 			opts = append(opts, nats.StartTime(start))
 		case c.deliverLastPerSubject:
