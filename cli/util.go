@@ -341,6 +341,21 @@ func splitString(s string) []string {
 	})
 }
 
+func splitCLISubjects(subjects []string) []string {
+	new := []string{}
+
+	re := regexp.MustCompile(`,|\t|\s`)
+	for _, s := range subjects {
+		if re.MatchString(s) {
+			new = append(new, splitString(s)...)
+		} else {
+			new = append(new, s)
+		}
+	}
+
+	return new
+}
+
 func natsOpts() []nats.Option {
 	if opts.Config == nil {
 		return []nats.Option{}
