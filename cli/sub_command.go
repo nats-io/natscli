@@ -195,6 +195,10 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			inSubj = fmt.Sprintf("%v.>", opts.InboxPrefix)
 		}
 
+		if !c.raw && c.dump == "" {
+			log.Printf("Matching replies with inbox prefix %v", inSubj)
+		}
+
 		matchMap = make(map[string]*nats.Msg)
 		replySub, err = nc.Subscribe(inSubj, matchHandler)
 		if err != nil {
