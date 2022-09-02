@@ -536,7 +536,10 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	fmt.Println()
 	fmt.Println("Configuration:")
 	fmt.Println()
-	if config.Durable != "" {
+	if config.Name != "" {
+		fmt.Printf("                Name: %s\n", config.Name)
+	}
+	if config.Durable != "" && config.Durable != config.Name {
 		fmt.Printf("        Durable Name: %s\n", config.Durable)
 	}
 	if config.Description != "" {

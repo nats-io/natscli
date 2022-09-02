@@ -24,7 +24,7 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/kballard/go-shellquote"
 	"github.com/nats-io/jsm.go"
-	"github.com/nats-io/jsm.go/governor"
+	"github.com/nats-io/jsm.go/governor" //lint:ignore SA1019 command is also deprecated
 )
 
 type govCmd struct {
@@ -57,10 +57,10 @@ of Governors.
 
 JetStream is required to use this feature.
 
-NOTE: This is an experimental feature.
+NOTE: This experimental feature is deprecated and will be removed in the next release
 `
 
-	gov := app.Command("governor", help).Alias("gov")
+	gov := app.Command("governor", help).Alias("gov").Hidden()
 	addCheat("governor", gov)
 
 	add := gov.Command("add", "Adds a new Governor to JetStream").Action(c.addAction)

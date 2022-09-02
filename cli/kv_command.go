@@ -94,6 +94,7 @@ for an indefinite period or a per-bucket configured TTL.
 	get := kv.Command("get", "Gets a value for a key").Action(c.getAction)
 	get.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	get.Arg("key", "The key to act on").Required().StringVar(&c.key)
+	get.Flag("revision", "Gets a specific revision").Uint64Var(&c.revision)
 	get.Flag("raw", "Show only the value string").UnNegatableBoolVar(&c.raw)
 
 	create := kv.Command("create", "Puts a value into a key only if the key is new or it's last operation was a delete").Action(c.createAction)
@@ -120,6 +121,12 @@ for an indefinite period or a per-bucket configured TTL.
 	history := kv.Command("history", "Shows the full history for a key").Action(c.historyAction)
 	history.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	history.Arg("key", "The key to act on").Required().StringVar(&c.key)
+
+	revert := kv.Command("revert", "Reverts a value to a previous revision using put").Action(c.revertAction)
+	revert.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+	revert.Arg("key", "The key to act on").Required().StringVar(&c.key)
+	revert.Arg("revision", "The revision to revert to").Required().Uint64Var(&c.revision)
+	revert.Flag("force", "Force reverting without prompting").BoolVar(&c.force)
 
 	status := kv.Command("info", "View the status of a KV store").Alias("view").Alias("status").Action(c.infoAction)
 	status.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
@@ -340,6 +347,39 @@ func (c *kvCommand) upgradeAction(_ *fisk.ParseContext) error {
 	return c.showStatus(store)
 }
 
+func (c *kvCommand) revertAction(pc *fisk.ParseContext) error {
+	_, _, store, err := c.loadBucket()
+	if err != nil {
+		return err
+	}
+
+	rev, err := store.GetRevision(c.key, c.revision)
+	if err != nil {
+		return err
+	}
+
+	if !c.force {
+		val := base64IfNotPrintable(rev.Value())
+		if len(val) > 40 {
+			val = fmt.Sprintf("%s...%s", val[0:15], val[len(val)-15:])
+		}
+
+		fmt.Printf("Revision: %d\n\n%v\n\n", rev.Revision(), val)
+		ok, err := askConfirmation(fmt.Sprintf("Really revert to revision %d", c.revision), false)
+		fisk.FatalIfError(err, "could not obtain confirmation")
+		if !ok {
+			return nil
+		}
+	}
+
+	_, err = store.Put(c.key, rev.Value())
+	if err != nil {
+		return err
+	}
+
+	return c.historyAction(pc)
+}
+
 func (c *kvCommand) historyAction(_ *fisk.ParseContext) error {
 	_, _, store, err := c.loadBucket()
 	if err != nil {
@@ -463,7 +503,12 @@ func (c *kvCommand) getAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	res, err := store.Get(c.key)
+	var res nats.KeyValueEntry
+	if c.revision > 0 {
+		res, err = store.GetRevision(c.key, c.revision)
+	} else {
+		res, err = store.Get(c.key)
+	}
 	if err != nil {
 		return err
 	}
