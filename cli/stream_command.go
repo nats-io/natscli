@@ -292,7 +292,7 @@ func configureStreamCommand(app commandHost) {
 	strClusterRemovePeer.Arg("stream", "The stream to act on").StringVar(&c.stream)
 	strClusterRemovePeer.Arg("peer", "The name of the peer to remove").StringVar(&c.peerName)
 
-	strTemplate := str.Command("template", "Manages Stream Templates").Alias("templ").Alias("t")
+	strTemplate := str.Command("template", "Manages Stream Templates").Alias("templ").Alias("t").Hidden()
 
 	strTAdd := strTemplate.Command("create", "Creates a new Stream Template").Alias("add").Alias("new").Action(c.streamTemplateAdd)
 	strTAdd.Arg("stream", "Template name").StringVar(&c.stream)
