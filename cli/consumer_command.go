@@ -981,7 +981,6 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 		valid := []string{"explicit", "all", "none"}
 		dflt := "none"
 		if c.delivery == "" {
-			valid = []string{"explicit", "all"}
 			dflt = "explicit"
 		}
 
