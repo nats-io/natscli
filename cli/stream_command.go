@@ -1530,35 +1530,61 @@ func (c *streamCmd) cpAction(pc *fisk.ParseContext) error {
 }
 
 func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
-	fmt.Println("Configuration:")
-	fmt.Println()
 	if cfg.Description != "" {
 		fmt.Printf("          Description: %s\n", cfg.Description)
 	}
 	if len(cfg.Subjects) > 0 {
 		fmt.Printf("             Subjects: %s\n", strings.Join(cfg.Subjects, ", "))
 	}
+	fmt.Printf("             Replicas: %d\n", cfg.Replicas)
 	if cfg.Sealed {
 		fmt.Printf("               Sealed: true\n")
 	}
+	fmt.Printf("              Storage: %s\n", cfg.Storage.String())
+	if cfg.Placement != nil {
+		if cfg.Placement.Cluster != "" {
+			fmt.Printf("    Placement Cluster: %s\n", cfg.Placement.Cluster)
+		}
+		if len(cfg.Placement.Tags) > 0 {
+			fmt.Printf("       Placement Tags: %s\n", strings.Join(cfg.Placement.Tags, ", "))
+		}
+	}
+	if cfg.RePublish != nil {
+		if cfg.RePublish.HeadersOnly {
+			fmt.Printf(" Republishing Headers: %s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
+		} else {
+			fmt.Printf("         Republishing: %s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("Options:")
+	fmt.Println()
+
+	fmt.Printf("            Retention: %s\n", cfg.Retention.String())
 	fmt.Printf("     Acknowledgements: %v\n", !cfg.NoAck)
-	fmt.Printf("            Retention: %s - %s\n", cfg.Storage.String(), cfg.Retention.String())
-	fmt.Printf("             Replicas: %d\n", cfg.Replicas)
 	fmt.Printf("       Discard Policy: %s\n", cfg.Discard.String())
 	fmt.Printf("     Duplicate Window: %v\n", cfg.Duplicates)
-	fmt.Printf("    Allows Msg Delete: %v\n", !cfg.DenyDelete)
-	fmt.Printf("         Allows Purge: %v\n", !cfg.DenyPurge)
-	fmt.Printf("       Allows Rollups: %v\n", cfg.RollupAllowed)
 	if cfg.AllowDirect {
 		fmt.Printf("    Allows Direct Get: %v\n", cfg.AllowDirect)
 	}
+
+	fmt.Printf("    Allows Msg Delete: %v\n", !cfg.DenyDelete)
+	fmt.Printf("         Allows Purge: %v\n", !cfg.DenyPurge)
+	fmt.Printf("       Allows Rollups: %v\n", cfg.RollupAllowed)
+
+	fmt.Println()
+	fmt.Println("Limits:")
+	fmt.Println()
 
 	if cfg.MaxMsgs == -1 {
 		fmt.Println("     Maximum Messages: unlimited")
 	} else {
 		fmt.Printf("     Maximum Messages: %s\n", humanize.Comma(cfg.MaxMsgs))
 	}
-	if cfg.MaxMsgsPer > 0 {
+	if cfg.MaxMsgsPer <= 0 {
+		fmt.Println("  Maximum Per Subject: unlimited")
+	} else {
 		fmt.Printf("  Maximum Per Subject: %s\n", humanize.Comma(cfg.MaxMsgsPer))
 	}
 	if cfg.MaxBytes == -1 {
@@ -1584,21 +1610,13 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	if cfg.Template != "" {
 		fmt.Printf("  Managed by Template: %s\n", cfg.Template)
 	}
-	if cfg.Placement != nil {
-		if cfg.Placement.Cluster != "" {
-			fmt.Printf("    Placement Cluster: %s\n", cfg.Placement.Cluster)
-		}
-		if len(cfg.Placement.Tags) > 0 {
-			fmt.Printf("       Placement Tags: %s\n", strings.Join(cfg.Placement.Tags, ", "))
-		}
+
+	if cfg.Mirror != nil || len(cfg.Sources) > 0 {
+		fmt.Println()
+		fmt.Println("Limits:")
+		fmt.Println()
 	}
-	if cfg.RePublish != nil {
-		if cfg.RePublish.HeadersOnly {
-			fmt.Printf(" Republishing Headers: %s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
-		} else {
-			fmt.Printf("         Republishing: %s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
-		}
-	}
+
 	if cfg.Mirror != nil {
 		fmt.Printf("               Mirror: %s\n", c.renderSource(cfg.Mirror))
 	}

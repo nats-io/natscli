@@ -517,6 +517,7 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 		jsopts = append(jsopts, jsm.WithTrace())
 	}
 
+	opts.Conn.NewRespInbox()
 	opts.Mgr, err = jsm.New(opts.Conn, jsopts...)
 	if err != nil {
 		return nil, nil, err
