@@ -10,13 +10,13 @@ require (
 	github.com/emicklei/dot v1.0.0
 	github.com/fatih/color v1.13.0
 	github.com/ghodss/yaml v1.0.0
-	github.com/google/go-cmp v0.5.8
+	github.com/google/go-cmp v0.5.9
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.5
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.15.9
-	github.com/nats-io/jsm.go v0.0.34-0.20220909072029-4f492c560db8
-	github.com/nats-io/nats-server/v2 v2.8.5-0.20220909012548-f7cb5b1f0d88
+	github.com/nats-io/jsm.go v0.0.34
+	github.com/nats-io/nats-server/v2 v2.9.0
 	github.com/nats-io/nats.go v1.16.1-0.20220906180156-a1017eec10b0
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.13.0
@@ -42,7 +42,7 @@ require (
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	golang.org/x/sys v0.0.0-20220907062415-87db552b00fd // indirect
+	golang.org/x/sys v0.0.0-20220908164124-27713097b956 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
