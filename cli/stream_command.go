@@ -67,6 +67,7 @@ type streamCmd struct {
 	reportSortConsumers   bool
 	reportSortMsgs        bool
 	reportSortName        bool
+	reportSortReverse     bool
 	reportSortStorage     bool
 	reportRaw             bool
 	reportLimitCluster    string
@@ -221,6 +222,8 @@ func configureStreamCommand(app commandHost) {
 	strSubs.Arg("stream", "Stream name").StringVar(&c.stream)
 	strSubs.Arg("filter", "Limit the subjects to those matching a filter").Default(">").StringVar(&c.filterSubject)
 	strSubs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	strSubs.Flag("names", "Sort by names instead of messages").BoolVar(&c.reportSortName)
+	strSubs.Flag("reverse", "Reverse sort servers").Short('R').UnNegatableBoolVar(&c.reportSortReverse)
 
 	strEdit := str.Command("edit", "Edits an existing stream").Alias("update").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
@@ -337,31 +340,47 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 		return nil
 	}
 
-	longest := 0
-	for _, v := range subs {
-		if len(v) > longest {
-			longest = len(v)
+	var longest int
+	var most uint64
+	var names []string
+
+	for s, c := range subs {
+		names = append(names, s)
+		if len(s) > longest {
+			longest = len(s)
+		}
+		if c > most {
+			most = c
 		}
 	}
 
 	cols := 1
-	format := "  %s\n"
+	format := fmt.Sprintf("  %%%ds: %%s\n", longest)
+	countWidth := len(humanize.Comma(int64(most)))
 	switch {
-	case longest < 20:
+	case longest+countWidth < 20:
 		cols = 3
-		format = "  %-20s %-20s %-20s\n"
-	case longest < 30:
+		format = fmt.Sprintf("  %%20s: %%%ds %%20s: %%%ds %%20s: %%%ds\n", countWidth, countWidth, countWidth)
+	case longest+countWidth < 30:
 		cols = 2
-		format = "  %-30s %-30s\n"
+		format = fmt.Sprintf("  %%30s: %%%ds %%30s: %%%ds\n", countWidth, countWidth)
 	}
 
-	sliceGroups(subs, cols, func(g []string) {
-		if cols == 1 {
-			fmt.Printf(format, g[0])
-		} else if cols == 2 {
-			fmt.Printf(format, g[0], g[1])
+	sort.Slice(names, func(i, j int) bool {
+		if c.reportSortName {
+			return c.boolReverse(names[i] < names[j])
 		} else {
-			fmt.Printf(format, g[0], g[1], g[2])
+			return c.boolReverse(subs[names[i]] < subs[names[j]])
+		}
+	})
+
+	sliceGroups(names, cols, func(g []string) {
+		if cols == 1 {
+			fmt.Printf(format, g[0], humanize.Comma(int64(subs[g[0]])))
+		} else if cols == 2 {
+			fmt.Printf(format, g[0], humanize.Comma(int64(subs[g[0]])), g[1], humanize.Comma(int64(subs[g[1]])))
+		} else {
+			fmt.Printf(format, g[0], humanize.Comma(int64(subs[g[0]])), g[1], humanize.Comma(int64(subs[g[1]])), g[2], humanize.Comma(int64(subs[g[2]])))
 		}
 	})
 
@@ -2598,4 +2617,12 @@ func (c *streamCmd) connectAndAskStream() bool {
 	fisk.FatalIfError(err, "could not pick a Stream to operate on")
 
 	return shouldAsk
+}
+
+func (c *streamCmd) boolReverse(v bool) bool {
+	if c.reportSortReverse {
+		return !v
+	}
+
+	return v
 }
