@@ -69,6 +69,7 @@ type streamCmd struct {
 	reportSortName        bool
 	reportSortReverse     bool
 	reportSortStorage     bool
+	reportSort            string
 	reportRaw             bool
 	reportLimitCluster    string
 	reportLeaderDistrib   bool
@@ -222,8 +223,9 @@ func configureStreamCommand(app commandHost) {
 	strSubs.Arg("stream", "Stream name").StringVar(&c.stream)
 	strSubs.Arg("filter", "Limit the subjects to those matching a filter").Default(">").StringVar(&c.filterSubject)
 	strSubs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
-	strSubs.Flag("names", "Sort by names instead of messages").BoolVar(&c.reportSortName)
+	strSubs.Flag("sort", "Adjusts the sorting order (name, messages)").Default("messages").EnumVar(&c.reportSort, "name", "subjects", "messages", "count")
 	strSubs.Flag("reverse", "Reverse sort servers").Short('R').UnNegatableBoolVar(&c.reportSortReverse)
+	strSubs.Flag("names", "SList only subject names").BoolVar(&c.listNames)
 
 	strEdit := str.Command("edit", "Edits an existing stream").Alias("update").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
@@ -367,12 +369,19 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 	}
 
 	sort.Slice(names, func(i, j int) bool {
-		if c.reportSortName {
+		if c.reportSort == "name" || c.reportSort == "subjects" {
 			return c.boolReverse(names[i] < names[j])
 		} else {
 			return c.boolReverse(subs[names[i]] < subs[names[j]])
 		}
 	})
+
+	if c.listNames {
+		for _, n := range names {
+			fmt.Println(n)
+		}
+		return
+	}
 
 	sliceGroups(names, cols, func(g []string) {
 		if cols == 1 {
