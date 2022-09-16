@@ -268,7 +268,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		}
 
 		table := newTableWriter("RAFT Meta Group Information")
-		table.AddHeaders("Name", "Leader", "Current", "Online", "Active", "Lag")
+		table.AddHeaders("Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
 		for i, replica := range cluster.Replicas {
 			leader := ""
 			if replica.Name == cluster.Leader {
@@ -280,7 +280,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 				online = color.New(color.Bold).Sprint("false")
 			}
 
-			table.AddRow(cNames[i], leader, replica.Current, online, humanizeDuration(replica.Active), humanize.Comma(int64(replica.Lag)))
+			table.AddRow(cNames[i], replica.Peer, leader, replica.Current, online, humanizeDuration(replica.Active), humanize.Comma(int64(replica.Lag)))
 		}
 		fmt.Print(table.Render())
 	}
