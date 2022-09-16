@@ -1641,7 +1641,7 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 
 	if cfg.Mirror != nil || len(cfg.Sources) > 0 {
 		fmt.Println()
-		fmt.Println("Limits:")
+		fmt.Println("Replication:")
 		fmt.Println()
 	}
 
@@ -1679,8 +1679,12 @@ func (c *streamCmd) renderSource(s *api.StreamSource) string {
 		parts = append(parts, fmt.Sprintf("Subject: %s", s.FilterSubject))
 	}
 	if s.External != nil {
-		parts = append(parts, fmt.Sprintf("API Prefix: %s", s.External.ApiPrefix))
-		parts = append(parts, fmt.Sprintf("Delivery Prefix: %s", s.External.DeliverPrefix))
+		if s.External.ApiPrefix != "" {
+			parts = append(parts, fmt.Sprintf("API Prefix: %s", s.External.ApiPrefix))
+		}
+		if s.External.DeliverPrefix != "" {
+			parts = append(parts, fmt.Sprintf("Delivery Prefix: %s", s.External.DeliverPrefix))
+		}
 	}
 
 	return strings.Join(parts, ", ")

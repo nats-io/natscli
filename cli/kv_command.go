@@ -144,9 +144,6 @@ for an indefinite period or a per-bucket configured TTL.
 	rmHistory := kv.Command("compact", "Removes all historic values from the store where the last value is a delete").Action(c.compactAction)
 	rmHistory.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	rmHistory.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
-
-	upgrade := kv.Command("upgrade", "Upgrades a early tech-preview bucket to current format").Action(c.upgradeAction)
-	upgrade.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 }
 
 func init() {
@@ -311,40 +308,6 @@ func (c *kvCommand) lsBuckets() error {
 	fmt.Println(table.Render())
 
 	return nil
-}
-
-func (c *kvCommand) upgradeAction(_ *fisk.ParseContext) error {
-	_, js, store, err := c.loadBucket()
-	if err != nil {
-		return err
-	}
-
-	status, err := store.Status()
-	if err != nil {
-		return err
-	}
-
-	nfo := status.(*nats.KeyValueBucketStatus).StreamInfo()
-	if nfo.Config.AllowRollup && nfo.Config.Discard == nats.DiscardNew {
-		fmt.Println("Bucket is already using the correct configuration")
-		os.Exit(1)
-	}
-
-	nfo.Config.AllowRollup = true
-	nfo.Config.Discard = nats.DiscardNew
-	nfo, err = js.UpdateStream(&nfo.Config)
-	if err != nil {
-		return err
-	}
-
-	if !nfo.Config.AllowRollup || nfo.Config.Discard != nats.DiscardNew {
-		fmt.Printf("Configuration upgrade failed, please edit stream %s to allow RollUps and have Discard Policy of New", nfo.Config.Name)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Bucket %s has been upgraded\n\n", status.Bucket())
-
-	return c.showStatus(store)
 }
 
 func (c *kvCommand) revertAction(pc *fisk.ParseContext) error {
