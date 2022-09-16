@@ -47,6 +47,9 @@ type SrvRequestCmd struct {
 	accountFilter string
 	subjectFilter string
 	nameFilter    string
+
+	jsServerOnly bool
+	jsEnabled    bool
 }
 
 func configureServerRequestCommand(srv *fisk.CmdClause) {
@@ -105,6 +108,33 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	jsz.Flag("config", "Include details about configuration").UnNegatableBoolVar(&c.includeConfig)
 	jsz.Flag("leader", "Request a response from the Meta-group leader only").UnNegatableBoolVar(&c.leaderOnly)
 	jsz.Flag("all", "Include accounts, streams, consumers and configuration").UnNegatableBoolVar(&c.includeAll)
+
+	healthz := req.Command("jetstream-health", "Request JetStream health status").Alias("healthz").Action(c.healthz)
+	healthz.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
+	healthz.Flag("server-only", "Restricts the health check to the JetStream server only, do not check streams and consumers").Short('S').BoolVar(&c.jsServerOnly)
+}
+
+func (c *SrvRequestCmd) healthz(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	opts := server.HealthzEventOptions{
+		HealthzOptions:     server.HealthzOptions{JSEnabled: c.jsEnabled, JSServerOnly: c.jsServerOnly},
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	res, err := c.doReq("HEALTHZ", &opts, nc)
+	if err != nil {
+		return err
+	}
+
+	for _, m := range res {
+		fmt.Println(string(m))
+	}
+
+	return nil
 }
 
 func (c *SrvRequestCmd) jsz(_ *fisk.ParseContext) error {
