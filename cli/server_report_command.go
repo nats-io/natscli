@@ -271,8 +271,10 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		table.AddHeaders("Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
 		for i, replica := range cluster.Replicas {
 			leader := ""
+			peer := replica.Peer
 			if replica.Name == cluster.Leader {
 				leader = "yes"
+				peer = cluster.Peer
 			}
 
 			online := "true"
@@ -280,7 +282,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 				online = color.New(color.Bold).Sprint("false")
 			}
 
-			table.AddRow(cNames[i], replica.Peer, leader, replica.Current, online, humanizeDuration(replica.Active), humanize.Comma(int64(replica.Lag)))
+			table.AddRow(cNames[i], peer, leader, replica.Current, online, humanizeDuration(replica.Active), humanize.Comma(int64(replica.Lag)))
 		}
 		fmt.Print(table.Render())
 	}
