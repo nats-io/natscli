@@ -103,6 +103,8 @@ type streamCmd struct {
 	denyPurgeSet          bool
 	allowDirect           bool
 	allowDirectSet        bool
+	discardPerSubj        bool
+	discardPerSubjSet     bool
 
 	fServer    string
 	fCluster   string
@@ -157,6 +159,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
 		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
+		f.Flag("discard-per-subject", "Sets the 'new' discard policy and applies it to every subject in the stream").IsSetByUser(&c.discardPerSubjSet).BoolVar(&c.discardPerSubj)
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
 		f.Flag("max-bytes", "Maximum bytes to keep").StringVar(&c.maxBytesLimitString)
 		f.Flag("max-consumers", "Maximum number of consumers to allow").Default("-1").IntVar(&c.maxConsumers)
@@ -1405,6 +1408,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		cfg.AllowDirect = c.allowDirect
 	}
 
+	if c.discardPerSubjSet {
+		cfg.DiscardNewPer = c.discardPerSubj
+	}
+
 	return cfg, nil
 }
 
@@ -1591,7 +1598,11 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 
 	fmt.Printf("            Retention: %s\n", cfg.Retention.String())
 	fmt.Printf("     Acknowledgements: %v\n", !cfg.NoAck)
-	fmt.Printf("       Discard Policy: %s\n", cfg.Discard.String())
+	dnp := cfg.Discard.String()
+	if cfg.DiscardNewPer {
+		dnp = "New Per Subject"
+	}
+	fmt.Printf("       Discard Policy: %s%s\n", cfg.Discard.String(), dnp)
 	fmt.Printf("     Duplicate Window: %v\n", cfg.Duplicates)
 	if cfg.AllowDirect {
 		fmt.Printf("    Allows Direct Get: %v\n", cfg.AllowDirect)
@@ -2094,6 +2105,7 @@ func (c *streamCmd) prepareConfig(pc *fisk.ParseContext, requireSize bool) api.S
 		DenyPurge:     c.denyPurge,
 		DenyDelete:    c.denyDelete,
 		AllowDirect:   c.allowDirect,
+		DiscardNewPer: c.discardPerSubj,
 	}
 
 	if c.placementCluster != "" || len(c.placementTags) > 0 {
