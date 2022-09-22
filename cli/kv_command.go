@@ -733,6 +733,7 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 		if nfo.Config.Description != "" {
 			fmt.Printf("          Description: %s\n", nfo.Config.Description)
 		}
+		fmt.Printf("          Bucket Size: %s\n", humanize.IBytes(nfo.State.Bytes))
 		if nfo.Config.MaxBytes == -1 {
 			fmt.Printf("  Maximum Bucket Size: unlimited\n")
 		} else {
