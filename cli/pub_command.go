@@ -128,7 +128,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			log.Printf("Sending request on %q\n", c.subject)
 		}
 
-		body, err := pubReplyBodyTemplate(c.body, i)
+		body, err := pubReplyBodyTemplate(c.body, "", i)
 		if err != nil {
 			log.Printf("Could not parse body template: %s", err)
 		}
@@ -274,7 +274,7 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 	}
 
 	for i := 1; i <= c.cnt; i++ {
-		body, err := pubReplyBodyTemplate(c.body, i)
+		body, err := pubReplyBodyTemplate(c.body, "", i)
 		if err != nil {
 			log.Printf("Could not parse body template: %s", err)
 		}
