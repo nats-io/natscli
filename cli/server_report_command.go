@@ -578,7 +578,18 @@ func parseConnzResp(resp []byte) (connz, error) {
 
 	errresp, ok := reqresp["error"]
 	if ok {
-		return connz{}, fmt.Errorf("invalid response received: %#v", errresp)
+		res := map[string]any{}
+		err := json.Unmarshal(errresp, &res)
+		if err != nil {
+			return connz{}, fmt.Errorf("invalid response received: %q", errresp)
+		}
+
+		msg, ok := res["description"]
+		if !ok {
+			return connz{}, fmt.Errorf("invalid response received: %q", errresp)
+		}
+
+		return connz{}, fmt.Errorf("invalid response received: %v", msg)
 	}
 
 	data, ok := reqresp["data"]

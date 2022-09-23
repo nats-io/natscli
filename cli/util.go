@@ -967,7 +967,7 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 		log.Printf(">>> Received %d responses", ctr)
 	}
 
-	return err
+	return nil
 }
 
 func doReq(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
