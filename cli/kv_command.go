@@ -725,7 +725,7 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 	fmt.Println("Configuration:")
 	fmt.Println()
 	fmt.Printf("          Bucket Name: %s\n", status.Bucket())
-	fmt.Printf("         History Kept: %d\n", humanize.Comma(status.History()))
+	fmt.Printf("         History Kept: %s\n", humanize.Comma(status.History()))
 	fmt.Printf("        Values Stored: %s\n", humanize.Comma(int64(status.Values())))
 	fmt.Printf("   Backing Store Kind: %s\n", status.BackingStore())
 
