@@ -632,13 +632,14 @@ type pubData struct {
 	UnixNano  int64
 	TimeStamp string
 	Time      string
+	Request   string
 }
 
 func (p *pubData) ID() string {
 	return nuid.Next()
 }
 
-func pubReplyBodyTemplate(body string, ctr int) ([]byte, error) {
+func pubReplyBodyTemplate(body string, request string, ctr int) ([]byte, error) {
 	now := time.Now()
 	funcMap := template.FuncMap{
 		"Random":    randomString,
@@ -649,6 +650,10 @@ func pubReplyBodyTemplate(body string, ctr int) ([]byte, error) {
 		"TimeStamp": func() string { return now.Format(time.RFC3339) },
 		"Time":      func() string { return now.Format(time.Kitchen) },
 		"ID":        func() string { return nuid.Next() },
+	}
+
+	if request != "" {
+		funcMap["Request"] = func() string { return request }
 	}
 
 	templ, err := template.New("body").Funcs(funcMap).Parse(body)
@@ -664,6 +669,7 @@ func pubReplyBodyTemplate(body string, ctr int) ([]byte, error) {
 		UnixNano:  now.UnixNano(),
 		TimeStamp: now.Format(time.RFC3339),
 		Time:      now.Format(time.Kitchen),
+		Request:   request,
 	})
 	if err != nil {
 		return []byte(body), err
@@ -717,7 +723,7 @@ func parseStringsToHeader(hdrs []string, seq int) (nats.Header, error) {
 			return nil, fmt.Errorf("invalid header %q", hdr)
 		}
 
-		val, err := pubReplyBodyTemplate(strings.TrimSpace(parts[1]), seq)
+		val, err := pubReplyBodyTemplate(strings.TrimSpace(parts[1]), "", seq)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse Header template for %s: %s", parts[0], err)
 		}
@@ -735,7 +741,7 @@ func parseStringsToMsgHeader(hdrs []string, seq int, msg *nats.Msg) error {
 			return fmt.Errorf("invalid header %q", hdr)
 		}
 
-		val, err := pubReplyBodyTemplate(strings.TrimSpace(parts[1]), seq)
+		val, err := pubReplyBodyTemplate(strings.TrimSpace(parts[1]), "", seq)
 		if err != nil {
 			log.Printf("Failed to parse Header template for %s: %s", parts[0], err)
 			continue

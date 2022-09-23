@@ -56,10 +56,6 @@ The body and Header values of the messages may use Go templates to create unique
 
    nats reply test "Message {{Count}} @ {{Time}}"
 
-Multiple messages with random strings between 10 and 100 long:
-
-   nats pub test --count 10 "Message {{Count}}: {{ Random 10 100 }}"
-
 Available template functions are:
 
    Count            the message number
@@ -68,6 +64,7 @@ Available template functions are:
    UnixNano         nano seconds since 1970 in UTC
    Time             the current time
    ID               an unique ID
+   Request          the request payload
    Random(min, max) random string at least min long, at most max
 `
 
@@ -169,7 +166,7 @@ func (c *replyCmd) reply(_ *fisk.ParseContext) error {
 			}
 
 		default:
-			body, err := pubReplyBodyTemplate(c.body, i)
+			body, err := pubReplyBodyTemplate(c.body, string(m.Data), i)
 			if err != nil {
 				log.Printf("Could not parse body template: %s", err)
 			}
