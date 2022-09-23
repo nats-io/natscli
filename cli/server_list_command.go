@@ -69,6 +69,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 	var (
 		results     []*result
 		names       []string
+		hosts       []string
 		clusters    = make(map[string]*srvListCluster)
 		servers     int
 		connections int
@@ -168,30 +169,35 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 	})
 
 	table := newTableWriter("Server Overview")
-	table.AddHeaders("Name", "Cluster", "IP", "Version", "JS", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU", "Slow", "Uptime", "RTT")
+	table.AddHeaders("Name", "Cluster", "Host", "Version", "JS", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU %", "Cores", "Slow", "Uptime", "RTT")
 
 	// here so its after the sort
 	for _, ssm := range results {
 		names = append(names, ssm.Server.Name)
+		hosts = append(hosts, ssm.Server.Host)
 	}
 	cNames := names
+	cHosts := hosts
 	if c.compact {
 		cNames = compactStrings(names)
+		cHosts = compactStrings(hosts)
 	}
 
 	for i, ssm := range results {
 		cluster := ssm.Server.Cluster
-		if ssm.Server.Domain != "" {
-			cluster = fmt.Sprintf("%s domain %s", ssm.Server.Cluster, ssm.Server.Domain)
-		}
 		jsEnabled := "no"
 		if ssm.Server.JetStream {
-			jsEnabled = "yes"
+			if ssm.Server.Domain != "" {
+				jsEnabled = ssm.Server.Domain
+			} else {
+				jsEnabled = "yes"
+			}
 		}
+
 		table.AddRow(
 			cNames[i],
 			cluster,
-			ssm.Server.Host,
+			cHosts[i],
 			ssm.Server.Version,
 			jsEnabled,
 			humanize.Comma(int64(ssm.Stats.Connections)),
@@ -199,7 +205,8 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			len(ssm.Stats.Routes),
 			len(ssm.Stats.Gateways),
 			humanize.IBytes(uint64(ssm.Stats.Mem)),
-			fmt.Sprintf("%.1f", ssm.Stats.CPU),
+			fmt.Sprintf("%.0f", ssm.Stats.CPU),
+			ssm.Stats.Cores,
 			ssm.Stats.SlowConsumers,
 			humanizeDuration(ssm.Server.Time.Sub(ssm.Stats.Start)),
 			ssm.rtt.Round(time.Millisecond))
@@ -208,17 +215,20 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 	table.AddSeparator()
 	table.AddRow(
 		"",
-		fmt.Sprintf("%d Clusters", len(clusters)),
-		fmt.Sprintf("%d Servers", servers),
+		len(clusters),
+		servers,
 		"",
 		js,
-		connections,
+		humanize.Comma(int64(connections)),
 		humanize.Comma(int64(subs)),
 		"", "",
 		humanize.IBytes(uint64(memory)),
 		"",
-		slow,
-		"", "")
+		"",
+		humanize.Comma(slow),
+		"",
+		"")
+
 	fmt.Print(table.Render())
 
 	if len(clusters) > 0 {
