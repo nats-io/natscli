@@ -725,8 +725,8 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 	fmt.Println("Configuration:")
 	fmt.Println()
 	fmt.Printf("          Bucket Name: %s\n", status.Bucket())
-	fmt.Printf("         History Kept: %d\n", status.History())
-	fmt.Printf("        Values Stored: %d\n", status.Values())
+	fmt.Printf("         History Kept: %d\n", humanize.Comma(status.History()))
+	fmt.Printf("        Values Stored: %s\n", humanize.Comma(int64(status.Values())))
 	fmt.Printf("   Backing Store Kind: %s\n", status.BackingStore())
 
 	if nfo != nil {
@@ -737,12 +737,12 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 		if nfo.Config.MaxBytes == -1 {
 			fmt.Printf("  Maximum Bucket Size: unlimited\n")
 		} else {
-			fmt.Printf("  Maximum Bucket Size: %d\n", nfo.Config.MaxBytes)
+			fmt.Printf("  Maximum Bucket Size: %s\n", humanize.IBytes(uint64(nfo.Config.MaxBytes)))
 		}
-		if nfo.Config.MaxBytes == -1 {
+		if nfo.Config.MaxMsgSize == -1 {
 			fmt.Printf("   Maximum Value Size: unlimited\n")
 		} else {
-			fmt.Printf("   Maximum Value Size: %d\n", nfo.Config.MaxMsgSize)
+			fmt.Printf("   Maximum Value Size: %s\n", humanize.IBytes(uint64(nfo.Config.MaxMsgSize)))
 		}
 		fmt.Printf("     JetStream Stream: %s\n", nfo.Config.Name)
 		fmt.Printf("              Storage: %s\n", nfo.Config.Storage.String())
