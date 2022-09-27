@@ -127,6 +127,11 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			return err
 		}
 
+		// Ignore non JetStream-enabled servers.
+		if !response.Server.JetStream {
+			continue
+		}
+
 		// we may have a pre 2.7.0 machine and will try get data with old struct names, if all of these are
 		// 0 it might be that they are 0 or that we had data in the old format, so we try parse the old
 		// and set what is in there.  If it's not an old server 0s will stay 0s, otherwise we pull in old format values
