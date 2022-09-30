@@ -14,18 +14,18 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.5
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.15.9
-	github.com/nats-io/jsm.go v0.0.35-0.20220922161644-b061832b5fb5
-	github.com/nats-io/nats-server/v2 v2.9.1-0.20220922152750-ac88662a89ea
-	github.com/nats-io/nats.go v1.16.1-0.20220906180156-a1017eec10b0
+	github.com/klauspost/compress v1.15.11
+	github.com/nats-io/jsm.go v0.0.35-0.20220930094031-ec07abe149c8
+	github.com/nats-io/nats-server/v2 v2.9.2
+	github.com/nats-io/nats.go v1.17.0
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.13.0
 	github.com/prometheus/common v0.37.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.0.1
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
-	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
-	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035
+	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be
+	golang.org/x/term v0.0.0-20220919170432-7a66f970e087
 )
 
 require (
@@ -42,9 +42,9 @@ require (
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	golang.org/x/sys v0.0.0-20220915200043-7b5979e65e41 // indirect
+	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
+	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
