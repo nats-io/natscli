@@ -82,7 +82,7 @@ NOTE: This is an experimental feature.
 	put.Flag("name", "Override the name supplied to the object store").StringVar(&c.overrideName)
 	put.Flag("description", "Sets an optional description for the object").StringVar(&c.description)
 	put.Flag("header", "Adds headers to the object").Short('H').StringsVar(&c.hdrs)
-	put.Flag("progress", "Disables progress bars").Default("true").BoolVar(&c.noProgress)
+	put.Flag("no-progress", "Disable progress bars").UnNegatableBoolVar(&c.noProgress)
 	put.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	del := obj.Command("del", "Deletes a file or bucket from the store").Action(c.delAction).Alias("rm")
@@ -94,7 +94,7 @@ NOTE: This is an experimental feature.
 	get.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	get.Arg("file", "The file to retrieve").Required().StringVar(&c.file)
 	get.Flag("output", "Override the output file name").Short('O').StringVar(&c.overrideName)
-	get.Flag("progress", "Disables progress bars").Default("true").BoolVar(&c.noProgress)
+	get.Flag("no-progress", "Disable progress bars").UnNegatableBoolVar(&c.noProgress)
 	get.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	info := obj.Command("info", "Get information about a bucket or object").Alias("show").Alias("i").Action(c.infoAction)
