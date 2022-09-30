@@ -157,7 +157,9 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("tags", "Backward compatibility only, use --tag").Hidden().StringsVar(&c.placementTags)
 		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
 		f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
-		f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
+		if !edit {
+			f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
+		}
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
 		f.Flag("discard-per-subject", "Sets the 'new' discard policy and applies it to every subject in the stream").IsSetByUser(&c.discardPerSubjSet).BoolVar(&c.discardPerSubj)
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
