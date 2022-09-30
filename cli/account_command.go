@@ -80,7 +80,7 @@ func (c *actCmd) backupAction(_ *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	fisk.FatalIfError(err, "setup failed")
 
-	streams, err := mgr.Streams()
+	streams, err := mgr.Streams(nil)
 	if err != nil {
 		return err
 	}

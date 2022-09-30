@@ -196,10 +196,12 @@ func configureStreamCommand(app commandHost) {
 	strAdd.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
 
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
+	strLs.Flag("subject", "Limit the list to streams with matching subjects").StringVar(&c.filterSubject)
 	strLs.Flag("names", "Show just the stream names").Short('n').UnNegatableBoolVar(&c.listNames)
 	strLs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	strReport := str.Command("report", "Reports on Stream statistics").Action(c.reportAction)
+	strReport.Flag("subject", "Limit the report to streams with matching subjects").StringVar(&c.filterSubject)
 	strReport.Flag("cluster", "Limit report to streams within a specific cluster").StringVar(&c.reportLimitCluster)
 	strReport.Flag("consumers", "Sort by number of Consumers").Short('o').UnNegatableBoolVar(&c.reportSortConsumers)
 	strReport.Flag("messages", "Sort by number of Messages").Short('m').UnNegatableBoolVar(&c.reportSortMsgs)
@@ -1053,11 +1055,16 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 	stats := []streamStat{}
 	leaders := make(map[string]*raftLeader)
 	showReplication := false
+	var filter *jsm.StreamNamesFilter
+
+	if c.filterSubject != "" {
+		filter = &jsm.StreamNamesFilter{Subject: c.filterSubject}
+	}
 
 	dg := dot.NewGraph(dot.Directed)
 	dg.Label("Stream Replication Structure")
 
-	err = mgr.EachStream(func(stream *jsm.Stream) {
+	err = mgr.EachStream(filter, func(stream *jsm.Stream) {
 		info, err := stream.LatestInformation()
 		fisk.FatalIfError(err, "could not get stream info for %s", stream.Name())
 
@@ -2461,7 +2468,13 @@ func (c *streamCmd) lsAction(_ *fisk.ParseContext) error {
 	var names []string
 
 	skipped := false
-	err = mgr.EachStream(func(s *jsm.Stream) {
+
+	var filter *jsm.StreamNamesFilter
+	if c.filterSubject != "" {
+		filter = &jsm.StreamNamesFilter{Subject: c.filterSubject}
+	}
+
+	err = mgr.EachStream(filter, func(s *jsm.Stream) {
 		if !c.showAll && s.IsInternal() {
 			skipped = true
 			return

@@ -269,7 +269,7 @@ func (c *kvCommand) lsBuckets() error {
 
 	var found []*jsm.Stream
 
-	err = mgr.EachStream(func(s *jsm.Stream) {
+	err = mgr.EachStream(nil, func(s *jsm.Stream) {
 		if s.IsKVBucket() {
 			found = append(found, s)
 		}
