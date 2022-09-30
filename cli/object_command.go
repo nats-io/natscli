@@ -38,7 +38,7 @@ type objCommand struct {
 	overrideName        string
 	hdrs                []string
 	force               bool
-	noProgress          bool
+	progress            bool
 	storage             string
 	listNames           bool
 	placementCluster    string
@@ -82,7 +82,7 @@ NOTE: This is an experimental feature.
 	put.Flag("name", "Override the name supplied to the object store").StringVar(&c.overrideName)
 	put.Flag("description", "Sets an optional description for the object").StringVar(&c.description)
 	put.Flag("header", "Adds headers to the object").Short('H').StringsVar(&c.hdrs)
-	put.Flag("no-progress", "Disable progress bars").UnNegatableBoolVar(&c.noProgress)
+	put.Flag("progress", "Disable progress bars").Default("true").BoolVar(&c.progress)
 	put.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	del := obj.Command("del", "Deletes a file or bucket from the store").Action(c.delAction).Alias("rm")
@@ -94,7 +94,7 @@ NOTE: This is an experimental feature.
 	get.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	get.Arg("file", "The file to retrieve").Required().StringVar(&c.file)
 	get.Flag("output", "Override the output file name").Short('O').StringVar(&c.overrideName)
-	get.Flag("no-progress", "Disable progress bars").UnNegatableBoolVar(&c.noProgress)
+	get.Flag("progress", "Disable progress bars").Default("true").BoolVar(&c.progress)
 	get.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	info := obj.Command("info", "Get information about a bucket or object").Alias("show").Alias("i").Action(c.infoAction)
@@ -483,7 +483,7 @@ func (c *objCommand) putAction(_ *fisk.ParseContext) error {
 	var progress *uiprogress.Bar
 	stop := func() {}
 
-	if !opts.Trace && !c.noProgress && stat != nil && stat.Size() > 20480 {
+	if !opts.Trace && c.progress && stat != nil && stat.Size() > 20480 {
 		hs := humanize.IBytes(uint64(stat.Size()))
 		progress = uiprogress.AddBar(int(stat.Size())).PrependFunc(func(b *uiprogress.Bar) string {
 			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
@@ -559,7 +559,7 @@ func (c *objCommand) getAction(_ *fisk.ParseContext) error {
 	pw := io.Writer(of)
 	stop := func() {}
 
-	if !opts.Trace && !c.noProgress && nfo.Size > 20480 {
+	if !opts.Trace && c.progress && nfo.Size > 20480 {
 		hs := humanize.IBytes(nfo.Size)
 		progress = uiprogress.AddBar(int(nfo.Size)).PrependFunc(func(b *uiprogress.Bar) string {
 			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
