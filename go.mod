@@ -15,9 +15,9 @@ require (
 	github.com/guptarohit/asciigraph v0.5.5
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.15.11
-	github.com/nats-io/jsm.go v0.0.35-0.20220930094031-ec07abe149c8
+	github.com/nats-io/jsm.go v0.0.35-0.20220930142137-8eeedbe1ccfc
 	github.com/nats-io/nats-server/v2 v2.9.2
-	github.com/nats-io/nats.go v1.17.0
+	github.com/nats-io/nats.go v1.17.1-0.20220923204156-36d2b654c70f
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.13.0
 	github.com/prometheus/common v0.37.0
