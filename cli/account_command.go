@@ -16,16 +16,19 @@ package cli
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
 
@@ -56,6 +59,8 @@ func configureActCommand(app commandHost) {
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
+
+	report.Command("statistics", "Report on server statistics").Alias("stats").Alias("statsz").Action(c.reportServerStats)
 
 	backup := act.Command("backup", "Creates a backup of all  JetStream Streams over the NATS network").Alias("snapshot").Action(c.backupAction)
 	backup.Arg("target", "Directory to create the backup in").Required().StringVar(&c.backupDirectory)
@@ -199,6 +204,121 @@ func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
 	}
 
 	return cmd.reportConnections(pc)
+}
+
+func (c *actCmd) reportServerStats(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	res, err := doReq(nil, "$SYS.REQ.ACCOUNT.PING.STATZ", 0, nc)
+	if err != nil {
+		return err
+	}
+
+	if len(res) == 0 {
+		return fmt.Errorf("did not get results from any servers")
+	}
+
+	table := newTableWriter("Server Statistics")
+	table.AddHeaders("Server", "Cluster", "Version", "Tags", "Connections", "Leafnodes", "Sent Bytes", "Sent Messages", "Received Bytes", "Received Messages", "Slow Consumers")
+
+	var (
+		conn, ln           int
+		sb, sm, rb, rm, sc int64
+	)
+	for _, r := range res {
+		sz, err := c.parseAccountStatResp(r)
+		if err != nil {
+			return err
+		}
+
+		if len(sz.Stats.Accounts) == 0 {
+			continue
+		}
+
+		stats := sz.Stats.Accounts[0]
+
+		conn += stats.Conns
+		ln += stats.LeafNodes
+		sb += stats.Sent.Bytes
+		sm += stats.Sent.Msgs
+		rb += stats.Received.Bytes
+		rm += stats.Received.Msgs
+		sc += stats.SlowConsumers
+
+		table.AddRow(
+			sz.ServerInfo.Host,
+			sz.ServerInfo.Cluster,
+			sz.ServerInfo.Version,
+			strings.Join(sz.ServerInfo.Tags, ", "),
+			humanize.Comma(int64(stats.Conns)),
+			humanize.Comma(int64(stats.LeafNodes)),
+			humanize.IBytes(uint64(stats.Sent.Bytes)),
+			humanize.Comma(stats.Sent.Msgs),
+			humanize.IBytes(uint64(stats.Received.Bytes)),
+			humanize.Comma(stats.Received.Msgs),
+			humanize.Comma(stats.SlowConsumers),
+		)
+	}
+	table.AddSeparator()
+	table.AddRow(len(res), "", "", "", humanize.Comma(int64(conn)), humanize.Comma(int64(ln)), humanize.IBytes(uint64(sb)), humanize.Comma(sm), humanize.IBytes(uint64(rb)), humanize.Comma(rm), humanize.Comma(sc))
+	fmt.Print(table.Render())
+	fmt.Println()
+
+	return nil
+}
+
+func (c *actCmd) parseAccountStatResp(resp []byte) (*accountStats, error) {
+	reqresp := map[string]json.RawMessage{}
+	err := json.Unmarshal(resp, &reqresp)
+	if err != nil {
+		return nil, err
+	}
+
+	errresp, ok := reqresp["error"]
+	if ok {
+		res := map[string]any{}
+		err := json.Unmarshal(errresp, &res)
+		if err != nil {
+			return nil, fmt.Errorf("invalid response received: %q", errresp)
+		}
+
+		msg, ok := res["description"]
+		if !ok {
+			return nil, fmt.Errorf("invalid response received: %q", errresp)
+		}
+
+		return nil, fmt.Errorf("invalid response received: %v", msg)
+	}
+
+	data, ok := reqresp["data"]
+	if !ok {
+		return nil, fmt.Errorf("no data received in response: %#v", reqresp)
+	}
+
+	sz := &accountStats{Stats: &server.AccountStatz{}, ServerInfo: &server.ServerInfo{}}
+	s, ok := reqresp["server"]
+	if !ok {
+		return nil, fmt.Errorf("no server data received in response: %#v", reqresp)
+	}
+	err = json.Unmarshal(s, sz.ServerInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(data, sz.Stats)
+	if err != nil {
+		return nil, err
+	}
+
+	return sz, nil
+}
+
+type accountStats struct {
+	Stats      *server.AccountStatz
+	ServerInfo *server.ServerInfo
 }
 
 func (c *actCmd) renderTier(name string, tier api.JetStreamTier) {
