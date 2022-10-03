@@ -288,11 +288,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 
 		c.jsAck = false
-		if c.stream != "" {
-			sub, err = js.Subscribe("", handler, opts...)
-		} else {
-			sub, err = js.Subscribe(c.subject, handler, opts...)
-		}
+		sub, err = js.Subscribe(c.subject, handler, opts...)
 
 	case c.queue != "":
 		sub, err = nc.QueueSubscribe(c.subject, c.queue, handler)
