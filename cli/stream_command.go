@@ -1611,7 +1611,7 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	if cfg.DiscardNewPer {
 		dnp = "New Per Subject"
 	}
-	fmt.Printf("       Discard Policy: %s%s\n", cfg.Discard.String(), dnp)
+	fmt.Printf("       Discard Policy: %s\n", dnp)
 	fmt.Printf("     Duplicate Window: %v\n", cfg.Duplicates)
 	if cfg.AllowDirect {
 		fmt.Printf("    Allows Direct Get: %v\n", cfg.AllowDirect)
