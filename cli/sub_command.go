@@ -49,6 +49,8 @@ type subCmd struct {
 	stream                string
 	jetStream             bool
 	ignoreSubjects        []string
+	slowConsumer          time.Duration
+	slowConsumerAsync     bool
 }
 
 func configureSubCommand(app commandHost) {
@@ -74,6 +76,8 @@ func configureSubCommand(app commandHost) {
 	act.Flag("last-per-subject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
 	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
 	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
+	act.Flag("slow-consumer", "Mimic a slow consumer").Default("0s").DurationVar(&c.slowConsumer)
+	act.Flag("slow-consumer-async", "Continue processing messages").Default("false").BoolVar(&c.slowConsumerAsync)
 }
 
 func init() {
@@ -102,9 +106,6 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	if c.inbox && c.jetStream {
 		return fmt.Errorf("generating inboxes is not compatible with JetStream subscriptions")
 	}
-	if c.queue != "" && c.jetStream {
-		return fmt.Errorf("queu group subscriptions are not supported with JetStream")
-	}
 
 	var (
 		sub            *nats.Subscription
@@ -122,6 +123,25 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	handler := func(m *nats.Msg) {
 		mu.Lock()
 		defer mu.Unlock()
+
+		if c.slowConsumer > 0 {
+			defer func(ctr uint) {
+				if c.slowConsumerAsync {
+					go func(ctr uint) {
+						time.Sleep(c.slowConsumer)
+						log.Printf("Acknowledging message: %d", ctr)
+						if err := m.Ack(); err != nil {
+							log.Println("Message %d acknowledge failed: %s", ctr, err)
+						}
+					}(ctr)
+				} else {
+					time.Sleep(c.slowConsumer)
+					if err := m.Ack(); err != nil {
+						log.Println("Message %d acknowledge failed: %s", ctr, err)
+					}
+				}
+			}(ctr)
+		}
 
 		var info *jsm.MsgInfo
 		if m.Reply != "" {
@@ -233,7 +253,12 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		opts := []nats.SubOpt{
 			nats.EnableFlowControl(),
 			nats.IdleHeartbeat(5 * time.Second),
-			nats.AckNone(),
+		}
+
+		if c.slowConsumer.Seconds() == 0 {
+			opts = append(opts, nats.AckNone())
+		} else {
+			opts = append(opts, nats.ManualAck())
 		}
 
 		if c.headersOnly {
@@ -288,7 +313,19 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 
 		c.jsAck = false
-		sub, err = js.Subscribe(c.subject, handler, opts...)
+		if c.queue != "" {
+			if c.stream != "" {
+				sub, err = js.QueueSubscribe("", c.queue, handler, opts...)
+			} else {
+				sub, err = js.QueueSubscribe(c.subject, c.queue, handler, opts...)
+			}
+		} else {
+			if c.stream != "" {
+				sub, err = js.Subscribe("", handler, opts...)
+			} else {
+				sub, err = js.Subscribe(c.subject, handler, opts...)
+			}
+		}
 
 	case c.queue != "":
 		sub, err = nc.QueueSubscribe(c.subject, c.queue, handler)
