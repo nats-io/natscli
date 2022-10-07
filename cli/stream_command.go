@@ -254,7 +254,7 @@ func configureStreamCommand(app commandHost) {
 	strPurge.Flag("seq", "Purge up to but not including a specific message sequence").PlaceHolder("SEQUENCE").Uint64Var(&c.purgeSequence)
 	strPurge.Flag("keep", "Keeps a certain number of messages after the purge").PlaceHolder("MESSAGES").Uint64Var(&c.purgeKeep)
 
-	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another").Alias("cp").Action(c.cpAction)
+	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another, does not copy data").Alias("cp").Action(c.cpAction)
 	strCopy.Arg("source", "Source Stream to copy").Required().StringVar(&c.stream)
 	strCopy.Arg("destination", "New Stream to create").Required().StringVar(&c.destination)
 	addCreateFlags(strCopy, false)
@@ -268,7 +268,7 @@ func configureStreamCommand(app commandHost) {
 	strView.Arg("stream", "Stream name").StringVar(&c.stream)
 	strView.Arg("size", "Page size").Default("10").IntVar(&c.vwPageSize)
 	strView.Flag("id", "Start at a specific message Sequence").IntVar(&c.vwStartId)
-	strView.Flag("since", "Start at a time delta").DurationVar(&c.vwStartDelta)
+	strView.Flag("since", "Delivers messages received since a duration like 1d3h5m2s").DurationVar(&c.vwStartDelta)
 	strView.Flag("raw", "Show the raw data received").UnNegatableBoolVar(&c.vwRaw)
 	strView.Flag("subject", "Filter the stream using a subject").StringVar(&c.vwSubject)
 
