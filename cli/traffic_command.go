@@ -195,7 +195,7 @@ func (c *trafficCmd) monitor(_ *fisk.ParseContext) error {
 
 			table := newTableWriter("Cluster Traffic")
 			table.AddHeaders("JSA Update", "Stream Info", "Consumer Info", "Stream Sync", "Reply", "Total Messages")
-			for i := range raftRows {
+			for i := range clusterRows {
 				table.AddRow(clusterRows[i]...)
 			}
 			fmt.Println(table.Render())
