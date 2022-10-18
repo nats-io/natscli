@@ -971,6 +971,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 		err = askOne(&survey.Input{
 			Message: "Start policy (all, new, last, subject, 1h, msg sequence)",
 			Help:    "This controls how the Consumer starts out, does it make all messages available, only the latest, latest per subject, ones after a certain time or time sequence. Settable using --deliver",
+			Default: "all",
 		}, &c.startPolicy, survey.WithValidator(survey.Required))
 		fisk.FatalIfError(err, "could not request start policy")
 	}
