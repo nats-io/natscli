@@ -758,14 +758,9 @@ func TestCLIBackupRestore(t *testing.T) {
 	checkErr(t, err, "consumer c1 failed")
 	origC1Config := c1.Configuration()
 
-	t1, err := mgr.NewStreamTemplate("t1", 1, jsm.DefaultStream, jsm.Subjects("t1"), jsm.MemoryStorage())
-	checkErr(t, err, "TEST template create failed: %s", err)
-	origT1Config := t1.Configuration()
-
 	runNatsCli(t, fmt.Sprintf("--server='%s' backup '%s'", srv.ClientURL(), target))
 
 	checkErr(t, mem1.Delete(), "mem1 delete failed")
-	checkErr(t, t1.Delete(), "t1 delete failed")
 
 	runNatsCli(t, fmt.Sprintf("--server='%s' restore '%s'", srv.ClientURL(), target))
 
@@ -778,12 +773,6 @@ func TestCLIBackupRestore(t *testing.T) {
 	c1, err = mem1.LoadConsumer("c1")
 	checkErr(t, err, "fetch c1 failed")
 	if !cmp.Equal(c1.Configuration(), origC1Config) {
-		t.Fatalf("mem1 recreate failed")
-	}
-
-	t1, err = mgr.LoadStreamTemplate("t1")
-	checkErr(t, err, "template load failed")
-	if !cmp.Equal(t1.Configuration(), origT1Config) {
 		t.Fatalf("mem1 recreate failed")
 	}
 }

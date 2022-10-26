@@ -87,46 +87,6 @@ func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool
 	}
 }
 
-func selectStreamTemplate(mgr *jsm.Manager, template string, force bool) (string, error) {
-	if template != "" {
-		known, err := mgr.IsKnownStreamTemplate(template)
-		if err != nil {
-			return "", err
-		}
-
-		if known {
-			return template, nil
-		}
-	}
-
-	if force {
-		return "", fmt.Errorf("unknown template %q", template)
-	}
-
-	templates, err := mgr.StreamTemplateNames()
-	if err != nil {
-		return "", err
-	}
-
-	switch len(templates) {
-	case 0:
-		return "", errors.New("no Streams Templates are defined")
-	default:
-		s := ""
-
-		err = askOne(&survey.Select{
-			Message:  "Select a Stream Template",
-			Options:  templates,
-			PageSize: selectPageSize(len(templates)),
-		}, &s)
-		if err != nil {
-			return "", err
-		}
-
-		return s, nil
-	}
-}
-
 func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string, *jsm.Stream, error) {
 	s, err := mgr.LoadStream(stream)
 	if err == nil {
