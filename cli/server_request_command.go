@@ -179,7 +179,6 @@ func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
 		Host:    c.host,
 		Cluster: c.cluster,
 		Tags:    c.tags,
-		Domain:  opts.Config.JSDomain(),
 	}
 	if opts.Config != nil {
 		opt.Domain = opts.Config.JSDomain()
