@@ -330,7 +330,7 @@ func TestCheckMirror(t *testing.T) {
 	})
 
 	t.Run("failed mirror", func(t *testing.T) {
-		info.Mirror = &api.StreamSourceInfo{"M", nil, 100, time.Hour, nil}
+		info.Mirror = &api.StreamSourceInfo{Name: "M", Lag: 100, Active: time.Hour}
 		check := &result{}
 		err := cmd.checkMirror(check, info)
 		checkErr(t, err, "unexpected error")
@@ -340,7 +340,7 @@ func TestCheckMirror(t *testing.T) {
 	})
 
 	t.Run("ok mirror", func(t *testing.T) {
-		info.Mirror = &api.StreamSourceInfo{"M", nil, 1, 10 * time.Millisecond, nil}
+		info.Mirror = &api.StreamSourceInfo{Name: "M", Lag: 1, Active: 10 * time.Millisecond}
 		check := &result{}
 		assertNoError(t, cmd.checkMirror(check, info))
 		assertHasPDItem(t, check, "lag=1;;50 active=0.0100s;;1.0000")
@@ -367,7 +367,7 @@ func TestCheckSources(t *testing.T) {
 	t.Run("lagged source", func(t *testing.T) {
 		info = &api.StreamInfo{
 			Sources: []*api.StreamSourceInfo{
-				{"s1", nil, 1000, time.Millisecond, nil},
+				{Name: "s1", Lag: 1000, Active: time.Millisecond},
 			},
 		}
 
@@ -380,7 +380,7 @@ func TestCheckSources(t *testing.T) {
 	t.Run("inactive source", func(t *testing.T) {
 		info = &api.StreamInfo{
 			Sources: []*api.StreamSourceInfo{
-				{"s1", nil, 0, time.Hour, nil},
+				{Name: "s1", Active: time.Hour},
 			},
 		}
 
@@ -393,7 +393,7 @@ func TestCheckSources(t *testing.T) {
 	t.Run("not enough sources", func(t *testing.T) {
 		info = &api.StreamInfo{
 			Sources: []*api.StreamSourceInfo{
-				{"s1", nil, 0, time.Millisecond, nil},
+				{Name: "s1", Active: time.Millisecond},
 			},
 		}
 
@@ -408,8 +408,8 @@ func TestCheckSources(t *testing.T) {
 	t.Run("too many sources", func(t *testing.T) {
 		info = &api.StreamInfo{
 			Sources: []*api.StreamSourceInfo{
-				{"s1", nil, 0, time.Millisecond, nil},
-				{"s2", nil, 0, time.Millisecond, nil},
+				{Name: "s1", Active: time.Millisecond},
+				{Name: "s2", Active: time.Millisecond},
 			},
 		}
 
