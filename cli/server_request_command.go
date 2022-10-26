@@ -174,13 +174,18 @@ func (c *SrvRequestCmd) jsz(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
-	return server.EventFilterOptions{
+	opt := server.EventFilterOptions{
 		Name:    c.name,
 		Host:    c.host,
 		Cluster: c.cluster,
 		Tags:    c.tags,
 		Domain:  opts.Config.JSDomain(),
 	}
+	if opts.Config != nil {
+		opt.Domain = opts.Config.JSDomain()
+	}
+
+	return opt
 }
 
 func (c *SrvRequestCmd) accountz(_ *fisk.ParseContext) error {
