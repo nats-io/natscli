@@ -73,7 +73,6 @@ type streamCmd struct {
 	reportRaw             bool
 	reportLimitCluster    string
 	reportLeaderDistrib   bool
-	maxStreams            int
 	discardPolicy         string
 	validateOnly          bool
 	backupDirectory       string
