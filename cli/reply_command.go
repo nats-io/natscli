@@ -148,7 +148,7 @@ func (c *replyCmd) reply(_ *fisk.ParseContext) error {
 			for i, t := range tokens {
 				rawCmd = strings.Replace(rawCmd, fmt.Sprintf("{{%d}}", i), t, -1)
 			}
-			
+
 			rawCmd = strings.Replace(rawCmd, fmt.Sprintf("{{BODY}}"), string(m.Data), -1)
 
 			cmdParts, err := shellquote.Split(rawCmd)
