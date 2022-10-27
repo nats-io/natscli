@@ -52,6 +52,14 @@ This will request the weather for london when invoked as:
 
   nats request weather.london ''
 
+Use {{BODY}} to access the request body within the --command
+  
+The command gets also spawned with two ENVs:
+  NATS_REQUEST_SUBJECT
+  NATS_REQUEST_BODY
+
+  nats reply 'echo' --command="printenv NATS_REQUEST_BODY" 
+  
 The body and Header values of the messages may use Go templates to create unique messages.
 
    nats reply test "Message {{Count}} @ {{Time}}"
@@ -140,6 +148,8 @@ func (c *replyCmd) reply(_ *fisk.ParseContext) error {
 			for i, t := range tokens {
 				rawCmd = strings.Replace(rawCmd, fmt.Sprintf("{{%d}}", i), t, -1)
 			}
+			
+			rawCmd = strings.Replace(rawCmd, fmt.Sprintf("{{BODY}}"), string(m.Data), -1)
 
 			cmdParts, err := shellquote.Split(rawCmd)
 			if err != nil {
