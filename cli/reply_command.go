@@ -51,8 +51,12 @@ the "london" part and use it in the command string:
 This will request the weather for london when invoked as:
 
   nats request weather.london ''
+
+Use {{BODY}} to access the request body within the --command
   
-The command gets spawned with two ENVs: NATS_REQUEST_SUBJECT and NATS_REQUEST_BODY
+The command gets also spawned with two ENVs:
+  NATS_REQUEST_SUBJECT
+  NATS_REQUEST_BODY
 
   nats reply 'echo' --command="printenv NATS_REQUEST_BODY" 
   
