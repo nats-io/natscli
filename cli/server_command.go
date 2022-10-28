@@ -27,6 +27,7 @@ func configureServerCommand(app commandHost) {
 	configureServerPasswdCommand(srv)
 	configureServerCheckCommand(srv)
 	configureServerRunCommand(srv)
+	configureServerPurgeCommand(srv)
 }
 
 func init() {
