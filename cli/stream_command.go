@@ -102,6 +102,8 @@ type streamCmd struct {
 	denyPurgeSet          bool
 	allowDirect           bool
 	allowDirectSet        bool
+	allowMirrorDirect     bool
+	allowMirrorDirectSet  bool
 	discardPerSubj        bool
 	discardPerSubjSet     bool
 	showStateOnly         bool
@@ -163,9 +165,9 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
 		f.Flag("discard-per-subject", "Sets the 'new' discard policy and applies it to every subject in the stream").IsSetByUser(&c.discardPerSubjSet).BoolVar(&c.discardPerSubj)
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
-		f.Flag("max-bytes", "Maximum bytes to keep").StringVar(&c.maxBytesLimitString)
+		f.Flag("max-bytes", "Maximum bytes to keep").PlaceHolder("BYTES").StringVar(&c.maxBytesLimitString)
 		f.Flag("max-consumers", "Maximum number of consumers to allow").Default("-1").IntVar(&c.maxConsumers)
-		f.Flag("max-msg-size", "Maximum size any 1 message may be").StringVar(&c.maxMsgSizeString)
+		f.Flag("max-msg-size", "Maximum size any 1 message may be").PlaceHolder("BYTES").StringVar(&c.maxMsgSizeString)
 		f.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
 		f.Flag("max-msgs-per-subject", "Maximum amount of messages to keep per subject").Default("0").Int64Var(&c.maxMsgPerSubjectLimit)
 		f.Flag("dupe-window", "Duration of the duplicate message tracking window").Default("").StringVar(&c.dupeWindow)
@@ -175,6 +177,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("deny-delete", "Deny messages from being deleted via the API").IsSetByUser(&c.denyDeleteSet).BoolVar(&c.denyDelete)
 		f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
 		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).BoolVar(&c.allowDirect)
+		f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
 
 		f.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
@@ -191,8 +194,8 @@ func configureStreamCommand(app commandHost) {
 	strAdd.Flag("validate", "Only validates the configuration against the official Schema").UnNegatableBoolVar(&c.validateOnly)
 	strAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
 	addCreateFlags(strAdd, false)
-	strAdd.Flag("republish-source", "Republish messages to --republish-destination").StringVar(&c.repubSource)
-	strAdd.Flag("republish-destination", "Republish destination for messages in --republish-source").StringVar(&c.repubDest)
+	strAdd.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SOURCE").StringVar(&c.repubSource)
+	strAdd.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
 	strAdd.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
 
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
@@ -1287,6 +1290,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		cfg.AllowDirect = c.allowDirect
 	}
 
+	if c.allowMirrorDirectSet {
+		cfg.MirrorDirect = c.allowMirrorDirectSet
+	}
+
 	if c.discardPerSubjSet {
 		cfg.DiscardNewPer = c.discardPerSubj
 	}
@@ -1484,9 +1491,11 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	fmt.Printf("       Discard Policy: %s\n", dnp)
 	fmt.Printf("     Duplicate Window: %v\n", cfg.Duplicates)
 	if cfg.AllowDirect {
-		fmt.Printf("    Allows Direct Get: %v\n", cfg.AllowDirect)
+		fmt.Printf("           Direct Get: %t\n", cfg.AllowDirect)
 	}
-
+	if cfg.MirrorDirect {
+		fmt.Printf("    Mirror Direct Get: %t\n", cfg.MirrorDirect)
+	}
 	fmt.Printf("    Allows Msg Delete: %v\n", !cfg.DenyDelete)
 	fmt.Printf("         Allows Purge: %v\n", !cfg.DenyPurge)
 	fmt.Printf("       Allows Rollups: %v\n", cfg.RollupAllowed)
@@ -1995,6 +2004,7 @@ func (c *streamCmd) prepareConfig(pc *fisk.ParseContext, requireSize bool) api.S
 		DenyPurge:     c.denyPurge,
 		DenyDelete:    c.denyDelete,
 		AllowDirect:   c.allowDirect,
+		MirrorDirect:  c.allowMirrorDirectSet,
 		DiscardNewPer: c.discardPerSubj,
 	}
 
