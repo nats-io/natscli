@@ -104,6 +104,7 @@ type streamCmd struct {
 	allowDirectSet        bool
 	discardPerSubj        bool
 	discardPerSubjSet     bool
+	showStateOnly         bool
 
 	fServer    string
 	fCluster   string
@@ -224,6 +225,11 @@ func configureStreamCommand(app commandHost) {
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
 	strInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	strInfo.Flag("state", "Shows only the stream state").UnNegatableBoolVar(&c.showStateOnly)
+
+	strState := str.Command("state", "Stream state").Action(c.stateAction)
+	strState.Arg("stream", "Stream to retrieve state information for").StringVar(&c.stream)
+	strState.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	strSubs := str.Command("subjects", "Query subjects held in a stream").Alias("subj").Action(c.subjectsAction)
 	strSubs.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -1532,6 +1538,7 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	if cfg.Mirror != nil {
 		fmt.Printf("               Mirror: %s\n", c.renderSource(cfg.Mirror))
 	}
+
 	if len(cfg.Sources) > 0 {
 		fmt.Printf("              Sources: ")
 		sort.Slice(cfg.Sources, func(i, j int) bool {
@@ -1592,10 +1599,15 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		return
 	}
 
-	fmt.Printf("Information for Stream %s created %s\n", c.stream, info.Created.Local().Format("2006-01-02 15:04:05"))
-	fmt.Println()
-	c.showStreamConfig(info.Config)
-	fmt.Println()
+	if !c.showStateOnly {
+		fmt.Printf("Information for Stream %s created %s\n", c.stream, info.Created.Local().Format("2006-01-02 15:04:05"))
+		fmt.Println()
+		c.showStreamConfig(info.Config)
+		fmt.Println()
+	} else {
+		fmt.Printf("State for Stream %s created %s\n", c.stream, info.Created.Local().Format("2006-01-02 15:04:05"))
+		fmt.Println()
+	}
 
 	if info.Cluster != nil && info.Cluster.Name != "" {
 		fmt.Println("Cluster Information:")
@@ -1726,6 +1738,11 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 			}
 		}
 	}
+}
+
+func (c *streamCmd) stateAction(pc *fisk.ParseContext) error {
+	c.showStateOnly = true
+	return c.infoAction(pc)
 }
 
 func (c *streamCmd) infoAction(_ *fisk.ParseContext) error {
