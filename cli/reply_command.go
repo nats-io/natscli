@@ -52,6 +52,14 @@ This will request the weather for london when invoked as:
 
   nats request weather.london ''
 
+Use {{.Request}} to access the request body within the --command
+  
+The command gets also spawned with two ENVs:
+  NATS_REQUEST_SUBJECT
+  NATS_REQUEST_BODY
+
+  nats reply 'echo' --command="printenv NATS_REQUEST_BODY" 
+  
 The body and Header values of the messages may use Go templates to create unique messages.
 
    nats reply test "Message {{Count}} @ {{Time}}"
