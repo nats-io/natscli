@@ -141,6 +141,12 @@ func (c *replyCmd) reply(_ *fisk.ParseContext) error {
 				rawCmd = strings.Replace(rawCmd, fmt.Sprintf("{{%d}}", i), t, -1)
 			}
 
+			parsedCmd, err := pubReplyBodyTemplate(rawCmd, string(m.Data), i)
+			if err != nil {
+				log.Printf("Could not parse command template: %s", err)
+			}
+			rawCmd = string(parsedCmd)
+
 			cmdParts, err := shellquote.Split(rawCmd)
 			if err != nil {
 				log.Printf("Could not parse command: %s", err)
