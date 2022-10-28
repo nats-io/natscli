@@ -740,43 +740,6 @@ func TestCLIConsumerCopy(t *testing.T) {
 	}
 }
 
-func TestCLIBackupRestore(t *testing.T) {
-	srv, _, mgr := setupConsTest(t)
-	defer srv.Shutdown()
-
-	dir, err := os.MkdirTemp("", "")
-	checkErr(t, err, "temp dir failed")
-	defer os.RemoveAll(dir)
-
-	target := filepath.Join(dir, "backup")
-
-	mem1, err := mgr.LoadStream("mem1")
-	checkErr(t, err, "fetch mem1 failed")
-	origMem1Config := mem1.Configuration()
-
-	c1, err := mem1.NewConsumerFromDefault(jsm.DefaultConsumer, jsm.DurableName("c1"))
-	checkErr(t, err, "consumer c1 failed")
-	origC1Config := c1.Configuration()
-
-	runNatsCli(t, fmt.Sprintf("--server='%s' backup '%s'", srv.ClientURL(), target))
-
-	checkErr(t, mem1.Delete(), "mem1 delete failed")
-
-	runNatsCli(t, fmt.Sprintf("--server='%s' restore '%s'", srv.ClientURL(), target))
-
-	mem1, err = mgr.LoadStream("mem1")
-	checkErr(t, err, "fetch mem1 failed")
-	if !cmp.Equal(mem1.Configuration(), origMem1Config) {
-		t.Fatalf("mem1 recreate failed")
-	}
-
-	c1, err = mem1.LoadConsumer("c1")
-	checkErr(t, err, "fetch c1 failed")
-	if !cmp.Equal(c1.Configuration(), origC1Config) {
-		t.Fatalf("mem1 recreate failed")
-	}
-}
-
 func TestCLIStreamBackupRestore(t *testing.T) {
 	srv, nc, mgr := setupConsTest(t)
 	defer srv.Shutdown()
@@ -810,36 +773,6 @@ func TestCLIStreamBackupRestore(t *testing.T) {
 	checkErr(t, err, "state failed")
 	if state.LastSeq != 1024 {
 		t.Fatalf("expected 1024 messages got %d", state.LastSeq)
-	}
-}
-
-func TestCLIBackupRestore_UpdateStream(t *testing.T) {
-	srv, _, mgr := setupConsTest(t)
-	defer srv.Shutdown()
-
-	dir, err := os.MkdirTemp("", "")
-	checkErr(t, err, "temp dir failed")
-	defer os.RemoveAll(dir)
-
-	target := filepath.Join(dir, "backup")
-
-	mem1, err := mgr.LoadStream("mem1")
-	checkErr(t, err, "fetch mem1 failed")
-
-	runNatsCli(t, fmt.Sprintf("--server='%s' backup '%s'", srv.ClientURL(), target))
-
-	runNatsCli(t, fmt.Sprintf("--server='%s' stream edit mem1 -f --subjects x", srv.ClientURL()))
-	checkErr(t, mem1.Reset(), "reset failed")
-	subs := mem1.Subjects()
-	if len(subs) != 1 || subs[0] != "x" {
-		t.Fatalf("expected [x] got %q", subs)
-	}
-
-	runNatsCli(t, fmt.Sprintf("--server='%s' restore '%s' --update-streams", srv.ClientURL(), target))
-	checkErr(t, mem1.Reset(), "reset failed")
-	subs = mem1.Subjects()
-	if len(subs) != 1 || subs[0] != "js.mem.>" {
-		t.Fatalf("expected [js.mem.>] got %q", subs)
 	}
 }
 
