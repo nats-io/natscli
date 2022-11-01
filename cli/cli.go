@@ -113,6 +113,8 @@ type Options struct {
 	JSc nats.JetStreamContext
 	// Disables registering of CLI cheats
 	NoCheats bool
+	// PrometheusNamespace is the namespace to use for prometheus format output in server check
+	PrometheusNamespace string
 }
 
 // SkipContexts used during tests
@@ -148,6 +150,10 @@ func commonConfigure(cmd commandHost, cliOpts *Options, disable ...string) error
 		opts = &Options{
 			Timeout: 5 * time.Second,
 		}
+	}
+
+	if opts.PrometheusNamespace == "" {
+		opts.PrometheusNamespace = ""
 	}
 
 	ctx = context.Background()

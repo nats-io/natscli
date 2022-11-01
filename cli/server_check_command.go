@@ -277,6 +277,10 @@ func (r *result) renderPrometheus() string {
 		r.Check = r.Name
 	}
 
+	if opts.PrometheusNamespace == "" {
+		opts.PrometheusNamespace = "nats_server_check"
+	}
+
 	registry := prometheus.NewRegistry()
 	prometheus.DefaultRegisterer = registry
 	prometheus.DefaultGatherer = registry
@@ -289,7 +293,7 @@ func (r *result) renderPrometheus() string {
 		}
 
 		gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: fmt.Sprintf("nats_server_check_%s_%s", r.Check, pd.Name),
+			Name: prometheus.BuildFQName(opts.PrometheusNamespace, r.Check, pd.Name),
 			Help: help,
 		}, []string{"item"})
 		prometheus.MustRegister(gauge)
