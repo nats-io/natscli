@@ -56,6 +56,7 @@ type benchCmd struct {
 	pushDurable          bool
 	consumerName         string
 	kv                   bool
+	bucketName           string
 	history              uint8
 	fetchTimeout         bool
 	multiSubject         bool
@@ -69,6 +70,7 @@ type benchCmd struct {
 const (
 	DefaultDurableConsumerName string = "natscli-bench"
 	DefaultStreamName          string = "benchstream"
+	DefaultBucketName          string = "benchbucket"
 )
 
 func configureBenchCommand(app commandHost) {
@@ -128,6 +130,7 @@ Remember to use --no-progress to measure performance more accurately
 	bench.Flag("replicas", "Number of stream replicas for the \"benchstream\" stream").Default("1").IntVar(&c.replicas)
 	bench.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes").Default("1GB").StringVar(&c.streamMaxBytesString)
 	bench.Flag("stream", "When set to something else than \"benchstream\": use (and do not attempt to define) the specified stream when creating durable subscribers. Otherwise define and use the \"benchstream\" stream").Default(DefaultStreamName).StringVar(&c.streamName)
+	bench.Flag("bucket", "When set to something else than \"benchbucket\": use (and do not attempt to define) the specified bucket when in KV mode. Otherwise define and use the \"benchbucket\" bucket").Default(DefaultBucketName).StringVar(&c.bucketName)
 	bench.Flag("consumer", "Specify the durable consumer name to use").Default(DefaultDurableConsumerName).StringVar(&c.consumerName)
 	bench.Flag("jstimeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	bench.Flag("syncpub", "Synchronously publish to the stream").UnNegatableBoolVar(&c.syncPub)
@@ -215,7 +218,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 			log.Printf("Starting JetStream benchmark [subject=%s,  multisubject=%v, multisubjectmax=%d, js=%v, msgs=%s, msgsize=%s, pubs=%d, subs=%d, stream=%s, maxbytes=%s, syncpub=%v, pubbatch=%s, jstimeout=%v, pull=%v, consumerbatch=%s, push=%v, consumername=%s, purge=%v, pubsleep=%v, subsleep=%v, deduplication=%c, dedupwindow=%v]", getSubscribeSubject(c), c.multiSubject, c.multiSubjectMax, c.js, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.streamName, humanize.IBytes(uint64(c.streamMaxBytes)), c.syncPub, humanize.Comma(int64(c.pubBatch)), c.jsTimeout, c.pull, humanize.Comma(int64(c.consumerBatch)), c.pushDurable, c.consumerName, c.purge, c.pubSleep, c.subSleep, c.deDuplication, c.deDuplicationWindow)
 		}
 	} else if c.kv {
-		log.Printf("Starting KV benchmark [bucket=%s, kv=%v, msgs=%s, msgsize=%s, maxbytes=%s, pubs=%d, sub=%d, storage=%s, replicas=%d, pubsleep=%v, subsleep=%v]", getSubscribeSubject(c), c.kv, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), humanize.IBytes(uint64(c.streamMaxBytes)), c.numPubs, c.numSubs, c.storage, c.replicas, c.pubSleep, c.subSleep)
+		log.Printf("Starting KV benchmark [bucket=%s, kv=%v, msgs=%s, msgsize=%s, maxbytes=%s, pubs=%d, sub=%d, storage=%s, replicas=%d, pubsleep=%v, subsleep=%v]", c.bucketName, c.kv, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), humanize.IBytes(uint64(c.streamMaxBytes)), c.numPubs, c.numSubs, c.storage, c.replicas, c.pubSleep, c.subSleep)
 	} else {
 		if c.request || c.reply {
 			log.Printf("Starting request-reply benchmark [subject=%s, multisubject=%v, multisubjectmax=%d, request=%v, reply=%v, msgs=%s, msgsize=%s, pubs=%d, subs=%d, pubsleep=%v, subsleep=%v]", getSubscribeSubject(c), c.multiSubject, c.multiSubjectMax, c.request, c.reply, humanize.Comma(int64(c.numMsg)), humanize.IBytes(uint64(c.msgSize)), c.numPubs, c.numSubs, c.pubSleep, c.subSleep)
@@ -259,19 +262,22 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 			log.Fatalf("Couldn't get the JetStream context: %v", err)
 		}
 		if c.kv {
+
 			// There is no way to purge all the keys in a KV bucket in a single operation so deleting the bucket instead
 			if c.purge {
-				err = js.PurgeStream("KV_" + c.subject)
+				err = js.PurgeStream("KV_" + c.bucketName)
 				// err = js.DeleteKeyValue(c.subject)
 				if err != nil {
-					log.Fatalf("Can not purge the bucket: %v", err)
+					log.Fatalf("Error trying to purge the bucket: %v", err)
 				}
 			}
 
-			// create bucket
-			_, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: c.subject, History: c.history, Storage: storageType, Description: "nats bench bucket", Replicas: c.replicas, MaxBytes: c.streamMaxBytes})
-			if err != nil {
-				log.Fatalf("Couldn't create the KV bucket: %v", err)
+			if c.bucketName == DefaultBucketName {
+				// create bucket
+				_, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: c.bucketName, History: c.history, Storage: storageType, Description: "nats bench bucket", Replicas: c.replicas, MaxBytes: c.streamMaxBytes})
+				if err != nil {
+					log.Fatalf("Couldn't create the KV bucket: %v", err)
+				}
 			}
 		} else if c.js {
 			if c.streamName == DefaultStreamName {
@@ -544,8 +550,11 @@ func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byt
 					select {
 					case <-futures[future].Ok():
 						i++
-					case e := <-futures[future].Err():
-						log.Printf("PubAsyncFuture for message %v in batch not OK: %v (retrying)", future, e)
+					case err := <-futures[future].Err():
+						if err.Error() == "nats: maximum bytes exceeded" {
+							log.Fatalf("Stream maximum bytes exceeded, can not publish any more messages")
+						}
+						log.Printf("PubAsyncFuture for message %v in batch not OK: %v (retrying)", future, err)
 						c.retriesUsed = true
 					}
 				}
@@ -574,6 +583,9 @@ func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byt
 				_, err = js.Publish(getPublishSubject(c, i+offset), msg)
 			}
 			if err != nil {
+				if err.Error() == "nats: maximum bytes exceeded" {
+					log.Fatalf("Stream maximum bytes exceeded, can not publish any more messages")
+				}
 				log.Printf("Publish error: %v (retrying)", err)
 				c.retriesUsed = true
 				i--
@@ -589,9 +601,9 @@ func kvPutter(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, n
 		log.Fatalf("Couldn't get the JetStream context: %v", err)
 	}
 
-	kvBucket, err := js.KeyValue(c.subject)
+	kvBucket, err := js.KeyValue(c.bucketName)
 	if err != nil {
-		log.Fatalf("Couldn't find kv store %s: %v", c.subject, err)
+		log.Fatalf("Couldn't find kv bucket %s: %v", c.bucketName, err)
 	}
 
 	var state string = "Putting   "
@@ -786,9 +798,9 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 			log.Fatalf("Couldn't get the JetStream context: %v", err)
 		}
 
-		kvBucket, err := js.KeyValue(c.subject)
+		kvBucket, err := js.KeyValue(c.bucketName)
 		if err != nil {
-			log.Fatalf("Couldn't find kv store %s: %v", c.subject, err)
+			log.Fatalf("Couldn't find kv bucket %s: %v", c.bucketName, err)
 		}
 
 		// start the timer now rather than when the first message is received in JS mode
