@@ -74,6 +74,7 @@ nfpms:
     maintainer: R.I. Pienaar <rip@devco.net>
     license: Apache 2.0
     vendor: Synadia Inc.
+    bindir: /usr/local/bin
     formats:
       - deb
       - rpm
