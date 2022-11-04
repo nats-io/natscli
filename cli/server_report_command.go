@@ -650,19 +650,21 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		return result[:limit], nil
 	}
 
-	incomplete := []connz{}
-	for _, con := range result {
-		if con.Connz.Offset+con.Connz.Limit < con.Connz.Total {
-			incomplete = append(incomplete, con)
+	offset := 0
+	for _, conn := range result {
+		if conn.Connz.Offset+conn.Connz.Limit < conn.Connz.Total {
+
+			offset = conn.Connz.Offset + conn.Connz.Limit + 1
+			break
 		}
 	}
 
-	if len(incomplete) > 0 && !c.json {
+	if offset > 0 && !c.json {
 		fmt.Print("Gathering paged connection information")
 	}
 
 	for {
-		if len(incomplete) == 0 {
+		if offset <= 0 {
 			break
 		}
 
@@ -672,43 +674,45 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 
 		fmt.Print(".")
 
-		getList := incomplete[0:]
-		incomplete = []connz{}
+		// get on offset
+		// iterate and add to results
 
-		for _, conn := range getList {
-			req := &server.ConnzEventOptions{
-				ConnzOptions: server.ConnzOptions{
-					Subscriptions:       true,
-					SubscriptionsDetail: false,
-					Account:             c.account,
-					Username:            true,
-					Offset:              conn.Connz.Offset + conn.Connz.Limit + 1,
-				},
-				EventFilterOptions: c.reqFilter(),
-			}
+		req := &server.ConnzEventOptions{
+			ConnzOptions: server.ConnzOptions{
+				Subscriptions:       true,
+				SubscriptionsDetail: false,
+				Account:             c.account,
+				Username:            true,
+				Offset:              offset,
+			},
+			EventFilterOptions: c.reqFilter(),
+		}
 
-			res, err := doReq(req, fmt.Sprintf("$SYS.REQ.SERVER.%s.CONNZ", conn.Connz.ID), 1, nc)
-			if err == nats.ErrNoResponders {
-				return nil, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
-			} else if err != nil {
+		res, err := doReq(req, "$SYS.REQ.SERVER.PING.CONNZ", c.waitFor, nc)
+		if err == nats.ErrNoResponders {
+			return nil, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
+		} else if err != nil {
+			return nil, err
+		}
+
+		offset = 0
+
+		for _, c := range res {
+			conn, err := parseConnzResp(c)
+			if err != nil {
 				return nil, err
 			}
 
-			if len(res) != 1 {
-				return nil, fmt.Errorf("received %d responses from server %s expcting exactly 1", len(res), conn.Connz.ID)
+			found += len(conn.Connz.Conns)
+
+			if len(conn.Connz.Conns) == 0 {
+				continue
 			}
 
-			for _, c := range res {
-				co, err := parseConnzResp(c)
-				if err != nil {
-					return nil, err
-				}
-				result = append(result, co)
-				found += len(co.Connz.Conns)
+			result = append(result, conn)
 
-				if co.Connz.Offset+co.Connz.Limit < co.Connz.Total {
-					incomplete = append(incomplete, co)
-				}
+			if conn.Connz.Offset+conn.Connz.Limit < conn.Connz.Total {
+				offset = conn.Connz.Offset + conn.Connz.Limit + 1
 			}
 		}
 	}
