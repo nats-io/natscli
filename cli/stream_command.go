@@ -504,7 +504,7 @@ func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 
 	ctr := 0
 	start := time.Now()
-	for range time.NewTicker(1 * time.Millisecond).C {
+	for range time.NewTicker(500 * time.Millisecond).C {
 		if ctr == 10 {
 			return fmt.Errorf("stream did not elect a new leader in time")
 		}
