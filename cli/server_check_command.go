@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/choria-io/fisk"
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -51,14 +52,17 @@ type SrvCheckCmd struct {
 	raftLagCritical  uint64
 	raftSeenCritical time.Duration
 
-	jsMemWarn           int
-	jsMemCritical       int
-	jsStoreWarn         int
-	jsStoreCritical     int
-	jsStreamsWarn       int
-	jsStreamsCritical   int
-	jsConsumersWarn     int
-	jsConsumersCritical int
+	jsMemWarn             int
+	jsMemCritical         int
+	jsStoreWarn           int
+	jsStoreCritical       int
+	jsStreamsWarn         int
+	jsStreamsCritical     int
+	jsConsumersWarn       int
+	jsConsumersCritical   int
+	jsReplicas            bool
+	jsReplicaSeenCritical time.Duration
+	jsReplicaLagCritical  uint64
 
 	srvName        string
 	srvCPUWarn     int
@@ -130,6 +134,9 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	js.Flag("streams-critical", "Critical threshold for number of streams used, in percent").Default("-1").IntVar(&c.jsStreamsCritical)
 	js.Flag("consumers-warn", "Warning threshold for number of consumers used, in percent").Default("-1").IntVar(&c.jsConsumersWarn)
 	js.Flag("consumers-critical", "Critical threshold for number of consumers used, in percent").Default("-1").IntVar(&c.jsConsumersCritical)
+	js.Flag("replicas", "Checks if all streams have healthy replicas").Default("true").BoolVar(&c.jsReplicas)
+	js.Flag("replica-seen-critical", "Critical threshold for when a stream replica should have been seen, as a duration").Default("5s").DurationVar(&c.jsReplicaSeenCritical)
+	js.Flag("replica-lag-critical", "Critical threshold for how many operations behind a peer can be").Default("200").Uint64Var(&c.jsReplicaLagCritical)
 
 	serv := check.Command("server", "Checks a NATS Server health").Action(c.checkSrv)
 	serv.Flag("name", "Server name to require in the result").Required().StringVar(&c.srvName)
@@ -257,10 +264,10 @@ func (r *result) renderHuman() string {
 	}
 
 	table = newTableWriter("")
-	table.AddHeaders("Metric", "Value", "Unit", "Critical Threshold", "Warning Threshold")
+	table.AddHeaders("Metric", "Value", "Unit", "Critical Threshold", "Warning Threshold", "Description")
 	lines = 0
 	for _, pd := range r.PerfData {
-		table.AddRow(pd.Name, pd.Value, pd.Unit, pd.Crit, pd.Warn)
+		table.AddRow(pd.Name, pd.Value, pd.Unit, pd.Crit, pd.Warn, pd.Help)
 		lines++
 	}
 	if lines > 0 {
@@ -722,6 +729,109 @@ func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 
 	err = c.checkAccountInfo(check, info)
 	check.criticalIfErr(err, "JetStream not available: %s", err)
+
+	if c.jsReplicas {
+		streams, err := mgr.Streams(nil)
+		check.criticalIfErr(err, "JetStream not available: %s", err)
+
+		err = c.checkStreamClusterHealth(check, streams)
+		check.criticalIfErr(err, "JetStream not available: %s", err)
+	}
+
+	return nil
+}
+
+func (c *SrvCheckCmd) checkStreamClusterHealth(check *result, info []*jsm.Stream) error {
+	var okCnt, noLeaderCnt, notEnoughReplicasCnt, critCnt, lagCritCnt, seenCritCnt int
+
+	for _, s := range info {
+		nfo, err := s.LatestInformation()
+		if err != nil {
+			critCnt++
+			continue
+		}
+
+		if nfo.Config.Replicas == 1 {
+			okCnt++
+			continue
+		}
+
+		if nfo.Cluster == nil {
+			critCnt++
+			continue
+		}
+
+		if nfo.Cluster.Leader == "" {
+			noLeaderCnt++
+			continue
+		}
+
+		if len(nfo.Cluster.Replicas) != s.Replicas()-1 {
+			notEnoughReplicasCnt++
+			continue
+		}
+
+		for _, r := range nfo.Cluster.Replicas {
+			if r.Offline {
+				critCnt++
+				continue
+			}
+
+			if r.Active > c.jsReplicaSeenCritical {
+				seenCritCnt++
+				continue
+			}
+			if r.Lag > c.jsReplicaLagCritical {
+				lagCritCnt++
+				continue
+			}
+		}
+
+		okCnt++
+	}
+
+	check.pd(&perfDataItem{
+		Name:  "replicas_ok",
+		Value: float64(okCnt),
+		Help:  "Streams with healthy cluster state",
+	})
+
+	check.pd(&perfDataItem{
+		Name:  "replicas_no_leader",
+		Value: float64(noLeaderCnt),
+		Help:  "Streams with no leader elected",
+	})
+
+	check.pd(&perfDataItem{
+		Name:  "replicas_missing_replicas",
+		Value: float64(notEnoughReplicasCnt),
+		Help:  "Streams where there are fewer known replicas than configured",
+	})
+
+	check.pd(&perfDataItem{
+		Name:  "replicas_lagged",
+		Value: float64(lagCritCnt),
+		Crit:  float64(c.jsReplicaLagCritical),
+		Help:  fmt.Sprintf("Streams with > %d lagged replicas", c.jsReplicaLagCritical),
+	})
+
+	check.pd(&perfDataItem{
+		Name:  "replicas_not_seen",
+		Value: float64(seenCritCnt),
+		Crit:  c.jsReplicaSeenCritical.Seconds(),
+		Unit:  "s",
+		Help:  fmt.Sprintf("Streams with replicas seen > %d ago", c.jsReplicaSeenCritical),
+	})
+
+	check.pd(&perfDataItem{
+		Name:  "replicas_fail",
+		Value: float64(critCnt),
+		Help:  "Streams unhealthy cluster state",
+	})
+
+	if critCnt > 0 || notEnoughReplicasCnt > 0 || noLeaderCnt > 0 {
+		check.critical("%d unhealthy streams", critCnt+notEnoughReplicasCnt+noLeaderCnt)
+	}
 
 	return nil
 }

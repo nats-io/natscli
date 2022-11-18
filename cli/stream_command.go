@@ -1805,7 +1805,7 @@ func (c *streamCmd) retentionPolicyFromString() api.RetentionPolicy {
 	}
 }
 
-func (c *streamCmd) prepareConfig(pc *fisk.ParseContext, requireSize bool) api.StreamConfig {
+func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.StreamConfig {
 	var err error
 
 	if c.inputFile != "" {

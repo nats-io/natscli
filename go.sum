@@ -207,6 +207,8 @@ github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRW
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/nats-io/jsm.go v0.0.35 h1:l03xuGttRA9b81Q0P/WEGm3e5DYof743ZEI4nQR3PUs=
 github.com/nats-io/jsm.go v0.0.35/go.mod h1:AkNKZTxbvdFBOJCdlKuLHsRlOP+AI4hV9REQKmq3sWw=
+github.com/nats-io/jsm.go v0.0.36-0.20221116161610-6a7fe870b8b4 h1:Ql1sjGFyvDxwUUJ+lUAPosBu5sX1vQiVYkdWfC9noHQ=
+github.com/nats-io/jsm.go v0.0.36-0.20221116161610-6a7fe870b8b4/go.mod h1:AkNKZTxbvdFBOJCdlKuLHsRlOP+AI4hV9REQKmq3sWw=
 github.com/nats-io/jwt/v2 v2.3.0 h1:z2mA1a7tIf5ShggOFlR1oBPgd6hGqcDYsISxZByUzdI=
 github.com/nats-io/jwt/v2 v2.3.0/go.mod h1:0tqz9Hlu6bCBFLWAASKhE5vUA4c24L9KPUUgvwumE/k=
 github.com/nats-io/nats-server/v2 v2.9.6 h1:RTtK+rv/4CcliOuqGsy58g7MuWkBaWmF5TUNwuUo9Uw=
