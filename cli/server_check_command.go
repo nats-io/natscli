@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -82,6 +83,11 @@ type SrvCheckCmd struct {
 	srvJSRequired  bool
 	srvURL         *url.URL
 
+	msgSubject string
+	msgAgeWarn time.Duration
+	msgAgeCrit time.Duration
+	msgRegexp  *regexp.Regexp
+
 	kvBucket     string
 	kvValuesCrit int
 	kvValuesWarn int
@@ -91,13 +97,7 @@ type SrvCheckCmd struct {
 func configureServerCheckCommand(srv *fisk.CmdClause) {
 	c := &SrvCheckCmd{}
 
-	help := `Health check for NATS servers
-
-   connection  - connects and does a request-reply check
-   stream      - checks JetStream streams for source, mirror and cluster health
-   meta        - JetStream Meta Cluster health
-`
-	check := srv.Command("check", help)
+	check := srv.Command("check", "Health check for NATS servers")
 	check.Flag("format", "Render the check in a specific format (nagios, json, prometheus, text)").Default("nagios").EnumVar(&checkRenderFormat, "nagios", "json", "prometheus", "text")
 	check.Flag("namespace", "The prometheus namespace to use in output").Default(opts.PrometheusNamespace).StringVar(&opts.PrometheusNamespace)
 	check.Flag("outfile", "Save output to a file rather than STDOUT").StringVar(&checkRenderOutFile)
@@ -123,6 +123,13 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	stream.Flag("msgs-critical", "Critical if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesCrit)
 	stream.Flag("subjects-warn", "Critical threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsWarn)
 	stream.Flag("subjects-critical", "Warning threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsCrit)
+
+	msg := check.Command("message", "Checks properties of a message stored in a stream").Action(c.checkMsg)
+	msg.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
+	msg.Flag("subject", "The subject to fetch a message from").Default(">").StringVar(&c.msgSubject)
+	msg.Flag("age-warn", "Warning threshold for message age as a duration").PlaceHolder("DURATION").DurationVar(&c.msgAgeWarn)
+	msg.Flag("age-critical", "Critical threshold for message age as a duration").PlaceHolder("DURATION").DurationVar(&c.msgAgeCrit)
+	msg.Flag("content", "Regular expression to check the content against").PlaceHolder("REGEX").RegexpVar(&c.msgRegexp)
 
 	meta := check.Command("meta", "Check JetStream cluster state").Alias("raft").Action(c.checkRaft)
 	meta.Flag("expect", "Number of servers to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
@@ -1151,6 +1158,47 @@ func (c *SrvCheckCmd) checkSources(check *result, info *api.StreamInfo) error {
 	}
 	if len(info.Sources) > c.sourcesMaxSources {
 		check.critical("%d sources of max expected %d", len(info.Sources), c.sourcesMaxSources)
+	}
+
+	return nil
+}
+
+func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
+	check := &result{Name: "Stream Message", Check: "message"}
+	defer check.GenericExit()
+
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	check.criticalIfErr(err, "connection failed")
+
+	msg, err := mgr.ReadLastMessageForSubject(c.sourcesStream, c.msgSubject)
+	check.criticalIfErr(err, "msg load failed")
+
+	check.pd(&perfDataItem{
+		Help:  "The age of the message",
+		Name:  "age",
+		Value: time.Since(msg.Time).Round(time.Millisecond).Seconds(),
+		Warn:  c.msgAgeWarn.Seconds(),
+		Crit:  c.msgAgeCrit.Seconds(),
+		Unit:  "s",
+	})
+
+	check.pd(&perfDataItem{
+		Help:  "The size of the message",
+		Name:  "size",
+		Value: float64(len(msg.Data)),
+		Unit:  "B",
+	})
+
+	if c.msgAgeWarn > 0 || c.msgAgeCrit > 0 {
+		if c.msgAgeCrit > 0 && msg.Time.Before(time.Now().Add(-1*c.msgAgeCrit)) {
+			check.critical("%v old", time.Since(msg.Time).Round(time.Millisecond))
+		} else if c.msgAgeWarn > 0 && msg.Time.Before(time.Now().Add(-1*c.msgAgeWarn)) {
+			check.warn("%v old", time.Since(msg.Time).Round(time.Millisecond))
+		}
+	}
+
+	if c.msgRegexp != nil && !c.msgRegexp.Match(msg.Data) {
+		check.critical("does not match regex: %s", c.msgRegexp.String())
 	}
 
 	return nil
