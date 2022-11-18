@@ -47,6 +47,8 @@ type SrvCheckCmd struct {
 	sourcesMaxSources   int
 	sourcesMessagesWarn uint64
 	sourcesMessagesCrit uint64
+	subjectsWarn        int
+	subjectsCrit        int
 
 	raftExpect       int
 	raftLagCritical  uint64
@@ -119,6 +121,8 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	stream.Flag("peer-seen-critical", "Critical threshold for how long ago a cluster peer should have been seen").PlaceHolder("DURATION").Default("10s").DurationVar(&c.raftSeenCritical)
 	stream.Flag("msgs-warn", "Warn if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesWarn)
 	stream.Flag("msgs-critical", "Critical if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesCrit)
+	stream.Flag("subjects-warn", "Critical threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsWarn)
+	stream.Flag("subjects-critical", "Warning threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsCrit)
 
 	meta := check.Command("meta", "Check JetStream cluster state").Alias("raft").Action(c.checkRaft)
 	meta.Flag("expect", "Number of servers to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
@@ -829,7 +833,7 @@ func (c *SrvCheckCmd) checkStreamClusterHealth(check *result, info []*jsm.Stream
 		Help:  "Streams unhealthy cluster state",
 	})
 
-	if critCnt > 0 || notEnoughReplicasCnt > 0 || noLeaderCnt > 0 {
+	if critCnt > 0 || notEnoughReplicasCnt > 0 || noLeaderCnt > 0 || seenCritCnt > 0 || lagCritCnt > 0 {
 		check.critical("%d unhealthy streams", critCnt+notEnoughReplicasCnt+noLeaderCnt)
 	}
 
@@ -1048,6 +1052,24 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	}
 	if c.sourcesMessagesCrit > 0 && info.State.Msgs <= c.sourcesMessagesCrit {
 		check.critical("%d messages", info.State.Msgs)
+	}
+
+	check.pd(&perfDataItem{Name: "subjects", Value: float64(info.State.NumSubjects), Warn: float64(c.subjectsWarn), Crit: float64(c.subjectsCrit), Help: "Number of subjects stored in the stream"})
+	if c.subjectsWarn > 0 || c.subjectsCrit > 0 {
+		ns := info.State.NumSubjects
+		if c.subjectsWarn < c.subjectsCrit { // it means we're asserting that there are fewer subjects than thresholds
+			if ns >= c.subjectsCrit {
+				check.critical("%d subjects", info.State.NumSubjects)
+			} else if ns >= c.subjectsWarn {
+				check.warn("%d subjects", info.State.NumSubjects)
+			}
+		} else { // it means we're asserting that there are more subjects than thresholds
+			if ns <= c.subjectsCrit {
+				check.critical("%d subjects", info.State.NumSubjects)
+			} else if ns <= c.subjectsWarn {
+				check.warn("%d subjects", info.State.NumSubjects)
+			}
+		}
 	}
 
 	switch {
