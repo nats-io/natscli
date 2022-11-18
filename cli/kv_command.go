@@ -755,6 +755,11 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 		} else {
 			fmt.Printf("   Maximum Value Size: %s\n", humanize.IBytes(uint64(nfo.Config.MaxMsgSize)))
 		}
+		if nfo.Config.MaxAge <= 0 {
+			fmt.Printf("          Maximum Age: unlimited\n")
+		} else {
+			fmt.Printf("          Maximum Age: %s\n", humanizeDuration(nfo.Config.MaxAge))
+		}
 		fmt.Printf("     JetStream Stream: %s\n", nfo.Config.Name)
 		fmt.Printf("              Storage: %s\n", nfo.Config.Storage.String())
 		if nfo.Config.RePublish != nil {
