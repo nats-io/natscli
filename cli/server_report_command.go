@@ -524,7 +524,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		}
 
 		if i < limit {
-			table.AddRow(cid, name, srvName, cluster, info.IP, acc, info.Uptime, humanize.Comma(info.InMsgs), humanize.Comma(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), len(info.Subs))
+			table.AddRow(cid, name, srvName, cluster, fmt.Sprintf("%s:%d", info.IP, info.Port), acc, info.Uptime, humanize.Comma(info.InMsgs), humanize.Comma(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), len(info.Subs))
 		}
 	}
 
