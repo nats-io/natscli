@@ -63,6 +63,7 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	ncli.Flag("domain", "JetStream domain to access").PlaceHolder("DOMAIN").Hidden().StringVar(&opts.JsDomain)
 	ncli.Flag("context", "Configuration context").Envar("NATS_CONTEXT").PlaceHolder("NAME").StringVar(&opts.CfgCtx)
 	ncli.Flag("trace", "Trace API interactions").UnNegatableBoolVar(&opts.Trace)
+	ncli.Flag("no-context", "Disable the selected context").UnNegatableBoolVar(&cli.SkipContexts)
 
 	log.SetFlags(log.Ltime)
 
