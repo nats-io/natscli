@@ -742,7 +742,7 @@ func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 	check.criticalIfErr(err, "JetStream not available: %s", err)
 
 	if c.jsReplicas {
-		streams, err := mgr.Streams(nil)
+		streams, _, err := mgr.Streams(nil)
 		check.criticalIfErr(err, "JetStream not available: %s", err)
 
 		err = c.checkStreamClusterHealth(check, streams)
