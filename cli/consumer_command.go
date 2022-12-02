@@ -134,9 +134,9 @@ func configureConsumerCommand(app commandHost) {
 		f.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
 		if !edit {
 			f.Flag("inactive-threshold", "How long to allow an ephemeral consumer to be idle before removing it").PlaceHolder("THRESHOLD").DurationVar(&c.inactiveThreshold)
-			f.Flag("replicas", "Sets a custom replica count rather than inherit from the stream").IntVar(&c.replicas)
 			f.Flag("memory", "Force the consumer state to be stored in memory rather than inherit from the stream").UnNegatableBoolVar(&c.memory)
 		}
+		f.Flag("replicas", "Sets a custom replica count rather than inherit from the stream").IntVar(&c.replicas)
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
@@ -356,6 +356,10 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 
 		if c.filterSubject != "_unset_" {
 			ncfg.FilterSubject = c.filterSubject
+		}
+
+		if c.replicas > 0 {
+			ncfg.Replicas = c.replicas
 		}
 	}
 
