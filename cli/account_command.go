@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
@@ -387,8 +388,41 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 	rtt, _ := nc.RTT()
 	tlsc, _ := nc.TLSConnectionState()
 
+	var ui *server.UserInfo
+	if serverMinVersion(nc.ConnectedServerVersion(), 2, 10, 0) {
+		subj := "$SYS.REQ.USER.INFO"
+		if opts.Trace {
+			log.Printf(">>> %s: {}\n", subj)
+		}
+		resp, err := nc.Request("$SYS.REQ.USER.INFO", nil, time.Second)
+		if err == nil {
+			if opts.Trace {
+				log.Printf("<<< %s", string(resp.Data))
+			}
+			var res = struct {
+				Data   *server.UserInfo  `json:"data"`
+				Server server.ServerInfo `json:"server"`
+				Error  *server.ApiError  `json:"error"`
+			}{}
+
+			err = json.Unmarshal(resp.Data, &res)
+			if err == nil && res.Error == nil {
+				ui = res.Data
+			}
+		}
+	}
+
 	fmt.Println("Connection Information:")
 	fmt.Println()
+	if ui != nil {
+		fmt.Printf("                    User: %v\n", ui.UserID)
+		fmt.Printf("                 Account: %v\n", ui.Account)
+		if ui.Expires == 0 {
+			fmt.Printf("                 Expires: never\n")
+		} else {
+			fmt.Printf("                 Expires: %s\n", humanizeDuration(ui.Expires))
+		}
+	}
 	fmt.Printf("               Client ID: %v\n", id)
 	fmt.Printf("               Client IP: %v\n", ip)
 	fmt.Printf("                     RTT: %v\n", rtt)
@@ -403,6 +437,7 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 	if nc.ConnectedServerId() != nc.ConnectedServerName() {
 		fmt.Printf("   Connected Server Name: %v\n", nc.ConnectedServerName())
 	}
+
 	if tlsc.HandshakeComplete {
 		version := ""
 		switch tlsc.Version {
@@ -429,6 +464,41 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 		fmt.Printf("          TLS Connection: no\n")
 	}
 	fmt.Println()
+
+	renderPerm := func(title string, p *server.SubjectPermission) {
+		if p == nil {
+			return
+		}
+		if len(p.Deny) == 0 && len(p.Allow) == 0 {
+			return
+		}
+
+		fmt.Printf("  %s\n", title)
+		if len(p.Allow) > 0 {
+			fmt.Println("    Allow:")
+			sort.Strings(p.Allow)
+			for _, perm := range p.Allow {
+				fmt.Printf("      %s\n", perm)
+			}
+		}
+		if len(p.Deny) > 0 {
+			fmt.Println()
+			fmt.Println("    Deny:")
+			sort.Strings(p.Deny)
+			for _, perm := range p.Deny {
+				fmt.Printf("      %s\n", perm)
+			}
+		}
+	}
+
+	if ui != nil && ui.Permissions != nil {
+		fmt.Println("Connection Permissions:")
+		fmt.Println()
+		renderPerm("Publish", ui.Permissions.Publish)
+		fmt.Println()
+		renderPerm("Subscribe", ui.Permissions.Subscribe)
+		fmt.Println()
+	}
 
 	info, err := mgr.JetStreamAccountInfo()
 
