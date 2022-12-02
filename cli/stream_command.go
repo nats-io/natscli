@@ -1839,6 +1839,28 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 			cfg.Subjects = c.subjects
 		}
 
+		if len(c.placementTags) > 0 {
+			if cfg.Placement == nil {
+				cfg.Placement = &api.Placement{}
+			}
+			cfg.Placement.Tags = c.placementTags
+		}
+
+		if c.placementCluster != "" {
+			if cfg.Placement == nil {
+				cfg.Placement = &api.Placement{}
+			}
+			cfg.Placement.Cluster = c.placementCluster
+		}
+
+		if c.description != "" {
+			cfg.Description = c.description
+		}
+
+		if c.replicas > 0 {
+			cfg.Replicas = int(c.replicas)
+		}
+
 		return *cfg
 	}
 
