@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
 	"os"
@@ -1539,7 +1540,7 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 
 	table := newTableWriter(fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, humanize.Comma(int64(ss.Consumers))))
 	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
-	err = s.EachConsumer(func(cons *jsm.Consumer) {
+	missing, err := s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
 		if err != nil {
 			log.Printf("Could not obtain consumer state for %s: %s", cons.Name(), err)
@@ -1586,5 +1587,28 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 		renderRaftLeaders(leaders, "Consumers")
 	}
 
+	if len(missing) > 0 {
+		c.renderMissing(os.Stdout, missing)
+	}
+
 	return nil
+}
+
+func (c *consumerCmd) renderMissing(out io.Writer, missing []string) {
+	toany := func(items []string) (res []any) {
+		for _, i := range items {
+			res = append(res, any(i))
+		}
+		return res
+	}
+
+	if len(missing) > 0 {
+		fmt.Fprintln(out)
+		sort.Strings(missing)
+		table := newTableWriter("Inaccessible Consumers")
+		sliceGroups(missing, 4, func(names []string) {
+			table.AddRow(toany(names)...)
+		})
+		fmt.Fprint(out, table.Render())
+	}
 }
