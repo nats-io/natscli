@@ -101,6 +101,10 @@ Known contexts:
 
 The context is selected as default, use `nats context --help` to see how to add, remove and edit contexts.
 
+### Configuration file
+
+nats-cli stores contextes in `~/.config/nats/context`. Those contextes are stored as JSON documents. You can find the description and expected value for this configuration file by running `nats --help` and look for the global flags.
+
 ### JetStream management
 
 For full information on managing JetStream please refer to the [JetStream Documentation](https://docs.nats.io/jetstream)
