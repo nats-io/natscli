@@ -67,6 +67,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	subz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	subz.Flag("detail", "Include detail about all subscriptions").UnNegatableBoolVar(&c.detail)
 	subz.Flag("filter-account", "Filter on a specific account").StringVar(&c.accountFilter)
+	subz.Flag("subject", "Filter based on subscriptions matching this subject").StringVar(&c.subjectFilter)
 
 	varz := req.Command("variables", "Show runtime variables").Alias("var").Alias("varz").Action(c.varz)
 	varz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
@@ -370,7 +371,7 @@ func (c *SrvRequestCmd) subs(_ *fisk.ParseContext) error {
 			Limit:         c.limit,
 			Subscriptions: c.detail,
 			Account:       c.accountFilter,
-			Test:          "",
+			Test:          c.subjectFilter,
 		},
 		EventFilterOptions: c.reqFilter(),
 	}
