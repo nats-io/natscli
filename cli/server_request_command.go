@@ -66,8 +66,8 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	subz := req.Command("subscriptions", "Show subscription information").Alias("sub").Alias("subsz").Action(c.subs)
 	subz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	subz.Flag("detail", "Include detail about all subscriptions").UnNegatableBoolVar(&c.detail)
-	subz.Flag("filter-account", "Filter on a specific account").StringVar(&c.accountFilter)
-	subz.Flag("subject", "Filter based on subscriptions matching this subject").StringVar(&c.subjectFilter)
+	subz.Flag("filter-account", "Filter on a specific account").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
+	subz.Flag("filter-subject", "Filter based on subscriptions matching this subject").PlaceHolder("SUBJECT").StringVar(&c.subjectFilter)
 
 	varz := req.Command("variables", "Show runtime variables").Alias("var").Alias("varz").Action(c.varz)
 	varz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
@@ -76,11 +76,11 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	connz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	connz.Flag("sort", "Sort by a specific property").Default("cid").EnumVar(&c.sortOpt, "cid", "start", "subs", "pending", "msgs_to", "msgs_from", "bytes_to", "bytes_from", "last", "idle", "uptime", "stop", "reason")
 	connz.Flag("subscriptions", "Show subscriptions").UnNegatableBoolVar(&c.detail)
-	connz.Flag("filter-cid", "Filter on a specific CID").Uint64Var(&c.cidFilter)
-	connz.Flag("filter-state", "Filter on a specific account state (open, closed, all)").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
-	connz.Flag("filter-user", "Filter on a specific username").StringVar(&c.userFilter)
-	connz.Flag("filter-account", "Filter on a specific account").StringVar(&c.accountFilter)
-	connz.Flag("filter-subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subjectFilter)
+	connz.Flag("filter-cid", "Filter on a specific CID").PlaceHolder("CID").Uint64Var(&c.cidFilter)
+	connz.Flag("filter-state", "Filter on a specific account state (open, closed, all)").PlaceHolder("STATE").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
+	connz.Flag("filter-user", "Filter on a specific username").PlaceHolder("USER").StringVar(&c.userFilter)
+	connz.Flag("filter-account", "Filter on a specific account").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
+	connz.Flag("filter-subject", "Limits responses only to those connections with matching subscription interest").PlaceHolder("SUBJECT").StringVar(&c.subjectFilter)
 
 	routez := req.Command("routes", "Show route details").Alias("route").Alias("routez").Action(c.routez)
 	routez.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
@@ -88,8 +88,8 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 
 	gwyz := req.Command("gateways", "Show gateway details").Alias("gateway").Alias("gwy").Alias("gatewayz").Action(c.gwyz)
 	gwyz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
-	gwyz.Arg("filter-name", "Filter results on gateway name").StringVar(&c.nameFilter)
-	gwyz.Flag("filter-account", "Show only a certain account in account detail").StringVar(&c.accountFilter)
+	gwyz.Arg("filter-name", "Filter results on gateway name").PlaceHolder("NAME").StringVar(&c.nameFilter)
+	gwyz.Flag("filter-account", "Show only a certain account in account detail").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
 	gwyz.Flag("accounts", "Show account detail").UnNegatableBoolVar(&c.detail)
 
 	leafz := req.Command("leafnodes", "Show leafnode details").Alias("leaf").Alias("leafz").Action(c.leafz)
