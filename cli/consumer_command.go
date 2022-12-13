@@ -38,17 +38,18 @@ import (
 )
 
 type consumerCmd struct {
-	consumer    string
-	stream      string
-	json        bool
-	listNames   bool
-	force       bool
-	ack         bool
-	raw         bool
-	destination string
-	inputFile   string
-	outFile     string
-	showAll     bool
+	consumer       string
+	stream         string
+	json           bool
+	listNames      bool
+	force          bool
+	ack            bool
+	raw            bool
+	destination    string
+	inputFile      string
+	outFile        string
+	showAll        bool
+	acceptDefaults bool
 
 	selectedConsumer *jsm.Consumer
 
@@ -165,6 +166,7 @@ func configureConsumerCommand(app commandHost) {
 	consAdd.Flag("validate", "Only validates the configuration against the official Schema").UnNegatableBoolVar(&c.validateOnly)
 	consAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
 	addCreateFlags(consAdd, false)
+	consAdd.Flag("defaults", "Accept default values for all prompts").UnNegatableBoolVar(&c.acceptDefaults)
 
 	edit := cons.Command("edit", "Edits the configuration of a consumer").Action(c.editAction)
 	edit.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -959,6 +961,25 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 
 	cfg.DeliverSubject = c.delivery
 
+	if c.acceptDefaults {
+		c.deliveryGroup = ""
+		c.startPolicy = "all"
+		c.ackPolicy = "none"
+		if c.pull {
+			c.ackPolicy = "explicit"
+		}
+		c.maxDeliver = -1
+		c.maxAckPending = 0
+		c.replayPolicy = "instant"
+		c.filterSubject = ""
+		c.idleHeartbeat = "-1"
+		c.hdrsOnlySet = true
+		if cfg.DeliverSubject != "" {
+			c.replayPolicy = "instant"
+			c.fcSet = true
+		}
+	}
+
 	if cfg.DeliverSubject != "" && c.deliveryGroup == "_unset_" {
 		err = askOne(&survey.Input{
 			Message: "Delivery Queue Group",
@@ -1112,7 +1133,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 	cfg.HeadersOnly = c.hdrsOnly
 
-	if c.backoffMode == "" {
+	if !c.acceptDefaults && c.backoffMode == "" {
 		err = c.askBackoffPolicy()
 		if err != nil {
 			return nil, err

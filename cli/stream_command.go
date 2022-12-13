@@ -53,6 +53,7 @@ type streamCmd struct {
 	outFile          string
 	filterSubject    string
 	showAll          bool
+	acceptDefaults   bool
 
 	destination           string
 	subjects              []string
@@ -199,6 +200,7 @@ func configureStreamCommand(app commandHost) {
 	strAdd.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SOURCE").StringVar(&c.repubSource)
 	strAdd.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
 	strAdd.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
+	strAdd.Flag("defaults", "Accept default values for all prompts").UnNegatableBoolVar(&c.acceptDefaults)
 
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
 	strLs.Flag("subject", "Limit the list to streams with matching subjects").StringVar(&c.filterSubject)
@@ -1890,6 +1892,21 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		fisk.Fatalf("mirrors cannot listen for messages on subjects")
 	}
 
+	if c.acceptDefaults {
+		c.storage = "file"
+		c.replicas = 1
+		c.retentionPolicyS = "Limits"
+		c.discardPolicy = "Old"
+		c.maxMsgLimit = -1
+		c.maxMsgPerSubjectLimit = -1
+		c.maxBytesLimit = -1
+		if requireSize {
+			c.maxBytesLimit = 256 * 1024 * 1024
+		}
+		c.maxAgeLimit = "-1"
+		c.maxMsgSize = -1
+	}
+
 	if c.storage == "" {
 		err = askOne(&survey.Select{
 			Message: "Storage",
@@ -1991,12 +2008,16 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		if maxAge > 0 && maxAge < 2*time.Minute {
 			defaultDW = maxAge.String()
 		}
-		err = askOne(&survey.Input{
-			Message: "Duplicate tracking time window",
-			Default: defaultDW,
-			Help:    "Duplicate messages are identified by the Msg-Id headers and tracked within a window of this size. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --dupe-window.",
-		}, &c.dupeWindow)
-		fisk.FatalIfError(err, "invalid input")
+		if c.acceptDefaults {
+			c.dupeWindow = defaultDW
+		} else {
+			err = askOne(&survey.Input{
+				Message: "Duplicate tracking time window",
+				Default: defaultDW,
+				Help:    "Duplicate messages are identified by the Msg-Id headers and tracked within a window of this size. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --dupe-window.",
+			}, &c.dupeWindow)
+			fisk.FatalIfError(err, "invalid input")
+		}
 	}
 
 	if c.dupeWindow != "" {
@@ -2004,21 +2025,23 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		fisk.FatalIfError(err, "invalid duplicate window format")
 	}
 
-	if !c.allowRollupSet {
-		c.allowRollup, err = askConfirmation("Allow message Roll-ups", false)
-		fisk.FatalIfError(err, "invalid input")
-	}
+	if !c.acceptDefaults {
+		if !c.allowRollupSet {
+			c.allowRollup, err = askConfirmation("Allow message Roll-ups", false)
+			fisk.FatalIfError(err, "invalid input")
+		}
 
-	if !c.denyDeleteSet {
-		allow, err := askConfirmation("Allow message deletion", true)
-		fisk.FatalIfError(err, "invalid input")
-		c.denyDelete = !allow
-	}
+		if !c.denyDeleteSet {
+			allow, err := askConfirmation("Allow message deletion", true)
+			fisk.FatalIfError(err, "invalid input")
+			c.denyDelete = !allow
+		}
 
-	if !c.denyPurgeSet {
-		allow, err := askConfirmation("Allow purging subjects or the entire stream", true)
-		fisk.FatalIfError(err, "invalid input")
-		c.denyPurge = !allow
+		if !c.denyPurgeSet {
+			allow, err := askConfirmation("Allow purging subjects or the entire stream", true)
+			fisk.FatalIfError(err, "invalid input")
+			c.denyPurge = !allow
+		}
 	}
 
 	cfg := api.StreamConfig{

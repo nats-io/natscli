@@ -642,6 +642,36 @@ func TestCLIConsumerNext(t *testing.T) {
 	}
 }
 
+func TestCLIStreamAddDefaults(t *testing.T) {
+	srv, _, mgr := setupJStreamTest(t)
+	defer srv.Shutdown()
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' str add file1 --subjects other --defaults", srv.ClientURL()))
+	streamShouldExist(t, mgr, "file1")
+
+	stream, err := mgr.LoadStream("file1")
+	checkErr(t, err, "could not get stream: %v", err)
+
+	if stream.DiscardPolicy() != api.DiscardOld {
+		t.Fatalf("expected old policy")
+	}
+	if stream.Retention() != api.LimitsPolicy {
+		t.Fatalf("expected limits retention")
+	}
+}
+
+func TestCliConsumerAddDefaults(t *testing.T) {
+	srv, _, mgr := setupJStreamTest(t)
+	defer srv.Shutdown()
+
+	_, err := mgr.NewStreamFromDefault("mem1", mem1Stream())
+	checkErr(t, err, "could not create stream: %v", err)
+	streamShouldExist(t, mgr, "mem1")
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' c add mem1 PULL --pull --defaults", srv.ClientURL()))
+	consumerShouldExist(t, mgr, "mem1", "PULL")
+}
+
 func TestCLIStreamEdit(t *testing.T) {
 	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
