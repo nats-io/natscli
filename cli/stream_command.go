@@ -1893,18 +1893,36 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	if c.acceptDefaults {
-		c.storage = "file"
-		c.replicas = 1
-		c.retentionPolicyS = "Limits"
-		c.discardPolicy = "Old"
-		c.maxMsgLimit = -1
-		c.maxMsgPerSubjectLimit = -1
-		c.maxBytesLimit = -1
-		if requireSize {
+		if c.storage == "" {
+			c.storage = "file"
+		}
+		if c.replicas == 0 {
+			c.replicas = 1
+		}
+		if c.retentionPolicyS == "" {
+			c.retentionPolicyS = "Limits"
+		}
+		if c.discardPolicy == "" {
+			c.discardPolicy = "Old"
+		}
+		if c.maxMsgLimit == 0 {
+			c.maxMsgLimit = -1
+		}
+		if c.maxMsgPerSubjectLimit == 0 {
+			c.maxMsgPerSubjectLimit = -1
+		}
+		if c.maxBytesLimitString == "" {
+			c.maxBytesLimit = -1
+		}
+		if requireSize && c.maxBytesLimitString == "" {
 			c.maxBytesLimit = 256 * 1024 * 1024
 		}
-		c.maxAgeLimit = "-1"
-		c.maxMsgSize = -1
+		if c.maxAgeLimit == "" {
+			c.maxAgeLimit = "-1"
+		}
+		if c.maxMsgSizeString == "" {
+			c.maxMsgSize = -1
+		}
 	}
 
 	if c.storage == "" {

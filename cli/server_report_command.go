@@ -653,7 +653,6 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 	offset := 0
 	for _, conn := range result {
 		if conn.Connz.Offset+conn.Connz.Limit < conn.Connz.Total {
-
 			offset = conn.Connz.Offset + conn.Connz.Limit + 1
 			break
 		}

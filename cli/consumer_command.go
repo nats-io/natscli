@@ -962,18 +962,36 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	cfg.DeliverSubject = c.delivery
 
 	if c.acceptDefaults {
-		c.deliveryGroup = ""
-		c.startPolicy = "all"
-		c.ackPolicy = "none"
-		if c.pull {
-			c.ackPolicy = "explicit"
+		if c.deliveryGroup == "_unset_" {
+			c.deliveryGroup = ""
 		}
-		c.maxDeliver = -1
-		c.maxAckPending = 0
-		c.replayPolicy = "instant"
-		c.filterSubject = ""
-		c.idleHeartbeat = "-1"
-		c.hdrsOnlySet = true
+		if c.startPolicy == "" {
+			c.startPolicy = "all"
+		}
+		if c.ackPolicy == "" {
+			c.ackPolicy = "none"
+			if c.pull {
+				c.ackPolicy = "explicit"
+			}
+		}
+		if c.maxDeliver == 0 {
+			c.maxDeliver = -1
+		}
+		if c.maxAckPending == -1 {
+			c.maxAckPending = 0
+		}
+		if c.replayPolicy == "" {
+			c.replayPolicy = "instant"
+		}
+		if c.filterSubject == "_unset_" {
+			c.filterSubject = ""
+		}
+		if c.idleHeartbeat == "" {
+			c.idleHeartbeat = "-1"
+		}
+		if !c.hdrsOnlySet {
+			c.hdrsOnlySet = true
+		}
 		if cfg.DeliverSubject != "" {
 			c.replayPolicy = "instant"
 			c.fcSet = true
