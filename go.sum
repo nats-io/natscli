@@ -205,6 +205,8 @@ github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3Rllmb
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
+github.com/nats-io/jsm.go v0.0.36-0.20221218234554-efc05fda17d5 h1:c8/AsTy82nPvduO73iFzaxXoZuWf1Zmx/mVa31/FbVI=
+github.com/nats-io/jsm.go v0.0.36-0.20221218234554-efc05fda17d5/go.mod h1:IuS2F1KLw5u6A+r8Fn/FWd+tY7+KG+OEmDoPrChp0pI=
 github.com/nats-io/jwt/v2 v2.3.0 h1:z2mA1a7tIf5ShggOFlR1oBPgd6hGqcDYsISxZByUzdI=
 github.com/nats-io/jwt/v2 v2.3.0/go.mod h1:0tqz9Hlu6bCBFLWAASKhE5vUA4c24L9KPUUgvwumE/k=
 github.com/nats-io/nats-server/v2 v2.9.9-0.20221128185543-14f40b93b51e h1:RuZ6tfwWVduB9eoBcyrqhGiLcYHOlHV1vlUn6igC9Es=
