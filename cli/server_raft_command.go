@@ -78,9 +78,6 @@ func (c *SrvRaftCmd) metaPeerRemove(_ *fisk.ParseContext) error {
 
 	for _, r := range srv.Data.Meta.Replicas {
 		if r.Name == c.peer || r.Peer == c.peer {
-			if !r.Offline {
-				return fmt.Errorf("can only remove offline nodes")
-			}
 			foundID = r.Peer
 			foundName = r.Name
 			found = true
