@@ -121,8 +121,8 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	stream.Flag("peer-seen-critical", "Critical threshold for how long ago a cluster peer should have been seen").PlaceHolder("DURATION").Default("10s").DurationVar(&c.raftSeenCritical)
 	stream.Flag("msgs-warn", "Warn if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesWarn)
 	stream.Flag("msgs-critical", "Critical if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesCrit)
-	stream.Flag("subjects-warn", "Critical threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsWarn)
-	stream.Flag("subjects-critical", "Warning threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsCrit)
+	stream.Flag("subjects-warn", "Warning threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsWarn)
+	stream.Flag("subjects-critical", "Critical threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsCrit)
 
 	msg := check.Command("message", "Checks properties of a message stored in a stream").Action(c.checkMsg)
 	msg.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
