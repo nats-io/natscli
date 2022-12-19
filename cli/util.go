@@ -721,6 +721,7 @@ func loadContext() error {
 		natscontext.WithCertificate(opts.TlsCert),
 		natscontext.WithKey(opts.TlsKey),
 		natscontext.WithCA(opts.TlsCA),
+		natscontext.WithSocksProxy(opts.SocksProxy),
 		natscontext.WithJSEventPrefix(opts.JsEventPrefix),
 		natscontext.WithJSAPIPrefix(opts.JsApiPrefix),
 		natscontext.WithJSDomain(opts.JsDomain),

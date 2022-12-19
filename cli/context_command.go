@@ -271,6 +271,7 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	fmt.Printf("NATS Configuration Context %q\n\n", c.name)
 	c.showIfNotEmpty("      Description: %s\n", cfg.Description())
 	c.showIfNotEmpty("      Server URLs: %s\n", cfg.ServerURL())
+	c.showIfNotEmpty("     SOCKS5 Proxy: %s\n", cfg.SocksProxy())
 	c.showIfNotEmpty("         Username: %s\n", cfg.User())
 	c.showIfNotEmpty("         Password: *********\n", cfg.Password())
 	c.showIfNotEmpty("            Token: %s\n", cfg.Token())
@@ -345,6 +346,7 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 		natscontext.WithCA(opts.TlsCA),
 		natscontext.WithDescription(c.description),
 		natscontext.WithNscUrl(c.nsc),
+		natscontext.WithSocksProxy(opts.SocksProxy),
 		natscontext.WithJSAPIPrefix(opts.JsApiPrefix),
 		natscontext.WithJSEventPrefix(opts.JsEventPrefix),
 		natscontext.WithJSDomain(opts.JsDomain),

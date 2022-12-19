@@ -60,7 +60,7 @@ var (
 
 	// These are persisted by contexts, as properties thereof.
 	// So don't include NATS_CONTEXT in this list.
-	overrideEnvVars = []string{"NATS_URL", "NATS_USER", "NATS_PASSWORD", "NATS_CREDS", "NATS_NKEY", "NATS_CERT", "NATS_KEY", "NATS_CA", "NATS_TIMEOUT"}
+	overrideEnvVars = []string{"NATS_URL", "NATS_USER", "NATS_PASSWORD", "NATS_CREDS", "NATS_NKEY", "NATS_CERT", "NATS_KEY", "NATS_CA", "NATS_TIMEOUT", "NATS_SOCKS_PROXY"}
 )
 
 func registerCommand(name string, order int, c func(app commandHost)) {
@@ -115,6 +115,8 @@ type Options struct {
 	NoCheats bool
 	// PrometheusNamespace is the namespace to use for prometheus format output in server check
 	PrometheusNamespace string
+	// SocksProxy is a SOCKS5 proxy to use for NATS connections
+	SocksProxy string
 }
 
 // SkipContexts used during tests
