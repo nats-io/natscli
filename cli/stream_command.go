@@ -1500,7 +1500,7 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 	fmt.Println()
 
 	fmt.Printf("            Retention: %s\n", cfg.Retention.String())
-	fmt.Printf("     Acknowledgements: %v\n", !cfg.NoAck)
+	fmt.Printf("     Acknowledgments: %v\n", !cfg.NoAck)
 	dnp := cfg.Discard.String()
 	if cfg.DiscardNewPer {
 		dnp = "New Per Subject"
