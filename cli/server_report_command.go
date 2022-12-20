@@ -200,6 +200,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		table.AddHeaders("Server", "Cluster", "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "API Err")
 	}
 
+	foundLeader := false
 	for i, js := range jszResponses {
 		apiErr += js.Data.JetStreamStats.API.Errors
 		apiTotal += js.Data.JetStreamStats.API.Total
@@ -213,6 +214,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		leader := ""
 		if js.Data.Meta != nil && js.Data.Meta.Leader == js.Server.Name {
 			leader = "*"
+			foundLeader = true
 			cluster = js.Data.Meta
 		}
 
@@ -243,6 +245,11 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 
 	fmt.Print(table.Render())
 	fmt.Println()
+	if !foundLeader {
+		leaderWarning := color.New(color.Bold).Sprint("WARNING: No Cluster Leader found")
+		fmt.Println(leaderWarning)
+		fmt.Println()
+	}
 
 	if cluster != nil {
 		cluster.Replicas = append(cluster.Replicas, &server.PeerInfo{
