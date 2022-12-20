@@ -267,6 +267,13 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			cNames = names
 		}
 
+		metaClusterTable := newTableWriter("RAFT Meta Cluster Information")
+		metaClusterTable.AddHeaders("Name", "Leader", "Peer", "Size")
+		metaClusterTable.AddRow(cluster.Name, cluster.Leader, cluster.Peer, cluster.Size)
+
+		fmt.Print(metaClusterTable.Render())
+		fmt.Println()
+
 		table := newTableWriter("RAFT Meta Group Information")
 		table.AddHeaders("Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
 		for i, replica := range cluster.Replicas {
