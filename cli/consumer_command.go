@@ -97,7 +97,7 @@ func configureConsumerCommand(app commandHost) {
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		if !edit {
-			f.Flag("ack", "Acknowledgement policy (none, all, explicit)").StringVar(&c.ackPolicy)
+			f.Flag("ack", "Acknowledgment policy (none, all, explicit)").StringVar(&c.ackPolicy)
 			f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
 		}
 		f.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (none, linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear", "none")
@@ -132,7 +132,7 @@ func configureConsumerCommand(app commandHost) {
 		}
 		f.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
 		f.Flag("target", "Push based delivery target subject").PlaceHolder("SUBJECT").StringVar(&c.delivery)
-		f.Flag("wait", "Acknowledgement waiting time").Default("-1s").DurationVar(&c.ackWait)
+		f.Flag("wait", "Acknowledgment waiting time").Default("-1s").DurationVar(&c.ackWait)
 		if !edit {
 			f.Flag("inactive-threshold", "How long to allow an ephemeral consumer to be idle before removing it").PlaceHolder("THRESHOLD").DurationVar(&c.inactiveThreshold)
 			f.Flag("memory", "Force the consumer state to be stored in memory rather than inherit from the stream").UnNegatableBoolVar(&c.memory)
@@ -1029,7 +1029,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 		}
 
 		err = askOne(&survey.Select{
-			Message: "Acknowledgement policy",
+			Message: "Acknowledgment policy",
 			Options: valid,
 			Default: dflt,
 			Help:    "Messages that are not acknowledged will be redelivered at a later time. 'none' means no acknowledgement is needed only 1 delivery ever, 'all' means acknowledging message 10 will also acknowledge 0-9 and 'explicit' means each has to be acknowledged specifically. Settable using --ack",
@@ -1110,7 +1110,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 
 	if c.maxAckPending == -1 && cfg.AckPolicy != api.AckNone {
 		err = askOne(&survey.Input{
-			Message: "Maximum Acknowledgements Pending",
+			Message: "Maximum Acknowledgments Pending",
 			Default: "0",
 			Help:    "The maximum number of messages without acknowledgement that can be outstanding, once this limit is reached message delivery will be suspended. Settable using --max-pending.",
 		}, &c.maxAckPending)
