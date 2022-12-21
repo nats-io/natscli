@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -83,10 +84,11 @@ type SrvCheckCmd struct {
 	srvJSRequired  bool
 	srvURL         *url.URL
 
-	msgSubject string
-	msgAgeWarn time.Duration
-	msgAgeCrit time.Duration
-	msgRegexp  *regexp.Regexp
+	msgSubject  string
+	msgAgeWarn  time.Duration
+	msgAgeCrit  time.Duration
+	msgRegexp   *regexp.Regexp
+	msgBodyAsTs bool
 
 	kvBucket     string
 	kvValuesCrit int
@@ -130,6 +132,7 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	msg.Flag("age-warn", "Warning threshold for message age as a duration").PlaceHolder("DURATION").DurationVar(&c.msgAgeWarn)
 	msg.Flag("age-critical", "Critical threshold for message age as a duration").PlaceHolder("DURATION").DurationVar(&c.msgAgeCrit)
 	msg.Flag("content", "Regular expression to check the content against").PlaceHolder("REGEX").RegexpVar(&c.msgRegexp)
+	msg.Flag("body-timestamp", "Use message body as a unix timestamp instead of message metadata").UnNegatableBoolVar(&c.msgBodyAsTs)
 
 	meta := check.Command("meta", "Check JetStream cluster state").Alias("raft").Action(c.checkRaft)
 	meta.Flag("expect", "Number of servers to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
@@ -1163,20 +1166,25 @@ func (c *SrvCheckCmd) checkSources(check *result, info *api.StreamInfo) error {
 	return nil
 }
 
-func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
-	check := &result{Name: "Stream Message", Check: "message"}
-	defer check.GenericExit()
-
-	_, mgr, err := prepareHelper("", natsOpts()...)
-	check.criticalIfErr(err, "connection failed")
-
+func (c *SrvCheckCmd) checkStreamMessage(mgr *jsm.Manager, check *result) error {
 	msg, err := mgr.ReadLastMessageForSubject(c.sourcesStream, c.msgSubject)
-	check.criticalIfErr(err, "msg load failed")
+	if jsm.IsNatsError(err, 10037) {
+		check.critical("no message found")
+		return nil
+	}
+	check.criticalIfErr(err, "msg load failed: %v", err)
+
+	ts := msg.Time
+	if c.msgBodyAsTs {
+		i, err := strconv.ParseInt(string(bytes.TrimSpace(msg.Data)), 10, 64)
+		check.criticalIfErr(err, "invalid timestamp body: %v", err)
+		ts = time.Unix(i, 0)
+	}
 
 	check.pd(&perfDataItem{
 		Help:  "The age of the message",
 		Name:  "age",
-		Value: time.Since(msg.Time).Round(time.Millisecond).Seconds(),
+		Value: time.Since(ts).Round(time.Millisecond).Seconds(),
 		Warn:  c.msgAgeWarn.Seconds(),
 		Crit:  c.msgAgeCrit.Seconds(),
 		Unit:  "s",
@@ -1189,11 +1197,13 @@ func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
 		Unit:  "B",
 	})
 
+	since := time.Since(ts)
+
 	if c.msgAgeWarn > 0 || c.msgAgeCrit > 0 {
-		if c.msgAgeCrit > 0 && msg.Time.Before(time.Now().Add(-1*c.msgAgeCrit)) {
-			check.critical("%v old", time.Since(msg.Time).Round(time.Millisecond))
-		} else if c.msgAgeWarn > 0 && msg.Time.Before(time.Now().Add(-1*c.msgAgeWarn)) {
-			check.warn("%v old", time.Since(msg.Time).Round(time.Millisecond))
+		if c.msgAgeCrit > 0 && since > c.msgAgeCrit {
+			check.critical("%v old", since.Round(time.Millisecond))
+		} else if c.msgAgeWarn > 0 && since > c.msgAgeWarn {
+			check.warn("%v old", time.Since(ts).Round(time.Millisecond))
 		}
 	}
 
@@ -1201,7 +1211,19 @@ func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
 		check.critical("does not match regex: %s", c.msgRegexp.String())
 	}
 
+	check.ok("Valid message on %s > %s", c.sourcesStream, c.msgSubject)
+
 	return nil
+}
+
+func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
+	check := &result{Name: "Stream Message", Check: "message"}
+	defer check.GenericExit()
+
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	check.criticalIfErr(err, "connection failed")
+
+	return c.checkStreamMessage(mgr, check)
 }
 
 func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
