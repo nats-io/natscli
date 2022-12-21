@@ -16,6 +16,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -46,6 +47,7 @@ func withJetStream(t *testing.T, cb func(srv *server.Server, nc *nats.Conn, mgr 
 
 	dir, err := os.MkdirTemp("", "")
 	checkErr(t, err, "could not create temporary js store: %v", err)
+	defer os.RemoveAll(dir)
 
 	srv, err := server.NewServer(&server.Options{
 		Port:      -1,
@@ -71,11 +73,75 @@ func withJetStream(t *testing.T, cb func(srv *server.Server, nc *nats.Conn, mgr 
 	cb(srv, nc, mgr)
 }
 
-func TestCheckKV(t *testing.T) {
-	dfltCmd := func() *SrvCheckCmd {
-		return &SrvCheckCmd{kvBucket: "TEST", kvValuesWarn: -1, kvValuesCrit: -1}
-	}
+func dfltCmd() *SrvCheckCmd {
+	return &SrvCheckCmd{kvBucket: "TEST", kvValuesWarn: -1, kvValuesCrit: -1}
+}
 
+func TestCheckMessage(t *testing.T) {
+	t.Run("Body timestamp", func(t *testing.T) {
+		withJetStream(t, func(_ *server.Server, nc *nats.Conn, mgr *jsm.Manager) {
+			cmd := dfltCmd()
+			check := &result{}
+
+			opts.Conn = nc
+			_, err := mgr.NewStream("TEST")
+			checkErr(t, err, "stream create failed: %v", err)
+
+			cmd.sourcesStream = "TEST"
+			cmd.msgSubject = "TEST"
+			cmd.msgAgeCrit = 5 * time.Second
+			cmd.msgAgeWarn = time.Second
+			cmd.msgBodyAsTs = true
+
+			cmd.checkStreamMessage(mgr, check)
+			assertListIsEmpty(t, check.Warnings)
+			assertListIsEmpty(t, check.OKs)
+			assertListEquals(t, check.Criticals, "no message found")
+
+			now := time.Now().Unix()
+			_, err = nc.Request("TEST", []byte(strconv.Itoa(int(now))), time.Second)
+			checkErr(t, err, "publish failed: %v", err)
+
+			check = &result{}
+			cmd.checkStreamMessage(mgr, check)
+			assertListIsEmpty(t, check.Warnings)
+			assertListIsEmpty(t, check.Criticals)
+			assertListEquals(t, check.OKs, "Valid message on TEST > TEST")
+
+			now = time.Now().Add(-2 * time.Second).Unix()
+			_, err = nc.Request("TEST", []byte(strconv.Itoa(int(now))), time.Second)
+			checkErr(t, err, "publish failed: %v", err)
+
+			check = &result{}
+			cmd.checkStreamMessage(mgr, check)
+			assertListIsEmpty(t, check.Criticals)
+			if len(check.Warnings) != 1 {
+				t.Fatalf("expected 1 warning got: %v", check.Warnings)
+			}
+
+			now = time.Now().Add(-6 * time.Second).Unix()
+			_, err = nc.Request("TEST", []byte(strconv.Itoa(int(now))), time.Second)
+			checkErr(t, err, "publish failed: %v", err)
+
+			check = &result{}
+			cmd.checkStreamMessage(mgr, check)
+			assertListIsEmpty(t, check.Warnings)
+			if len(check.Criticals) != 1 {
+				t.Fatalf("expected 1 critical got: %v", check.Criticals)
+			}
+
+			cmd.msgBodyAsTs = false
+
+			check = &result{}
+			cmd.checkStreamMessage(mgr, check)
+			assertListIsEmpty(t, check.Warnings)
+			assertListIsEmpty(t, check.Criticals)
+			assertListEquals(t, check.OKs, "Valid message on TEST > TEST")
+		})
+	})
+}
+
+func TestCheckKV(t *testing.T) {
 	t.Run("Bucket", func(t *testing.T) {
 		withJetStream(t, func(_ *server.Server, nc *nats.Conn, _ *jsm.Manager) {
 			cmd := dfltCmd()
