@@ -74,6 +74,8 @@ func configureActCommand(app commandHost) {
 	restore.Arg("directory", "The directory holding the account backup to restore").Required().ExistingDirVar(&c.backupDirectory)
 	restore.Flag("cluster", "Place the stream in a specific cluster").StringVar(&c.placementCluster)
 	restore.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
+
+	configureAccountTLSCommand(act)
 }
 
 func init() {
