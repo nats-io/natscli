@@ -487,6 +487,10 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 }
 
 func humanizeDuration(d time.Duration) string {
+	if d < time.Second {
+		return d.Round(time.Millisecond).String()
+	}
+
 	if d == math.MaxInt64 {
 		return "never"
 	}
