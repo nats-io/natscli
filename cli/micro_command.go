@@ -36,7 +36,8 @@ type microCmd struct {
 
 func configureMicroCommand(app commandHost) {
 	c := &microCmd{}
-	mc := app.Command("micro", "Micro Services").Alias("a")
+	mc := app.Command("micro", "Micro Services discovery and management").Alias("a")
+	mc.HelpLong("WARNING: This command is experimental")
 
 	ls := mc.Command("list", "List known Micro services").Alias("ls").Alias("l").Action(c.listAction)
 	ls.Arg("service", "List instances of a specific service").PlaceHolder("NAME").StringVar(&c.name)
@@ -217,7 +218,7 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("setup failed: %v", err)
 	}
 
-	nfos, err := c.getInfo(nc, c.name, "", 1)
+	nfos, err := c.getInfo(nc, c.name, c.id, 1)
 	if err != nil {
 		return err
 	}
