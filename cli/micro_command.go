@@ -45,7 +45,7 @@ func configureMicroCommand(app commandHost) {
 
 	info := mc.Command("info", "Show Micro service information").Alias("i").Action(c.infoAction)
 	info.Arg("service", "Service to show").Required().StringVar(&c.name)
-	info.Arg("id", "Show infor for a specific ID").StringVar(&c.id)
+	info.Arg("id", "Show info for a specific ID").StringVar(&c.id)
 	info.Flag("json", "Show JSON output").Short('j').UnNegatableBoolVar(&c.showJSON)
 
 	stats := mc.Command("stats", "Report Micro service statistics").Action(c.statsAction)
