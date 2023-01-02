@@ -192,7 +192,7 @@ func configureConsumerCommand(app commandHost) {
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
-	consNext.Flag("term", "Terms the message").Default("false").BoolVar(&c.term)
+	consNext.Flag("term", "Terms the message").Default("false").UnNegatableBoolVar(&c.term)
 	consNext.Flag("raw", "Show only the message").Short('r').UnNegatableBoolVar(&c.raw)
 	consNext.Flag("wait", "Wait up to this period to acknowledge messages").DurationVar(&c.ackWait)
 	consNext.Flag("count", "Number of messages to try to fetch from the pull consumer").Default("1").IntVar(&c.pullCount)
