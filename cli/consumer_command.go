@@ -44,6 +44,7 @@ type consumerCmd struct {
 	listNames      bool
 	force          bool
 	ack            bool
+	term           bool
 	raw            bool
 	destination    string
 	inputFile      string
@@ -191,6 +192,7 @@ func configureConsumerCommand(app commandHost) {
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
+	consNext.Flag("term", "Terms the message").Default("false").BoolVar(&c.term)
 	consNext.Flag("raw", "Show only the message").Short('r').UnNegatableBoolVar(&c.raw)
 	consNext.Flag("wait", "Wait up to this period to acknowledge messages").DurationVar(&c.ackWait)
 	consNext.Flag("count", "Number of messages to try to fetch from the pull consumer").Default("1").IntVar(&c.pullCount)
@@ -1390,12 +1392,21 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 		fmt.Println(string(msg.Data))
 	}
 
+	if c.term {
+		if c.ack {
+			fisk.Fatalf("can not both Acknowledge and Terminate message")
+		}
+		err = msg.Term()
+		fisk.FatalIfError(err, "could not Terminate message")
+		c.nc.Flush()
+		fmt.Println("\nTerminated message")
+	}
+
 	if c.ack {
 		var stime time.Duration
 		if c.ackWait > 0 {
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			stime = time.Duration(r.Intn(int(c.ackWait)))
-
 		}
 
 		if stime > 0 {
