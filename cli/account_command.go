@@ -66,7 +66,7 @@ func configureActCommand(app commandHost) {
 	backup := act.Command("backup", "Creates a backup of all  JetStream Streams over the NATS network").Alias("snapshot").Action(c.backupAction)
 	backup.Arg("target", "Directory to create the backup in").Required().StringVar(&c.backupDirectory)
 	backup.Flag("check", "Checks the Stream for health prior to backup").UnNegatableBoolVar(&c.healthCheck)
-	backup.Flag("consumers", "Enable or disable consumer backups").Default("true").UnNegatableBoolVar(&c.snapShotConsumers)
+	backup.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
 	backup.Flag("force", "Perform backup without prompting").Short('f').UnNegatableBoolVar(&c.force)
 	backup.Flag("critical-warnings", "Treat warnings as failures").Short('w').UnNegatableBoolVar(&c.failOnWarn)
 
