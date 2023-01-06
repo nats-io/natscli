@@ -502,13 +502,19 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 
 	info, err := mgr.JetStreamAccountInfo()
 
-	fmt.Println("JetStream Account Information:")
+	if info.Domain == "" {
+		fmt.Println("JetStream Account Information:")
+	} else {
+		fmt.Printf("JetStream Account Information for domain %s:\n", info.Domain)
+	}
+
 	fmt.Println()
 	switch err {
 	case nil:
-		tiered := len(info.Tiers) > 0
-
 		fmt.Printf("Account Usage:\n\n")
+		if info.Domain != "" {
+			fmt.Printf("     Domain: %s\n", info.Domain)
+		}
 		fmt.Printf("    Storage: %s\n", humanize.IBytes(info.Store))
 		fmt.Printf("     Memory: %s\n", humanize.IBytes(info.Memory))
 		fmt.Printf("    Streams: %s\n", humanize.Comma(int64(info.Streams)))
@@ -519,7 +525,7 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 
 		fmt.Printf("   Max Message Payload: %s \n\n", humanize.IBytes(uint64(nc.MaxPayload())))
 
-		if tiered {
+		if len(info.Tiers) > 0 {
 			var tiers []string
 			for n := range info.Tiers {
 				tiers = append(tiers, n)
