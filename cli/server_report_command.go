@@ -105,17 +105,18 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	}
 
 	var (
-		names        []string
-		jszResponses []*jszr
-		apiErr       uint64
-		apiTotal     uint64
-		memory       uint64
-		store        uint64
-		consumers    int
-		streams      int
-		bytes        uint64
-		msgs         uint64
-		cluster      *server.MetaClusterInfo
+		names               []string
+		jszResponses        []*jszr
+		apiErr              uint64
+		apiTotal            uint64
+		memory              uint64
+		store               uint64
+		consumers           int
+		streams             int
+		bytes               uint64
+		msgs                uint64
+		cluster             *server.MetaClusterInfo
+		expectedClusterSize int
 	)
 
 	renderDomain := false
@@ -211,9 +212,14 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		msgs += js.Data.Messages
 
 		leader := ""
-		if js.Data.Meta != nil && js.Data.Meta.Leader == js.Server.Name {
-			leader = "*"
-			cluster = js.Data.Meta
+		if js.Data.Meta != nil {
+			if js.Data.Meta.Leader == js.Server.Name {
+				leader = "*"
+				cluster = js.Data.Meta
+			}
+			if expectedClusterSize < js.Data.Meta.Size {
+				expectedClusterSize = js.Data.Meta.Size
+			}
 		}
 
 		row := []any{cNames[i] + leader, js.Server.Cluster}
@@ -244,7 +250,11 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	fmt.Print(table.Render())
 	fmt.Println()
 
-	if cluster != nil {
+	if len(jszResponses) > 0 && cluster == nil {
+		fmt.Println()
+		fmt.Printf("WARNING: No cluster meta leader found. The cluster expects %d nodes but only %d responded. JetStream operation require at least %d up nodes.", expectedClusterSize, len(jszResponses), expectedClusterSize/2+1)
+		fmt.Println()
+	} else {
 		cluster.Replicas = append(cluster.Replicas, &server.PeerInfo{
 			Name:    cluster.Leader,
 			Current: true,
