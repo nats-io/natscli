@@ -148,13 +148,13 @@ func (c *ActTLSCmd) showOneOCSP(chain []*x509.Certificate, chain_number int, cs 
 
 	switch liveStaple.Status {
 	case ocsp.Good:
-		fmt.Printf("\n# OCSP: GOOD status=%v sn=%v producedAt=(%s) thisUpdate=(%s) nextUpdate=(%s)",
+		fmt.Printf("\n# OCSP: GOOD status=%v sn=%v producedAt=(%s) thisUpdate=(%s) nextUpdate=(%s)\n",
 			liveStaple.Status, liveStaple.SerialNumber,
 			liveStaple.ProducedAt, liveStaple.ThisUpdate, liveStaple.NextUpdate)
 	case ocsp.Revoked:
-		fmt.Printf("\n# OCSP: REVOKED status=%v RevokedAt=(%s)", liveStaple.Status, liveStaple.RevokedAt)
+		fmt.Printf("\n# OCSP: REVOKED status=%v RevokedAt=(%s)\n", liveStaple.Status, liveStaple.RevokedAt)
 	default:
-		fmt.Printf("\n# OCSP: BAD status=%v sn=%v", liveStaple.Status, liveStaple.SerialNumber)
+		fmt.Printf("\n# OCSP: BAD status=%v sn=%v\n", liveStaple.Status, liveStaple.SerialNumber)
 	}
 
 	// should we return an error for OCSP bad/revoked status?
