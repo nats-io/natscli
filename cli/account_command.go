@@ -502,10 +502,12 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 
 	info, err := mgr.JetStreamAccountInfo()
 
-	if info.Domain == "" {
-		fmt.Println("JetStream Account Information:")
-	} else {
-		fmt.Printf("JetStream Account Information for domain %s:\n", info.Domain)
+	if err == nil {
+		if info.Domain == "" {
+			fmt.Println("JetStream Account Information:")
+		} else {
+			fmt.Printf("JetStream Account Information for domain %s:\n", info.Domain)
+		}
 	}
 
 	fmt.Println()
