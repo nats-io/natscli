@@ -14,7 +14,11 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
@@ -50,6 +54,10 @@ type SrvRequestCmd struct {
 
 	jsServerOnly bool
 	jsEnabled    bool
+
+	profileName  string
+	profileDebug int
+	profileDir   string
 }
 
 func configureServerRequestCommand(srv *fisk.CmdClause) {
@@ -113,6 +121,11 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	healthz := req.Command("jetstream-health", "Request JetStream health status").Alias("healthz").Action(c.healthz)
 	healthz.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
 	healthz.Flag("server-only", "Restricts the health check to the JetStream server only, do not check streams and consumers").Short('S').BoolVar(&c.jsServerOnly)
+
+	profilez := req.Command("profile", "Run a profile").Action(c.profilez)
+	profilez.Arg("profile", "Specify the name of the profile to run (allocs, heap, goroutine, mutex, threadcreate, block)").StringVar(&c.profileName)
+	profilez.Arg("dir", "Set the output directory for profile files").Default(".").ExistingDirVar(&c.profileDir)
+	profilez.Flag("debug", "Set the debug level of the profile").IntVar(&c.profileDebug)
 }
 
 func (c *SrvRequestCmd) healthz(_ *fisk.ParseContext) error {
@@ -133,6 +146,72 @@ func (c *SrvRequestCmd) healthz(_ *fisk.ParseContext) error {
 
 	for _, m := range res {
 		fmt.Println(string(m))
+	}
+
+	return nil
+}
+
+type profilezResponse struct {
+	Server server.ServerInfo     `json:"server"`
+	Resp   server.ProfilezStatus `json:"data"`
+}
+
+func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	opts := server.ProfilezEventOptions{
+		ProfilezOptions: server.ProfilezOptions{
+			Name:  c.profileName,
+			Debug: c.profileDebug,
+		},
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	res, err := c.doReq("PROFILEZ", &opts, nc)
+	if err != nil {
+		return err
+	}
+
+	prefix := fmt.Sprintf("%s-%s-", c.profileName, time.Now().Format("20060102-150405"))
+	prefix = filepath.Join(c.profileDir, prefix)
+
+	for _, r := range res {
+		var resp profilezResponse
+		if err := json.Unmarshal(r, &resp); err != nil {
+			continue
+		}
+		if resp.Resp.Error != "" {
+			fmt.Fprintf(os.Stderr, "Server %q error: %s\n", resp.Server.Name, resp.Resp.Error)
+			continue
+		}
+
+		filename := prefix + resp.Server.Name
+		if err := c.profilezWrite(filename, &resp); err != nil {
+			fmt.Fprintf(os.Stderr, "Server %q error: %s\n", resp.Server.Name, err)
+		} else {
+			fmt.Fprintf(os.Stdout, "Server %q profile written: %s\n", resp.Server.Name, filename)
+		}
+	}
+
+	return nil
+}
+
+func (c *SrvRequestCmd) profilezWrite(filename string, resp *profilezResponse) error {
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer f.Close()
+
+	n, err := f.Write(resp.Resp.Profile)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+	if n != len(resp.Resp.Profile) {
+		return fmt.Errorf("short write")
 	}
 
 	return nil
@@ -289,8 +368,8 @@ func (c *SrvRequestCmd) routez(_ *fisk.ParseContext) error {
 	}
 
 	return nil
-
 }
+
 func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 	opts := &server.ConnzEventOptions{
 		ConnzOptions: server.ConnzOptions{
@@ -332,7 +411,6 @@ func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 	}
 
 	return nil
-
 }
 
 func (c *SrvRequestCmd) varz(_ *fisk.ParseContext) error {
@@ -356,7 +434,6 @@ func (c *SrvRequestCmd) varz(_ *fisk.ParseContext) error {
 	}
 
 	return nil
-
 }
 
 func (c *SrvRequestCmd) subs(_ *fisk.ParseContext) error {
