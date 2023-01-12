@@ -86,6 +86,8 @@ type streamCmd struct {
 	replicas              int64
 	placementCluster      string
 	placementTags         []string
+	placementClusterSet   bool
+	placementTagsSet      bool
 	peerName              string
 	sources               []string
 	mirror                string
@@ -158,9 +160,9 @@ func configureStreamCommand(app commandHost) {
 			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		}
 		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
-		f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
-		f.Flag("tags", "Backward compatibility only, use --tag").Hidden().StringsVar(&c.placementTags)
-		f.Flag("cluster", "Place the stream on a specific cluster").StringVar(&c.placementCluster)
+		f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").IsSetByUser(&c.placementTagsSet).StringsVar(&c.placementTags)
+		f.Flag("tags", "Backward compatibility only, use --tag").Hidden().IsSetByUser(&c.placementTagsSet).StringsVar(&c.placementTags)
+		f.Flag("cluster", "Place the stream on a specific cluster").IsSetByUser(&c.placementClusterSet).StringVar(&c.placementCluster)
 		f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
 		if !edit {
 			f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
@@ -1267,16 +1269,22 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		cfg.Placement = &api.Placement{}
 	}
 
-	if cfg.Placement == nil {
-		cfg.Placement = &api.Placement{}
-	}
+	// For placement constraints, we explicitly support empty strings to
+	// remove, so use the *Set bool variables to distinguish "was set on
+	// command-line" from "is not empty".
 
-	if c.placementCluster != "" {
+	if c.placementClusterSet {
 		cfg.Placement.Cluster = c.placementCluster
 	}
 
-	if len(c.placementTags) > 0 {
-		cfg.Placement.Tags = c.placementTags
+	if c.placementTagsSet {
+		// With the repeated set, we do accumulate the empty string as a list item.
+		// We do still need the separate IsSetByUser variable to get that.
+		if len(c.placementTags) == 0 || (len(c.placementTags) == 1 && c.placementTags[0] == "") {
+			cfg.Placement.Tags = nil
+		} else {
+			cfg.Placement.Tags = c.placementTags
+		}
 	}
 
 	if cfg.Placement.Cluster == "" && len(cfg.Placement.Tags) == 0 {
