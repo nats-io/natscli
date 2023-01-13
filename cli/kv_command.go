@@ -58,6 +58,7 @@ type kvCommand struct {
 	repubHeadersOnly      bool
 	mirror                string
 	mirrorDomain          string
+	sources               []string
 }
 
 func configureKVCommand(app commandHost) {
@@ -88,6 +89,7 @@ for an indefinite period or a per-bucket configured TTL.
 	add.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
 	add.Flag("mirror", "Creates a mirror of a different bucket").StringVar(&c.mirror)
 	add.Flag("mirror-domain", "When mirroring find the bucket in a different domain").StringVar(&c.mirrorDomain)
+	add.Flag("source", "Source from a different bucket").PlaceHolder("BUCKET").StringsVar(&c.sources)
 
 	add.PreAction(c.parseLimitStrings)
 
@@ -464,6 +466,17 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 		}
 	}
 
+	if len(c.sources) != 0 {
+		var sources []*nats.StreamSource
+
+		for _, source := range c.sources {
+			sources = append(sources, &nats.StreamSource{
+				Name: source,
+			})
+		}
+		cfg.Sources = sources
+	}
+
 	store, err := js.CreateKeyValue(cfg)
 	if err != nil {
 		return err
@@ -744,16 +757,16 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 	if nfo != nil {
 		cols.AddRowIfNotEmpty("Description", nfo.Config.Description)
 
-		cols.AddRow("Bucket Size", humanize.IBytes(nfo.State.Bytes))
+		cols.AddRow("Bucket Size", nfo.State.Bytes)
 		if nfo.Config.MaxBytes == -1 {
 			cols.AddRow("Maximum Bucket Size", "unlimited")
 		} else {
-			cols.AddRow("Maximum Bucket Size", humanize.IBytes(uint64(nfo.Config.MaxBytes)))
+			cols.AddRow("Maximum Bucket Size", nfo.Config.MaxBytes)
 		}
 		if nfo.Config.MaxMsgSize == -1 {
 			cols.AddRow("Maximum Value Size", "unlimited")
 		} else {
-			cols.AddRow("Maximum Value Size", humanize.IBytes(uint64(nfo.Config.MaxMsgSize)))
+			cols.AddRow("Maximum Value Size", nfo.Config.MaxMsgSize)
 		}
 		if nfo.Config.MaxAge <= 0 {
 			cols.AddRow("Maximum Age", "unlimited")
@@ -774,7 +787,9 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 			s := nfo.Mirror
 			cols.AddSectionTitle("Mirror Information")
 			cols.AddRow("Origin Bucket", strings.TrimPrefix(s.Name, "KV_"))
-			cols.AddRowIf("External API", s.External.APIPrefix, s.External != nil)
+			if s.External != nil {
+				cols.AddRow("External API", s.External.APIPrefix)
+			}
 			if s.Active > 0 && s.Active < math.MaxInt64 {
 				cols.AddRow("Last Seen", s.Active)
 			} else {
@@ -782,6 +797,23 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 			}
 			cols.AddRow("Lag", s.Lag)
 		}
+
+		if len(nfo.Sources) > 0 {
+			cols.AddSectionTitle("Sources Information")
+			for _, source := range nfo.Sources {
+				cols.AddRow("Source Bucket", strings.TrimPrefix(source.Name, "KV_"))
+				if source.External != nil {
+					cols.AddRow("External API", source.External.APIPrefix)
+				}
+				if source.Active > 0 && source.Active < math.MaxInt64 {
+					cols.AddRow("Last Seen", source.Active)
+				} else {
+					cols.AddRow("Last Seen", "never")
+				}
+				cols.AddRow("Lag", source.Lag)
+			}
+		}
+
 		if nfo.Cluster != nil {
 			cols.AddSectionTitle("Cluster Information")
 			renderNatsGoClusterInfo(cols, nfo)

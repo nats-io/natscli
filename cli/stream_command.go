@@ -56,68 +56,76 @@ type streamCmd struct {
 	showAll          bool
 	acceptDefaults   bool
 
-	destination           string
-	subjects              []string
-	ack                   bool
-	storage               string
-	maxMsgLimit           int64
-	maxMsgPerSubjectLimit int64
-	maxBytesLimitString   string
-	maxBytesLimit         int64
-	maxAgeLimit           string
-	maxMsgSizeString      string
-	maxMsgSize            int64
-	maxConsumers          int
-	reportSortConsumers   bool
-	reportSortMsgs        bool
-	reportSortName        bool
-	reportSortReverse     bool
-	reportSortStorage     bool
-	reportSort            string
-	reportRaw             bool
-	reportLimitCluster    string
-	reportLeaderDistrib   bool
-	discardPolicy         string
-	validateOnly          bool
-	backupDirectory       string
-	showProgress          bool
-	healthCheck           bool
-	snapShotConsumers     bool
-	dupeWindow            string
-	replicas              int64
-	placementCluster      string
-	placementTags         []string
-	placementClusterSet   bool
-	placementTagsSet      bool
-	peerName              string
-	sources               []string
-	mirror                string
-	interactive           bool
-	purgeKeep             uint64
-	purgeSubject          string
-	purgeSequence         uint64
-	description           string
-	repubSource           string
-	repubDest             string
-	repubHeadersOnly      bool
-	noRepub               bool
-	allowRollup           bool
-	allowRollupSet        bool
-	denyDelete            bool
-	denyDeleteSet         bool
-	denyPurge             bool
-	denyPurgeSet          bool
-	allowDirect           bool
-	allowDirectSet        bool
-	allowMirrorDirect     bool
-	allowMirrorDirectSet  bool
-	discardPerSubj        bool
-	discardPerSubjSet     bool
-	showStateOnly         bool
-	metadata              map[string]string
-	metadataIsSet         bool
-	compression           string
-	firstSeq              uint64
+	destination               string
+	subjects                  []string
+	ack                       bool
+	storage                   string
+	maxMsgLimit               int64
+	maxMsgPerSubjectLimit     int64
+	maxBytesLimitString       string
+	maxBytesLimit             int64
+	maxAgeLimit               string
+	maxMsgSizeString          string
+	maxMsgSize                int64
+	maxConsumers              int
+	reportSortConsumers       bool
+	reportSortMsgs            bool
+	reportSortName            bool
+	reportSortReverse         bool
+	reportSortStorage         bool
+	reportSort                string
+	reportRaw                 bool
+	reportLimitCluster        string
+	reportLeaderDistrib       bool
+	discardPolicy             string
+	validateOnly              bool
+	backupDirectory           string
+	showProgress              bool
+	healthCheck               bool
+	snapShotConsumers         bool
+	dupeWindow                string
+	replicas                  int64
+	placementCluster          string
+	placementTags             []string
+	placementClusterSet       bool
+	placementTagsSet          bool
+	peerName                  string
+	sources                   []string
+	mirror                    string
+	interactive               bool
+	purgeKeep                 uint64
+	purgeSubject              string
+	purgeSequence             uint64
+	description               string
+	subjectTransformSource    string
+	subjectTransformSourceSet bool
+	subjectTransformDest      string
+	subjectTransformDestSet   bool
+	noSubjectTransform        bool
+	repubSource               string
+	repubSourceSet            bool
+	repubDest                 string
+	repubDestSet              bool
+	repubHeadersOnly          bool
+	repubHeadersOnlySet       bool
+	noRepub                   bool
+	allowRollup               bool
+	allowRollupSet            bool
+	denyDelete                bool
+	denyDeleteSet             bool
+	denyPurge                 bool
+	denyPurgeSet              bool
+	allowDirect               bool
+	allowDirectSet            bool
+	allowMirrorDirect         bool
+	allowMirrorDirectSet      bool
+	discardPerSubj            bool
+	discardPerSubjSet         bool
+	showStateOnly             bool
+	metadata                  map[string]string
+	metadataIsSet             bool
+	compression            string
+	firstSeq               uint64
 
 	fServer      string
 	fCluster     string
@@ -200,12 +208,15 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
 		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).Default("true").BoolVar(&c.allowDirect)
 		f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
+		f.Flag("transform-source", "Stream subject transform source").PlaceHolder("SOURCE").StringVar(&c.subjectTransformSource)
+		f.Flag("transform-destination", "Stream subject transform destination").PlaceHolder("DEST").StringVar(&c.subjectTransformDest)
 		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
 		f.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SOURCE").StringVar(&c.repubSource)
 		f.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
-		f.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
+		f.Flag("republish-headers", "Republish only message headers, no bodies").BoolVar(&c.repubHeadersOnly)
 		if edit {
 			f.Flag("no-republish", "Removes current republish configuration").UnNegatableBoolVar(&c.noRepub)
+			f.Flag("no-transform", "Removes current subject transform configuration").UnNegatableBoolVar(&c.noSubjectTransform)
 		}
 
 		f.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
@@ -1079,8 +1090,10 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 					snode = dg.Node(source.Name)
 				}
 				edge := dg.Edge(snode, node).Attr("color", "green")
-				if source.FilterSubject != "" {
+				if source.FilterSubject != "" && source.SubjectTransformDest == "" {
 					edge.Label(source.FilterSubject)
+				} else if source.FilterSubject != "" && source.SubjectTransformDest != "" {
+					edge.Label(source.FilterSubject + " to " + source.SubjectTransformDest)
 				}
 			}
 		}
@@ -1144,7 +1157,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 
 func (c *streamCmd) renderReplication(stats []streamStat) {
 	table := newTableWriter("Replication Report")
-	table.AddHeaders("Stream", "Kind", "API Prefix", "Source Stream", "Active", "Lag", "Error")
+	table.AddHeaders("Stream", "Kind", "API Prefix", "Source Stream", "Filter", "Destination", "Active", "Lag", "Error")
 
 	for _, s := range stats {
 		if len(s.Sources) == 0 && s.Mirror == nil {
@@ -1163,7 +1176,7 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 			}
 
 			if c.reportRaw {
-				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, s.Mirror.Active, s.Mirror.Lag, apierr)
+				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, "", "", s.Mirror.Active, s.Mirror.Lag, apierr)
 			} else {
 				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, f(s.Mirror.Active), f(s.Mirror.Lag), apierr)
 			}
@@ -1180,10 +1193,14 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 				eApiPrefix = source.External.ApiPrefix
 			}
 
+			if source.SubjectTransformDest != "" && source.FilterSubject == "" {
+				source.FilterSubject = ">"
+			}
+
 			if c.reportRaw {
-				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, source.Active, source.Lag, apierr)
+				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, source.FilterSubject, source.SubjectTransformDest, source.Active, source.Lag, apierr)
 			} else {
-				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, f(source.Active), f(source.Lag), apierr)
+				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, source.FilterSubject, source.SubjectTransformDest, f(source.Active), f(source.Lag), apierr)
 			}
 
 		}
@@ -1364,7 +1381,7 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 	}
 
 	if len(c.sources) > 0 || c.mirror != "" {
-		return cfg, fmt.Errorf("cannot edit mirrors or sources using the CLI, use --config instead")
+		return cfg, fmt.Errorf("cannot edit mirrors, or sources using the CLI, use --config instead")
 	}
 
 	if c.description != "" {
@@ -1403,16 +1420,59 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		return cfg, fmt.Errorf("invalid compression algorithm")
 	}
 
-	if c.repubDest != "" && c.repubSource != "" {
-		cfg.RePublish = &api.RePublish{
-			Source:      c.repubSource,
-			Destination: c.repubDest,
-			HeadersOnly: c.repubHeadersOnly,
-		}
+	var repubConfig api.RePublish
+
+	if cfg.RePublish != nil {
+		repubConfig = *cfg.RePublish
+	} else {
+		repubConfig = api.RePublish{}
+	}
+
+	if c.repubSource != "" {
+		repubConfig.Source = c.repubSource
+	}
+	if c.repubDest != "" {
+		repubConfig.Destination = c.repubDest
+	}
+	if c.repubHeadersOnly {
+		repubConfig.HeadersOnly = true
+	} else if repubConfig.HeadersOnly {
+		repubConfig.HeadersOnly = false
+	}
+
+	if (repubConfig.Source == "" || repubConfig.Source == ">") && repubConfig.Destination == "" {
+		cfg.RePublish = nil
+	} else {
+		cfg.RePublish = &repubConfig
 	}
 
 	if c.noRepub {
 		cfg.RePublish = nil
+	}
+
+	var subjectTransformConfig api.SubjectTransformConfig
+
+	if cfg.SubjectTransform != nil {
+		subjectTransformConfig = *cfg.SubjectTransform
+	} else {
+		subjectTransformConfig = api.SubjectTransformConfig{}
+	}
+
+	if c.subjectTransformSource != "" {
+		subjectTransformConfig.Source = c.subjectTransformSource
+	}
+	if c.subjectTransformDest != "" {
+		subjectTransformConfig.Destination = c.subjectTransformDest
+	}
+
+	if subjectTransformConfig.Source == "" && subjectTransformConfig.Destination == "" {
+		cfg.SubjectTransform = nil
+	} else {
+		cfg.SubjectTransform = &subjectTransformConfig
+	}
+
+	if c.noSubjectTransform {
+		cfg.SubjectTransform = nil
 	}
 
 	return cfg, nil
@@ -1584,7 +1644,6 @@ func (c *streamCmd) cpAction(pc *fisk.ParseContext) error {
 func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig) {
 
 	cols.AddRowIfNotEmpty("Description", cfg.Description)
-
 	cols.AddRowIf("Subjects", cfg.Subjects, len(cfg.Subjects) > 0)
 	cols.AddRow("Replicas", cfg.Replicas)
 	cols.AddRowIf("Sealed", true, cfg.Sealed)
@@ -1597,6 +1656,16 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 		cols.AddRowIfNotEmpty("Placement Cluster", cfg.Placement.Cluster)
 		cols.AddRowIf("Placement Tags", cfg.Placement.Tags, len(cfg.Placement.Tags) > 0)
 	}
+
+	cols.AddSectionTitle("Options")
+
+	if cfg.SubjectTransform != nil && cfg.SubjectTransform.Destination != "" {
+		source := cfg.SubjectTransform.Source
+		if source == "" {
+			source = ">"
+		}
+		cols.AddRowf("Subject Transform", "%s to %s", source, cfg.SubjectTransform.Destination)
+	}
 	if cfg.RePublish != nil {
 		if cfg.RePublish.HeadersOnly {
 			cols.AddRowf("Republishing Headers", "%s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
@@ -1604,9 +1673,6 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 			cols.AddRowf("Republishing", "%s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
 		}
 	}
-
-	cols.AddSectionTitle("Options")
-
 	cols.AddRow("Retention", cfg.Retention.String())
 	cols.AddRow("Acknowledgments", !cfg.NoAck)
 	dnp := cfg.Discard.String()
@@ -1636,7 +1702,7 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	if cfg.MaxBytes == -1 {
 		cols.AddRow("Maximum Bytes", "unlimited")
 	} else {
-		cols.AddRow("Maximum Bytes", humanize.IBytes(uint64(cfg.MaxBytes)))
+		cols.AddRow("Maximum Bytes", cfg.MaxBytes)
 	}
 	if cfg.MaxAge <= 0 {
 		cols.AddRow("Maximum Age", "unlimited")
@@ -1646,7 +1712,7 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	if cfg.MaxMsgSize == -1 {
 		cols.AddRow("Maximum Message Size", "unlimited")
 	} else {
-		cols.AddRow("Maximum Message Size", humanize.IBytes(uint64(cfg.MaxMsgSize)))
+		cols.AddRow("Maximum Message Size", cfg.MaxMsgSize)
 	}
 	if cfg.MaxConsumers == -1 {
 		cols.AddRow("Maximum Consumers", "unlimited")
@@ -1687,16 +1753,28 @@ func (c *streamCmd) renderSource(s *api.StreamSource) string {
 		return ""
 	}
 
-	parts := []string{s.Name}
+	var parts []string
+
+	if s.FilterSubject == "" && s.SubjectTransformDest == "" {
+		parts = append(parts, s.Name)
+	} else {
+		var filter = ">"
+		if s.FilterSubject != "" {
+			filter = s.FilterSubject
+		}
+		if s.SubjectTransformDest != "" {
+			parts = append(parts, fmt.Sprintf("%s (%s to %s)", s.Name, filter, s.SubjectTransformDest))
+		} else {
+			parts = append(parts, fmt.Sprintf("%s (%s)", s.Name, s.FilterSubject))
+		}
+	}
+
 	if s.OptStartSeq > 0 {
 		parts = append(parts, fmt.Sprintf("Start Seq: %s", f(s.OptStartSeq)))
 	}
 
 	if s.OptStartTime != nil {
 		parts = append(parts, fmt.Sprintf("Start Time: %v", s.OptStartTime))
-	}
-	if s.FilterSubject != "" {
-		parts = append(parts, fmt.Sprintf("Subject: %s", s.FilterSubject))
 	}
 	if s.External != nil {
 		if s.External.ApiPrefix != "" {
@@ -1775,6 +1853,15 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 
 	showSource := func(s *api.StreamSourceInfo) {
 		cols.AddRow("Stream Name", s.Name)
+		if s.SubjectTransformDest != "" {
+			var filter = ">"
+			if s.FilterSubject != "" {
+				filter = s.FilterSubject
+			}
+			cols.AddRowf("Subject Transform", "%s to %s", filter, s.SubjectTransformDest)
+		} else {
+			cols.AddRowIfNotEmpty("Subject Filter", s.FilterSubject)
+		}
 		cols.AddRow("Lag", s.Lag)
 		if s.Active > 0 && s.Active < math.MaxInt64 {
 			cols.AddRow("Last Seen", s.Active)
@@ -1791,6 +1878,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 			cols.AddRow("Error", s.Error.Description)
 		}
 	}
+
 	if info.Mirror != nil {
 		cols.AddSectionTitle("Mirror Information")
 		showSource(info.Mirror)
@@ -1816,13 +1904,11 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	} else {
 		cols.AddRowf("First Sequence", "%s @ %s UTC", f(info.State.FirstSeq), f(info.State.FirstTime))
 	}
-
 	if info.State.LastTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
 		cols.AddRow("Last Sequence", info.State.LastSeq)
 	} else {
 		cols.AddRowf("Last Sequence", "%s @ %s UTC", f(info.State.LastSeq), f(info.State.LastTime))
 	}
-
 	if len(info.State.Deleted) > 0 { // backwards compat with older servers
 		cols.AddRow("Deleted Messages", len(info.State.Deleted))
 	} else if info.State.NumDeleted > 0 {
@@ -1834,7 +1920,6 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	if info.State.NumSubjects > 0 {
 		cols.AddRow("Number of Subjects", info.State.NumSubjects)
 	}
-
 	if len(info.Alternates) > 0 {
 		lName := 0
 		lCluster := 0
@@ -1846,7 +1931,6 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 				lCluster = len(s.Cluster)
 			}
 		}
-
 		for i, s := range info.Alternates {
 			msg := fmt.Sprintf("%s%s: Cluster: %s%s", strings.Repeat(" ", lName-len(s.Name)), s.Name, strings.Repeat(" ", lCluster-len(s.Cluster)), s.Cluster)
 			if s.Domain != "" {
@@ -2224,11 +2308,21 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		}
 	}
 
-	if c.repubSource != "" && c.repubDest != "" {
+	if c.repubSource != "" || c.repubDest != "" {
 		cfg.RePublish = &api.RePublish{
 			Source:      c.repubSource,
 			Destination: c.repubDest,
 			HeadersOnly: c.repubHeadersOnly,
+		}
+	}
+
+	if (c.subjectTransformSource != "" && c.subjectTransformDest == "") || (c.subjectTransformSource == "" && c.subjectTransformDest != "") {
+		fisk.Fatalf("must specify both --transform-source and --transform-destination")
+	}
+	if c.subjectTransformSource != "" && c.subjectTransformDest != "" {
+		cfg.SubjectTransform = &api.SubjectTransformConfig{
+			Source:      c.subjectTransformSource,
+			Destination: c.subjectTransformDest,
 		}
 	}
 
@@ -2336,6 +2430,14 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 	}, &cfg.FilterSubject)
 	fisk.FatalIfError(err, "could not request filter")
 
+	if cfg.FilterSubject != "" {
+		err = askOne(&survey.Input{
+			Message: fmt.Sprintf("%s Subject mapping transform", prefix),
+			Help:    "Map matching subjects according to this transform destination",
+		}, &cfg.SubjectTransformDest)
+		fisk.FatalIfError(err, "could not request subject mapping destination transform")
+	}
+
 	ok, err = askConfirmation(fmt.Sprintf("Import %q from a different JetStream domain", name), false)
 	fisk.FatalIfError(err, "Could not request source details")
 	if ok {
@@ -2420,6 +2522,7 @@ func (c *streamCmd) validateCfg(cfg *api.StreamConfig) (bool, []byte, []string, 
 }
 
 func (c *streamCmd) addAction(pc *fisk.ParseContext) (err error) {
+
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	fisk.FatalIfError(err, "could not create Stream")
 
