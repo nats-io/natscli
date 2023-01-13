@@ -1,4 +1,4 @@
-// Copyright 2022 The NATS Authors
+// Copyright 2022-2023 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/choria-io/fisk"
@@ -188,15 +189,22 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 	}
 
 	table := newTableWriter(fmt.Sprintf("%s Service Statistics", c.name))
-	table.AddHeaders("ID", "Requests", "Errors", "Processing Time", "Average Time")
+	table.AddHeaders("ID", "Endpoint", "Requests", "Errors", "Processing Time", "Average Time")
 
 	var requests, errors int
 	var runTime time.Duration
 	for _, s := range stats {
-		table.AddRow(s.ID, humanize.Comma(int64(s.NumRequests)), humanize.Comma(int64(s.NumErrors)), humanizeDuration(s.ProcessingTime), humanizeDuration(s.AverageProcessingTime))
-		requests += s.NumRequests
-		errors += s.NumErrors
-		runTime += s.ProcessingTime
+		for c, e := range s.Endpoints {
+			id := s.ID
+			if c > 0 {
+				id = ""
+			}
+
+			table.AddRow(id, e.Name, humanize.Comma(int64(e.NumRequests)), humanize.Comma(int64(e.NumErrors)), humanizeDuration(e.ProcessingTime), humanizeDuration(e.AverageProcessingTime))
+			requests += e.NumRequests
+			errors += e.NumErrors
+			runTime += e.ProcessingTime
+		}
 	}
 
 	table.AddSeparator()
@@ -205,7 +213,7 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 		avg = runTime / time.Duration(requests+errors)
 	}
 
-	table.AddRow("", humanize.Comma(int64(requests)), humanize.Comma(int64(errors)), humanizeDuration(runTime), humanizeDuration(avg))
+	table.AddRow("", "", humanize.Comma(int64(requests)), humanize.Comma(int64(errors)), humanizeDuration(runTime), humanizeDuration(avg))
 
 	fmt.Println(table.Render())
 
@@ -252,26 +260,34 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 	fmt.Printf("      Service: %v (%v)\n", nfo.Name, nfo.ID)
 	fmt.Printf("  Description: %v\n", nfo.Description)
 	fmt.Printf("      Version: %v\n", nfo.Version)
-	fmt.Printf("      Subject: %v\n", nfo.Subject)
+	fmt.Printf("     Subjects: %v\n", strings.Join(nfo.Subjects, ", "))
 	fmt.Println()
-	fmt.Println("Statistics:")
-	fmt.Println()
-	fmt.Printf("         Requests: %s\n", humanize.Comma(int64(stats.NumRequests)))
-	fmt.Printf("           Errors: %s\n", humanize.Comma(int64(stats.NumErrors)))
-	fmt.Printf("  Processing Time: %s (average %s)\n", humanizeDuration(stats.ProcessingTime), humanizeDuration(stats.AverageProcessingTime))
-	fmt.Printf("          Started: %v\n", stats.Started)
-	if stats.LastError != "" {
-		fmt.Printf("   Last Error: %v\n", stats.LastError)
-	}
-	if stats.Data != nil {
+
+	fmt.Printf("Statistics for %d Endpoint(s):\n\n", len(stats.Endpoints))
+	for _, e := range stats.Endpoints {
+		if e.Name == "" {
+			e.Name = "default"
+		}
+
+		fmt.Printf("  %s Endpoint Statistics:\n", e.Name)
 		fmt.Println()
-		fmt.Println("Service Specific Statistics:")
+		fmt.Printf("           Requests: %s\n", humanize.Comma(int64(e.NumRequests)))
+		fmt.Printf("             Errors: %s\n", humanize.Comma(int64(e.NumErrors)))
+		fmt.Printf("    Processing Time: %s (average %s)\n", humanizeDuration(e.ProcessingTime), humanizeDuration(e.AverageProcessingTime))
+		fmt.Printf("            Started: %v\n", stats.Started)
+		if e.LastError != "" {
+			fmt.Printf("     Last Error: %v\n", e.LastError)
+		}
+		if e.Data != nil {
+			fmt.Println()
+			fmt.Println("  Endpoint Specific Statistics:")
+			fmt.Println()
+			out := bytes.NewBuffer([]byte{})
+			json.Indent(out, e.Data, "    ", "    ")
+			fmt.Printf("    %s\n", out.String())
+		}
 		fmt.Println()
-		out := bytes.NewBuffer([]byte{})
-		json.Indent(out, stats.Data, "  ", "  ")
-		fmt.Printf("  %s\n", out.String())
 	}
-	fmt.Println()
 
 	return nil
 }
