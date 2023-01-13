@@ -1008,10 +1008,6 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 				if source.FilterSubject != "" {
 					edge.Label(source.FilterSubject)
 				}
-				if source.SubjectTransform != "" {
-					edge2 := dg.Edge(snode, node).Attr("color", "red")
-					edge2.Label(source.SubjectTransform)
-				}
 			}
 		}
 
@@ -1597,13 +1593,7 @@ func (c *streamCmd) renderSource(s *api.StreamSource) string {
 		parts = append(parts, fmt.Sprintf("Start Time: %v", s.OptStartTime))
 	}
 	if s.FilterSubject != "" {
-		parts = append(parts, fmt.Sprintf("Subject filter: %s", s.FilterSubject))
-	}
-	if s.SubjectTransform != "" {
-		if s.FilterSubject == "" {
-			parts = append(parts, fmt.Sprintf("Subject filter: %s", ">"))
-		}
-		parts = append(parts, fmt.Sprintf("Subject transform: %s", s.SubjectTransform))
+		parts = append(parts, fmt.Sprintf("Subject: %s", s.FilterSubject))
 	}
 	if s.External != nil {
 		if s.External.ApiPrefix != "" {
@@ -1684,20 +1674,6 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 
 	showSource := func(s *api.StreamSourceInfo) {
 		fmt.Printf("          Stream Name: %s\n", s.Name)
-
-		if s.SubjectTransform != "" {
-			if s.FilterSubject == "" {
-				fmt.Printf("       Subject Filter: %s\n", ">")
-			} else {
-				fmt.Printf("       Subject Filter: %s\n", s.FilterSubject)
-			}
-			fmt.Printf("    Subject Transform: %s \n", s.SubjectTransform)
-		} else {
-			if s.FilterSubject != "" {
-				fmt.Printf("       Subject Filter: %s\n", s.FilterSubject)
-			}
-		}
-
 		fmt.Printf("                  Lag: %s\n", humanize.Comma(int64(s.Lag)))
 		if s.Active > 0 && s.Active < math.MaxInt64 {
 			fmt.Printf("            Last Seen: %v\n", humanizeDuration(s.Active))
@@ -2248,12 +2224,6 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 		Help:    "Only replicate data matching this subject",
 	}, &cfg.FilterSubject)
 	fisk.FatalIfError(err, "could not request filter")
-
-	err = askOne(&survey.Input{
-		Message: fmt.Sprintf("%s Subject mapping transform", prefix),
-		Help:    "Map matching subjects according to this destination transform",
-	}, &cfg.SubjectTransform)
-	fisk.FatalIfError(err, "could not request subject mapping destination transform")
 
 	ok, err = askConfirmation(fmt.Sprintf("Import %q from a different JetStream domain", name), false)
 	fisk.FatalIfError(err, "Could not request source details")
