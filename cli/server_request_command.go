@@ -135,7 +135,7 @@ func (c *SrvRequestCmd) healthz(_ *fisk.ParseContext) error {
 	}
 
 	opts := server.HealthzEventOptions{
-		HealthzOptions:     server.HealthzOptions{JSEnabled: c.jsEnabled, JSServerOnly: c.jsServerOnly},
+		HealthzOptions:     server.HealthzOptions{JSEnabledOnly: c.jsEnabled, JSServerOnly: c.jsServerOnly},
 		EventFilterOptions: c.reqFilter(),
 	}
 
