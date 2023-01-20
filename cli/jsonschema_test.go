@@ -20,11 +20,11 @@ import (
 	"github.com/nats-io/jsm.go/api"
 )
 
-type validator interface {
+type mockValidator interface {
 	Validate(...api.StructValidator) (bool, []string)
 }
 
-func validateExpectSuccess(t *testing.T, cfg validator) {
+func validateExpectSuccess(t *testing.T, cfg mockValidator) {
 	t.Helper()
 
 	ok, errs := cfg.Validate(new(SchemaValidator))
@@ -33,7 +33,7 @@ func validateExpectSuccess(t *testing.T, cfg validator) {
 	}
 }
 
-func validateExpectFailure(t *testing.T, cfg validator) {
+func validateExpectFailure(t *testing.T, cfg mockValidator) {
 	t.Helper()
 
 	ok, errs := cfg.Validate(new(SchemaValidator))
