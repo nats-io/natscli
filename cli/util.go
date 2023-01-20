@@ -438,6 +438,18 @@ func prepareHelper(servers string, copts ...nats.Option) (*nats.Conn, *jsm.Manag
 	return prepareHelperUnlocked(servers, copts...)
 }
 
+func validator() *SchemaValidator {
+	if os.Getenv("NOVALIDATE") == "" {
+		return new(SchemaValidator)
+	}
+
+	if opts.Trace {
+		log.Printf("!!! Disabling schema validation")
+	}
+
+	return nil
+}
+
 func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *jsm.Manager, error) {
 	var err error
 
@@ -466,7 +478,7 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 	}
 
 	if os.Getenv("NOVALIDATE") == "" {
-		jsopts = append(jsopts, jsm.WithAPIValidation(new(SchemaValidator)))
+		jsopts = append(jsopts, jsm.WithAPIValidation(validator()))
 	}
 
 	if opts.Timeout != 0 {
@@ -929,7 +941,7 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 	}
 
 	if opts.Trace {
-		log.Printf(">>> Received %d responses", ctr)
+		log.Printf("=== Received %d responses", ctr)
 	}
 
 	return nil

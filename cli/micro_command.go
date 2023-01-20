@@ -18,12 +18,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
 	"github.com/xlab/tablewriter"
@@ -73,6 +75,29 @@ func (c *microCmd) makeSubj(v micro.Verb, s string, i string) string {
 	return fmt.Sprintf("%s.%s.%s.%s", micro.APIPrefix, v.String(), s, i)
 }
 
+func (c *microCmd) parseMessage(m []byte, expectedType string) (any, error) {
+	var (
+		t      string
+		parsed any
+		err    error
+	)
+
+	if os.Getenv("NOVALIDATE") == "" {
+		t, parsed, err = api.ParseAndValidateMessage(m, validator())
+	} else {
+		t, parsed, err = api.ParseMessage(m)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if t != expectedType {
+		return nil, fmt.Errorf("invalid response type %s", t)
+	}
+
+	return parsed, nil
+}
+
 func (c *microCmd) getInstanceStats(nc *nats.Conn, name string, id string) (*micro.Stats, error) {
 	resp, err := doReq(nil, c.makeSubj(micro.StatsVerb, name, id), 1, nc)
 	if err != nil {
@@ -83,26 +108,27 @@ func (c *microCmd) getInstanceStats(nc *nats.Conn, name string, id string) (*mic
 		return nil, fmt.Errorf("no statistics received for %s > %s", name, id)
 	}
 
-	var s micro.Stats
-	err = json.Unmarshal(resp[0], &s)
+	stats, err := c.parseMessage(resp[0], micro.StatsResponseType)
+	if err != nil {
+		return nil, err
+	}
 
-	return &s, err
+	return stats.(*micro.Stats), err
 }
 
-func (c *microCmd) getInfo(nc *nats.Conn, name string, id string, wait int) ([]micro.Info, error) {
+func (c *microCmd) getInfo(nc *nats.Conn, name string, id string, wait int) ([]*micro.Info, error) {
 	resp, err := doReq(nil, c.makeSubj(micro.InfoVerb, name, id), wait, nc)
 	if err != nil {
 		return nil, err
 	}
 
-	var nfos []micro.Info
+	var nfos []*micro.Info
 	for _, r := range resp {
-		res := micro.Info{}
-		err = json.Unmarshal(r, &res)
+		nfo, err := c.parseMessage(r, micro.InfoResponseType)
 		if err != nil {
-			return nil, fmt.Errorf("invalid response: %v", err)
+			return nil, err
 		}
-		nfos = append(nfos, res)
+		nfos = append(nfos, nfo.(*micro.Info))
 	}
 
 	sort.Slice(nfos, func(i, j int) bool {
@@ -128,12 +154,14 @@ func (c *microCmd) pingAction(_ *fisk.ParseContext) error {
 	start := time.Now()
 
 	sub, err := nc.Subscribe(nc.NewRespInbox(), func(m *nats.Msg) {
-		var r micro.Ping
-		err = json.Unmarshal(m.Data, &r)
+		if opts.Trace {
+			log.Printf("<<< %s", string(m.Data))
+		}
+		resp, err := c.parseMessage(m.Data, micro.PingResponseType)
 		if err != nil {
 			return
 		}
-
+		r := resp.(*micro.Ping)
 		fmt.Printf("%-50s rtt=%s\n", fmt.Sprintf("%s %s", r.Name, r.ID), humanizeDuration(time.Since(start)))
 	})
 	if err != nil {
@@ -143,7 +171,9 @@ func (c *microCmd) pingAction(_ *fisk.ParseContext) error {
 	msg := nats.NewMsg(c.makeSubj(micro.PingVerb, c.name, ""))
 	msg.Reply = sub.Subject
 	nc.PublishMsg(msg)
-
+	if opts.Trace {
+		log.Printf(">>> %s", msg.Subject)
+	}
 	<-ctx.Done()
 
 	return nil
@@ -167,12 +197,11 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 
 	var stats []*micro.Stats
 	for _, r := range resp {
-		s := micro.Stats{}
-		err = json.Unmarshal(r, &s)
+		s, err := c.parseMessage(r, micro.StatsResponseType)
 		if err != nil {
 			return err
 		}
-		stats = append(stats, &s)
+		stats = append(stats, s.(*micro.Stats))
 	}
 
 	sort.Slice(stats, func(i, j int) bool {
