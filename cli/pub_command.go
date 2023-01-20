@@ -105,7 +105,6 @@ Available template functions are:
 	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)
 	req.Flag("reply-timeout", "Maximum timeout between incoming replies.").Default("300ms").DurationVar(&c.replyTimeout)
-
 }
 
 func init() {

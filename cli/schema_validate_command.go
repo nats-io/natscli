@@ -31,11 +31,11 @@ type schemaValidateCmd struct {
 
 func configureSchemaValidateCommand(schema *fisk.CmdClause) {
 	c := &schemaValidateCmd{}
+
 	validate := schema.Command("validate", "Validates a JSON file against a schema").Alias("check").Action(c.validate)
 	validate.Arg("schema", "Schema ID to validate against").Required().StringVar(&c.schema)
 	validate.Arg("file", "JSON data to validate (- for stdin)").Required().StringVar(&c.file)
 	validate.Flag("json", "Produce JSON format output").UnNegatableBoolVar(&c.json)
-
 }
 
 func (c *schemaValidateCmd) validate(_ *fisk.ParseContext) error {

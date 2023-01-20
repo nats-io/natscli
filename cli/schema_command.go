@@ -20,6 +20,7 @@ func configureSchemaCommand(app commandHost) {
 	configureSchemaSearchCommand(schema)
 	configureSchemaInfoCommand(schema)
 	configureSchemaValidateCommand(schema)
+	configureSchemaReqCommand(schema)
 }
 
 func init() {
