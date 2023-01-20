@@ -69,6 +69,10 @@ func (c *schemaReqCmd) requestAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	if schemaType == "io.nats.unknown_message" {
+		return fmt.Errorf("could not determine the message type")
+	}
+
 	if c.schema != "" && schemaType != c.schema {
 		return fmt.Errorf("invalid message type %s", schemaType)
 	}
