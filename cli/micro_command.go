@@ -53,6 +53,7 @@ func configureMicroCommand(app commandHost) {
 
 	stats := mc.Command("stats", "Report Micro service statistics").Action(c.statsAction)
 	stats.Arg("service", "Service to show").Required().StringVar(&c.name)
+	stats.Arg("id", "Show info for a specific ID").StringVar(&c.id)
 	stats.Flag("json", "Show JSON output").Short('j').UnNegatableBoolVar(&c.showJSON)
 
 	ping := mc.Command("ping", "Sends a ping to all services").Action(c.pingAction)
@@ -185,7 +186,7 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("setup failed: %v", err)
 	}
 
-	resp, err := doReq(nil, c.makeSubj(micro.StatsVerb, c.name, ""), 0, nc)
+	resp, err := doReq(nil, c.makeSubj(micro.StatsVerb, c.name, c.id), 0, nc)
 	if err != nil {
 		return err
 	}
