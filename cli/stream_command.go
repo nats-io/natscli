@@ -113,13 +113,18 @@ type streamCmd struct {
 	discardPerSubjSet     bool
 	showStateOnly         bool
 
-	fServer    string
-	fCluster   string
-	fEmpty     bool
-	fIdle      time.Duration
-	fCreated   time.Duration
-	fConsumers int
-	fInvert    bool
+	fServer      string
+	fCluster     string
+	fEmpty       bool
+	fIdle        time.Duration
+	fCreated     time.Duration
+	fConsumers   int
+	fInvert      bool
+	fReplicas    uint
+	fSourced     bool
+	fSourcedSet  bool
+	fMirrored    bool
+	fMirroredSet bool
 
 	listNames    bool
 	vwStartId    int
@@ -228,6 +233,9 @@ func configureStreamCommand(app commandHost) {
 	strFind.Flag("created", "Display streams created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
 	strFind.Flag("consumers", "Display streams with fewer consumers than threshold").PlaceHolder("THRESHOLD").Default("-1").IntVar(&c.fConsumers)
 	strFind.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
+	strFind.Flag("replicas", "Display streams with more or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
+	strFind.Flag("sourced", "Display that sources data from other streams").IsSetByUser(&c.fSourcedSet).UnNegatableBoolVar(&c.fSourced)
+	strFind.Flag("mirrored", "Display that mirrors data from other streams").IsSetByUser(&c.fMirroredSet).UnNegatableBoolVar(&c.fMirrored)
 	strFind.Flag("names", "Show just the stream names").Short('n').UnNegatableBoolVar(&c.listNames)
 	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 
@@ -458,6 +466,15 @@ func (c *streamCmd) findAction(_ *fisk.ParseContext) (err error) {
 	}
 	if c.filterSubject != "" {
 		opts = append(opts, jsm.StreamQuerySubjectWildcard(c.filterSubject))
+	}
+	if c.fSourcedSet {
+		opts = append(opts, jsm.StreamQueryIsSourced())
+	}
+	if c.fMirroredSet {
+		opts = append(opts, jsm.StreamQueryIsMirror())
+	}
+	if c.fReplicas > 0 {
+		opts = append(opts, jsm.StreamQueryReplicas(c.fReplicas))
 	}
 
 	found, err := c.mgr.QueryStreams(opts...)

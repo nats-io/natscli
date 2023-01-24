@@ -6,7 +6,7 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.6
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/choria-io/fisk v0.3.0
-	github.com/dustin/go-humanize v1.0.0
+	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.2.0
 	github.com/fatih/color v1.13.0
 	github.com/ghodss/yaml v1.0.0
@@ -14,9 +14,9 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.5
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.15.14
-	github.com/nats-io/jsm.go v0.0.36-0.20230120093434-cab39d7decda
-	github.com/nats-io/nats-server/v2 v2.9.12-0.20230111160909-68953678bbd2
+	github.com/klauspost/compress v1.15.15
+	github.com/nats-io/jsm.go v0.0.36-0.20230124204914-889c3a93aaf7
+	github.com/nats-io/nats-server/v2 v2.9.12-0.20230124151335-9e1a25dc94ae
 	github.com/nats-io/nats.go v1.23.1-0.20230120133917-a301969f5a37
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.14.0
