@@ -25,9 +25,10 @@ import (
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/monitor"
 )
 
-func assertHasPDItem(t *testing.T, check *result, items ...string) {
+func assertHasPDItem(t *testing.T, check *monitor.Result, items ...string) {
 	t.Helper()
 
 	if len(items) == 0 {
@@ -81,7 +82,7 @@ func TestCheckMessage(t *testing.T) {
 	t.Run("Body timestamp", func(t *testing.T) {
 		withJetStream(t, func(_ *server.Server, nc *nats.Conn, mgr *jsm.Manager) {
 			cmd := dfltCmd()
-			check := &result{}
+			check := &monitor.Result{}
 
 			opts.Conn = nc
 			_, err := mgr.NewStream("TEST")
@@ -102,7 +103,7 @@ func TestCheckMessage(t *testing.T) {
 			_, err = nc.Request("TEST", []byte(strconv.Itoa(int(now))), time.Second)
 			checkErr(t, err, "publish failed: %v", err)
 
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkStreamMessage(mgr, check)
 			assertListIsEmpty(t, check.Warnings)
 			assertListIsEmpty(t, check.Criticals)
@@ -112,7 +113,7 @@ func TestCheckMessage(t *testing.T) {
 			_, err = nc.Request("TEST", []byte(strconv.Itoa(int(now))), time.Second)
 			checkErr(t, err, "publish failed: %v", err)
 
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkStreamMessage(mgr, check)
 			assertListIsEmpty(t, check.Criticals)
 			if len(check.Warnings) != 1 {
@@ -123,7 +124,7 @@ func TestCheckMessage(t *testing.T) {
 			_, err = nc.Request("TEST", []byte(strconv.Itoa(int(now))), time.Second)
 			checkErr(t, err, "publish failed: %v", err)
 
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkStreamMessage(mgr, check)
 			assertListIsEmpty(t, check.Warnings)
 			if len(check.Criticals) != 1 {
@@ -132,7 +133,7 @@ func TestCheckMessage(t *testing.T) {
 
 			cmd.msgBodyAsTs = false
 
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkStreamMessage(mgr, check)
 			assertListIsEmpty(t, check.Warnings)
 			assertListIsEmpty(t, check.Criticals)
@@ -145,7 +146,7 @@ func TestCheckKV(t *testing.T) {
 	t.Run("Bucket", func(t *testing.T) {
 		withJetStream(t, func(_ *server.Server, nc *nats.Conn, _ *jsm.Manager) {
 			cmd := dfltCmd()
-			check := &result{}
+			check := &monitor.Result{}
 			cmd.checkKVStatusAndBucket(check, nc)
 			assertListIsEmpty(t, check.Warnings)
 			assertListIsEmpty(t, check.OKs)
@@ -157,7 +158,7 @@ func TestCheckKV(t *testing.T) {
 			_, err = js.CreateKeyValue(&nats.KeyValueConfig{Bucket: "TEST"})
 			checkErr(t, err, "kv create failed")
 
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkKVStatusAndBucket(check, nc)
 			assertListIsEmpty(t, check.Warnings)
 			assertListIsEmpty(t, check.Criticals)
@@ -179,7 +180,7 @@ func TestCheckKV(t *testing.T) {
 			cmd.kvValuesWarn = 1
 			cmd.kvValuesCrit = 2
 
-			check := &result{}
+			check := &monitor.Result{}
 			cmd.checkKVStatusAndBucket(check, nc)
 			assertListIsEmpty(t, check.Warnings)
 			assertListIsEmpty(t, check.Criticals)
@@ -188,7 +189,7 @@ func TestCheckKV(t *testing.T) {
 			_, err = bucket.PutString("K", "V")
 			checkErr(t, err, "pub failed")
 
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkKVStatusAndBucket(check, nc)
 			assertListEquals(t, check.OKs, "bucket TEST")
 			assertListEquals(t, check.Warnings, "1 values")
@@ -197,7 +198,7 @@ func TestCheckKV(t *testing.T) {
 			_, err = bucket.PutString("K1", "V")
 			checkErr(t, err, "pub failed")
 
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkKVStatusAndBucket(check, nc)
 			assertListEquals(t, check.OKs, "bucket TEST")
 			assertListEquals(t, check.Criticals, "2 values")
@@ -211,7 +212,7 @@ func TestCheckKV(t *testing.T) {
 			_, err = bucket.PutString("K2", "V")
 			checkErr(t, err, "pub failed")
 
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkKVStatusAndBucket(check, nc)
 			assertListIsEmpty(t, check.Warnings)
 			assertListEquals(t, check.OKs, "bucket TEST")
@@ -220,7 +221,7 @@ func TestCheckKV(t *testing.T) {
 			_, err = bucket.PutString("K3", "V")
 			checkErr(t, err, "pub failed")
 
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkKVStatusAndBucket(check, nc)
 			assertListIsEmpty(t, check.Criticals)
 			assertListEquals(t, check.OKs, "bucket TEST")
@@ -231,7 +232,7 @@ func TestCheckKV(t *testing.T) {
 			_, err = bucket.PutString("K5", "V")
 			checkErr(t, err, "pub failed")
 
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkKVStatusAndBucket(check, nc)
 			assertListIsEmpty(t, check.Warnings)
 			assertListIsEmpty(t, check.Criticals)
@@ -249,7 +250,7 @@ func TestCheckKV(t *testing.T) {
 
 			cmd := dfltCmd()
 			cmd.kvKey = "KEY"
-			check := &result{}
+			check := &monitor.Result{}
 			cmd.checkKVStatusAndBucket(check, nc)
 			assertListIsEmpty(t, check.Warnings)
 			assertListEquals(t, check.OKs, "bucket TEST")
@@ -258,14 +259,14 @@ func TestCheckKV(t *testing.T) {
 			_, err = bucket.Put("KEY", []byte("VAL"))
 			checkErr(t, err, "put failed")
 
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkKVStatusAndBucket(check, nc)
 			assertListIsEmpty(t, check.Warnings)
 			assertListEquals(t, check.OKs, "bucket TEST", "key KEY found")
 			assertListIsEmpty(t, check.Criticals)
 
 			bucket.Delete("KEY")
-			check = &result{}
+			check = &monitor.Result{}
 			cmd.checkKVStatusAndBucket(check, nc)
 			assertListIsEmpty(t, check.Warnings)
 			assertListEquals(t, check.OKs, "bucket TEST")
@@ -308,7 +309,7 @@ func TestCheckAccountInfo(t *testing.T) {
 
 	t.Run("No info", func(t *testing.T) {
 		cmd, _ := setDefaults()
-		check := &result{}
+		check := &monitor.Result{}
 		err := cmd.checkAccountInfo(check, nil)
 		if err == nil {
 			t.Fatalf("expected error")
@@ -319,7 +320,7 @@ func TestCheckAccountInfo(t *testing.T) {
 		cmd, info := setDefaults()
 
 		info.Limits = api.JetStreamAccountLimits{}
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkAccountInfo(check, info))
 		assertListIsEmpty(t, check.Criticals)
 		assertListIsEmpty(t, check.Warnings)
@@ -329,7 +330,7 @@ func TestCheckAccountInfo(t *testing.T) {
 	t.Run("Limits, default thresholds", func(t *testing.T) {
 		cmd, info := setDefaults()
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkAccountInfo(check, info))
 		assertListIsEmpty(t, check.Criticals)
 		assertListIsEmpty(t, check.Warnings)
@@ -341,7 +342,7 @@ func TestCheckAccountInfo(t *testing.T) {
 
 		t.Run("Usage exceeds max", func(t *testing.T) {
 			info.Streams = 300
-			check := &result{}
+			check := &monitor.Result{}
 			assertNoError(t, cmd.checkAccountInfo(check, info))
 			assertListEquals(t, check.Criticals, "streams: exceed server limits")
 			assertListIsEmpty(t, check.Warnings)
@@ -353,7 +354,7 @@ func TestCheckAccountInfo(t *testing.T) {
 
 			cmd.jsMemWarn = 90
 			cmd.jsMemCritical = 80
-			check := &result{}
+			check := &monitor.Result{}
 			assertNoError(t, cmd.checkAccountInfo(check, info))
 			assertListEquals(t, check.Criticals, "memory: invalid thresholds")
 		})
@@ -362,7 +363,7 @@ func TestCheckAccountInfo(t *testing.T) {
 			cmd, info := setDefaults()
 
 			info.Memory = 800
-			check := &result{}
+			check := &monitor.Result{}
 			assertNoError(t, cmd.checkAccountInfo(check, info))
 			assertHasPDItem(t, check, "memory=800B memory_pct=78%;75;90 storage=1024B storage_pct=5%;75;90 streams=10 streams_pct=5% consumers=100 consumers_pct=10%")
 			assertListIsEmpty(t, check.Criticals)
@@ -373,7 +374,7 @@ func TestCheckAccountInfo(t *testing.T) {
 			cmd, info := setDefaults()
 
 			info.Memory = 960
-			check := &result{}
+			check := &monitor.Result{}
 			assertNoError(t, cmd.checkAccountInfo(check, info))
 			assertHasPDItem(t, check, "memory=960B memory_pct=93%;75;90 storage=1024B storage_pct=5%;75;90 streams=10 streams_pct=5% consumers=100 consumers_pct=10%")
 			assertListEquals(t, check.Criticals, "93% memory")
@@ -389,7 +390,7 @@ func TestCheckMirror(t *testing.T) {
 	cmd.sourcesLagCritical = 50
 
 	t.Run("no mirror", func(t *testing.T) {
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkMirror(check, info))
 		assertListEquals(t, check.Criticals, "not mirrored")
 		assertListIsEmpty(t, check.Warnings)
@@ -397,7 +398,7 @@ func TestCheckMirror(t *testing.T) {
 
 	t.Run("failed mirror", func(t *testing.T) {
 		info.Mirror = &api.StreamSourceInfo{Name: "M", Lag: 100, Active: time.Hour}
-		check := &result{}
+		check := &monitor.Result{}
 		err := cmd.checkMirror(check, info)
 		checkErr(t, err, "unexpected error")
 		assertHasPDItem(t, check, "lag=100;;50 active=3600.0000s;;1.0000")
@@ -407,7 +408,7 @@ func TestCheckMirror(t *testing.T) {
 
 	t.Run("ok mirror", func(t *testing.T) {
 		info.Mirror = &api.StreamSourceInfo{Name: "M", Lag: 1, Active: 10 * time.Millisecond}
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkMirror(check, info))
 		assertHasPDItem(t, check, "lag=1;;50 active=0.0100s;;1.0000")
 		assertListIsEmpty(t, check.Criticals)
@@ -420,7 +421,7 @@ func TestCheckSources(t *testing.T) {
 	info := &api.StreamInfo{}
 
 	t.Run("no sources", func(t *testing.T) {
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkSources(check, info))
 		assertListEquals(t, check.Criticals, "no sources defined")
 	})
@@ -437,7 +438,7 @@ func TestCheckSources(t *testing.T) {
 			},
 		}
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkSources(check, info))
 		assertListEquals(t, check.Criticals, "1 lagged sources")
 		assertHasPDItem(t, check, "sources=1;1;10", "sources_lagged=1", "sources_inactive=0")
@@ -450,7 +451,7 @@ func TestCheckSources(t *testing.T) {
 			},
 		}
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkSources(check, info))
 		assertListEquals(t, check.Criticals, "1 inactive sources")
 		assertHasPDItem(t, check, "sources=1;1;10", "sources_lagged=0", "sources_inactive=1")
@@ -465,7 +466,7 @@ func TestCheckSources(t *testing.T) {
 
 		cmd.sourcesMinSources = 2
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkSources(check, info))
 		assertListEquals(t, check.Criticals, "1 sources of min expected 2")
 		assertHasPDItem(t, check, "sources=1;2;10", "sources_lagged=0", "sources_inactive=0")
@@ -482,7 +483,7 @@ func TestCheckSources(t *testing.T) {
 		cmd.sourcesMinSources = 1
 		cmd.sourcesMaxSources = 1
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkSources(check, info))
 		assertListEquals(t, check.Criticals, "2 sources of max expected 1")
 		assertHasPDItem(t, check, "sources=2;1;1", "sources_lagged=0", "sources_inactive=0")
@@ -493,7 +494,7 @@ func TestCheckVarz(t *testing.T) {
 	t.Run("nil data", func(t *testing.T) {
 		cmd := &SrvCheckCmd{srvName: "testing"}
 
-		err := cmd.checkVarz(&result{}, nil)
+		err := cmd.checkVarz(&monitor.Result{}, nil)
 		if err.Error() != "no data received" {
 			t.Fatalf("expected no data error: %s", err)
 		}
@@ -503,7 +504,7 @@ func TestCheckVarz(t *testing.T) {
 		cmd := &SrvCheckCmd{srvName: "testing"}
 		vz := &server.Varz{Name: "other"}
 
-		err := cmd.checkVarz(&result{}, vz)
+		err := cmd.checkVarz(&monitor.Result{}, vz)
 		if err.Error() != "result from other" {
 			t.Fatalf("expected error about host: %s", err)
 		}
@@ -514,11 +515,11 @@ func TestCheckVarz(t *testing.T) {
 		cmd.srvJSRequired = true
 		vz := &server.Varz{Name: "testing"}
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.Criticals, "JetStream not enabled")
 		vz.JetStream.Config = &server.JetStreamConfig{}
-		check = &result{}
+		check = &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListIsEmpty(t, check.Criticals)
 		assertListEquals(t, check.OKs, "JetStream enabled")
@@ -529,12 +530,12 @@ func TestCheckVarz(t *testing.T) {
 		cmd.srvTLSRequired = true
 		vz := &server.Varz{Name: "testing"}
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.Criticals, "TLS not required")
 
 		vz.TLSRequired = true
-		check = &result{}
+		check = &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListIsEmpty(t, check.Criticals)
 		assertListEquals(t, check.OKs, "TLS required")
@@ -545,12 +546,12 @@ func TestCheckVarz(t *testing.T) {
 		cmd.srvAuthRequire = true
 		vz := &server.Varz{Name: "testing"}
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.Criticals, "Authentication not required")
 
 		vz.AuthRequired = true
-		check = &result{}
+		check = &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListIsEmpty(t, check.Criticals)
 		assertListEquals(t, check.OKs, "Authentication required")
@@ -561,7 +562,7 @@ func TestCheckVarz(t *testing.T) {
 		vz := &server.Varz{Name: "testing"}
 
 		// invalid thresholds
-		check := &result{}
+		check := &monitor.Result{}
 		cmd.srvUptimeCrit = 20 * time.Minute
 		cmd.srvUptimeWarn = 10 * time.Minute
 		assertNoError(t, cmd.checkVarz(check, vz))
@@ -569,7 +570,7 @@ func TestCheckVarz(t *testing.T) {
 		assertListIsEmpty(t, check.OKs)
 
 		// critical uptime
-		check = &result{}
+		check = &monitor.Result{}
 		vz.Now = time.Now()
 		vz.Start = vz.Now.Add(-1 * time.Second)
 		cmd.srvUptimeCrit = 10 * time.Minute
@@ -580,7 +581,7 @@ func TestCheckVarz(t *testing.T) {
 		assertHasPDItem(t, check, "uptime=1.0000s;1200.0000;600.000")
 
 		// critical uptime
-		check = &result{}
+		check = &monitor.Result{}
 		vz.Now = time.Now()
 		vz.Start = vz.Now.Add(-599 * time.Second)
 		cmd.srvUptimeCrit = 10 * time.Minute
@@ -591,7 +592,7 @@ func TestCheckVarz(t *testing.T) {
 		assertHasPDItem(t, check, "uptime=599.0000s;1200.0000;600.000")
 
 		// critical uptime
-		check = &result{}
+		check = &monitor.Result{}
 		vz.Now = time.Now()
 		vz.Start = vz.Now.Add(-600 * time.Second)
 		cmd.srvUptimeCrit = 10 * time.Minute
@@ -602,7 +603,7 @@ func TestCheckVarz(t *testing.T) {
 		assertHasPDItem(t, check, "uptime=600.0000s;1200.0000;600.000")
 
 		// critical -> warning uptime
-		check = &result{}
+		check = &monitor.Result{}
 		vz.Now = time.Now()
 		vz.Start = vz.Now.Add(-601 * time.Second)
 		cmd.srvUptimeCrit = 10 * time.Minute
@@ -614,7 +615,7 @@ func TestCheckVarz(t *testing.T) {
 		assertHasPDItem(t, check, "uptime=601.0000s;1200.0000;600.000")
 
 		// warning uptime
-		check = &result{}
+		check = &monitor.Result{}
 		vz.Now = time.Now()
 		vz.Start = vz.Now.Add(-1199 * time.Second)
 		assertNoError(t, cmd.checkVarz(check, vz))
@@ -624,7 +625,7 @@ func TestCheckVarz(t *testing.T) {
 		assertHasPDItem(t, check, "uptime=1199.0000s;1200.0000;600.000")
 
 		// warning uptime
-		check = &result{}
+		check = &monitor.Result{}
 		vz.Now = time.Now()
 		vz.Start = vz.Now.Add(-1200 * time.Second)
 		assertNoError(t, cmd.checkVarz(check, vz))
@@ -634,7 +635,7 @@ func TestCheckVarz(t *testing.T) {
 		assertHasPDItem(t, check, "uptime=1200.0000s;1200.0000;600.000")
 
 		// ok uptime
-		check = &result{}
+		check = &monitor.Result{}
 		vz.Now = time.Now()
 		vz.Start = vz.Now.Add(-1201 * time.Second)
 		assertNoError(t, cmd.checkVarz(check, vz))
@@ -644,7 +645,7 @@ func TestCheckVarz(t *testing.T) {
 		assertHasPDItem(t, check, "uptime=1201.0000s;1200.0000;600.0000")
 
 		// ok uptime
-		check = &result{}
+		check = &monitor.Result{}
 		vz.Now = time.Now()
 		vz.Start = vz.Now.Add(-1260 * time.Second)
 		assertNoError(t, cmd.checkVarz(check, vz))
@@ -661,7 +662,7 @@ func TestCheckVarz(t *testing.T) {
 		// invalid thresholds
 		cmd.srvCPUCrit = 60
 		cmd.srvCPUWarn = 70
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.Criticals, "CPU invalid thresholds")
 		assertListIsEmpty(t, check.OKs)
@@ -669,7 +670,7 @@ func TestCheckVarz(t *testing.T) {
 		// critical cpu
 		cmd.srvCPUCrit = 50
 		cmd.srvCPUWarn = 30
-		check = &result{}
+		check = &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.Criticals, "CPU 50.00")
 		assertListIsEmpty(t, check.OKs)
@@ -678,7 +679,7 @@ func TestCheckVarz(t *testing.T) {
 		// warning cpu
 		cmd.srvCPUCrit = 60
 		cmd.srvCPUWarn = 50
-		check = &result{}
+		check = &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.Warnings, "CPU 50.00")
 		assertListIsEmpty(t, check.Criticals)
@@ -688,7 +689,7 @@ func TestCheckVarz(t *testing.T) {
 		// ok cpu
 		cmd.srvCPUCrit = 80
 		cmd.srvCPUWarn = 70
-		check = &result{}
+		check = &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.OKs, "CPU 50.00")
 		assertListIsEmpty(t, check.Criticals)
@@ -705,7 +706,7 @@ func TestCheckVarz(t *testing.T) {
 		// critical connections
 		cmd.srvConnCrit = 1024
 		cmd.srvConnWarn = 800
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.Criticals, "Connections 1024.00")
 		assertListIsEmpty(t, check.OKs)
@@ -715,7 +716,7 @@ func TestCheckVarz(t *testing.T) {
 		// critical connections reverse
 		cmd.srvConnCrit = 1200
 		cmd.srvConnWarn = 1300
-		check = &result{}
+		check = &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.Criticals, "Connections 1024.00")
 		assertListIsEmpty(t, check.OKs)
@@ -725,7 +726,7 @@ func TestCheckVarz(t *testing.T) {
 		// warn connections
 		cmd.srvConnCrit = 2000
 		cmd.srvConnWarn = 1024
-		check = &result{}
+		check = &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.Warnings, "Connections 1024.00")
 		assertListIsEmpty(t, check.OKs)
@@ -735,7 +736,7 @@ func TestCheckVarz(t *testing.T) {
 		// warn connections reverse
 		cmd.srvConnCrit = 1000
 		cmd.srvConnWarn = 1300
-		check = &result{}
+		check = &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.Warnings, "Connections 1024.00")
 		assertListIsEmpty(t, check.OKs)
@@ -745,7 +746,7 @@ func TestCheckVarz(t *testing.T) {
 		// ok connections
 		cmd.srvConnCrit = 2000
 		cmd.srvConnWarn = 1300
-		check = &result{}
+		check = &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListEquals(t, check.OKs, "Connections 1024.00")
 		assertListIsEmpty(t, check.Warnings)
@@ -755,7 +756,7 @@ func TestCheckVarz(t *testing.T) {
 		// ok connections reverse
 		cmd.srvConnCrit = 800
 		cmd.srvConnWarn = 900
-		check = &result{}
+		check = &monitor.Result{}
 		assertNoError(t, cmd.checkVarz(check, vz))
 		assertListIsEmpty(t, check.Warnings)
 		assertListIsEmpty(t, check.Criticals)
@@ -768,14 +769,14 @@ func TestCheckJSZ(t *testing.T) {
 	cmd := &SrvCheckCmd{}
 
 	t.Run("nil meta", func(t *testing.T) {
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkClusterInfo(check, nil))
 		assertListEquals(t, check.Criticals, "no cluster information")
 	})
 
 	meta := &server.ClusterInfo{}
 	t.Run("no meta leader", func(t *testing.T) {
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListEquals(t, check.Criticals, "No leader")
 		assertListIsEmpty(t, check.OKs)
@@ -784,7 +785,7 @@ func TestCheckJSZ(t *testing.T) {
 	t.Run("invalid peer count", func(t *testing.T) {
 		meta = &server.ClusterInfo{Leader: "l1"}
 		cmd.raftExpect = 2
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListEquals(t, check.Criticals, "1 peers of expected 2")
 	})
@@ -802,7 +803,7 @@ func TestCheckJSZ(t *testing.T) {
 			},
 		}
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListIsEmpty(t, check.Criticals)
 		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=0", "peer_not_current=0", "peer_inactive=0", "peer_lagged=0")
@@ -817,7 +818,7 @@ func TestCheckJSZ(t *testing.T) {
 			},
 		}
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListEquals(t, check.Criticals, "1 not current")
 		assertListIsEmpty(t, check.OKs)
@@ -833,7 +834,7 @@ func TestCheckJSZ(t *testing.T) {
 			},
 		}
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListEquals(t, check.Criticals, "1 offline")
 		assertListIsEmpty(t, check.OKs)
@@ -849,7 +850,7 @@ func TestCheckJSZ(t *testing.T) {
 			},
 		}
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListEquals(t, check.Criticals, "1 inactive more than 1s")
 		assertListIsEmpty(t, check.OKs)
@@ -865,7 +866,7 @@ func TestCheckJSZ(t *testing.T) {
 			},
 		}
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertListEquals(t, check.Criticals, "1 lagged more than 10 ops")
 		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=0", "peer_not_current=0", "peer_inactive=0", "peer_lagged=1")
@@ -882,7 +883,7 @@ func TestCheckJSZ(t *testing.T) {
 			},
 		}
 
-		check := &result{}
+		check := &monitor.Result{}
 		assertNoError(t, cmd.checkClusterInfo(check, meta))
 		assertHasPDItem(t, check, "peers=5;3;3", "peer_offline=1", "peer_not_current=1", "peer_inactive=1", "peer_lagged=1")
 		assertListEquals(t, check.Criticals, "5 peers of expected 3",
