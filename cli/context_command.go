@@ -174,7 +174,15 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 		return err
 	}
 
-	return c.showCommand(pc)
+	// There was an error with some data in the modified config
+	// Save the known clean version and show the error
+	err = c.showCommand(pc)
+	if err != nil {
+		ctx.Save(c.name)
+		return err
+	}
+
+	return nil
 }
 
 func (c *ctxCommand) renderListCompletion(current string, known []*natscontext.Context) {
