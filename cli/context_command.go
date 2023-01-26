@@ -179,7 +179,7 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 	err = c.showCommand(pc)
 	if err != nil {
 		ctx.Save(c.name)
-		return err
+		return fmt.Errorf("updated context validation failed - rolling back changes\n%w", err)
 	}
 
 	return nil
