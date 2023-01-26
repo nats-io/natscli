@@ -223,9 +223,9 @@ func (r *Result) renderNagios() string {
 
 	if len(r.PerfData) == 0 {
 		return fmt.Sprintf("%s %s", r.Status, strings.Join(res, " "))
-	} else {
-		return fmt.Sprintf("%s %s | %s", r.Status, strings.Join(res, " "), r.PerfData)
 	}
+
+	return fmt.Sprintf("%s %s | %s", r.Status, strings.Join(res, " "), r.PerfData)
 }
 
 func (r *Result) String() string {
@@ -258,8 +258,8 @@ func (r *Result) String() string {
 }
 
 func (r *Result) GenericExit() {
-	if r.NameSpace != "" {
-		f, err := os.CreateTemp(filepath.Dir(r.NameSpace), "")
+	if r.OutFile != "" {
+		f, err := os.CreateTemp(filepath.Dir(r.OutFile), "")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "temp file failed: %s", err)
 			os.Exit(1)
