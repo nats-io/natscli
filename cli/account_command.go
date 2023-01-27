@@ -417,27 +417,28 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 	fmt.Println("Connection Information:")
 	fmt.Println()
 	if ui != nil {
-		fmt.Printf("                    User: %v\n", ui.UserID)
-		fmt.Printf("                 Account: %v\n", ui.Account)
+		fmt.Printf("                      User: %v\n", ui.UserID)
+		fmt.Printf("                   Account: %v\n", ui.Account)
 		if ui.Expires == 0 {
-			fmt.Printf("                 Expires: never\n")
+			fmt.Printf("                   Expires: never\n")
 		} else {
-			fmt.Printf("                 Expires: %s\n", humanizeDuration(ui.Expires))
+			fmt.Printf("                   Expires: %s\n", humanizeDuration(ui.Expires))
 		}
 	}
-	fmt.Printf("               Client ID: %v\n", id)
-	fmt.Printf("               Client IP: %v\n", ip)
-	fmt.Printf("                     RTT: %v\n", rtt)
-	fmt.Printf("       Headers Supported: %v\n", nc.HeadersSupported())
-	fmt.Printf("         Maximum Payload: %v\n", humanize.IBytes(uint64(nc.MaxPayload())))
+	fmt.Printf("                 Client ID: %v\n", id)
+	fmt.Printf("                 Client IP: %v\n", ip)
+	fmt.Printf("                       RTT: %v\n", rtt)
+	fmt.Printf("         Headers Supported: %v\n", nc.HeadersSupported())
+	fmt.Printf("           Maximum Payload: %v\n", humanize.IBytes(uint64(nc.MaxPayload())))
 	if nc.ConnectedClusterName() != "" {
-		fmt.Printf("       Connected Cluster: %s\n", nc.ConnectedClusterName())
+		fmt.Printf("         Connected Cluster: %s\n", nc.ConnectedClusterName())
 	}
-	fmt.Printf("           Connected URL: %v\n", nc.ConnectedUrl())
-	fmt.Printf("       Connected Address: %v\n", nc.ConnectedAddr())
-	fmt.Printf("     Connected Server ID: %v\n", nc.ConnectedServerId())
+	fmt.Printf("             Connected URL: %v\n", nc.ConnectedUrl())
+	fmt.Printf("         Connected Address: %v\n", nc.ConnectedAddr())
+	fmt.Printf("       Connected Server ID: %v\n", nc.ConnectedServerId())
+	fmt.Printf("  Connected Server Version: %s\n", nc.ConnectedServerVersion())
 	if nc.ConnectedServerId() != nc.ConnectedServerName() {
-		fmt.Printf("   Connected Server Name: %v\n", nc.ConnectedServerName())
+		fmt.Printf("     Connected Server Name: %v\n", nc.ConnectedServerName())
 	}
 
 	if tlsc.HandshakeComplete {
@@ -455,15 +456,15 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 			version = fmt.Sprintf("unknown (%x)", tlsc.Version)
 		}
 
-		fmt.Printf("             TLS Version: %s using %s\n", version, tls.CipherSuiteName(tlsc.CipherSuite))
-		fmt.Printf("              TLS Server: %v\n", tlsc.ServerName)
+		fmt.Printf("               TLS Version: %s using %s\n", version, tls.CipherSuiteName(tlsc.CipherSuite))
+		fmt.Printf("                TLS Server: %v\n", tlsc.ServerName)
 		if len(tlsc.VerifiedChains) > 0 {
-			fmt.Printf("            TLS Verified: issuer %s\n", tlsc.PeerCertificates[0].Issuer.String())
+			fmt.Printf("              TLS Verified: issuer %s\n", tlsc.PeerCertificates[0].Issuer.String())
 		} else {
-			fmt.Printf("            TLS Verified: no\n")
+			fmt.Printf("              TLS Verified: no\n")
 		}
 	} else {
-		fmt.Printf("          TLS Connection: no\n")
+		fmt.Printf("            TLS Connection: no\n")
 	}
 	fmt.Println()
 
