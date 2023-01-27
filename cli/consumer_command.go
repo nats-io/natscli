@@ -96,7 +96,7 @@ type consumerCmd struct {
 }
 
 func configureConsumerCommand(app commandHost) {
-	c := &consumerCmd{}
+	c := &consumerCmd{metadata: map[string]string{}}
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		if !edit {
