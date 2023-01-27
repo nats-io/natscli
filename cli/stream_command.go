@@ -1592,11 +1592,9 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 		fmt.Println("Metadata:")
 		fmt.Println()
 		dumpMapStrings(cfg.Metadata, 3)
-		fmt.Println()
 	}
 
 	if cfg.Mirror != nil || len(cfg.Sources) > 0 {
-		fmt.Println()
 		fmt.Println("Replication:")
 		fmt.Println()
 	}
@@ -1672,7 +1670,6 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		fmt.Printf("Information for Stream %s created %s\n", c.stream, info.Created.Local().Format("2006-01-02 15:04:05"))
 		fmt.Println()
 		c.showStreamConfig(info.Config)
-		fmt.Println()
 	}
 
 	if info.Cluster != nil && info.Cluster.Name != "" {
