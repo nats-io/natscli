@@ -1232,7 +1232,13 @@ func iterateStringsMap(data map[string]string, cb func(k string, v string)) {
 func dumpMapStrings(data map[string]string, leftPad int) {
 	longest := longestString(stringsMapKeys(data), 0) + leftPad
 
+	maxLen := progressWidth()
+
 	iterateStringsMap(data, func(k, v string) {
+		if len(v) > maxLen && maxLen > 20 {
+			w := maxLen/2 - 10
+			v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
+		}
 		fmt.Printf("%s: %s\n", strings.Repeat(" ", longest-len(k))+k, v)
 	})
 }

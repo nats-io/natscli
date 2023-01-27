@@ -639,7 +639,6 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	fmt.Println()
 
 	if len(config.Metadata) > 0 {
-		fmt.Println()
 		fmt.Println("Metadata:")
 		fmt.Println()
 		dumpMapStrings(config.Metadata, 3)
@@ -988,7 +987,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 		}
 		if c.ackPolicy == "" {
 			c.ackPolicy = "none"
-			if c.pull {
+			if c.pull || c.delivery == "" {
 				c.ackPolicy = "explicit"
 			}
 		}
