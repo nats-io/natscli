@@ -87,6 +87,8 @@ type consumerCmd struct {
 	hdrsOnlySet         bool
 	fc                  bool
 	fcSet               bool
+	metadataIsSet       bool
+	metadata            map[string]string
 
 	dryRun bool
 	mgr    *jsm.Manager
@@ -139,6 +141,8 @@ func configureConsumerCommand(app commandHost) {
 			f.Flag("memory", "Force the consumer state to be stored in memory rather than inherit from the stream").UnNegatableBoolVar(&c.memory)
 		}
 		f.Flag("replicas", "Sets a custom replica count rather than inherit from the stream").IntVar(&c.replicas)
+		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
+
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
@@ -364,6 +368,10 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 
 		if c.replicas > 0 {
 			ncfg.Replicas = c.replicas
+		}
+
+		if c.metadataIsSet {
+			ncfg.Metadata = c.metadata
 		}
 	}
 
@@ -629,6 +637,14 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		fmt.Printf("      Memory Storage: yes\n")
 	}
 	fmt.Println()
+
+	if len(config.Metadata) > 0 {
+		fmt.Println()
+		fmt.Println("Metadata:")
+		fmt.Println()
+		dumpMapStrings(config.Metadata, 3)
+		fmt.Println()
+	}
 
 	if state.Cluster != nil && state.Cluster.Name != "" {
 		fmt.Println("Cluster Information:")
@@ -1206,6 +1222,10 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	cfg.RateLimit = c.bpsRateLimit
 	cfg.Replicas = c.replicas
 	cfg.MemoryStorage = c.memory
+
+	if c.metadataIsSet {
+		cfg.Metadata = c.metadata
+	}
 
 	return cfg, nil
 }

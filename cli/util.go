@@ -1206,3 +1206,49 @@ func serverMinVersion(version string, major, minor, patch int) bool {
 	}
 	return true
 }
+
+// StringsMapKeys returns the keys from a map[string]string in sorted order
+func stringsMapKeys(data map[string]string) []string {
+	keys := make([]string, len(data))
+	i := 0
+	for k := range data {
+		keys[i] = k
+		i++
+	}
+
+	sort.Strings(keys)
+
+	return keys
+}
+
+// IterateStringsMap iterates a map[string]string in key sorted order
+func iterateStringsMap(data map[string]string, cb func(k string, v string)) {
+	for _, k := range stringsMapKeys(data) {
+		cb(k, data[k])
+	}
+}
+
+// DumpMapStrings shows k: v of a map[string]string left padded by int, the k will be right aligned and value left aligned
+func dumpMapStrings(data map[string]string, leftPad int) {
+	longest := longestString(stringsMapKeys(data), 0) + leftPad
+
+	iterateStringsMap(data, func(k, v string) {
+		fmt.Printf("%s: %s\n", strings.Repeat(" ", longest-len(k))+k, v)
+	})
+}
+
+// LongestString determines the length of the longest string in list, capped at max
+func longestString(list []string, max int) int {
+	longest := 0
+	for _, i := range list {
+		if len(i) > longest {
+			longest = len(i)
+		}
+
+		if max != 0 && longest > max {
+			return max
+		}
+	}
+
+	return longest
+}

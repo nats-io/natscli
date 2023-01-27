@@ -112,6 +112,8 @@ type streamCmd struct {
 	discardPerSubj        bool
 	discardPerSubjSet     bool
 	showStateOnly         bool
+	metadata              map[string]string
+	metadataIsSet         bool
 
 	fServer      string
 	fCluster     string
@@ -188,6 +190,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
 		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).BoolVar(&c.allowDirect)
 		f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
+		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
 
 		f.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
@@ -1340,6 +1343,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		cfg.DiscardNewPer = c.discardPerSubj
 	}
 
+	if c.metadataIsSet {
+		cfg.Metadata = c.metadata
+	}
+
 	return cfg, nil
 }
 
@@ -1580,6 +1587,14 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 		fmt.Printf("  Managed by Template: %s\n", cfg.Template)
 	}
 
+	if len(cfg.Metadata) > 0 {
+		fmt.Println()
+		fmt.Println("Metadata:")
+		fmt.Println()
+		dumpMapStrings(cfg.Metadata, 3)
+		fmt.Println()
+	}
+
 	if cfg.Mirror != nil || len(cfg.Sources) > 0 {
 		fmt.Println()
 		fmt.Println("Replication:")
@@ -1650,13 +1665,13 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		return
 	}
 
-	if !c.showStateOnly {
+	if c.showStateOnly {
+		fmt.Printf("State for Stream %s created %s\n", c.stream, info.Created.Local().Format("2006-01-02 15:04:05"))
+		fmt.Println()
+	} else {
 		fmt.Printf("Information for Stream %s created %s\n", c.stream, info.Created.Local().Format("2006-01-02 15:04:05"))
 		fmt.Println()
 		c.showStreamConfig(info.Config)
-		fmt.Println()
-	} else {
-		fmt.Printf("State for Stream %s created %s\n", c.stream, info.Created.Local().Format("2006-01-02 15:04:05"))
 		fmt.Println()
 	}
 
@@ -2109,6 +2124,10 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		AllowDirect:   c.allowDirect,
 		MirrorDirect:  c.allowMirrorDirectSet,
 		DiscardNewPer: c.discardPerSubj,
+	}
+
+	if len(c.metadata) > 0 {
+		cfg.Metadata = c.metadata
 	}
 
 	if c.placementCluster != "" || len(c.placementTags) > 0 {
