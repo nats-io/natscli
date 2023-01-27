@@ -99,6 +99,7 @@ type streamCmd struct {
 	repubSource           string
 	repubDest             string
 	repubHeadersOnly      bool
+	noRepub               bool
 	allowRollup           bool
 	allowRollupSet        bool
 	denyDelete            bool
@@ -191,6 +192,12 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).BoolVar(&c.allowDirect)
 		f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
 		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
+		f.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SOURCE").StringVar(&c.repubSource)
+		f.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
+		f.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
+		if edit {
+			f.Flag("no-republish", "Removes current republish configuration").UnNegatableBoolVar(&c.noRepub)
+		}
 
 		f.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
@@ -207,9 +214,6 @@ func configureStreamCommand(app commandHost) {
 	strAdd.Flag("validate", "Only validates the configuration against the official Schema").UnNegatableBoolVar(&c.validateOnly)
 	strAdd.Flag("output", "Save configuration instead of creating").PlaceHolder("FILE").StringVar(&c.outFile)
 	addCreateFlags(strAdd, false)
-	strAdd.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SOURCE").StringVar(&c.repubSource)
-	strAdd.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
-	strAdd.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
 	strAdd.Flag("defaults", "Accept default values for all prompts").UnNegatableBoolVar(&c.acceptDefaults)
 
 	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
@@ -1345,6 +1349,18 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 
 	if c.metadataIsSet {
 		cfg.Metadata = c.metadata
+	}
+
+	if c.repubDest != "" && c.repubSource != "" {
+		cfg.RePublish = &api.RePublish{
+			Source:      c.repubSource,
+			Destination: c.repubDest,
+			HeadersOnly: c.repubHeadersOnly,
+		}
+	}
+
+	if c.noRepub {
+		cfg.RePublish = nil
 	}
 
 	return cfg, nil
