@@ -158,7 +158,7 @@ type streamStat struct {
 }
 
 func configureStreamCommand(app commandHost) {
-	c := &streamCmd{msgID: -1}
+	c := &streamCmd{msgID: -1, metadata: map[string]string{}}
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
