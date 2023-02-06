@@ -700,7 +700,10 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 			break
 		}
 
-		fmt.Print(".")
+		// Show visual progress if JSON is not requested.
+		if !c.json {
+			fmt.Print(".")
+		}
 
 		// get on offset
 		// iterate and add to results
