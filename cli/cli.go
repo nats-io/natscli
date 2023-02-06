@@ -17,7 +17,6 @@ import (
 	"context"
 	"embed"
 	glog "log"
-	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -216,9 +215,6 @@ func ConfigureInApp(app *fisk.Application, cliOpts *Options, prepare bool, disab
 
 func preAction(_ *fisk.ParseContext) (err error) {
 	loadContext()
-
-	rand.Seed(time.Now().UnixNano())
-
 	return nil
 }
 

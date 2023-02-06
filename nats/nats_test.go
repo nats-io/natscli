@@ -35,6 +35,10 @@ import (
 	"github.com/nats-io/jsm.go"
 )
 
+var (
+	rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+)
+
 func init() {
 	cli.SkipContexts = true
 }
@@ -478,7 +482,7 @@ func RandomString(n int) string {
 
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = letterRunes[rng.Intn(len(letterRunes))]
 	}
 	return string(b)
 }

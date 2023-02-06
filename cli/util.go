@@ -51,6 +51,10 @@ import (
 	"github.com/nats-io/jsm.go/natscontext"
 )
 
+var (
+	rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+)
+
 func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool) (string, *jsm.Consumer, error) {
 	if consumer != "" {
 		c, err := mgr.LoadConsumer(stream, consumer)
@@ -660,7 +664,7 @@ var passwordRunes = append(letterRunes, []rune("@#_-%^&()")...)
 func randomPassword(length int) string {
 	b := make([]rune, length)
 	for i := range b {
-		b[i] = passwordRunes[rand.Intn(len(passwordRunes))]
+		b[i] = passwordRunes[rng.Intn(len(passwordRunes))]
 	}
 
 	return string(b)
@@ -675,16 +679,16 @@ func randomString(shortest uint, longest uint) string {
 
 	switch {
 	case int(longest)-int(shortest) < 0:
-		desired = int(shortest) + rand.Intn(int(longest))
+		desired = int(shortest) + rng.Intn(int(longest))
 	case longest == shortest:
 		desired = int(shortest)
 	default:
-		desired = int(shortest) + rand.Intn(int(longest-shortest))
+		desired = int(shortest) + rng.Intn(int(longest-shortest))
 	}
 
 	b := make([]rune, desired)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = letterRunes[rng.Intn(len(letterRunes))]
 	}
 
 	return string(b)
