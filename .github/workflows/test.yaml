@@ -5,7 +5,7 @@ jobs:
   test:
     strategy:
       matrix:
-        go: [ 1.18, 1.19 ]
+        go: [ 1.19, 1.20 ]
 
     env:
       GOPATH: /home/runner/work/natscli
