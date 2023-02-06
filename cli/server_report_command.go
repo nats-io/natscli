@@ -700,8 +700,6 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 			break
 		}
 
-		fmt.Print(".")
-
 		// get on offset
 		// iterate and add to results
 
