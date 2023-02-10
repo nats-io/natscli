@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"text/tabwriter"
 	"text/template"
 	"time"
 	"unicode"
@@ -1230,6 +1231,17 @@ func iterateStringsMap(data map[string]string, cb func(k string, v string)) {
 	for _, k := range stringsMapKeys(data) {
 		cb(k, data[k])
 	}
+}
+
+// dumps strings into groups using  tabwriter, right aligned
+func dumpStrings(data []string, groups int, padding int) {
+	longest := longestString(data, 0)
+
+	tabw := tabwriter.NewWriter(os.Stdout, 1, longest, longest+padding, ' ', tabwriter.AlignRight)
+	sliceGroups(data, groups, func(grp []string) {
+		fmt.Fprint(tabw, strings.Join(grp, "\t"))
+	})
+	tabw.Flush()
 }
 
 // DumpMapStrings shows k: v of a map[string]string left padded by int, the k will be right aligned and value left aligned
