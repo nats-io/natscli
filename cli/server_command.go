@@ -17,17 +17,18 @@ func configureServerCommand(app commandHost) {
 	srv := app.Command("server", "Server information").Alias("srv").Alias("sys").Alias("system")
 	addCheat("server", srv)
 
+	configureServerAccountCommand(srv)
+	configureServerCheckCommand(srv)
 	configureServerInfoCommand(srv)
 	configureServerListCommand(srv)
-	configureServerPingCommand(srv)
-	configureServerReportCommand(srv)
-	configureServerRequestCommand(srv)
-	configureServerRaftCommand(srv)
 	configureServerMappingCommand(srv)
 	configureServerPasswdCommand(srv)
-	configureServerCheckCommand(srv)
-	configureServerRunCommand(srv)
+	configureServerPingCommand(srv)
 	configureServerPurgeCommand(srv)
+	configureServerRaftCommand(srv)
+	configureServerReportCommand(srv)
+	configureServerRequestCommand(srv)
+	configureServerRunCommand(srv)
 }
 
 func init() {
