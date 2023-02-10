@@ -206,6 +206,7 @@ func (c *srvAccountCommand) renderExport(exp *server.ExtExport) {
 		} else {
 			fmt.Printf("            Accounts:\n")
 		}
+		fmt.Println()
 
 		var list []string
 		var cnt int
@@ -228,6 +229,7 @@ func (c *srvAccountCommand) renderExport(exp *server.ExtExport) {
 		} else {
 			fmt.Printf("         Revocations:\n")
 		}
+		fmt.Println()
 
 		var list []string
 		var cnt int
