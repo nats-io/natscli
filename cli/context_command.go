@@ -37,6 +37,7 @@ type ctxCommand struct {
 	nsc              string
 	force            bool
 	validateErrors   int
+	update           bool
 }
 
 func configureCtxCommand(app commandHost) {
@@ -59,6 +60,7 @@ func configureCtxCommand(app commandHost) {
 
 	edit := context.Command("edit", "Edit a context in your EDITOR").Alias("vi").Action(c.editCommand)
 	edit.Arg("name", "The context name to edit").Required().StringVar(&c.name)
+	edit.Flag("update", "Updates the context prior to editing it").Default("true").BoolVar(&c.update)
 
 	ls := context.Command("ls", "List known contexts").Alias("list").Alias("l").Action(c.listCommand)
 	ls.Flag("completion", "Format the list for use by shell completion").Hidden().UnNegatableBoolVar(&c.completionFormat)
@@ -152,16 +154,20 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 		return err
 	}
 
-	// we load and save here so that any fields added to the context
-	// structure after this context was initially created would also
-	// appear in the editor as empty fields
-	ctx, err := natscontext.New(c.name, true)
-	if err != nil {
-		return err
-	}
-	err = ctx.Save(c.name)
-	if err != nil {
-		return err
+	var ctx *natscontext.Context
+
+	if c.update {
+		// we load and save here so that any fields added to the context
+		// structure after this context was initially created would also
+		// appear in the editor as empty fields
+		ctx, err = natscontext.New(c.name, true)
+		if err != nil {
+			return fmt.Errorf("invalid context, use --no-update to edit it without validation: %v", err)
+		}
+		err = ctx.Save(c.name)
+		if err != nil {
+			return err
+		}
 	}
 
 	cmd := exec.Command(editor, path)
@@ -178,7 +184,10 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 	// Save the known clean version and show the error
 	err = c.showCommand(pc)
 	if err != nil {
-		ctx.Save(c.name)
+		if ctx != nil {
+			ctx.Save(c.name)
+		}
+
 		return fmt.Errorf("updated context validation failed - rolling back changes: %w", err)
 	}
 
