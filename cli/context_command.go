@@ -303,6 +303,7 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	c.showIfNotEmpty("        JS Domain: %s\n", cfg.JSDomain())
 	c.showIfNotEmpty("     Inbox Prefix: %s\n", cfg.InboxPrefix())
 	c.showIfNotEmpty("             Path: %s\n", cfg.Path())
+	c.showIfNotEmpty("     Color Scheme: %s\n", cfg.ColorScheme())
 
 	checkConn := func() error {
 		opts, err := cfg.NATSOptions()
@@ -368,6 +369,7 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 		natscontext.WithJSEventPrefix(opts.JsEventPrefix),
 		natscontext.WithJSDomain(opts.JsDomain),
 		natscontext.WithInboxPrefix(opts.InboxPrefix),
+		natscontext.WithColorScheme(opts.ColorScheme),
 	)
 	if err != nil {
 		return err

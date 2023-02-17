@@ -57,7 +57,7 @@ func (c *SrvMappingCmd) mappingAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	trans, err := server.NewSubjectTransformer(c.src, c.dest)
+	trans, err := server.NewSubjectTransform(c.src, c.dest)
 	if err != nil {
 		return err
 	}
