@@ -40,6 +40,8 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/gosuri/uiprogress"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/klauspost/compress/s2"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -747,6 +749,7 @@ func loadContext() error {
 		natscontext.WithJSAPIPrefix(opts.JsApiPrefix),
 		natscontext.WithJSDomain(opts.JsDomain),
 		natscontext.WithInboxPrefix(opts.InboxPrefix),
+		natscontext.WithColorScheme(opts.ColorScheme),
 	}
 
 	if opts.Username != "" && opts.Password == "" {
@@ -1060,14 +1063,19 @@ func compactStrings(source []string) []string {
 	return result
 }
 
-func newTableWriter(title string) *tablewriter.Table {
-	table := tablewriter.CreateTable()
-	table.UTF8Box()
+func newTableWriter(title string) *tbl {
+	tbl := &tbl{
+		writer: table.NewWriter(),
+	}
+	tbl.writer.SetStyle(styles[opts.Config.ColorScheme()])
+	tbl.writer.Style().Title.Align = text.AlignCenter
+	tbl.writer.Style().Format.Header = text.FormatDefault
+
 	if title != "" {
-		table.AddTitle(title)
+		tbl.writer.SetTitle(title)
 	}
 
-	return table
+	return tbl
 }
 
 func isPrintable(s string) bool {

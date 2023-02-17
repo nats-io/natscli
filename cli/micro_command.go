@@ -28,7 +28,6 @@ import (
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
-	"github.com/xlab/tablewriter"
 )
 
 type microCmd struct {
@@ -237,13 +236,12 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	table.AddSeparator()
 	var avg time.Duration
 	if runTime > 0 {
 		avg = runTime / time.Duration(requests+errors)
 	}
 
-	table.AddRow("", "", humanize.Comma(int64(requests)), humanize.Comma(int64(errors)), humanizeDuration(runTime), humanizeDuration(avg))
+	table.AddFooter("", "", humanize.Comma(int64(requests)), humanize.Comma(int64(errors)), humanizeDuration(runTime), humanizeDuration(avg))
 
 	fmt.Println(table.Render())
 
@@ -343,7 +341,7 @@ func (c *microCmd) listAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	var table *tablewriter.Table
+	var table *tbl
 	if c.name == "" {
 		table = newTableWriter("All Micro Services")
 	} else {

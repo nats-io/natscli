@@ -23,7 +23,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/xlab/tablewriter"
 )
 
 type SrvReportCmd struct {
@@ -173,7 +172,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		cNames = names
 	}
 
-	var table *tablewriter.Table
+	var table *tbl
 	if c.account != "" {
 		table = newTableWriter(fmt.Sprintf("JetStream Summary for Account %s", c.account))
 	} else {
@@ -258,13 +257,12 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		table.AddRow(row...)
 	}
 
-	table.AddSeparator()
 	row := []any{"", ""}
 	if renderDomain {
 		row = append(row, "")
 	}
 	row = append(row, humanize.Comma(int64(streams)), humanize.Comma(int64(consumers)), humanize.Comma(int64(msgs)), humanize.IBytes(bytes), humanize.IBytes(memory), humanize.IBytes(store), humanize.Comma(int64(apiTotal)), humanize.Comma(int64(apiErr)))
-	table.AddRow(row...)
+	table.AddFooter(row...)
 
 	fmt.Print(table.Render())
 	fmt.Println()
@@ -558,8 +556,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 	}
 
 	if len(report) > 1 {
-		table.AddSeparator()
-		table.AddRow("", fmt.Sprintf("Totals for %s connections", humanize.Comma(int64(total))), "", "", "", "", "", humanize.Comma(iMsgs), humanize.Comma(oMsgs), humanize.IBytes(uint64(iBytes)), humanize.IBytes(uint64(oBytes)), humanize.Comma(int64(subs)))
+		table.AddFooter("", fmt.Sprintf("Totals for %s connections", humanize.Comma(int64(total))), "", "", "", "", "", humanize.Comma(iMsgs), humanize.Comma(oMsgs), humanize.IBytes(uint64(iBytes)), humanize.IBytes(uint64(oBytes)), humanize.Comma(int64(subs)))
 	}
 
 	fmt.Print(table.Render())

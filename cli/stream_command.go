@@ -40,7 +40,6 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
-	"github.com/xlab/tablewriter"
 )
 
 type streamCmd struct {
@@ -2562,7 +2561,7 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string
 	})
 
 	var out bytes.Buffer
-	var table *tablewriter.Table
+	var table *tbl
 	if c.filterSubject == "" {
 		table = newTableWriter("Streams")
 	} else {

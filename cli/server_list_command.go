@@ -212,8 +212,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			ssm.rtt.Round(time.Millisecond))
 	}
 
-	table.AddSeparator()
-	table.AddRow(
+	table.AddFooter(
 		"",
 		len(clusters),
 		servers,
@@ -264,8 +263,8 @@ func (c *SrvLsCmd) showClusters(cl map[string]*srvListCluster) {
 		conns += c.conns
 		table.AddRow(c.name, len(c.nodes), c.gwOut, c.gwIn, c.conns)
 	}
-	table.AddSeparator()
-	table.AddRow("", nodes, out, in, conns)
+
+	table.AddFooter("", nodes, out, in, conns)
 
 	fmt.Print(table.Render())
 }

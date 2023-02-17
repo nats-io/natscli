@@ -269,8 +269,7 @@ func (c *actCmd) reportServerStats(_ *fisk.ParseContext) error {
 			humanize.Comma(stats.SlowConsumers),
 		)
 	}
-	table.AddSeparator()
-	table.AddRow(len(res), "", "", "", humanize.Comma(int64(conn)), humanize.Comma(int64(ln)), humanize.IBytes(uint64(sb)), humanize.Comma(sm), humanize.IBytes(uint64(rb)), humanize.Comma(rm), humanize.Comma(sc))
+	table.AddFooter(len(res), "", "", "", humanize.Comma(int64(conn)), humanize.Comma(int64(ln)), humanize.IBytes(uint64(sb)), humanize.Comma(sm), humanize.IBytes(uint64(rb)), humanize.Comma(rm), humanize.Comma(sc))
 	fmt.Print(table.Render())
 	fmt.Println()
 

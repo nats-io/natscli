@@ -13,10 +13,11 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.5
+	github.com/jedib0t/go-pretty/v6 v6.4.4
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.15.15
-	github.com/nats-io/jsm.go v0.0.36-0.20230127120008-e05d80152358
-	github.com/nats-io/nats-server/v2 v2.9.12-0.20230126183055-7c0c85e41b50
+	github.com/nats-io/jsm.go v0.0.36-0.20230217191845-661b32ee350b
+	github.com/nats-io/nats-server/v2 v2.9.15-0.20230217184748-750309f1cbf9
 	github.com/nats-io/nats.go v1.23.1-0.20230120133917-a301969f5a37
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.14.0
@@ -24,8 +25,8 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v5 v5.1.1
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
-	golang.org/x/crypto v0.5.0
-	golang.org/x/term v0.4.0
+	golang.org/x/crypto v0.6.0
+	golang.org/x/term v0.5.0
 )
 
 require (
@@ -36,6 +37,7 @@ require (
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
@@ -43,9 +45,10 @@ require (
 	github.com/nats-io/nkeys v0.3.1-0.20221215194120-47c7408e7546 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	golang.org/x/net v0.5.0 // indirect
-	golang.org/x/sys v0.4.0 // indirect
-	golang.org/x/text v0.6.0 // indirect
+	github.com/rivo/uniseg v0.2.0 // indirect
+	golang.org/x/net v0.7.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
