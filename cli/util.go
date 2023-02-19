@@ -151,7 +151,7 @@ func askOne(p survey.Prompt, response any, opts ...survey.AskOpt) error {
 		return fmt.Errorf("cannot prompt for user input without a terminal")
 	}
 
-	return survey.AskOne(p, response, opts...)
+	return survey.AskOne(p, response, append(surveyColors(), opts...)...)
 }
 
 func toJSON(d any) (string, error) {
@@ -1281,4 +1281,28 @@ func longestString(list []string, max int) int {
 	}
 
 	return longest
+}
+
+func surveyColors() []survey.AskOpt {
+	return []survey.AskOpt{
+		survey.WithIcons(func(icons *survey.IconSet) {
+			switch opts.ColorScheme {
+			case "yellow_light", "yellow_dark":
+				icons.Question.Format = "yellow+hb"
+				icons.SelectFocus.Format = "yellow+hb"
+			case "blue_light", "blue_dark":
+				icons.Question.Format = "blue+hb"
+				icons.SelectFocus.Format = "blue+hb"
+			case "cyan_light", "cyan_dark":
+				icons.Question.Format = "cyan+hb"
+				icons.SelectFocus.Format = "cyan+hb"
+			case "magenta_light", "magenta_dark":
+				icons.Question.Format = "magenta+hb"
+				icons.SelectFocus.Format = "magenta+hb"
+			case "red_light", "red_dark":
+				icons.Question.Format = "red+hb"
+				icons.SelectFocus.Format = "red+hb"
+			}
+		}),
+	}
 }
