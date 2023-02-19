@@ -176,6 +176,27 @@ nsc: {{ .NscURL | t }}
 # Example : _INBOX.private.userid
 inbox_prefix: {{ .InboxPrefix | t }}
 
+# Sets a color scheme to use for the nats command line tool
+# this will influence table color choices allowing different
+# contexts to be visually distinguished.
+#
+# Valid values are:
+#
+#   rounded
+#   double
+#   bold
+#   bright
+#   dark, light
+#   blue_dark, blue_light
+#   cyan_dark, cyan_light
+#   green_dark, green_light
+#   magenta_dark, magenta_light
+#   red_dark, red_light
+#   yellow_dark, yellow_light
+#
+# When not set "rounded" is used
+color_scheme: {{ .ColorScheme | t }}
+
 # Connects to a specific JetStream domain
 jetstream_domain: {{ .JSDomain | t }}
 
