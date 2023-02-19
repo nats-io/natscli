@@ -14,15 +14,18 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	"github.com/fatih/color"
-
+	"github.com/ghodss/yaml"
 	"github.com/nats-io/jsm.go/natscontext"
 	"github.com/nats-io/nats.go"
 )
@@ -37,7 +40,6 @@ type ctxCommand struct {
 	nsc              string
 	force            bool
 	validateErrors   int
-	update           bool
 }
 
 func configureCtxCommand(app commandHost) {
@@ -60,7 +62,6 @@ func configureCtxCommand(app commandHost) {
 
 	edit := context.Command("edit", "Edit a context in your EDITOR").Alias("vi").Action(c.editCommand)
 	edit.Arg("name", "The context name to edit").Required().StringVar(&c.name)
-	edit.Flag("update", "Updates the context prior to editing it").Default("true").BoolVar(&c.update)
 
 	ls := context.Command("ls", "List known contexts").Alias("list").Alias("l").Action(c.listCommand)
 	ls.Flag("completion", "Format the list for use by shell completion").Hidden().UnNegatableBoolVar(&c.completionFormat)
@@ -139,6 +140,57 @@ func (c *ctxCommand) copyCommand(pc *fisk.ParseContext) error {
 	return c.createCommand(pc)
 }
 
+var ctxYamlTemplate = `# Friendly description for this context shown when listing contexts
+description: {{ .Description | t }}
+
+# A comma separated list of NATS Servers to connect to
+url: {{ .ServerURL | t }}
+
+# Connect using a specific username, requires password to be set
+user: {{ .User | t }}
+password: {{ .Password | t }}
+
+# Connect using a NATS Credentials stored in a file
+creds: {{ .Creds | t }}
+
+# Connect using a NKey derived from a seedfile
+nkey: {{ .NKey | t }}
+
+# Configures a token to pass in the connection
+token: {{ .Token | t }}
+
+# Sets a x509 certificate to use, both cert and key should be set
+cert: {{ .Certificate | t }}
+key: {{ .Key | t }}
+
+# Sets an optional x509 trust chain to use
+ca: {{ .CA | t }}
+
+# Retrieves connection information from 'nsc'
+#
+# Example: nsc://Acme+Inc/HR/Automation
+nsc: {{ .NscURL | t }}
+
+# Use a custom inbox prefix
+#
+# Example : _INBOX.private.userid
+inbox_prefix: {{ .InboxPrefix | t }}
+
+# Connects to a specific JetStream domain
+jetstream_domain: {{ .JSDomain | t }}
+
+# Subject used as a prefix when accessing the JetStream API if imported from another account
+jetstream_api_prefix: {{ .JSAPIPrefix | t }}
+
+# Subject prefix used to access JetStream events if imported from another account
+jetstream_event_prefix: {{ .JSEventPrefix | t }}
+
+# Use a Socks5 proxy like ssh to connect to the NATS server URLS
+#
+# Example: socks5://example.net:1090
+socks_proxy: {{ .SocksProxy | t }}
+`
+
 func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
@@ -156,21 +208,35 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 
 	var ctx *natscontext.Context
 
-	if c.update {
-		// we load and save here so that any fields added to the context
-		// structure after this context was initially created would also
-		// appear in the editor as empty fields
-		ctx, err = natscontext.New(c.name, true)
-		if err != nil {
-			return fmt.Errorf("invalid context, use --no-update to edit it without validation: %v", err)
-		}
-		err = ctx.Save(c.name)
-		if err != nil {
-			return err
-		}
+	ctx, err = natscontext.New(c.name, true)
+	if err != nil {
+		return fmt.Errorf("invalid context, use --no-update to edit it without validation: %v", err)
 	}
 
-	cmd := exec.Command(editor, path)
+	tpl, err := template.New("context").Funcs(template.FuncMap{"t": func(s any) (string, error) {
+		res, err := yaml.Marshal(s)
+		if err != nil {
+			return "", err
+		}
+		return string(bytes.TrimRight(res, "\n")), nil
+	}}).Parse(ctxYamlTemplate)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.CreateTemp("", "")
+	if err != nil {
+		return fmt.Errorf("could not create temporary copy to edit: %w", err)
+	}
+	defer f.Close()
+
+	err = tpl.ExecuteTemplate(f, "context", ctx)
+	if err != nil {
+		return fmt.Errorf("could not create temporary copy to edit: %w", err)
+	}
+	f.Close()
+
+	cmd := exec.Command(editor, f.Name())
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -178,6 +244,31 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 	err = cmd.Run()
 	if err != nil {
 		return err
+	}
+
+	yctx, err := os.ReadFile(f.Name())
+	if err != nil {
+		return fmt.Errorf("could not read temporary copy: %w", err)
+	}
+
+	jctx, err := yaml.YAMLToJSON(yctx)
+	if err != nil {
+		return err
+	}
+	buff := bytes.NewBuffer([]byte{})
+	err = json.Indent(buff, jctx, "", "  ")
+	if err != nil {
+		return fmt.Errorf("could not format JSON output: %w", err)
+	}
+
+	err = os.Rename(path, path+".bak")
+	if err != nil {
+		return fmt.Errorf("could not create a backup of the context definition: %w", err)
+	}
+
+	err = os.WriteFile(path, buff.Bytes(), 0600)
+	if err != nil {
+		return fmt.Errorf("could not save the context: %w", err)
 	}
 
 	// There was an error with some data in the modified config
