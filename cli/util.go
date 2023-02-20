@@ -46,7 +46,6 @@ import (
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
-	"github.com/xlab/tablewriter"
 	terminal "golang.org/x/term"
 
 	"github.com/nats-io/jsm.go"
@@ -975,8 +974,7 @@ type raftLeader struct {
 }
 
 func renderRaftLeaders(leaders map[string]*raftLeader, grpTitle string) {
-	table := tablewriter.CreateTable()
-	table.AddTitle("RAFT Leader Report")
+	table := newTableWriter("RAFT Leader Report")
 	table.AddHeaders("Server", "Cluster", grpTitle, "Distribution")
 
 	var llist []*raftLeader
