@@ -1,9 +1,6 @@
 # benchmark core nats publish and subscribe with 10 publishers and subscribers
 nats bench testsubject --pub 10 --sub 10 --msgs 10000 --size 512
 
-# benchmark core nats request-reply without subscribers using a queue
-nats bench testsubject --pub 1 --sub 1 --msgs 10000 --no-queue
-
 # benchmark core nats request-reply with queuing
 nats bench testsubject --sub 4 --reply
 nats bench testsubject --pub 4 --request --msgs 20000
