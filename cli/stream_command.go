@@ -2010,7 +2010,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		err = askOne(&survey.Select{
 			Message: "Discard Policy",
 			Options: []string{"New", "Old"},
-			Help:    "Once the Stream reach it's limits of size or messages the New policy will prevent further messages from being added while Old will delete old messages.",
+			Help:    "Once the Stream reaches its limits of size or messages, the New policy will prevent further messages from being added while Old will delete old messages.",
 			Default: "Old",
 		}, &c.discardPolicy, survey.WithValidator(survey.Required))
 		fisk.FatalIfError(err, "invalid input")
