@@ -927,18 +927,52 @@ func (c *consumerCmd) cpAction(pc *fisk.ParseContext) (err error) {
 	return nil
 }
 
+func (c *consumerCmd) loadConfigFile(file string) (*api.ConsumerConfig, error) {
+	f, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg api.ConsumerConfig
+
+	// there is a chance that this is a `nats c info --json` output
+	// which is a ConsumerInfo, so we detect if this is one of those
+	// by checking if there's a config key then extract that, else
+	// we try loading it as a StreamConfig
+
+	var nfo map[string]any
+	err = json.Unmarshal(f, &nfo)
+	if err != nil {
+		return nil, err
+	}
+
+	_, ok := nfo["config"]
+	if ok {
+		var nfo api.ConsumerInfo
+		err = json.Unmarshal(f, &nfo)
+		if err != nil {
+			return nil, err
+		}
+		cfg = nfo.Config
+	} else {
+		err = json.Unmarshal(f, &cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &cfg, nil
+}
+
 func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerConfig, err error) {
 	cfg = c.defaultConsumer()
 	cfg.Description = c.description
 
 	if c.inputFile != "" {
-		f, err := os.ReadFile(c.inputFile)
+		cfg, err = c.loadConfigFile(c.inputFile)
 		if err != nil {
 			return nil, err
 		}
-
-		cfg = &api.ConsumerConfig{}
-		err = json.Unmarshal(f, cfg)
 
 		if cfg.Durable != "" && c.consumer != "" && cfg.Durable != c.consumer {
 			if c.consumer != "" {
