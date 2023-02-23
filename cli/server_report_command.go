@@ -172,6 +172,11 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		cNames = names
 	}
 
+	if c.json {
+		printJSON(jszResponses)
+		return nil
+	}
+
 	var table *tbl
 	if c.account != "" {
 		table = newTableWriter(fmt.Sprintf("JetStream Summary for Account %s", c.account))
