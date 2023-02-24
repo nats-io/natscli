@@ -1284,7 +1284,7 @@ func longestString(list []string, max int) int {
 func surveyColors() []survey.AskOpt {
 	return []survey.AskOpt{
 		survey.WithIcons(func(icons *survey.IconSet) {
-			switch opts.ColorScheme {
+			switch opts.Config.ColorScheme() {
 			case "yellow_light", "yellow_dark":
 				icons.Question.Format = "yellow+hb"
 				icons.SelectFocus.Format = "yellow+hb"
@@ -1300,6 +1300,12 @@ func surveyColors() []survey.AskOpt {
 			case "red_light", "red_dark":
 				icons.Question.Format = "red+hb"
 				icons.SelectFocus.Format = "red+hb"
+			}
+
+			// if a specific context is selected on the cli we will show it, but not the default one
+			if opts.CfgCtx != "" {
+				icons.Question.Text = fmt.Sprintf("[%s] ?", opts.CfgCtx)
+				icons.Help.Text = ""
 			}
 		}),
 	}
