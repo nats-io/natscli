@@ -40,6 +40,7 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
+	"gopkg.in/yaml.v3"
 )
 
 type streamCmd struct {
@@ -1371,7 +1372,7 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 		return api.StreamConfig{}, fmt.Errorf("set EDITOR environment variable to your chosen editor")
 	}
 
-	cj, err := json.MarshalIndent(cfg, "", "  ")
+	cj, err := decoratedYamlMarshal(cfg)
 	if err != nil {
 		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
 	}
@@ -1399,12 +1400,26 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
 	}
 
-	ncfg, err := c.loadConfigFile(tfile.Name())
+	nb, err := os.ReadFile(tfile.Name())
 	if err != nil {
-		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
+		return api.StreamConfig{}, err
 	}
 
-	return *ncfg, nil
+	ncfg := api.StreamConfig{}
+	err = yaml.Unmarshal(nb, &ncfg)
+	if err != nil {
+		return api.StreamConfig{}, err
+	}
+
+	// some yaml quirks
+	if len(ncfg.Sources) == 0 {
+		ncfg.Sources = nil
+	}
+	if len(ncfg.Metadata) == 0 {
+		ncfg.Metadata = nil
+	}
+
+	return ncfg, nil
 }
 
 func (c *streamCmd) editAction(pc *fisk.ParseContext) error {
