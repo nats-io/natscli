@@ -53,7 +53,6 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	c := &SrvReportCmd{}
 
 	report := srv.Command("report", "Report on various server metrics").Alias("rep")
-	report.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	report.Flag("reverse", "Reverse sort connections").Short('R').Default("true").BoolVar(&c.reverse)
 
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnections)
@@ -62,12 +61,14 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
+	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	acct := report.Command("accounts", "Report on account activity").Alias("acct").Action(c.reportAccount)
 	acct.Arg("account", "Account to produce a report for").StringVar(&c.account)
 	acct.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs,uptime,cid)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs", "uptime", "cid")
 	acct.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
+	acct.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.reportJetStream)
 	jsz.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
