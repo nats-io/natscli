@@ -16,6 +16,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.16.0
+	github.com/mattn/go-isatty v0.0.17
 	github.com/nats-io/jsm.go v0.0.36-0.20230224143723-3d08af976d6c
 	github.com/nats-io/nats-server/v2 v2.9.15-0.20230227160857-9cca47c2e921
 	github.com/nats-io/nats.go v1.24.0
@@ -38,7 +39,6 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect

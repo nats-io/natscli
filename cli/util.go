@@ -43,6 +43,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/klauspost/compress/s2"
+	"github.com/mattn/go-isatty"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
@@ -1065,7 +1066,13 @@ func newTableWriter(title string) *tbl {
 	tbl := &tbl{
 		writer: table.NewWriter(),
 	}
-	tbl.writer.SetStyle(styles[opts.Config.ColorScheme()])
+
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		tbl.writer.SetStyle(styles[opts.Config.ColorScheme()])
+	} else {
+		tbl.writer.SetStyle(styles["rounded"])
+	}
+
 	tbl.writer.Style().Title.Align = text.AlignCenter
 	tbl.writer.Style().Format.Header = text.FormatDefault
 
