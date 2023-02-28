@@ -13,12 +13,12 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.5
-	github.com/jedib0t/go-pretty/v6 v6.4.4
+	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.15.15
+	github.com/klauspost/compress v1.16.0
 	github.com/nats-io/jsm.go v0.0.36-0.20230224143723-3d08af976d6c
-	github.com/nats-io/nats-server/v2 v2.9.15-0.20230217184748-750309f1cbf9
-	github.com/nats-io/nats.go v1.23.1-0.20230120133917-a301969f5a37
+	github.com/nats-io/nats-server/v2 v2.9.15-0.20230227160857-9cca47c2e921
+	github.com/nats-io/nats.go v1.24.0
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/common v0.40.0
