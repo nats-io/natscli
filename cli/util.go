@@ -1285,21 +1285,27 @@ func surveyColors() []survey.AskOpt {
 	return []survey.AskOpt{
 		survey.WithIcons(func(icons *survey.IconSet) {
 			switch opts.Config.ColorScheme() {
-			case "yellow_light", "yellow_dark":
+			case "yellow":
 				icons.Question.Format = "yellow+hb"
 				icons.SelectFocus.Format = "yellow+hb"
-			case "blue_light", "blue_dark":
+			case "blue":
 				icons.Question.Format = "blue+hb"
 				icons.SelectFocus.Format = "blue+hb"
-			case "cyan_light", "cyan_dark":
+			case "green":
+				icons.Question.Format = "green+hb"
+				icons.SelectFocus.Format = "green+hb"
+			case "cyan":
 				icons.Question.Format = "cyan+hb"
 				icons.SelectFocus.Format = "cyan+hb"
-			case "magenta_light", "magenta_dark":
+			case "magenta":
 				icons.Question.Format = "magenta+hb"
 				icons.SelectFocus.Format = "magenta+hb"
-			case "red_light", "red_dark":
+			case "red":
 				icons.Question.Format = "red+hb"
 				icons.SelectFocus.Format = "red+hb"
+			default:
+				icons.Question.Format = "white"
+				icons.SelectFocus.Format = "white"
 			}
 
 			// if a specific context is selected on the cli we will show it, but not the default one

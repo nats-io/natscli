@@ -184,15 +184,12 @@ inbox_prefix: {{ .InboxPrefix | t }}
 #
 #   rounded
 #   double
-#   bold
-#   bright
-#   dark, light
-#   blue_dark, blue_light
-#   cyan_dark, cyan_light
-#   green_dark, green_light
-#   magenta_dark, magenta_light
-#   red_dark, red_light
-#   yellow_dark, yellow_light
+#   yellow
+#   blue
+#   cyan
+#   green
+#   magenta
+#   red
 #
 # When not set "rounded" is used
 color_scheme: {{ .ColorScheme | t }}

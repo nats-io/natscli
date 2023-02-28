@@ -18,6 +18,7 @@ import (
 	"sort"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 )
 
 type tbl struct {
@@ -25,25 +26,22 @@ type tbl struct {
 }
 
 var styles = map[string]table.Style{
-	"":              table.StyleRounded,
-	"rounded":       table.StyleRounded,
-	"double":        table.StyleDouble,
-	"dark":          table.StyleColoredDark,
-	"bright":        table.StyleColoredBright,
-	"bold":          table.StyleBold,
-	"light":         table.StyleLight,
-	"yellow_light":  table.StyleColoredBlackOnYellowWhite,
-	"yellow_dark":   table.StyleColoredYellowWhiteOnBlack,
-	"blue_light":    table.StyleColoredBlackOnBlueWhite,
-	"blue_dark":     table.StyleColoredBlueWhiteOnBlack,
-	"cyan_light":    table.StyleColoredBlackOnCyanWhite,
-	"cyan_dark":     table.StyleColoredCyanWhiteOnBlack,
-	"green_light":   table.StyleColoredBlackOnGreenWhite,
-	"green_dark":    table.StyleColoredGreenWhiteOnBlack,
-	"magenta_light": table.StyleColoredBlackOnMagentaWhite,
-	"magenta_dark":  table.StyleColoredMagentaWhiteOnBlack,
-	"red_light":     table.StyleColoredBlackOnRedWhite,
-	"red_dark":      table.StyleColoredRedWhiteOnBlack,
+	"":        table.StyleRounded,
+	"rounded": table.StyleRounded,
+	"double":  table.StyleDouble,
+	"yellow":  coloredBorderStyle(text.FgYellow),
+	"blue":    coloredBorderStyle(text.FgBlue),
+	"cyan":    coloredBorderStyle(text.FgCyan),
+	"green":   coloredBorderStyle(text.FgGreen),
+	"magenta": coloredBorderStyle(text.FgMagenta),
+	"red":     coloredBorderStyle(text.FgRed),
+}
+
+func coloredBorderStyle(c text.Color) table.Style {
+	s := table.StyleRounded
+	s.Color.Border = text.Colors{c}
+	s.Color.Separator = text.Colors{c}
+	return s
 }
 
 // ValidStyles are valid color styles this package supports
