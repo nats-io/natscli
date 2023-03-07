@@ -101,6 +101,9 @@ func (c *microCmd) parseMessage(m []byte, expectedType string) (any, error) {
 func (c *microCmd) getInstanceStats(nc *nats.Conn, name string, id string) (*micro.Stats, error) {
 	resp, err := doReq(nil, c.makeSubj(micro.StatsVerb, name, id), 1, nc)
 	if err != nil {
+		if err == nats.ErrNoResponders {
+			return nil, fmt.Errorf("no micro instances found")
+		}
 		return nil, err
 	}
 
@@ -119,6 +122,9 @@ func (c *microCmd) getInstanceStats(nc *nats.Conn, name string, id string) (*mic
 func (c *microCmd) getInfo(nc *nats.Conn, name string, id string, wait int) ([]*micro.Info, error) {
 	resp, err := doReq(nil, c.makeSubj(micro.InfoVerb, name, id), wait, nc)
 	if err != nil {
+		if err == nats.ErrNoResponders {
+			return nil, fmt.Errorf("no micro instances found")
+		}
 		return nil, err
 	}
 
@@ -187,6 +193,10 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 
 	resp, err := doReq(nil, c.makeSubj(micro.StatsVerb, c.name, c.id), 0, nc)
 	if err != nil {
+		if err == nats.ErrNoResponders {
+			return fmt.Errorf("no micro instances found")
+		}
+
 		return err
 	}
 

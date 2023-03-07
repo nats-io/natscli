@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/nats-io/jsm.go"
 	"io"
 	"math"
 	"math/rand"
@@ -48,8 +49,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
 	terminal "golang.org/x/term"
-
-	"github.com/nats-io/jsm.go"
 
 	"github.com/nats-io/jsm.go/natscontext"
 )
@@ -941,9 +940,10 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 
 	select {
 	case err = <-errs:
-		if err == nats.ErrNoResponders {
+		if err == nats.ErrNoResponders && strings.HasPrefix(subj, "$SYS") {
 			return fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
 		}
+
 		return err
 	case <-ctx.Done():
 	}
@@ -1067,10 +1067,13 @@ func newTableWriter(title string) *tbl {
 		writer: table.NewWriter(),
 	}
 
+	tbl.writer.SetStyle(styles["rounded"])
+
 	if isatty.IsTerminal(os.Stdout.Fd()) {
-		tbl.writer.SetStyle(styles[opts.Config.ColorScheme()])
-	} else {
-		tbl.writer.SetStyle(styles["rounded"])
+		style, ok := styles[opts.Config.ColorScheme()]
+		if ok {
+			tbl.writer.SetStyle(style)
+		}
 	}
 
 	tbl.writer.Style().Title.Align = text.AlignCenter
