@@ -173,7 +173,7 @@ func configureConsumerCommand(app commandHost) {
 	addCreateFlags(consAdd, false)
 	consAdd.Flag("defaults", "Accept default values for all prompts").UnNegatableBoolVar(&c.acceptDefaults)
 
-	edit := cons.Command("edit", "Edits the configuration of a consumer").Action(c.editAction)
+	edit := cons.Command("edit", "Edits the configuration of a consumer").Alias("update").Action(c.editAction)
 	edit.Arg("stream", "Stream name").StringVar(&c.stream)
 	edit.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	edit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
