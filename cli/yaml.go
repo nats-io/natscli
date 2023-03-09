@@ -102,6 +102,11 @@ func decorateScalarNode(n *yaml.Node, sch *jsonschema.Schema) {
 		return
 	}
 
+	if strings.Contains(sch.Comment, "nanoseconds depicting a duration") {
+		n.HeadComment = fmt.Sprintf("\n%s\n#\n  Type: duration like 10s or 2h1m5s", sch.Description)
+		return
+	}
+
 	constraints := constraintsForType(sch)
 	if len(constraints) == 0 {
 		n.HeadComment = fmt.Sprintf("\n%s\n#\n  Type: %v", sch.Description, sch.Types[0])
