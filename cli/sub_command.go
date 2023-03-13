@@ -16,6 +16,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,6 +50,7 @@ type subCmd struct {
 	stream                string
 	jetStream             bool
 	ignoreSubjects        []string
+	wait                  time.Duration
 }
 
 func configureSubCommand(app commandHost) {
@@ -74,6 +76,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("last-per-subject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
 	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
 	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
+	act.Flag("wait", "Max time to wait before unsubscribing.").DurationVar(&c.wait)
 }
 
 func init() {
@@ -103,7 +106,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		return fmt.Errorf("generating inboxes is not compatible with JetStream subscriptions")
 	}
 	if c.queue != "" && c.jetStream {
-		return fmt.Errorf("queu group subscriptions are not supported with JetStream")
+		return fmt.Errorf("queue group subscriptions are not supported with JetStream")
 	}
 
 	var (
@@ -118,6 +121,12 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		matchMap map[string]*nats.Msg
 	)
 	defer cancel()
+
+	var t *time.Timer
+	if c.wait > 0 {
+		t = time.NewTimer(c.wait)
+		defer t.Stop()
+	}
 
 	handler := func(m *nats.Msg) {
 		mu.Lock()
@@ -146,6 +155,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 				nc.Publish(stalled, nil)
 				log.Printf("Resuming stalled consumer")
 			}
+			return
 		}
 
 		for _, ignoreSubj := range ignoreSubjects {
@@ -166,6 +176,17 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			// if no reply matching, or if didn't yet get all replies
 			if !c.match || len(matchMap) == 0 {
 				cancel()
+			}
+			return
+		}
+
+		// Check if we have timed out.
+		if t != nil {
+			// Attempt to reset the timer. If false, we have timed out.
+			if !t.Reset(c.wait) {
+				sub.Unsubscribe()
+				cancel()
+				return
 			}
 		}
 	}
@@ -306,7 +327,17 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		return err
 	}
 
-	<-ctx.Done()
+	var tc <-chan time.Time
+	if t != nil {
+		tc = t.C
+	} else {
+		tc = make(chan time.Time)
+	}
+
+	select {
+	case <-ctx.Done():
+	case <-tc:
+	}
 
 	return nil
 }
