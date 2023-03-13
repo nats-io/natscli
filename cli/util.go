@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The NATS Authors
+// Copyright 2020-2023 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/nats-io/jsm.go"
 	"io"
 	"math"
 	"math/rand"
@@ -43,12 +44,11 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/klauspost/compress/s2"
+	"github.com/mattn/go-isatty"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
 	terminal "golang.org/x/term"
-
-	"github.com/nats-io/jsm.go"
 
 	"github.com/nats-io/jsm.go/natscontext"
 )
@@ -505,6 +505,10 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 }
 
 func humanizeDuration(d time.Duration) string {
+	if d < time.Millisecond {
+		return d.Round(time.Microsecond).String()
+	}
+
 	if d < time.Second {
 		return d.Round(time.Millisecond).String()
 	}
@@ -940,9 +944,10 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 
 	select {
 	case err = <-errs:
-		if err == nats.ErrNoResponders {
+		if err == nats.ErrNoResponders && strings.HasPrefix(subj, "$SYS") {
 			return fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
 		}
+
 		return err
 	case <-ctx.Done():
 	}
@@ -1065,7 +1070,16 @@ func newTableWriter(title string) *tbl {
 	tbl := &tbl{
 		writer: table.NewWriter(),
 	}
-	tbl.writer.SetStyle(styles[opts.Config.ColorScheme()])
+
+	tbl.writer.SetStyle(styles["rounded"])
+
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		style, ok := styles[opts.Config.ColorScheme()]
+		if ok {
+			tbl.writer.SetStyle(style)
+		}
+	}
+
 	tbl.writer.Style().Title.Align = text.AlignCenter
 	tbl.writer.Style().Format.Header = text.FormatDefault
 
@@ -1284,22 +1298,34 @@ func longestString(list []string, max int) int {
 func surveyColors() []survey.AskOpt {
 	return []survey.AskOpt{
 		survey.WithIcons(func(icons *survey.IconSet) {
-			switch opts.ColorScheme {
-			case "yellow_light", "yellow_dark":
+			switch opts.Config.ColorScheme() {
+			case "yellow":
 				icons.Question.Format = "yellow+hb"
 				icons.SelectFocus.Format = "yellow+hb"
-			case "blue_light", "blue_dark":
+			case "blue":
 				icons.Question.Format = "blue+hb"
 				icons.SelectFocus.Format = "blue+hb"
-			case "cyan_light", "cyan_dark":
+			case "green":
+				icons.Question.Format = "green+hb"
+				icons.SelectFocus.Format = "green+hb"
+			case "cyan":
 				icons.Question.Format = "cyan+hb"
 				icons.SelectFocus.Format = "cyan+hb"
-			case "magenta_light", "magenta_dark":
+			case "magenta":
 				icons.Question.Format = "magenta+hb"
 				icons.SelectFocus.Format = "magenta+hb"
-			case "red_light", "red_dark":
+			case "red":
 				icons.Question.Format = "red+hb"
 				icons.SelectFocus.Format = "red+hb"
+			default:
+				icons.Question.Format = "white"
+				icons.SelectFocus.Format = "white"
+			}
+
+			// if a specific context is selected on the cli we will show it, but not the default one
+			if opts.CfgCtx != "" {
+				icons.Question.Text = fmt.Sprintf("[%s] ?", opts.CfgCtx)
+				icons.Help.Text = ""
 			}
 		}),
 	}

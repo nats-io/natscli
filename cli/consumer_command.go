@@ -59,7 +59,7 @@ type consumerCmd struct {
 	bpsRateLimit        uint64
 	delivery            string
 	ephemeral           bool
-	filterSubject       string
+	filterSubjects      []string
 	idleHeartbeat       string
 	maxAckPending       int
 	maxDeliver          int
@@ -115,7 +115,7 @@ func configureConsumerCommand(app commandHost) {
 		if !edit {
 			f.Flag("ephemeral", "Create an ephemeral Consumer").UnNegatableBoolVar(&c.ephemeral)
 		}
-		f.Flag("filter", "Filter Stream by subjects").Default("_unset_").StringVar(&c.filterSubject)
+		f.Flag("filter", "Filter Stream by subjects").PlaceHolder("SUBJECTS").StringsVar(&c.filterSubjects)
 		if !edit {
 			f.Flag("flow-control", "Enable Push consumer flow control").IsSetByUser(&c.fcSet).UnNegatableBoolVar(&c.fc)
 			f.Flag("heartbeat", "Enable idle Push consumer heartbeats (-1 disable)").StringVar(&c.idleHeartbeat)
@@ -173,7 +173,7 @@ func configureConsumerCommand(app commandHost) {
 	addCreateFlags(consAdd, false)
 	consAdd.Flag("defaults", "Accept default values for all prompts").UnNegatableBoolVar(&c.acceptDefaults)
 
-	edit := cons.Command("edit", "Edits the configuration of a consumer").Action(c.editAction)
+	edit := cons.Command("edit", "Edits the configuration of a consumer").Alias("update").Action(c.editAction)
 	edit.Arg("stream", "Stream name").StringVar(&c.stream)
 	edit.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	edit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
@@ -362,8 +362,10 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 			ncfg.HeadersOnly = c.hdrsOnly
 		}
 
-		if c.filterSubject != "_unset_" {
-			ncfg.FilterSubject = c.filterSubject
+		if len(c.filterSubjects) == 1 {
+			ncfg.FilterSubject = c.filterSubjects[1]
+		} else if len(c.filterSubjects) > 1 {
+			ncfg.FilterSubjects = c.filterSubjects
 		}
 
 		if c.replicas > 0 {
@@ -568,6 +570,8 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	}
 	if config.FilterSubject != "" {
 		fmt.Printf("      Filter Subject: %s\n", config.FilterSubject)
+	} else if len(config.FilterSubjects) > 0 {
+		fmt.Printf("     Filter Subjects: %s\n", strings.Join(config.FilterSubjects, ", "))
 	}
 	switch config.DeliverPolicy {
 	case api.DeliverAll:
@@ -835,8 +839,10 @@ func (c *consumerCmd) cpAction(pc *fisk.ParseContext) (err error) {
 		cfg.AckPolicy = c.ackPolicyFromString(c.ackPolicy)
 	}
 
-	if c.filterSubject != "_unset_" {
-		cfg.FilterSubject = c.filterSubject
+	if len(c.filterSubjects) == 1 {
+		cfg.FilterSubject = c.filterSubjects[0]
+	} else if len(c.filterSubjects) > 1 {
+		cfg.FilterSubjects = c.filterSubjects
 	}
 
 	if c.replayPolicy != "" {
@@ -927,18 +933,52 @@ func (c *consumerCmd) cpAction(pc *fisk.ParseContext) (err error) {
 	return nil
 }
 
+func (c *consumerCmd) loadConfigFile(file string) (*api.ConsumerConfig, error) {
+	f, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg api.ConsumerConfig
+
+	// there is a chance that this is a `nats c info --json` output
+	// which is a ConsumerInfo, so we detect if this is one of those
+	// by checking if there's a config key then extract that, else
+	// we try loading it as a StreamConfig
+
+	var nfo map[string]any
+	err = json.Unmarshal(f, &nfo)
+	if err != nil {
+		return nil, err
+	}
+
+	_, ok := nfo["config"]
+	if ok {
+		var nfo api.ConsumerInfo
+		err = json.Unmarshal(f, &nfo)
+		if err != nil {
+			return nil, err
+		}
+		cfg = nfo.Config
+	} else {
+		err = json.Unmarshal(f, &cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &cfg, nil
+}
+
 func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerConfig, err error) {
 	cfg = c.defaultConsumer()
 	cfg.Description = c.description
 
 	if c.inputFile != "" {
-		f, err := os.ReadFile(c.inputFile)
+		cfg, err = c.loadConfigFile(c.inputFile)
 		if err != nil {
 			return nil, err
 		}
-
-		cfg = &api.ConsumerConfig{}
-		err = json.Unmarshal(f, cfg)
 
 		if cfg.Durable != "" && c.consumer != "" && cfg.Durable != c.consumer {
 			if c.consumer != "" {
@@ -999,9 +1039,6 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 		}
 		if c.replayPolicy == "" {
 			c.replayPolicy = "instant"
-		}
-		if c.filterSubject == "_unset_" {
-			c.filterSubject = ""
 		}
 		if c.idleHeartbeat == "" {
 			c.idleHeartbeat = "-1"
@@ -1103,16 +1140,23 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 		cfg.ReplayPolicy = c.replayPolicyFromString(c.replayPolicy)
 	}
 
-	if c.filterSubject == "_unset_" {
+	switch {
+	case len(c.filterSubjects) == 0 && !c.acceptDefaults:
+		sub := ""
 		err = askOne(&survey.Input{
 			Message: "Filter Stream by subject (blank for all)",
 			Default: "",
 			Help:    "Stream can consume more than one subject - or a wildcard - this allows you to filter out just a single subject from all the ones entering the Stream for delivery to the Consumer. Settable using --filter",
-		}, &c.filterSubject)
+		}, &sub)
 		fisk.FatalIfError(err, "could not ask for filtering subject")
+		c.filterSubjects = []string{sub}
+	case len(c.filterSubjects) == 1:
+		cfg.FilterSubject = c.filterSubjects[0]
+	case len(c.filterSubjects) > 1:
+		cfg.FilterSubjects = c.filterSubjects
 	}
-	cfg.FilterSubject = c.filterSubject
-	if cfg.FilterSubject == "" && cfg.DeliverPolicy == api.DeliverLastPerSubject {
+
+	if cfg.FilterSubject == "" && len(c.filterSubjects) == 0 && cfg.DeliverPolicy == api.DeliverLastPerSubject {
 		cfg.FilterSubject = ">"
 	}
 

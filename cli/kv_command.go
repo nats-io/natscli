@@ -145,7 +145,7 @@ for an indefinite period or a per-bucket configured TTL.
 	ls.Flag("verbose", "Show detailed info about the key").Short('v').UnNegatableBoolVar(&c.lsVerbose)
 	ls.Flag("display-value", "Display value in verbose output (has no effect without 'verbose')").UnNegatableBoolVar(&c.lsVerboseDisplayValue)
 
-	rmHistory := kv.Command("compact", "Removes all historic values from the store where the last value is a delete").Action(c.compactAction)
+	rmHistory := kv.Command("compact", "Reclaim space used by deleted keys").Action(c.compactAction)
 	rmHistory.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	rmHistory.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 }
