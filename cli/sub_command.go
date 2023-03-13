@@ -122,9 +122,12 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	)
 	defer cancel()
 
+	// If the wait timeout is set, then we will cancel after the timer fires.
 	var t *time.Timer
 	if c.wait > 0 {
-		t = time.NewTimer(c.wait)
+		t = time.AfterFunc(c.wait, func() {
+			cancel()
+		})
 		defer t.Stop()
 	}
 
@@ -181,13 +184,9 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 
 		// Check if we have timed out.
-		if t != nil {
-			// Attempt to reset the timer. If false, we have timed out.
-			if !t.Reset(c.wait) {
-				sub.Unsubscribe()
-				cancel()
-				return
-			}
+		if t != nil && !t.Reset(c.wait) {
+			cancel()
+			return
 		}
 	}
 
@@ -342,17 +341,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		return err
 	}
 
-	var tc <-chan time.Time
-	if t != nil {
-		tc = t.C
-	} else {
-		tc = make(chan time.Time)
-	}
-
-	select {
-	case <-ctx.Done():
-	case <-tc:
-	}
+	<-ctx.Done()
 
 	return nil
 }
