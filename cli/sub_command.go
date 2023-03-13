@@ -16,6 +16,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,6 +50,7 @@ type subCmd struct {
 	stream                string
 	jetStream             bool
 	ignoreSubjects        []string
+	wait                  time.Duration
 }
 
 func configureSubCommand(app commandHost) {
@@ -74,6 +76,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("last-per-subject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
 	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
 	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
+	act.Flag("wait", "Max time to wait before unsubscribing.").DurationVar(&c.wait)
 }
 
 func init() {
@@ -103,7 +106,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		return fmt.Errorf("generating inboxes is not compatible with JetStream subscriptions")
 	}
 	if c.queue != "" && c.jetStream {
-		return fmt.Errorf("queu group subscriptions are not supported with JetStream")
+		return fmt.Errorf("queue group subscriptions are not supported with JetStream")
 	}
 
 	var (
@@ -118,6 +121,15 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		matchMap map[string]*nats.Msg
 	)
 	defer cancel()
+
+	// If the wait timeout is set, then we will cancel after the timer fires.
+	var t *time.Timer
+	if c.wait > 0 {
+		t = time.AfterFunc(c.wait, func() {
+			cancel()
+		})
+		defer t.Stop()
+	}
 
 	handler := func(m *nats.Msg) {
 		mu.Lock()
@@ -146,6 +158,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 				nc.Publish(stalled, nil)
 				log.Printf("Resuming stalled consumer")
 			}
+			return
 		}
 
 		for _, ignoreSubj := range ignoreSubjects {
@@ -167,6 +180,13 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			if !c.match || len(matchMap) == 0 {
 				cancel()
 			}
+			return
+		}
+
+		// Check if we have timed out.
+		if t != nil && !t.Reset(c.wait) {
+			cancel()
+			return
 		}
 	}
 
@@ -240,8 +260,19 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			opts = append(opts, nats.HeadersOnly())
 		}
 
+		// Check if the durable exists and ignore all the other options.
+		var bindDurable bool
 		if len(c.durable) > 0 {
-			opts = append(opts, nats.Durable(c.durable))
+			con, err := js.ConsumerInfo(c.stream, c.durable)
+			if err == nil {
+				bindDurable = true
+				c.jsAck = con.Config.AckPolicy != nats.AckNonePolicy
+				log.Printf("Subscribing to JetStream Stream %q using existing durable %q", c.stream, c.durable)
+			} else if errors.Is(err, nats.ErrConsumerNotFound) {
+				opts = append(opts, nats.Durable(c.durable))
+			} else {
+				return err
+			}
 		}
 
 		subMsg := c.subject
@@ -287,8 +318,12 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			opts = append(opts, nats.DeliverLastPerSubject())
 		}
 
-		c.jsAck = false
-		sub, err = js.Subscribe(c.subject, handler, opts...)
+		if bindDurable {
+			sub, err = js.Subscribe("", handler, nats.Bind(c.stream, c.durable))
+		} else {
+			c.jsAck = false
+			sub, err = js.Subscribe(c.subject, handler, opts...)
+		}
 
 	case c.queue != "":
 		sub, err = nc.QueueSubscribe(c.subject, c.queue, handler)
