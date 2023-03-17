@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +45,7 @@ type subCmd struct {
 	sseq                  uint64
 	deliverAll            bool
 	deliverNew            bool
+	reportSubjects        bool
 	deliverLast           bool
 	deliverSince          string
 	deliverLastPerSubject bool
@@ -77,6 +80,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
 	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
 	act.Flag("wait", "Max time to wait before unsubscribing.").DurationVar(&c.wait)
+	act.Flag("report-subjects", "Subscribes to a subject pattern and builds a de-duplicated report of active subjects receiving data").UnNegatableBoolVar(&c.reportSubjects)
 }
 
 func init() {
@@ -119,6 +123,8 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 
 		replySub *nats.Subscription
 		matchMap map[string]*nats.Msg
+
+		subjectReportMap map[string]int64
 	)
 	defer cancel()
 
@@ -209,6 +215,61 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 	}
 
+	subjectReportHandler := func(m *nats.Msg) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		var info *jsm.MsgInfo
+		if m.Reply != "" {
+			info, _ = jsm.ParseJSMsgMetadata(m)
+		}
+
+		if c.jsAck && info != nil {
+			defer func() {
+				err = m.Respond(nil)
+				if err != nil && !dump && !c.raw {
+					log.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
+				}
+			}()
+		}
+
+		// flow control
+		if len(m.Data) == 0 && m.Header.Get("Status") == "100" {
+			if m.Reply != "" {
+				m.Respond(nil)
+				log.Printf("Responding to Flow Control message")
+			} else if stalled := m.Header.Get("Nats-Consumer-Stalled"); stalled != "" {
+				nc.Publish(stalled, nil)
+				log.Printf("Resuming stalled consumer")
+			}
+			return
+		}
+
+		for _, ignoreSubj := range ignoreSubjects {
+			if server.SubjectsCollide(m.Subject, ignoreSubj) {
+				return
+			}
+		}
+
+		ctr++
+		addSubjects(c, m, subjectReportMap, ctr)
+
+		if ctr == c.limit {
+			sub.Unsubscribe()
+			// if no reply matching, or if didn't yet get all replies
+			if !c.match || len(matchMap) == 0 {
+				cancel()
+			}
+			return
+		}
+
+		// Check if we have timed out.
+		if t != nil && !t.Reset(c.wait) {
+			cancel()
+			return
+		}
+	}
+
 	if c.match {
 		inSubj := "_INBOX.>"
 		if opts.InboxPrefix != "" {
@@ -224,6 +285,10 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if c.reportSubjects {
+		subjectReportMap = make(map[string]int64)
 	}
 
 	var ignoredSubjInfo string
@@ -243,6 +308,44 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 
 	switch {
+	case c.reportSubjects:
+		sub, err = nc.Subscribe(c.subject, subjectReportHandler)
+
+		go func() {
+			ticker := time.NewTicker(time.Second)
+
+			for range ticker.C {
+				select {
+				case <-ctx.Done():
+					ticker.Stop()
+				default:
+					subjectRows := [][]any{}
+
+					if runtime.GOOS != "windows" {
+						fmt.Print("\033[2J")
+						fmt.Print("\033[H")
+					}
+
+					keys := make([]string, 0, len(subjectReportMap))
+					for k := range subjectReportMap {
+						keys = append(keys, k)
+					}
+					sort.Strings(keys)
+
+					for _, k := range keys {
+						subjectRows = append(subjectRows, []any{k, subjectReportMap[k]})
+					}
+
+					table := newTableWriter("Active Subject Report")
+					table.AddHeaders("Subject", "Message Count")
+					for i := range subjectRows {
+						table.AddRow(subjectRows[i]...)
+					}
+					fmt.Println(table.Render())
+				}
+			}
+		}()
+
 	case c.jetStream:
 		var js nats.JetStreamContext
 		js, err = nc.JetStream()
@@ -327,6 +430,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 
 	case c.queue != "":
 		sub, err = nc.QueueSubscribe(c.subject, c.queue, handler)
+
 	default:
 		sub, err = nc.Subscribe(c.subject, handler)
 	}
@@ -461,4 +565,28 @@ func prettyPrintMsg(msg *nats.Msg, headersOnly bool) {
 			fmt.Println()
 		}
 	}
+}
+
+func addSubjects(c *subCmd, msg *nats.Msg, subjectReportMap map[string]int64, ctr uint) {
+	// TODO: Might need to expand this to include jetStream? Leaving here in preparation for that.
+	// var info *jsm.MsgInfo
+
+	// here let's add the subject (m.Subject) to a map with a counter
+	subjectReportMap[msg.Subject]++
+
+	// if info == nil {
+	// 	fmt.Printf("[#%d] Subjects: %+v\n", ctr, subjectReportMap)
+	// }
+
+	// if info == nil {
+	// 	if msg.Reply != "" {
+	// 		fmt.Printf("[#%d] Received on %q with reply %q\n", ctr, msg.Subject, msg.Reply)
+	// 	} else {
+	// 		fmt.Printf("[#%d] Received on %q\n", ctr, msg.Subject)
+	// 	}
+	// } else if c.jetStream {
+	// 	fmt.Printf("[#%d] Received JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, info.Stream(), info.StreamSequence(), msg.Subject, info.TimeStamp().Format(time.RFC3339))
+	// } else {
+	// 	fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, info.Stream(), info.Consumer(), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
+	// }
 }
