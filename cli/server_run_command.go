@@ -18,7 +18,6 @@ import (
 	"github.com/nats-io/jsm.go/natscontext"
 	"github.com/nats-io/nats-server/v2/server"
 	"golang.org/x/crypto/bcrypt"
-	"gopkg.in/alessio/shellescape.v1"
 )
 
 type SrvRunCmd struct {
@@ -285,7 +284,11 @@ func (c *SrvRunCmd) writeConfig() (string, error) {
 
 	funcs := template.FuncMap{
 		"escape": func(v string) string {
-			return shellescape.Quote(v)
+			if runtime.GOOS == "windows" {
+				return strings.ReplaceAll(v, `\`, "\\\\")
+			}
+
+			return v
 		},
 	}
 
