@@ -18,6 +18,7 @@ import (
 	"github.com/nats-io/jsm.go/natscontext"
 	"github.com/nats-io/nats-server/v2/server"
 	"golang.org/x/crypto/bcrypt"
+	"gopkg.in/alessio/shellescape.v1"
 )
 
 type SrvRunCmd struct {
@@ -107,8 +108,8 @@ leafnodes {
 {{- if .ExtendWithContext }}
         {
             url: "{{.Context.ServerURL}}",
-            {{- if .Context.Creds }}
-            credentials: "{{.Context.Creds}}",
+            {{- if .Context.Creds | escape }}
+            credentials: "{{.Context.Creds | escape }}",
             {{- end }}
             account: "USER"
         }
@@ -282,7 +283,13 @@ func (c *SrvRunCmd) writeConfig() (string, error) {
 	}
 	defer tf.Close()
 
-	t, err := template.New("server.cfg").Parse(serverRunConfig)
+	funcs := template.FuncMap{
+		"escape": func(v string) string {
+			return shellescape.Quote(v)
+		},
+	}
+
+	t, err := template.New("server.cfg").Funcs(funcs).Parse(serverRunConfig)
 	if err != nil {
 		os.Remove(tf.Name())
 		return "", err

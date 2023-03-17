@@ -19,7 +19,7 @@ require (
 	github.com/mattn/go-isatty v0.0.17
 	github.com/nats-io/jsm.go v0.0.36-0.20230307203554-f2ed0dc457b3
 	github.com/nats-io/nats-server/v2 v2.9.16-0.20230304144210-9f69d8734f66
-	github.com/nats-io/nats.go v1.24.0
+	github.com/nats-io/nats.go v1.24.1-0.20230314073701-fa3b1671faba
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/common v0.40.0
@@ -28,10 +28,12 @@ require (
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
 	golang.org/x/crypto v0.7.0
 	golang.org/x/term v0.6.0
+	gopkg.in/alessio/shellescape.v1 v1.0.0-20170105083845-52074bc9df61
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
+	github.com/alessio/shellescape v1.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
