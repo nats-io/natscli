@@ -55,7 +55,7 @@ logtime: false
 
 {{- if .JetStream }}
 jetstream {
-    store_dir: {{ .StoreDir }}
+    store_dir: "{{ .StoreDir | escape }}"
 {{- if .JSDomain }}
 	domain: {{ .JSDomain }}
 {{- end }}
@@ -258,10 +258,7 @@ func (c *SrvRunCmd) prepareConfig() error {
 			return err
 		}
 		c.config.StoreDir = filepath.Join(parent, "nats", c.config.Name)
-		if runtime.GOOS == "windows" {
-			// escape path separator in file
-			c.config.StoreDir = strings.ReplaceAll(c.config.StoreDir, "\\", "\\\\")
-		}
+
 		if c.config.ExtendWithContext || c.config.ExtendDemoNetwork {
 			c.config.JSDomain = strings.ToUpper(c.config.Name)
 		}
