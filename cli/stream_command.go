@@ -250,6 +250,7 @@ func configureStreamCommand(app commandHost) {
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
 	strInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	strInfo.Flag("state", "Shows only the stream state").UnNegatableBoolVar(&c.showStateOnly)
+	strInfo.Flag("force", "Force info without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	strState := str.Command("state", "Stream state").Action(c.stateAction)
 	strState.Arg("stream", "Stream to retrieve state information for").StringVar(&c.stream)
