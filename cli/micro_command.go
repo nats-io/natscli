@@ -299,7 +299,12 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 	fmt.Printf("  Description: %v\n", nfo.Description)
 	fmt.Printf("      Version: %v\n", nfo.Version)
 	fmt.Printf("     Subjects: %v\n", strings.Join(nfo.Subjects, ", "))
-	fmt.Println()
+	if len(nfo.Metadata) > 0 {
+		fmt.Println()
+		fmt.Printf("Metadata:")
+		dumpMapStrings(nfo.Metadata, 3)
+		fmt.Println()
+	}
 
 	fmt.Printf("Statistics for %d Endpoint(s):\n\n", len(stats.Endpoints))
 	for _, e := range stats.Endpoints {
