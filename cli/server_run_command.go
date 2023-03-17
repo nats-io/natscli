@@ -55,7 +55,7 @@ logtime: false
 
 {{- if .JetStream }}
 jetstream {
-    store_dir: {{ .StoreDir }}
+    store_dir: "{{fixpath .StoreDir }}"
 {{- if .JSDomain }}
 	domain: {{ .JSDomain }}
 {{- end }}
@@ -108,7 +108,7 @@ leafnodes {
         {
             url: "{{.Context.ServerURL}}",
             {{- if .Context.Creds }}
-            credentials: "{{.Context.Creds}}",
+            credentials: "{{fixpath .Context.Creds}}",
             {{- end }}
             account: "USER"
         }
@@ -258,10 +258,7 @@ func (c *SrvRunCmd) prepareConfig() error {
 			return err
 		}
 		c.config.StoreDir = filepath.Join(parent, "nats", c.config.Name)
-		if runtime.GOOS == "windows" {
-			// escape path separator in file
-			c.config.StoreDir = strings.ReplaceAll(c.config.StoreDir, "\\", "\\\\")
-		}
+
 		if c.config.ExtendWithContext || c.config.ExtendDemoNetwork {
 			c.config.JSDomain = strings.ToUpper(c.config.Name)
 		}
@@ -282,7 +279,14 @@ func (c *SrvRunCmd) writeConfig() (string, error) {
 	}
 	defer tf.Close()
 
-	t, err := template.New("server.cfg").Parse(serverRunConfig)
+	t, err := template.New("server.cfg").Funcs(template.FuncMap{
+		"fixpath": func(path string) string {
+			if runtime.GOOS == "windows" {
+				return strings.ReplaceAll(path, "\\", "\\\\")
+			}
+			return path
+		},
+	}).Parse(serverRunConfig)
 	if err != nil {
 		os.Remove(tf.Name())
 		return "", err
