@@ -134,6 +134,7 @@ type streamCmd struct {
 	vwStartDelta time.Duration
 	vwPageSize   int
 	vwRaw        bool
+	vwTranslate  string
 	vwSubject    string
 
 	dryRun         bool
@@ -300,6 +301,7 @@ func configureStreamCommand(app commandHost) {
 	strView.Flag("id", "Start at a specific message Sequence").IntVar(&c.vwStartId)
 	strView.Flag("since", "Delivers messages received since a duration like 1d3h5m2s").DurationVar(&c.vwStartDelta)
 	strView.Flag("raw", "Show the raw data received").UnNegatableBoolVar(&c.vwRaw)
+	strView.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.vwTranslate)
 	strView.Flag("subject", "Filter the stream using a subject").StringVar(&c.vwSubject)
 
 	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
@@ -307,6 +309,7 @@ func configureStreamCommand(app commandHost) {
 	strGet.Arg("id", "Message Sequence to retrieve").Int64Var(&c.msgID)
 	strGet.Flag("last-for", "Retrieves the message for a specific subject").Short('S').PlaceHolder("SUBJECT").StringVar(&c.filterSubject)
 	strGet.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	strGet.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.vwTranslate)
 
 	strBackup := str.Command("backup", "Creates a backup of a Stream over the NATS network").Alias("snapshot").Action(c.backupAction)
 	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
@@ -702,15 +705,7 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 			}
 
 			fmt.Println()
-			if len(msg.Data) == 0 {
-				fmt.Println("nil body")
-			} else {
-				fmt.Println(string(msg.Data))
-				if !strings.HasSuffix(string(msg.Data), "\n") {
-					fmt.Println()
-				}
-			}
-
+			outPutMSGBody(msg.Data, c.vwTranslate, msg.Subject, meta.Stream())
 		}
 
 		if last {
@@ -2705,9 +2700,7 @@ func (c *streamCmd) getAction(_ *fisk.ParseContext) (err error) {
 		}
 		fmt.Println()
 	}
-
-	fmt.Println(string(item.Data))
-	fmt.Println()
+	outPutMSGBody(item.Data, c.vwTranslate, item.Subject, c.stream)
 	return nil
 }
 

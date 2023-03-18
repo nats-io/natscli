@@ -38,6 +38,7 @@ type subCmd struct {
 	queue                 string
 	durable               string
 	raw                   bool
+	translate             string
 	jsAck                 bool
 	inbox                 bool
 	match                 bool
@@ -67,6 +68,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)
 	act.Flag("durable", "Use a durable consumer (requires JetStream)").StringVar(&c.durable)
 	act.Flag("raw", "Show the raw data received").Short('r').UnNegatableBoolVar(&c.raw)
+	act.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
 	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
 	act.Flag("match-replies", "Match replies to requests").UnNegatableBoolVar(&c.match)
 	act.Flag("inbox", "Subscribes to a generate inbox").Short('i').UnNegatableBoolVar(&c.inbox)
@@ -499,7 +501,7 @@ func printMsg(c *subCmd, msg *nats.Msg, reply *nats.Msg, ctr uint) {
 			fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, info.Stream(), info.Consumer(), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
 		}
 
-		prettyPrintMsg(msg, c.headersOnly)
+		prettyPrintMsg(msg, c.headersOnly, c.translate)
 
 		if reply != nil {
 			if info == nil {
@@ -510,7 +512,7 @@ func printMsg(c *subCmd, msg *nats.Msg, reply *nats.Msg, ctr uint) {
 				fmt.Printf("[#%d] Matched reply JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, info.Stream(), info.Consumer(), reply.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
 			}
 
-			prettyPrintMsg(reply, c.headersOnly)
+			prettyPrintMsg(reply, c.headersOnly, c.translate)
 
 		}
 
@@ -541,7 +543,7 @@ func dumpMsg(msg *nats.Msg, stdout bool, filepath string, ctr uint) {
 	}
 }
 
-func prettyPrintMsg(msg *nats.Msg, headersOnly bool) {
+func prettyPrintMsg(msg *nats.Msg, headersOnly bool, filter string) {
 	if len(msg.Header) > 0 {
 		for h, vals := range msg.Header {
 			for _, val := range vals {
@@ -553,9 +555,6 @@ func prettyPrintMsg(msg *nats.Msg, headersOnly bool) {
 	}
 
 	if !headersOnly {
-		fmt.Println(string(msg.Data))
-		if !strings.HasSuffix(string(msg.Data), "\n") {
-			fmt.Println()
-		}
+		outPutMSGBody(msg.Data, filter, msg.Subject, "")
 	}
 }
