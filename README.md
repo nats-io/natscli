@@ -191,7 +191,7 @@ hello headers
 ### match requests and replies
 We can print matching replay-requests together
 ```
-sub --match-replies subject.name
+nats sub --match-replies cli.demo
 ```
 Output
 ```
