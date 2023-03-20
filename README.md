@@ -142,7 +142,7 @@ Output
 Next we publish 5 messages with a counter and timestamp in the format `message 5 @ 2020-12-03T12:33:18+01:00`:
 
 ```
-nats pub cli.demo "message {{.Count}} @ {{.TimeStamp}}" --count=10 
+nats pub cli.demo "message {{.Count}} @ {{.TimeStamp}}" --count=5
 ```
 Output
 ```
