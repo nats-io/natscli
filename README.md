@@ -246,7 +246,7 @@ Output
 In another shell we can send a request to this service:
 
 ```
-nats request cli.weather.london 
+nats request "cli.weather.london" '' 
 ```
 Output
 ```
