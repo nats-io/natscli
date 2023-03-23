@@ -12,3 +12,6 @@ nats sub subject --dump=- | xargs -0 -n 1 -I "{}" sh -c "echo '{}' | wc -c"
 
 # To receive new messages received in a stream with the subject ORDERS.new
 nats sub ORDERS.new --next
+
+# To report the number of subjects with message and byte count. The default `--report-top` is 10
+nats sub ">" --report-subjects --report-top=20
