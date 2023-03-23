@@ -415,6 +415,7 @@ func prepareJSHelper() (*nats.Conn, nats.JetStreamContext, error) {
 	jso := []nats.JSOpt{
 		nats.Domain(opts.JsDomain),
 		nats.APIPrefix(opts.JsApiPrefix),
+		nats.MaxWait(opts.Timeout),
 	}
 
 	if opts.Trace {
