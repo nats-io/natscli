@@ -377,6 +377,10 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 		}
 	}
 
+	if len(ncfg.BackOff) > 0 && ncfg.AckWait != t.AckWait {
+		return fmt.Errorf("consumers with backoff policies do not support editing Ack Wait")
+	}
+
 	// sort strings to subject lists that only differ in ordering is considered equal
 	sorter := cmp.Transformer("Sort", func(in []string) []string {
 		out := append([]string(nil), in...)

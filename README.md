@@ -142,7 +142,7 @@ Output
 Next we publish 5 messages with a counter and timestamp in the format `message 5 @ 2020-12-03T12:33:18+01:00`:
 
 ```
-nats pub cli.demo "message {{.Count}} @ {{.TimeStamp}}" --count=10 
+nats pub cli.demo "message {{.Count}} @ {{.TimeStamp}}" --count=5
 ```
 Output
 ```
@@ -191,7 +191,7 @@ hello headers
 ### match requests and replies
 We can print matching replay-requests together
 ```
-sub --match-replies subject.name
+nats sub --match-replies cli.demo
 ```
 Output
 ```
@@ -246,7 +246,7 @@ Output
 In another shell we can send a request to this service:
 
 ```
-nats request cli.weather.london 
+nats request "cli.weather.london" '' 
 ```
 Output
 ```
