@@ -20,11 +20,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/choria-io/fisk"
+	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -43,6 +46,8 @@ type subCmd struct {
 	sseq                  uint64
 	deliverAll            bool
 	deliverNew            bool
+	reportSubjects        bool
+	reportSubjectsCount   int
 	deliverLast           bool
 	deliverSince          string
 	deliverLastPerSubject bool
@@ -77,10 +82,74 @@ func configureSubCommand(app commandHost) {
 	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
 	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
 	act.Flag("wait", "Max time to wait before unsubscribing.").DurationVar(&c.wait)
+	act.Flag("report-subjects", "Subscribes to a subject pattern and builds a de-duplicated report of active subjects receiving data").UnNegatableBoolVar(&c.reportSubjects)
+	act.Flag("report-top", "Number of subjects to show when doing 'report-subjects'. Default is 10.").Default("10").IntVar(&c.reportSubjectsCount)
 }
 
 func init() {
 	registerCommand("sub", 17, configureSubCommand)
+}
+
+func startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, subjectReportMap map[string]int64, subjectBytesReportMap map[string]int64, subjCount int) {
+
+	go func() {
+		ticker := time.NewTicker(time.Second)
+
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+			case <-ticker.C:
+
+				subjectRows := [][]any{}
+
+				if runtime.GOOS != "windows" {
+					fmt.Print("\033[2J")
+					fmt.Print("\033[H")
+				}
+
+				totalBytes := int64(0)
+				totalCount := int64(0)
+
+				subjMu.Lock()
+				keys := make([]string, 0, len(subjectReportMap))
+
+				for k := range subjectReportMap {
+					keys = append(keys, k)
+				}
+				// sort.Strings(keys)
+				// sort by count in descending order
+				sort.Slice(keys, func(i, j int) bool {
+					return subjectReportMap[keys[i]] > subjectReportMap[keys[j]]
+				})
+
+				for count, k := range keys {
+
+					subjectRows = append(subjectRows, []any{k, humanize.Comma(subjectReportMap[k]), humanize.IBytes(uint64(subjectBytesReportMap[k]))})
+					totalCount += subjectReportMap[k]
+					totalBytes += subjectBytesReportMap[k]
+					if (count + 1) == subjCount {
+						break
+					}
+				}
+				subjMu.Unlock()
+
+				tableHeaderString := ""
+				if subjCount == 1 {
+					tableHeaderString = "Top Subject Report"
+				} else {
+					tableHeaderString = fmt.Sprintf("Top %d Active Subjects Report", subjCount)
+				}
+				table := newTableWriter(tableHeaderString)
+				table.AddHeaders("Subject", "Message Count", "Bytes")
+				table.AddFooter("Totals", humanize.Comma(totalCount), humanize.IBytes(uint64(totalBytes)))
+				for i := range subjectRows {
+					table.AddRow(subjectRows[i]...)
+				}
+				fmt.Println(table.Render())
+			}
+		}
+	}()
 }
 
 func (c *subCmd) subscribe(p *fisk.ParseContext) error {
@@ -109,9 +178,14 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		return fmt.Errorf("queue group subscriptions are not supported with JetStream")
 	}
 
+	if c.reportSubjects && c.reportSubjectsCount == 0 {
+		return fmt.Errorf("subject count must be at least one")
+	}
+
 	var (
 		sub            *nats.Subscription
 		mu             = sync.Mutex{}
+		subjMu         = sync.Mutex{}
 		dump           = c.dump != ""
 		ctr            = uint(0)
 		ignoreSubjects = splitCLISubjects(c.ignoreSubjects)
@@ -119,6 +193,9 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 
 		replySub *nats.Subscription
 		matchMap map[string]*nats.Msg
+
+		subjectReportMap      map[string]int64
+		subjectBytesReportMap map[string]int64
 	)
 	defer cancel()
 
@@ -168,10 +245,20 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 
 		ctr++
-		if c.match && m.Reply != "" {
-			matchMap[m.Reply] = m
-		} else {
-			printMsg(c, m, nil, ctr)
+		if c.reportSubjects {
+			subjMu.Lock()
+			subjectReportMap[m.Subject]++
+			subjectBytesReportMap[m.Subject] += int64(len(m.Data))
+			subjMu.Unlock()
+		}
+
+		// if we're not reporting on subjects, then print the message
+		if !c.reportSubjects {
+			if c.match && m.Reply != "" {
+				matchMap[m.Reply] = m
+			} else {
+				printMsg(c, m, nil, ctr)
+			}
 		}
 
 		if ctr == c.limit {
@@ -226,6 +313,11 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 	}
 
+	if c.reportSubjects {
+		subjectReportMap = make(map[string]int64)
+		subjectBytesReportMap = make(map[string]int64)
+	}
+
 	var ignoredSubjInfo string
 	if len(ignoreSubjects) > 0 {
 		ignoredSubjInfo = fmt.Sprintf("\nIgnored subjects: %s", strings.Join(ignoreSubjects, ", "))
@@ -243,6 +335,10 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 
 	switch {
+	case c.reportSubjects:
+		sub, err = nc.Subscribe(c.subject, handler)
+		startSubjectReporting(ctx, &subjMu, subjectReportMap, subjectBytesReportMap, c.reportSubjectsCount)
+
 	case c.jetStream:
 		var js nats.JetStreamContext
 		js, err = nc.JetStream()
@@ -327,6 +423,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 
 	case c.queue != "":
 		sub, err = nc.QueueSubscribe(c.subject, c.queue, handler)
+
 	default:
 		sub, err = nc.Subscribe(c.subject, handler)
 	}
