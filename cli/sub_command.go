@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/choria-io/fisk"
+	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -90,14 +91,16 @@ func init() {
 }
 
 func startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, subjectReportMap map[string]int64, subjectBytesReportMap map[string]int64, subjCount int) {
+
 	go func() {
 		ticker := time.NewTicker(time.Second)
 
-		for range ticker.C {
+		for {
 			select {
 			case <-ctx.Done():
 				ticker.Stop()
-			default:
+			case <-ticker.C:
+
 				subjectRows := [][]any{}
 
 				if runtime.GOOS != "windows" {
@@ -121,7 +124,8 @@ func startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, subjectRepor
 				})
 
 				for count, k := range keys {
-					subjectRows = append(subjectRows, []any{k, subjectReportMap[k], subjectBytesReportMap[k]})
+
+					subjectRows = append(subjectRows, []any{k, humanize.Comma(subjectReportMap[k]), humanize.IBytes(uint64(subjectBytesReportMap[k]))})
 					totalCount += subjectReportMap[k]
 					totalBytes += subjectBytesReportMap[k]
 					if (count + 1) == subjCount {
@@ -130,9 +134,15 @@ func startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, subjectRepor
 				}
 				subjMu.Unlock()
 
-				table := newTableWriter("Active Subject Report")
+				tableHeaderString := ""
+				if subjCount == 1 {
+					tableHeaderString = "Top Subject Report"
+				} else {
+					tableHeaderString = fmt.Sprintf("Top %d Active Subjects Report", subjCount)
+				}
+				table := newTableWriter(tableHeaderString)
 				table.AddHeaders("Subject", "Message Count", "Bytes")
-				table.AddFooter("Totals", totalCount, totalBytes)
+				table.AddFooter("Totals", humanize.Comma(totalCount), humanize.IBytes(uint64(totalBytes)))
 				for i := range subjectRows {
 					table.AddRow(subjectRows[i]...)
 				}
@@ -166,6 +176,10 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 	if c.queue != "" && c.jetStream {
 		return fmt.Errorf("queue group subscriptions are not supported with JetStream")
+	}
+
+	if c.reportSubjects && c.reportSubjectsCount == 0 {
+		return fmt.Errorf("subject count must be at least one")
 	}
 
 	var (
