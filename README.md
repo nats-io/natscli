@@ -315,7 +315,7 @@ Another example is creating hex dumps from any message to avoid terminal corrupt
 By changing the subscription into:
 
 ```
-go run ./nats/ sub --translate 'xxd' cli.json
+nats sub --translate 'xxd' cli.json
 ```
 
 We will get the following output for the same published msg:
