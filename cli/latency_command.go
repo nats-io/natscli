@@ -67,7 +67,7 @@ func (c *latencyCmd) latencyAction(_ *fisk.ParseContext) error {
 
 	c1, err := newNatsConn("", natsOpts()...)
 	if err != nil {
-		return err
+		return fmt.Errorf("first connection failed: %v", err)
 	}
 
 	// reset to not use the stored conn or context
@@ -75,18 +75,22 @@ func (c *latencyCmd) latencyAction(_ *fisk.ParseContext) error {
 
 	c2, err := newNatsConn(c.serverB, natsOpts()...)
 	if err != nil {
-		return err
+		return fmt.Errorf("second connection failed: %v", err)
 	}
 
 	// Do some quick RTT calculations
 	log.Println("==============================")
-	now := time.Now()
-	c1.Flush()
-	log.Printf("Pub Server RTT : %v\n", c.fmtDur(time.Since(now)))
+	rtt, err := c1.RTT()
+	if err != nil {
+		return fmt.Errorf("could not determin RTT for first connection: %v", err)
+	}
+	log.Printf("Pub Server RTT : %v\n", c.fmtDur(rtt))
 
-	now = time.Now()
-	c2.Flush()
-	log.Printf("Sub Server RTT : %v\n", c.fmtDur(time.Since(now)))
+	rtt, err = c2.RTT()
+	if err != nil {
+		return fmt.Errorf("could not determin RTT for second connection: %v", err)
+	}
+	log.Printf("Sub Server RTT : %v\n", c.fmtDur(rtt))
 
 	// Duration tracking
 	durations := make([]time.Duration, 0, c.numPubs)
@@ -102,7 +106,7 @@ func (c *latencyCmd) latencyAction(_ *fisk.ParseContext) error {
 	received := 0
 
 	// Async Subscriber (Runs in its own Goroutine)
-	c2.Subscribe(subject, func(msg *nats.Msg) {
+	_, err = c2.Subscribe(subject, func(msg *nats.Msg) {
 		sendTime := int64(binary.LittleEndian.Uint64(msg.Data))
 		durations = append(durations, time.Duration(time.Now().UnixNano()-sendTime))
 		received++
@@ -110,11 +114,21 @@ func (c *latencyCmd) latencyAction(_ *fisk.ParseContext) error {
 			wg.Done()
 		}
 	})
+	if err != nil {
+		return fmt.Errorf("subscribing on second connection failed: %v", err)
+	}
+
 	// Make sure interest is set for subscribe before publish since a different connection.
-	c2.Flush()
+	err = c2.Flush()
+	if err != nil {
+		return fmt.Errorf("could not flush second connection: %v", err)
+	}
 
 	// wait for routes to be established so we get every message
-	c.waitForRoute(c1, c2)
+	err = c.waitForRoute(c1, c2)
+	if err != nil {
+		return err
+	}
 
 	log.Printf("Message Payload: %v\n", c.byteSize(c.msgSize))
 	log.Printf("Target Duration: %v\n", c.testDuration)
@@ -153,7 +167,10 @@ func (c *latencyCmd) latencyAction(_ *fisk.ParseContext) error {
 		now := time.Now()
 		// Place the send time in the front of the payload.
 		binary.LittleEndian.PutUint64(data[0:], uint64(now.UnixNano()))
-		c1.Publish(subject, data)
+		err = c1.Publish(subject, data)
+		if err != nil {
+			log.Printf("Publishing failed: %v", err)
+		}
 		adjustAndSleep(i + 1)
 	}
 	pubDur := time.Since(pubStart)
@@ -263,7 +280,10 @@ func (c *latencyCmd) waitForRoute(pnc *nats.Conn, snc *nats.Conn) error {
 		return fmt.Errorf("couldn't subscribe to test subject %s: %v", subject, err)
 	}
 	defer sub.Unsubscribe()
-	snc.Flush()
+	err = snc.Flush()
+	if err != nil {
+		return fmt.Errorf("flushing connection failed: %v", err)
+	}
 
 	// Periodically send messages until the test subscription receives
 	// a message.  Allow for two seconds.
