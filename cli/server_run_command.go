@@ -40,8 +40,8 @@ type SrvRunConfig struct {
 	Verbose              bool
 	Debug                bool
 	StoreDir             string
-	Listen               string
 	Clean                bool
+	MonitorPort          int
 	Context              *natscontext.Context
 }
 
@@ -52,7 +52,9 @@ debug: {{.Debug}}
 trace: {{.Verbose}}
 system_account: SYSTEM
 logtime: false
-
+{{- if .MonitorPort }}
+http_port: {{.MonitorPort}}
+{{- end }}
 {{- if .JetStream }}
 jetstream {
     store_dir: "{{ .StoreDir | escape }}"
@@ -126,6 +128,7 @@ func configureServerRunCommand(srv *fisk.CmdClause) {
 	run.Flag("extend", "Extends a NATS network using a context").UnNegatableBoolVar(&c.config.ExtendWithContext)
 	run.Flag("jetstream", "Enables JetStream support").UnNegatableBoolVar(&c.config.JetStream)
 	run.Flag("port", "Sets the local listening port").Default("-1").StringVar(&c.config.Port)
+	run.Flag("monitor", "Enable HTTP based monitoring on a local listening port").IntVar(&c.config.MonitorPort)
 	run.Flag("clean", "Remove contexts after exiting").UnNegatableBoolVar(&c.config.Clean)
 	run.Flag("verbose", "Log in debug mode").UnNegatableBoolVar(&c.config.Debug)
 }
