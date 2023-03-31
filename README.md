@@ -281,6 +281,67 @@ newyork: ☀️ +2°C
 Now the `nats` CLI parses the subject, extracts the `{london,newyork}` from the subjects and calls `curl`, replacing
 `{{2}}` with the body of the 2nd subject token - `{london,newyork}`.
 
+## Translating message data using a converter command
+
+Additional to the raw output of messages using `nats sub` and `nats stream view` you can also translate the message data by running it through a command. 
+
+The command receives the message data as raw bytes through stdin and the output of the command will be the shown output for the message. There is the additional possibility to add the filter subject by using `{{Subject}}` as part of the arguments for the tranlation command.
+
+#### Examples for using the translation feature:
+
+Here we use the [jq](https://github.com/stedolan/jq) tool to format our json message paylot into a more readable format:
+
+We subscribe to a subject that will receive json data.
+```
+nats sub --translate 'jq .' cli.json
+```
+Now we publish some example data.
+```
+nats pub cli.json '{"task":"demo","duration":60}'
+```
+
+The Output will show the message formatted.
+```
+23:54:35 Subscribing on cli.json
+[#1] Received on "cli.json"
+{
+  "task": "demo",
+  "duration": 60
+}
+```
+
+Another example is creating hex dumps from any message to avoid terminal corruption.
+
+By changing the subscription into:
+
+```
+go run ./nats/ sub --translate 'xxd' cli.json
+```
+
+We will get the following output for the same published msg:
+```
+00:02:56 Subscribing on cli.json
+[#1] Received on "cli.json"
+00000000: 7b22 7461 736b 223a 2264 656d 6f22 2c22  {"task":"demo","
+00000010: 6475 7261 7469 6f6e 223a 3630 7d         duration":60}
+```
+
+#### Examples for using the translation feature with template:
+
+A somewhat artificial example using the subject as argument would be:
+```
+nats sub --translate "sed 's/\(.*\)/{{Subject}}: \1/'" cli.json
+```
+
+Output
+```
+00:22:19 Subscribing on cli.json
+[#1] Received on "cli.json"
+cli.json: {"task":"demo","duration":60}
+```
+
+The translation feature makes it possible to write specialized or universal translators to aid in debugging messages in streams or core nats.
+
 ## Benchmarking and Latency Testing
 
 Benchmarking and latency testing is key requirement for evaluating the production preparedness of your NATS network.

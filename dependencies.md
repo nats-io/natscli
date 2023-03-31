@@ -26,6 +26,7 @@ This file lists the dependencies used in this repository.
 | github.com/nats-io/nats.go | Apache License 2.0 |
 | github.com/nats-io/nkeys | Apache License 2.0 |
 | github.com/nats-io/nuid | Apache License 2.0 |
+| github.com/google/shlex | Apache License 2.0 |
 | github.com/tylertreat/hdrhistogram-writer | Apache License 2.0 |
 | github.com/xeipuuv/gojsonpointer | Apache License 2.0 |
 | github.com/xeipuuv/gojsonreference | Apache License 2.0 |
