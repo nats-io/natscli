@@ -163,6 +163,7 @@ func configureConsumerCommand(app commandHost) {
 	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
 	consInfo.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	consInfo.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	consAdd := cons.Command("add", "Creates a new Consumer").Alias("create").Alias("new").Action(c.createAction)
 	consAdd.Arg("stream", "Stream name").StringVar(&c.stream)
