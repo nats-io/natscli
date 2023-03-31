@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/nats-io/jsm.go"
 	"io"
 	"math"
 	"math/rand"
@@ -36,6 +35,8 @@ import (
 	"text/template"
 	"time"
 	"unicode"
+
+	"github.com/nats-io/jsm.go"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -67,6 +68,10 @@ func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool
 
 	if force {
 		return "", nil, fmt.Errorf("unknown consumer %q > %q", stream, consumer)
+	}
+
+	if !isTerminal() {
+		return "", nil, fmt.Errorf("cannot pick a Consumer without a terminal and no Consumer name supplied")
 	}
 
 	consumers, err := mgr.ConsumerNames(stream)
@@ -120,6 +125,10 @@ func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string
 
 	if known {
 		return stream, nil, nil
+	}
+
+	if !isTerminal() {
+		return "", nil, fmt.Errorf("cannot pick a Stream without a terminal and no Stream name supplied")
 	}
 
 	if force {
