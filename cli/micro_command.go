@@ -303,8 +303,8 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 		fmt.Println()
 		fmt.Printf("Metadata:")
 		dumpMapStrings(nfo.Metadata, 3)
-		fmt.Println()
 	}
+	fmt.Println()
 
 	fmt.Printf("Statistics for %d Endpoint(s):\n\n", len(stats.Endpoints))
 	for _, e := range stats.Endpoints {
