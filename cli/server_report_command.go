@@ -35,6 +35,9 @@ type SrvReportCmd struct {
 	reverse bool
 	compact bool
 	subject string
+	server  string
+	cluster string
+	tags    []string
 }
 
 type srvReportAccountInfo struct {
@@ -55,9 +58,16 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	report := srv.Command("report", "Report on various server metrics").Alias("rep")
 	report.Flag("reverse", "Reverse sort connections").Short('R').Default("true").BoolVar(&c.reverse)
 
+	addFilterOpts := func(cmd *fisk.CmdClause) {
+		cmd.Flag("host", "Limit the report to a specific NATS server").StringVar(&c.server)
+		cmd.Flag("cluster", "Limit the report to a specific Cluster").StringVar(&c.cluster)
+		cmd.Flag("tags", "Limit the report to nodes matching certain tags").StringsVar(&c.tags)
+	}
+
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnections)
 	conns.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	conns.Flag("account", "Limit report to a specific account").StringVar(&c.account)
+	addFilterOpts(conns)
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
@@ -66,12 +76,14 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	acct := report.Command("accounts", "Report on account activity").Alias("acct").Action(c.reportAccount)
 	acct.Arg("account", "Account to produce a report for").StringVar(&c.account)
 	acct.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
+	addFilterOpts(acct)
 	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs,uptime,cid)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs", "uptime", "cid")
 	acct.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	acct.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.reportJetStream)
 	jsz.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
+	addFilterOpts(jsz)
 	jsz.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
 	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
 	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
@@ -268,11 +280,13 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	fmt.Print(table.Render())
 	fmt.Println()
 
-	if len(jszResponses) > 0 && cluster == nil {
+	switch {
+	case c.isFiltered():
+	case len(jszResponses) > 0 && cluster == nil:
 		fmt.Println()
 		fmt.Printf("WARNING: No cluster meta leader found. The cluster expects %d nodes but only %d responded. JetStream operation require at least %d up nodes.", expectedClusterSize, len(jszResponses), expectedClusterSize/2+1)
 		fmt.Println()
-	} else {
+	default:
 		cluster.Replicas = append(cluster.Replicas, &server.PeerInfo{
 			Name:    cluster.Leader,
 			Current: true,
@@ -313,6 +327,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			table.AddRow(cNames[i], peer, leader, replica.Current, online, humanizeDuration(replica.Active), humanize.Comma(int64(replica.Lag)))
 		}
 		fmt.Print(table.Render())
+
 	}
 
 	return nil
@@ -757,6 +772,15 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 	return result, nil
 }
 
+func (c *SrvReportCmd) isFiltered() bool {
+	return c.server != "" || len(c.tags) > 0 || c.cluster != ""
+}
+
 func (c *SrvReportCmd) reqFilter() server.EventFilterOptions {
-	return server.EventFilterOptions{Domain: opts.Config.JSDomain()}
+	return server.EventFilterOptions{
+		Domain:  opts.Config.JSDomain(),
+		Name:    c.server,
+		Cluster: c.cluster,
+		Tags:    c.tags,
+	}
 }
