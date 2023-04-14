@@ -16,19 +16,19 @@ require (
 	github.com/guptarohit/asciigraph v0.5.5
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.16.3
+	github.com/klauspost/compress v1.16.4
 	github.com/mattn/go-isatty v0.0.18
 	github.com/nats-io/jsm.go v0.0.36-0.20230331112150-93da6574a0aa
 	github.com/nats-io/nats-server/v2 v2.9.16-0.20230331040945-6ced966776f3
-	github.com/nats-io/nats.go v1.25.0
+	github.com/nats-io/nats.go v1.25.1-0.20230413140837-2857164a1090
 	github.com/nats-io/nuid v1.0.1
-	github.com/prometheus/client_golang v1.14.0
+	github.com/prometheus/client_golang v1.15.0
 	github.com/prometheus/common v0.42.0
-	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
+	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
-	golang.org/x/crypto v0.7.0
-	golang.org/x/term v0.6.0
+	golang.org/x/crypto v0.8.0
+	golang.org/x/term v0.7.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -47,9 +47,10 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	golang.org/x/net v0.8.0 // indirect
-	golang.org/x/sys v0.6.0 // indirect
-	golang.org/x/text v0.8.0 // indirect
+	github.com/rogpeppe/go-internal v1.10.0 // indirect
+	golang.org/x/net v0.9.0 // indirect
+	golang.org/x/sys v0.7.0 // indirect
+	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
