@@ -18,7 +18,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/choria-io/fisk"
@@ -39,6 +38,7 @@ type pubCmd struct {
 	replyCount   int
 	replyTimeout time.Duration
 	forceStdin   bool
+	translate    string
 }
 
 func configurePubCommand(app commandHost) {
@@ -105,6 +105,7 @@ Available template functions are:
 	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)
 	req.Flag("reply-timeout", "Maximum timeout between incoming replies.").Default("300ms").DurationVar(&c.replyTimeout)
+	req.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
 }
 
 func init() {
@@ -182,10 +183,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 
 			switch {
 			case c.raw:
-				fmt.Println(string(m.Data))
-				if !strings.HasSuffix(string(m.Data), "\n") {
-					fmt.Println()
-				}
+				outPutMSGBody(m.Data, c.translate, m.Subject, "")
 			case logOutput:
 				log.Printf("Received with rtt %v", rtt)
 
@@ -198,10 +196,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 					fmt.Println()
 				}
 
-				fmt.Println(string(m.Data))
-				if !strings.HasSuffix(string(m.Data), "\n") {
-					fmt.Println()
-				}
+				outPutMSGBody(m.Data, c.translate, m.Subject, "")
 			}
 
 			rc++
