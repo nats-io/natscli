@@ -58,6 +58,7 @@ type SrvRequestCmd struct {
 	profileName  string
 	profileDebug int
 	profileDir   string
+	filterEmpty  bool
 }
 
 func configureServerRequestCommand(srv *fisk.CmdClause) {
@@ -89,6 +90,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	connz.Flag("filter-user", "Filter on a specific username").PlaceHolder("USER").StringVar(&c.userFilter)
 	connz.Flag("filter-account", "Filter on a specific account").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
 	connz.Flag("filter-subject", "Limits responses only to those connections with matching subscription interest").PlaceHolder("SUBJECT").StringVar(&c.subjectFilter)
+	connz.Flag("filter-empty", "Only shows responses that have connections").Default("false").UnNegatableBoolVar(&c.filterEmpty)
 
 	routez := req.Command("routes", "Show route details").Alias("route").Alias("routez").Action(c.routez)
 	routez.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
@@ -370,6 +372,12 @@ func (c *SrvRequestCmd) routez(_ *fisk.ParseContext) error {
 	return nil
 }
 
+type serverConnzResponse struct {
+	Server server.ServerInfo `json:"server"`
+	Error  *server.ApiError  `json:"error"`
+	Data   *server.Connz     `json:"data"`
+}
+
 func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 	opts := &server.ConnzEventOptions{
 		ConnzOptions: server.ConnzOptions{
@@ -407,6 +415,16 @@ func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 	}
 
 	for _, m := range res {
+		if c.filterEmpty {
+			var r serverConnzResponse
+			err = json.Unmarshal(m, &r)
+			if err == nil {
+				if r.Data.NumConns == 0 {
+					continue
+				}
+			}
+		}
+
 		fmt.Println(string(m))
 	}
 
