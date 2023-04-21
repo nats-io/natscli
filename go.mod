@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.6
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
-	github.com/choria-io/fisk v0.4.0
+	github.com/choria-io/fisk v0.4.1-0.20230421095814-f95ab533cc9f
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.4.2
 	github.com/fatih/color v1.15.0
@@ -16,10 +16,10 @@ require (
 	github.com/guptarohit/asciigraph v0.5.5
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.16.4
+	github.com/klauspost/compress v1.16.5
 	github.com/mattn/go-isatty v0.0.18
 	github.com/nats-io/jsm.go v0.0.36-0.20230421082434-197e757b5353
-	github.com/nats-io/nats-server/v2 v2.9.16-0.20230331040945-6ced966776f3
+	github.com/nats-io/nats-server/v2 v2.9.17-0.20230419155309-a93fd080f055
 	github.com/nats-io/nats.go v1.25.1-0.20230413140837-2857164a1090
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.15.0
@@ -48,6 +48,7 @@ require (
 	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
+	go.uber.org/automaxprocs v1.5.1 // indirect
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
