@@ -1312,6 +1312,12 @@ func longestString(list []string, max int) int {
 func surveyColors() []survey.AskOpt {
 	return []survey.AskOpt{
 		survey.WithIcons(func(icons *survey.IconSet) {
+			if opts.Config == nil {
+				icons.Question.Format = "white"
+				icons.SelectFocus.Format = "white"
+				return
+			}
+
 			switch opts.Config.ColorScheme() {
 			case "yellow":
 				icons.Question.Format = "yellow+hb"
