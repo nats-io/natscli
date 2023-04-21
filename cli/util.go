@@ -1086,9 +1086,11 @@ func newTableWriter(title string) *tbl {
 	tbl.writer.SetStyle(styles["rounded"])
 
 	if isatty.IsTerminal(os.Stdout.Fd()) {
-		style, ok := styles[opts.Config.ColorScheme()]
-		if ok {
-			tbl.writer.SetStyle(style)
+		if opts.Config != nil {
+			style, ok := styles[opts.Config.ColorScheme()]
+			if ok {
+				tbl.writer.SetStyle(style)
+			}
 		}
 	}
 
