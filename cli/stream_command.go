@@ -115,6 +115,7 @@ type streamCmd struct {
 	showStateOnly         bool
 	metadata              map[string]string
 	metadataIsSet         bool
+	compression           string
 
 	fServer      string
 	fCluster     string
@@ -168,6 +169,7 @@ func configureStreamCommand(app commandHost) {
 		if !edit {
 			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		}
+		f.Flag("compression", "Compression algorithm to use (file storage only)").Default("none").EnumVar(&c.compression, "none", "s2")
 		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
 		f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").IsSetByUser(&c.placementTagsSet).StringsVar(&c.placementTags)
 		f.Flag("tags", "Backward compatibility only, use --tag").Hidden().IsSetByUser(&c.placementTagsSet).StringsVar(&c.placementTags)
@@ -1537,6 +1539,9 @@ func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
 		fmt.Printf("               Sealed: true\n")
 	}
 	fmt.Printf("              Storage: %s\n", cfg.Storage.String())
+	if cfg.Storage == api.FileStorage {
+		fmt.Printf("          Compression: %s\n", cfg.Compression)
+	}
 	if cfg.Placement != nil {
 		if cfg.Placement.Cluster != "" {
 			fmt.Printf("    Placement Cluster: %s\n", cfg.Placement.Cluster)
@@ -1959,6 +1964,9 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		if c.storage == "" {
 			c.storage = "file"
 		}
+		if c.compression == "" {
+			c.compression = "none"
+		}
 		if c.replicas == 0 {
 			c.replicas = 1
 		}
@@ -1998,6 +2006,10 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	storage := c.storeTypeFromString(c.storage)
+
+	var compression api.Compression
+	err = compression.UnmarshalJSON([]byte(fmt.Sprintf("%q", c.compression)))
+	fisk.FatalIfError(err, "invalid compression algorithm")
 
 	if c.replicas == 0 {
 		c.replicas, err = askOneInt("Replication", "1", "When clustered, defines how many replicas of the data to store.  Settable using --replicas.")
@@ -2136,6 +2148,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		Duplicates:    dupeWindow,
 		MaxAge:        maxAge,
 		Storage:       storage,
+		Compression:   compression,
 		NoAck:         !c.ack,
 		Retention:     c.retentionPolicyFromString(),
 		Discard:       c.discardPolicyFromString(),
