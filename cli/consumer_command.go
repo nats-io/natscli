@@ -1155,6 +1155,9 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 		}, &sub)
 		fisk.FatalIfError(err, "could not ask for filtering subject")
 		c.filterSubjects = []string{sub}
+	}
+
+	switch {
 	case len(c.filterSubjects) == 1:
 		cfg.FilterSubject = c.filterSubjects[0]
 	case len(c.filterSubjects) > 1:
