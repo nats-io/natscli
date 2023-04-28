@@ -492,7 +492,7 @@ func (c *kvCommand) getAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	fmt.Printf("%s > %s created @ %s\n", res.Bucket(), res.Key(), res.Created().Format(time.RFC822))
+	fmt.Printf("%s > %s revision: %d created @ %s\n", res.Bucket(), res.Key(), res.Revision(), res.Created().Format(time.RFC822))
 	fmt.Println()
 	pv := base64IfNotPrintable(res.Value())
 	lpv := len(pv)
