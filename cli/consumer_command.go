@@ -44,6 +44,7 @@ type consumerCmd struct {
 	listNames      bool
 	force          bool
 	ack            bool
+	ackSetByUser   bool
 	term           bool
 	raw            bool
 	destination    string
@@ -196,7 +197,7 @@ func configureConsumerCommand(app commandHost) {
 	consNext := cons.Command("next", "Retrieves messages from Pull Consumers without interactive prompts").Action(c.nextAction)
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
-	consNext.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
+	consNext.Flag("ack", "Acknowledge received message").Default("true").IsSetByUser(&c.ackSetByUser).BoolVar(&c.ack)
 	consNext.Flag("term", "Terms the message").Default("false").UnNegatableBoolVar(&c.term)
 	consNext.Flag("raw", "Show only the message").Short('r').UnNegatableBoolVar(&c.raw)
 	consNext.Flag("wait", "Wait up to this period to acknowledge messages").DurationVar(&c.ackWait)
@@ -1419,6 +1420,16 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 		}
 	}
 
+	if c.term {
+		if !c.ackSetByUser {
+			c.ack = false
+		}
+
+		if c.ack {
+			fisk.Fatalf("can not both Acknowledge and Terminate message")
+		}
+	}
+
 	msg, err := sub.NextMsg(opts.Timeout)
 	if err != nil {
 		fatalIfNotPull()
@@ -1464,9 +1475,6 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	}
 
 	if c.term {
-		if c.ack {
-			fisk.Fatalf("can not both Acknowledge and Terminate message")
-		}
 		err = msg.Term()
 		fisk.FatalIfError(err, "could not Terminate message")
 		c.nc.Flush()
