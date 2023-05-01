@@ -25,17 +25,17 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 )
 
-type SrvRaftCmd struct {
+type SrvClusterCmd struct {
 	json             bool
 	force            bool
 	peer             string
 	placementCluster string
 }
 
-func configureServerRaftCommand(srv *fisk.CmdClause) {
-	c := &SrvRaftCmd{}
+func configureServerClusterCommand(srv *fisk.CmdClause) {
+	c := &SrvClusterCmd{}
 
-	raft := srv.Command("raft", "Manage JetStream Clustering").Alias("r")
+	raft := srv.Command("cluster", "Manage JetStream Clustering").Alias("r").Alias("raft")
 	raft.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	sd := raft.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDown)
@@ -46,7 +46,7 @@ func configureServerRaftCommand(srv *fisk.CmdClause) {
 	rm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 }
 
-func (c *SrvRaftCmd) metaPeerRemove(_ *fisk.ParseContext) error {
+func (c *SrvClusterCmd) metaPeerRemove(_ *fisk.ParseContext) error {
 	nc, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -117,7 +117,7 @@ func (c *SrvRaftCmd) metaPeerRemove(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *SrvRaftCmd) metaLeaderStandDown(_ *fisk.ParseContext) error {
+func (c *SrvClusterCmd) metaLeaderStandDown(_ *fisk.ParseContext) error {
 	nc, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
