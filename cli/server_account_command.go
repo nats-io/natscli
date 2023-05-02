@@ -14,6 +14,7 @@ type srvAccountCommand struct {
 	json    bool
 	account string
 	server  string
+	force   bool
 }
 
 func configureServerAccountCommand(srv *fisk.CmdClause) {
@@ -25,6 +26,38 @@ func configureServerAccountCommand(srv *fisk.CmdClause) {
 	info := account.Command("info", "Shows information for an account").Alias("i").Action(c.infoAction)
 	info.Arg("account", "The name of the account to view").Required().StringVar(&c.account)
 	info.Flag("host", "Request information from a specific server").StringVar(&c.server)
+
+	purge := account.Command("purge", "Purge assets from JetStream clusters").Action(c.purgeAccount)
+	purge.Arg("account", "The name of the account to purge").PlaceHolder("NAME").Required().StringVar(&c.account)
+	purge.Flag("force", "Perform the operation without prompting").Short('f').UnNegatableBoolVar(&c.force)
+}
+
+func (c *srvAccountCommand) purgeAccount(_ *fisk.ParseContext) error {
+	if !c.force {
+		fmt.Printf("This operation deletes all data from the %s account and cannot be reversed.\n\n", c.account)
+		remove, err := askConfirmation(fmt.Sprintf("Really purge account %s", c.account), false)
+		if err != nil {
+			return err
+		}
+
+		if !remove {
+			return nil
+		}
+	}
+
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	err = mgr.MetaPurgeAccount(c.account)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Purge operation on account %s initiated\n", c.account)
+
+	return nil
 }
 
 func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
