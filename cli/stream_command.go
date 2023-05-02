@@ -1349,6 +1349,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		cfg.Metadata = c.metadata
 	}
 
+	if err = cfg.Compression.UnmarshalJSON([]byte(fmt.Sprintf("%q", c.compression))); err != nil {
+		return cfg, fmt.Errorf("invalid compression algorithm")
+	}
+
 	if c.repubDest != "" && c.repubSource != "" {
 		cfg.RePublish = &api.RePublish{
 			Source:      c.repubSource,
