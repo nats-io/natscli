@@ -867,7 +867,7 @@ func (c *consumerCmd) cpAction(pc *fisk.ParseContext) (err error) {
 		cfg.MaxAckPending = c.maxAckPending
 	}
 
-	if c.idleHeartbeat != "" && c.idleHeartbeat != "-" {
+	if c.idleHeartbeat != "" && c.idleHeartbeat != "-1" {
 		hb, err := parseDurationString(c.idleHeartbeat)
 		fisk.FatalIfError(err, "Invalid heartbeat duration")
 		cfg.Heartbeat = hb
@@ -1269,6 +1269,10 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 
 	if c.bpsRateLimit > 0 && cfg.DeliverSubject == "" {
 		return nil, fmt.Errorf("rate limits are only possible on Push consumers")
+	}
+
+	if cfg.DeliverSubject == "" && (c.idleHeartbeat != "" && c.idleHeartbeat != "-1") {
+		return nil, fmt.Errorf("pull subscribers does not support idle heartbeats")
 	}
 
 	cfg.RateLimit = c.bpsRateLimit

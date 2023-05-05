@@ -83,7 +83,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("last-per-subject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
 	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
 	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
-	act.Flag("wait", "Max time to wait before unsubscribing.").DurationVar(&c.wait)
+	act.Flag("wait", "Unsubscribe after this amount of time without any traffic").DurationVar(&c.wait)
 	act.Flag("report-subjects", "Subscribes to a subject pattern and builds a de-duplicated report of active subjects receiving data").UnNegatableBoolVar(&c.reportSubjects)
 	act.Flag("report-top", "Number of subjects to show when doing 'report-subjects'. Default is 10.").Default("10").IntVar(&c.reportSubjectsCount)
 }
@@ -169,6 +169,13 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 
 	if c.dump == "-" && c.inbox {
 		return fmt.Errorf("generating inboxes is not compatible with dumping to stdout using null terminated strings")
+	}
+
+	if c.dump != "" && c.dump != "-" {
+		err = os.MkdirAll(c.dump, 0700)
+		if err != nil {
+			return err
+		}
 	}
 
 	c.jetStream = c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.stream != ""
