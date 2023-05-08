@@ -197,6 +197,7 @@ func (c *replyCmd) reply(_ *fisk.ParseContext) error {
 		i++
 
 		if c.limit != 0 && uint(i) == c.limit {
+			nc.Flush()
 			ic <- os.Interrupt
 		}
 	})
