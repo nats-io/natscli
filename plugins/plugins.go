@@ -9,6 +9,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/choria-io/fisk"
 )
@@ -49,7 +50,7 @@ func AddToApp(app *fisk.Application) error {
 			continue
 		}
 
-		_, err = app.ExternalPluginCommand(p.Cmd, p.Definition)
+		_, err = app.ExternalPluginCommand(p.Cmd, p.Definition, strings.TrimSuffix(entry.Name(), ".json"), "")
 		if err != nil {
 			log.Printf("Invalid plugin %v: %v", entry.Name(), err)
 			continue
