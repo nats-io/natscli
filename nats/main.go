@@ -19,6 +19,7 @@ import (
 	"runtime/debug"
 
 	"github.com/choria-io/fisk"
+	"github.com/nats-io/natscli/plugins"
 
 	"github.com/nats-io/natscli/cli"
 )
@@ -67,6 +68,8 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	ncli.Flag("no-context", "Disable the selected context").UnNegatableBoolVar(&cli.SkipContexts)
 
 	log.SetFlags(log.Ltime)
+
+	plugins.AddToApp(ncli)
 
 	ncli.MustParseWithUsage(os.Args[1:])
 }
