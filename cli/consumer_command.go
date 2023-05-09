@@ -262,13 +262,21 @@ func (c *consumerCmd) leaderStandDown(_ *fisk.ParseContext) error {
 			continue
 		}
 
+		if info.Cluster == nil {
+			log.Printf("Failed to retrieve Consumer State: no cluster information received")
+			continue
+		}
+
 		if info.Cluster.Leader != leader {
 			log.Printf("New leader elected %q", info.Cluster.Leader)
 			break
 		}
 	}
 
-	if info.Cluster.Leader == leader {
+	switch {
+	case info.Cluster == nil:
+		log.Printf("Consumer did not elect a leader after %s", time.Since(start).Round(time.Millisecond))
+	case info.Cluster.Leader == leader:
 		log.Printf("Leader did not change after %s", time.Since(start).Round(time.Millisecond))
 	}
 
