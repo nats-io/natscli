@@ -212,21 +212,20 @@ func (c *errCmd) lookupAction(_ *fisk.ParseContext) error {
 
 	for _, v := range errs {
 		if v.ErrCode == c.code {
-			fmt.Printf("NATS Error Code: %s\n\n", boldf("%d", v.ErrCode))
-			fmt.Printf("        Description: %s\n", v.Description)
-			if v.Comment != "" {
-				fmt.Printf("            Comment: %s\n", v.Comment)
-			}
-			fmt.Printf("          HTTP Code: %d\n", v.Code)
-			fmt.Printf("  Go Index Constant: %s\n", v.Constant)
-			if v.URL != "" {
-				fmt.Printf("           Help URL: %s\n", v.URL)
-			}
+			cols := newColumns(fmt.Sprintf("NATS Error Code: %s", boldf("%d", v.ErrCode)))
+			cols.AddRow("Description", v.Description)
+			cols.AddRowIfNotEmpty("Comment", v.Comment)
+			cols.AddRow("HTTP Code", v.Code)
+			cols.AddRow("Go Index Constant", v.Constant)
+			cols.AddRowIfNotEmpty("Help URL", v.URL)
+
+			cols.Println()
 			if v.Help != "" {
-				fmt.Printf("\n%s\n", v.Help)
+				cols.Println(v.Help)
 			} else {
-				fmt.Printf("\nNo further information available\n")
+				cols.Println("No further information available")
 			}
+			cols.Frender(os.Stdout)
 
 			return nil
 		}

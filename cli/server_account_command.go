@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -123,162 +124,135 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	fmt.Printf("Account information for account %s\n\n", nfo.AccountName)
+	cols := newColumns("Account information for account %s", nfo.AccountName)
+	defer cols.Frender(os.Stdout)
 
-	fmt.Println("Details:")
-	fmt.Println()
+	cols.AddSectionTitle("Details")
 
-	fmt.Printf("        Complete: %t\n", nfo.Complete)
-	fmt.Printf("         Expired: %t\n", nfo.Expired)
-	fmt.Printf("  System Account: %t\n", nfo.IsSystem)
-	fmt.Printf("         Updated: %v (%s ago)\n", nfo.LastUpdate.Format("2006-01-02T15:04:05"), humanizeDuration(time.Since(nfo.LastUpdate)))
-	fmt.Printf("       JetStream: %t\n", nfo.JetStream)
+	cols.AddRow("Complete", nfo.Complete)
+	cols.AddRow("Expired", nfo.Expired)
+	cols.AddRow("System Account", nfo.IsSystem)
+	cols.AddRowf("Updated", "%v (%s ago)", nfo.LastUpdate.Format("2006-01-02T15:04:05"), humanizeDuration(time.Since(nfo.LastUpdate)))
+	cols.AddRow("JetStream", nfo.JetStream)
+	cols.AddRowIfNotEmpty("Issuer", nfo.IssuerKey)
+	cols.AddRowIfNotEmpty("Tag", nfo.NameTag)
+	cols.AddRowIf("Tags", nfo.Tags, len(nfo.Tags) > 0)
 
-	if nfo.IssuerKey != "" {
-		fmt.Printf("          Issuer: %v\n", nfo.IssuerKey)
-	}
-	if nfo.NameTag != "" {
-		fmt.Printf("             Tag: %v\n", nfo.NameTag)
-	}
-	if len(nfo.Tags) > 0 {
-		fmt.Printf("            Tags: %s\n", strings.Join(nfo.Tags, ", "))
-	}
-
-	fmt.Println()
 	if len(nfo.Mappings) > 0 {
-		fmt.Println("Mappings:")
+		cols.AddSectionTitle("Mappings")
 
 		for subj, mappings := range nfo.Mappings {
-			c.renderMappings(subj, mappings)
+			c.renderMappings(cols, subj, mappings)
 		}
 	}
 
 	if len(nfo.Imports) > 0 {
-		fmt.Println()
-		fmt.Println("Imports:")
+		cols.AddSectionTitle("Imports")
 
 		for _, imp := range nfo.Imports {
-			c.renderImport(&imp)
+			c.renderImport(cols, &imp)
 		}
 	}
 
 	if len(nfo.Exports) > 0 {
-		fmt.Println()
-		fmt.Println("Exports:")
+		cols.AddSectionTitle("Exports")
 
 		for _, exp := range nfo.Exports {
-			c.renderExport(&exp)
+			c.renderExport(cols, &exp)
 		}
 	}
 
 	if len(nfo.Responses) > 0 {
-		fmt.Println()
-		fmt.Println("Responses:")
+		cols.AddSectionTitle("Responses")
 
 		for _, imp := range nfo.Responses {
-			c.renderImport(&imp)
+			c.renderImport(cols, &imp)
 		}
 	}
 
 	if len(nfo.RevokedUser) > 0 {
-		fmt.Println()
-		fmt.Println("Revoked Users:")
+		cols.AddSectionTitle("Revoked Users")
 
 		for r, t := range nfo.RevokedUser {
-			fmt.Printf("               %s: %s (%s ago)\n", r, t, humanizeDuration(time.Since(t)))
+			cols.AddRowf(r, "%s (%s ago)", t, humanizeDuration(time.Since(t)))
 		}
 	}
 
 	return nil
 }
 
-func (c *srvAccountCommand) renderMappings(subj string, mappings []*server.MapDest) {
+func (c *srvAccountCommand) renderMappings(cols *columnWriter, subj string, mappings []*server.MapDest) {
 	if len(mappings) == 0 {
 		return
 	}
 
-	fmt.Printf("\n   %s:\n", subj)
+	cols.Indent(2)
+	cols.Println(subj)
 	for _, mapping := range mappings {
-		parts := []string{fmt.Sprintf("Destination: %v", mapping.Subject)}
+		parts := []string{mapping.Subject}
 		if mapping.Cluster != "" {
 			parts = append(parts, fmt.Sprintf("in cluster %s", mapping.Cluster))
 		}
 		if mapping.Weight != 100 {
 			parts = append(parts, fmt.Sprintf("with weight %d", mapping.Weight))
 		}
-		fmt.Printf("      %s\n", strings.Join(parts, " "))
+		cols.Indent(4)
+		cols.AddRow("Destination", parts)
+		cols.Indent(2)
 	}
+	cols.Indent(0)
+	cols.Println()
 }
 
-func (c *srvAccountCommand) renderExport(exp *server.ExtExport) {
-	fmt.Println()
-	fmt.Printf("             Subject: %s\n", exp.Subject)
-	fmt.Printf("                Type: %s\n", exp.Type.String())
-	fmt.Printf("     Tokens Required: %t\n", exp.TokenReq)
-	fmt.Printf("       Response Type: %s\n", exp.ResponseType)
-	if exp.ResponseThreshold > 0 {
-		fmt.Printf("  Response Threshold: %s\n", humanizeDuration(exp.ResponseThreshold))
-	}
-	if exp.Description != "" {
-		fmt.Printf("         Description: %s\n", exp.Description)
-	}
-	if exp.InfoURL != "" {
-		fmt.Printf("            Info URL: %s\n", exp.InfoURL)
-	}
-	if exp.Name != "" {
-		fmt.Printf("                Name: %s\n", exp.Name)
-	}
-	if exp.AccountTokenPosition > 0 {
-		fmt.Printf("   Account Token Pos: %d\n", exp.AccountTokenPosition)
-	}
+func (c *srvAccountCommand) renderExport(cols *columnWriter, exp *server.ExtExport) {
+	cols.AddRow("Subject", exp.Subject)
+	cols.AddRow("Type", exp.Type.String())
+	cols.AddRow("Tokens Required", exp.TokenReq)
+	cols.AddRow("Response Type", exp.ResponseType)
+	cols.AddRowIf("Response Threshold", exp.ResponseThreshold, exp.ResponseThreshold > 0)
+	cols.AddRowIfNotEmpty("Description", exp.Description)
+	cols.AddRowIfNotEmpty("Info URL", exp.InfoURL)
+	cols.AddRowIfNotEmpty("Name", exp.Name)
+	cols.AddRowIf("Account Token Pos", exp.AccountTokenPosition, exp.AccountTokenPosition > 0)
 
 	if len(exp.ApprovedAccounts) > 0 {
-		fmt.Println()
-		if len(exp.ApprovedAccounts) > 33 {
-			fmt.Printf("            Accounts: Rendering 33/%d use --json for the full list\n", len(exp.ApprovedAccounts))
+		if len(exp.ApprovedAccounts) > 20 {
+			cols.AddRowf("Accounts", "Rendering 20/%d use --json for the full list", len(exp.ApprovedAccounts))
 		} else {
-			fmt.Printf("            Accounts:\n")
+			cols.AddRow("Accounts", "")
 		}
-		fmt.Println()
 
-		var list []string
 		var cnt int
 		for _, k := range exp.ApprovedAccounts {
-			list = append(list, k)
-			if cnt == 32 {
+			cols.AddRow("", k)
+			if cnt == 19 {
 				break
 			}
 			cnt++
 		}
-
-		dumpStrings(list, 3, 22)
 	}
 
 	if len(exp.Revocations) > 0 {
-		fmt.Println()
-
-		if len(exp.Revocations) > 33 {
-			fmt.Printf("         Revocations: Rendering 33/%d use --json for the full list\n", len(exp.Revocations))
+		if len(exp.Revocations) > 20 {
+			cols.AddRowf("Revocations", "Rendering 20/%d use --json for the full list", len(exp.Revocations))
 		} else {
-			fmt.Printf("         Revocations:\n")
+			cols.AddRow("Revocations", "")
 		}
-		fmt.Println()
+		cols.Println()
 
-		var list []string
 		var cnt int
 		for k := range exp.Revocations {
-			list = append(list, k)
-			if cnt == 32 {
+			cols.AddRow("", k)
+			if cnt == 19 {
 				break
 			}
 			cnt++
 		}
-
-		dumpStrings(list, 3, 22)
 	}
+	cols.Println()
 }
 
-func (c *srvAccountCommand) renderImport(imp *server.ExtImport) {
+func (c *srvAccountCommand) renderImport(cols *columnWriter, imp *server.ExtImport) {
 	local := string(imp.LocalSubject)
 	subj := string(imp.Subject)
 	if local == "" {
@@ -293,10 +267,8 @@ func (c *srvAccountCommand) renderImport(imp *server.ExtImport) {
 		return
 	}
 
-	fmt.Println()
-
 	if imp.Invalid {
-		fmt.Printf("       Invalid: true\n")
+		cols.AddRow("Invalid", true)
 	}
 
 	parts := []string{local}
@@ -311,15 +283,14 @@ func (c *srvAccountCommand) renderImport(imp *server.ExtImport) {
 		}
 	}
 
-	fmt.Printf("       Subject: %v\n", strings.Join(parts, " "))
-	fmt.Printf("          Type: %s\n", imp.Type.String())
-	if imp.Name != "" {
-		fmt.Printf("          Name: %v\n", imp.Name)
-	}
-	fmt.Printf("       Sharing: %t\n", imp.Share)
+	cols.AddRow("Subject", strings.Join(parts, " "))
+	cols.AddRow("Type", imp.Type.String())
+	cols.AddRowIfNotEmpty("Name", imp.Name)
+	cols.AddRow("Sharing", imp.Share)
 	if imp.TrackingHdr == nil {
-		fmt.Printf("      Tracking: %t\n", imp.Tracking)
+		cols.AddRow("Tracking", imp.Tracking)
 	} else {
-		fmt.Printf("      Tracking: %t header %v\n", imp.Tracking, imp.TrackingHdr)
+		cols.AddRowf("Tracking", "%t header %v", imp.Tracking, imp.TrackingHdr)
 	}
+	cols.Println()
 }

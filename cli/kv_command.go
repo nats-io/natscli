@@ -726,88 +726,83 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 		nfo = status.(*nats.KeyValueBucketStatus).StreamInfo()
 	}
 
+	cols := newColumns("")
+	defer cols.Frender(os.Stdout)
+
 	if nfo == nil {
-		fmt.Printf("Information for Key-Value Store Bucket %s\n", status.Bucket())
+		cols.SetHeading(fmt.Sprintf("Information for Key-Value Store Bucket %s", status.Bucket()))
 	} else {
-		fmt.Printf("Information for Key-Value Store Bucket %s created %s\n", status.Bucket(), nfo.Created.Local().Format(time.RFC3339))
+		cols.SetHeading(fmt.Sprintf("Information for Key-Value Store Bucket %s created %s", status.Bucket(), nfo.Created.Local().Format(time.RFC3339)))
 	}
 
-	fmt.Println()
-	fmt.Println("Configuration:")
-	fmt.Println()
-	fmt.Printf("          Bucket Name: %s\n", status.Bucket())
-	fmt.Printf("         History Kept: %s\n", humanize.Comma(status.History()))
-	fmt.Printf("        Values Stored: %s\n", humanize.Comma(int64(status.Values())))
-	fmt.Printf("   Backing Store Kind: %s\n", status.BackingStore())
+	cols.AddSectionTitle("Configuration")
+
+	cols.AddRow("Bucket Name", status.Bucket())
+	cols.AddRow("History Kept", status.History())
+	cols.AddRow("Values Stored", status.Values())
+	cols.AddRow("Backing Store Kind", status.BackingStore())
 
 	if nfo != nil {
-		if nfo.Config.Description != "" {
-			fmt.Printf("          Description: %s\n", nfo.Config.Description)
-		}
-		fmt.Printf("          Bucket Size: %s\n", humanize.IBytes(nfo.State.Bytes))
+		cols.AddRowIfNotEmpty("Description", nfo.Config.Description)
+
+		cols.AddRow("Bucket Size", humanize.IBytes(nfo.State.Bytes))
 		if nfo.Config.MaxBytes == -1 {
-			fmt.Printf("  Maximum Bucket Size: unlimited\n")
+			cols.AddRow("Maximum Bucket Size", "unlimited")
 		} else {
-			fmt.Printf("  Maximum Bucket Size: %s\n", humanize.IBytes(uint64(nfo.Config.MaxBytes)))
+			cols.AddRow("Maximum Bucket Size", humanize.IBytes(uint64(nfo.Config.MaxBytes)))
 		}
 		if nfo.Config.MaxMsgSize == -1 {
-			fmt.Printf("   Maximum Value Size: unlimited\n")
+			cols.AddRow("Maximum Value Size", "unlimited")
 		} else {
-			fmt.Printf("   Maximum Value Size: %s\n", humanize.IBytes(uint64(nfo.Config.MaxMsgSize)))
+			cols.AddRow("Maximum Value Size", humanize.IBytes(uint64(nfo.Config.MaxMsgSize)))
 		}
 		if nfo.Config.MaxAge <= 0 {
-			fmt.Printf("          Maximum Age: unlimited\n")
+			cols.AddRow("Maximum Age", "unlimited")
 		} else {
-			fmt.Printf("          Maximum Age: %s\n", humanizeDuration(nfo.Config.MaxAge))
+			cols.AddRow("Maximum Age", nfo.Config.MaxAge)
 		}
-		fmt.Printf("     JetStream Stream: %s\n", nfo.Config.Name)
-		fmt.Printf("              Storage: %s\n", nfo.Config.Storage.String())
+		cols.AddRow("JetStream Stream", nfo.Config.Name)
+		cols.AddRow("Storage", nfo.Config.Storage.String())
 		if nfo.Config.RePublish != nil {
 			if nfo.Config.RePublish.HeadersOnly {
-				fmt.Printf(" Republishing Headers: %s to %s", nfo.Config.RePublish.Source, nfo.Config.RePublish.Destination)
+				cols.AddRowf("Republishing Headers", "%s to %s", nfo.Config.RePublish.Source, nfo.Config.RePublish.Destination)
 			} else {
-				fmt.Printf("         Republishing: %s to %s", nfo.Config.RePublish.Source, nfo.Config.RePublish.Destination)
+				cols.AddRowf("Republishing", "%s to %s", nfo.Config.RePublish.Source, nfo.Config.RePublish.Destination)
 			}
 		}
 
 		if nfo.Mirror != nil {
 			s := nfo.Mirror
-			fmt.Println("\n  Mirror Information:")
-			fmt.Println()
-			fmt.Printf("        Origin Bucket: %s\n", strings.TrimPrefix(s.Name, "KV_"))
-			if s.External != nil {
-				fmt.Printf("         External API: %v\n", s.External.APIPrefix)
-			}
+			cols.AddSectionTitle("Mirror Information")
+			cols.AddRow("Origin Bucket", strings.TrimPrefix(s.Name, "KV_"))
+			cols.AddRowIf("External API", s.External.APIPrefix, s.External != nil)
 			if s.Active > 0 && s.Active < math.MaxInt64 {
-				fmt.Printf("            Last Seen: %v\n", humanizeDuration(s.Active))
+				cols.AddRow("Last Seen", s.Active)
 			} else {
-				fmt.Printf("     	   Last Seen: never\n")
+				cols.AddRowf("Last Seen", "never")
 			}
-			fmt.Printf("                  Lag: %s\n", humanize.Comma(int64(s.Lag)))
-
-			fmt.Println()
+			cols.AddRow("Lag", s.Lag)
 		}
 		if nfo.Cluster != nil {
-			fmt.Println("\n  Cluster Information:")
-			fmt.Println()
-			renderNatsGoClusterInfo(nfo)
-			fmt.Println()
+			cols.AddSectionTitle("Cluster Information")
+			renderNatsGoClusterInfo(cols, nfo)
 		}
 
 		if !nfo.Config.AllowRollup || nfo.Config.Discard != nats.DiscardNew {
-			fmt.Println("Warning the bucket if not compatible with the latest")
-			fmt.Println("configuration format and needs a configuration upgrade.")
-			fmt.Println()
-			fmt.Printf("Please run: nats kv upgrade %s\n\n", status.Bucket())
+			cols.Println()
+			cols.Println("Warning the bucket if not compatible with the latest")
+			cols.Println("configuration format and needs a configuration upgrade.")
+			cols.Println()
+			cols.Println("Please run: nats kv upgrade ", status.Bucket())
 		}
 	}
 
 	return nil
 }
 
-func renderNatsGoClusterInfo(info *nats.StreamInfo) {
-	fmt.Printf("                Name: %s\n", info.Cluster.Name)
-	fmt.Printf("              Leader: %s\n", info.Cluster.Leader)
+func renderNatsGoClusterInfo(cols *columnWriter, info *nats.StreamInfo) {
+	cols.AddRow("Name", info.Cluster.Name)
+	cols.AddRow("Leader", info.Cluster.Leader)
 	for _, r := range info.Cluster.Replicas {
 		state := []string{r.Name}
 
@@ -834,6 +829,6 @@ func renderNatsGoClusterInfo(info *nats.StreamInfo) {
 			state = append(state, fmt.Sprintf("%d operation behind", r.Lag))
 		}
 
-		fmt.Printf("             Replica: %s\n", strings.Join(state, ", "))
+		cols.AddRow("Replica", state)
 	}
 }

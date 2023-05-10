@@ -16,13 +16,13 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
-	"github.com/fatih/color"
 	"github.com/nats-io/nats-server/v2/server"
 )
 
@@ -89,92 +89,108 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	bold := color.New(color.Bold).SprintFunc()
+	cols := newColumns("")
+	defer cols.Frender(os.Stdout)
 
 	if varz.ID == varz.Name {
-		fmt.Printf("Server information for %s\n\n", bold(varz.ID))
+		cols.SetHeading("Server information for %s", varz.ID)
 	} else {
-		fmt.Printf("Server information for %s (%s)\n\n", bold(varz.Name), bold(varz.ID))
+		cols.SetHeading("Server information for %s (%s)", varz.Name, varz.ID)
 	}
 
-	fmt.Printf("%s\n\n", bold("Process Details:"))
-	fmt.Printf("         Version: %s\n", varz.Version)
-	fmt.Printf("      Git Commit: %s\n", varz.GitCommit)
-	fmt.Printf("      Go Version: %s\n", varz.GoVersion)
-	fmt.Printf("      Start Time: %v\n", varz.Start)
-	fmt.Printf("          Uptime: %s\n", varz.Uptime)
+	cols.AddSectionTitle("Process Details")
+	cols.AddRow("Version", varz.Version)
+	cols.AddRow("Git Commit", varz.GitCommit)
+	cols.AddRow("Go Version", varz.GoVersion)
+	cols.AddRow("Start Time", varz.Start)
+	cols.AddRow("Uptime", varz.Uptime)
 
-	fmt.Println()
-	fmt.Printf("%s\n\n", bold("Connection Details:"))
-	fmt.Printf("   Auth Required: %v\n", varz.AuthRequired)
-	fmt.Printf("    TLS Required: %v\n", varz.TLSRequired)
+	cols.AddSectionTitle("Connection Details")
+	cols.AddRow("Auth Required", varz.AuthRequired)
+	cols.AddRow("TLS Required", varz.TLSRequired)
 	if varz.IP != "" {
-		fmt.Printf("            Host: %s:%d (%s)\n", varz.Host, varz.Port, varz.IP)
+		cols.AddRowf("Host", "%s:%d (%s)", varz.Host, varz.Port, varz.IP)
 	} else {
-		fmt.Printf("            Host: %s:%d\n", varz.Host, varz.Port)
+		cols.AddRowf("Host", "%s:%d", varz.Host, varz.Port)
 	}
-	fmt.Printf("     Client URLs: %s\n", strings.Join(varz.ClientConnectURLs, "\n                  "))
-	if len(varz.WSConnectURLs) > 0 {
-		fmt.Printf("  WebSocket URLs: %s\n", strings.Join(varz.WSConnectURLs, "\n                  "))
+	for i, u := range varz.ClientConnectURLs {
+		if i == 0 {
+			cols.AddRow("Client URLs", u)
+		} else {
+			cols.AddRow("", u)
+		}
 	}
 
-	fmt.Println()
+	if len(varz.WSConnectURLs) > 0 {
+		for i, u := range varz.WSConnectURLs {
+			if i == 0 {
+				cols.AddRow("WebSocket URLs", u)
+			} else {
+				cols.AddRow("", u)
+			}
+		}
+	}
+
 	if varz.JetStream.Config != nil && varz.JetStream.Config.StoreDir != "" {
 		js := varz.JetStream
-		fmt.Printf("%s\n\n", bold("JetStream:"))
-		fmt.Printf("              Domain: %s\n", js.Config.Domain)
-		fmt.Printf("   Storage Directory: %s\n", js.Config.StoreDir)
-		fmt.Printf("          Max Memory: %s\n", humanize.IBytes(uint64(js.Config.MaxMemory)))
-		fmt.Printf("            Max File: %s\n", humanize.IBytes(uint64(js.Config.MaxStore)))
-		fmt.Printf("      Active Acconts: %s\n", humanize.Comma(int64(js.Stats.Accounts)))
-		fmt.Printf("       Memory In Use: %s\n", humanize.IBytes(js.Stats.Memory))
-		fmt.Printf("         File In Use: %s\n", humanize.IBytes(js.Stats.Store))
-		fmt.Printf("        API Requests: %s\n", humanize.Comma(int64(js.Stats.API.Total)))
-		fmt.Printf("          API Errors: %s\n", humanize.Comma(int64(js.Stats.API.Errors)))
-		fmt.Println()
+		cols.AddSectionTitle("JetStream")
+		cols.AddRow("Domain", js.Config.Domain)
+		cols.AddRow("Storage Directory", js.Config.StoreDir)
+		cols.AddRow("Max Memory", humanize.IBytes(uint64(js.Config.MaxMemory)))
+		cols.AddRow("Max File", humanize.IBytes(uint64(js.Config.MaxStore)))
+		cols.AddRow("Active Accounts", js.Stats.Accounts)
+		cols.AddRow("Memory In Use", humanize.IBytes(js.Stats.Memory))
+		cols.AddRow("File In Use", humanize.IBytes(js.Stats.Store))
+		cols.AddRow("API Requests", js.Stats.API.Total)
+		cols.AddRow("API Errors", js.Stats.API.Errors)
 	}
 
-	fmt.Printf("%s\n\n", bold("Limits:"))
-	fmt.Printf("        Max Conn: %d\n", varz.MaxConn)
-	fmt.Printf("        Max Subs: %d\n", varz.MaxSubs)
-	fmt.Printf("     Max Payload: %s\n", humanize.IBytes(uint64(varz.MaxPayload)))
-	fmt.Printf("     TLS Timeout: %v\n", time.Duration(varz.TLSTimeout)*time.Second)
-	fmt.Printf("  Write Deadline: %v\n", varz.WriteDeadline.Round(time.Millisecond))
+	cols.AddSectionTitle("Limits")
+	cols.AddRow("Max Conn", varz.MaxConn)
+	cols.AddRow("Max Subs", varz.MaxSubs)
+	cols.AddRow("Max Payload", humanize.IBytes(uint64(varz.MaxPayload)))
+	cols.AddRow("TLS Timeout", time.Duration(varz.TLSTimeout)*time.Second)
+	cols.AddRow("Write Deadline", varz.WriteDeadline.Round(time.Millisecond))
 
-	fmt.Println()
-	fmt.Printf("%s\n\n", bold("Statistics:"))
-	fmt.Printf("       CPU Cores: %d %.2f%%\n", varz.Cores, varz.CPU)
-	fmt.Printf("          Memory: %s\n", humanize.IBytes(uint64(varz.Mem)))
-	fmt.Printf("     Connections: %s\n", humanize.Comma(int64(varz.Connections)))
-	fmt.Printf("   Subscriptions: %s\n", humanize.Comma(int64(varz.Subscriptions)))
-	fmt.Printf("            Msgs: %s in %s out\n", humanize.Comma(varz.InMsgs), humanize.Comma(varz.OutMsgs))
-	fmt.Printf("           Bytes: %s in %s out\n", humanize.IBytes(uint64(varz.InBytes)), humanize.IBytes(uint64(varz.OutBytes)))
-	fmt.Printf("  Slow Consumers: %s\n", humanize.Comma(varz.SlowConsumers))
+	cols.AddSectionTitle("Statistics")
+	cols.AddRowf("CPU Cores", "%d %.2f%%", varz.Cores, varz.CPU)
+	cols.AddRow("Memory", humanize.IBytes(uint64(varz.Mem)))
+	cols.AddRow("Connections", varz.Connections)
+	cols.AddRow("Subscriptions", varz.Subscriptions)
+	cols.AddRowf("Messages", "%s in %s out", humanize.Comma(varz.InMsgs), humanize.Comma(varz.OutMsgs))
+	cols.AddRowf("Bytes", "%s in %s out", humanize.IBytes(uint64(varz.InBytes)), humanize.IBytes(uint64(varz.OutBytes)))
+	cols.AddRow("Slow Consumers", varz.SlowConsumers)
 
 	if len(varz.Cluster.URLs) > 0 {
-		fmt.Println()
-		fmt.Printf("%s\n\n", bold("Cluster:"))
-		fmt.Printf("            Name: %s\n", varz.Cluster.Name)
-		if len(varz.Tags) > 0 {
-			fmt.Printf("            Tags: %s\n", strings.Join(varz.Tags, ", "))
+		cols.AddSectionTitle("Cluster")
+		cols.AddRow("Name", varz.Cluster.Name)
+		cols.AddRowIf("Tags", strings.Join(varz.Tags, ", "), len(varz.Tags) > 0)
+		cols.AddRowf("Host", "%s:%d", varz.Cluster.Host, varz.Cluster.Port)
+		for i, u := range varz.Cluster.URLs {
+			if i == 0 {
+				cols.AddRow("URLs", u)
+			} else {
+				cols.AddRow("", u)
+			}
 		}
-		fmt.Printf("            Host: %s:%d\n", varz.Cluster.Host, varz.Cluster.Port)
-		fmt.Printf("            URLs: %s\n", strings.Join(varz.Cluster.URLs, "\n                  "))
 	}
 
 	if len(varz.Gateway.Gateways) > 0 {
-		fmt.Println()
-		fmt.Printf("%s\n\n", bold("Super Cluster:"))
-		fmt.Printf("            Name: %s\n", varz.Gateway.Name)
-		fmt.Printf("            Host: %s:%d\n", varz.Gateway.Host, varz.Gateway.Port)
+		cols.AddSectionTitle("Super Cluster")
+		cols.AddRow("Name", varz.Gateway.Name)
+		cols.AddRowf("Host", "%s:%d", varz.Gateway.Host, varz.Gateway.Port)
 		var list []string
 		for _, gwy := range varz.Gateway.Gateways {
 			list = append(list, gwy.Name)
 		}
 		sort.Strings(list)
-
-		fmt.Printf("        Clusters: %s\n", strings.Join(list, "\n                  "))
+		for i, n := range list {
+			if i == 0 {
+				cols.AddRow("Clusters", n)
+			} else {
+				cols.AddRow("", n)
+			}
+		}
 	}
-	fmt.Println()
 	return nil
 }
