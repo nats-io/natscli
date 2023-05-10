@@ -2512,19 +2512,42 @@ func (c *streamCmd) purgeAction(_ *fisk.ParseContext) (err error) {
 	return nil
 }
 
+func (c *streamCmd) lsNames(mgr *jsm.Manager, filter *jsm.StreamNamesFilter) error {
+	names, err := mgr.StreamNames(filter)
+	if err != nil {
+		return err
+	}
+
+	if c.json {
+		err = printJSON(names)
+		fisk.FatalIfError(err, "could not display Streams")
+		return nil
+	}
+
+	for _, n := range names {
+		fmt.Println(n)
+	}
+
+	return nil
+}
+
 func (c *streamCmd) lsAction(_ *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	fisk.FatalIfError(err, "setup failed")
-
-	var streams []*jsm.Stream
-	var names []string
-
-	skipped := false
 
 	var filter *jsm.StreamNamesFilter
 	if c.filterSubject != "" {
 		filter = &jsm.StreamNamesFilter{Subject: c.filterSubject}
 	}
+
+	if c.listNames {
+		return c.lsNames(mgr, filter)
+	}
+
+	var streams []*jsm.Stream
+	var names []string
+
+	skipped := false
 
 	missing, err := mgr.EachStream(filter, func(s *jsm.Stream) {
 		if !c.showAll && s.IsInternal() {
@@ -2542,11 +2565,6 @@ func (c *streamCmd) lsAction(_ *fisk.ParseContext) error {
 	if c.json {
 		err = printJSON(names)
 		fisk.FatalIfError(err, "could not display Streams")
-		return nil
-	}
-
-	if c.listNames {
-		fmt.Println(c.renderStreamsAsList(streams, missing))
 		return nil
 	}
 
