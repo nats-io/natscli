@@ -1531,132 +1531,109 @@ func (c *streamCmd) cpAction(pc *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *streamCmd) showStreamConfig(cfg api.StreamConfig) {
-	if cfg.Description != "" {
-		fmt.Printf("          Description: %s\n", cfg.Description)
-	}
-	if len(cfg.Subjects) > 0 {
-		fmt.Printf("             Subjects: %s\n", strings.Join(cfg.Subjects, ", "))
-	}
-	fmt.Printf("             Replicas: %d\n", cfg.Replicas)
-	if cfg.Sealed {
-		fmt.Printf("               Sealed: true\n")
-	}
-	fmt.Printf("              Storage: %s\n", cfg.Storage.String())
-	if cfg.Storage == api.FileStorage {
-		fmt.Printf("          Compression: %s\n", cfg.Compression)
-	}
+func (c *streamCmd) showStreamConfig(cols *columnWriter, cfg api.StreamConfig) {
+
+	cols.AddRowIfNotEmpty("Description", cfg.Description)
+
+	cols.AddRowIf("Subjects", cfg.Subjects, len(cfg.Subjects) > 0)
+	cols.AddRow("Replicas", cfg.Replicas)
+	cols.AddRowIf("Sealed", true, cfg.Sealed)
+	cols.AddRow("Storage", cfg.Storage.String())
+	cols.AddRowIf("Compression", cfg.Compression, cfg.Storage == api.FileStorage)
 	if cfg.Placement != nil {
-		if cfg.Placement.Cluster != "" {
-			fmt.Printf("    Placement Cluster: %s\n", cfg.Placement.Cluster)
-		}
-		if len(cfg.Placement.Tags) > 0 {
-			fmt.Printf("       Placement Tags: %s\n", strings.Join(cfg.Placement.Tags, ", "))
-		}
+		cols.AddRowIfNotEmpty("Placement Cluster", cfg.Placement.Cluster)
+		cols.AddRowIf("Placement Tags", cfg.Placement.Tags, len(cfg.Placement.Tags) > 0)
 	}
 	if cfg.RePublish != nil {
 		if cfg.RePublish.HeadersOnly {
-			fmt.Printf(" Republishing Headers: %s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
+			cols.AddRowf("Republishing Headers", "%s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
 		} else {
-			fmt.Printf("         Republishing: %s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
+			cols.AddRowf("Republishing", "%s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
 		}
 	}
 
-	fmt.Println()
-	fmt.Println("Options:")
-	fmt.Println()
+	cols.AddSectionTitle("Options")
 
-	fmt.Printf("            Retention: %s\n", cfg.Retention.String())
-	fmt.Printf("     Acknowledgments: %v\n", !cfg.NoAck)
+	cols.AddRow("Retention", cfg.Retention.String())
+	cols.AddRow("Acknowledgments", !cfg.NoAck)
 	dnp := cfg.Discard.String()
 	if cfg.DiscardNewPer {
 		dnp = "New Per Subject"
 	}
-	fmt.Printf("       Discard Policy: %s\n", dnp)
-	fmt.Printf("     Duplicate Window: %v\n", cfg.Duplicates)
-	if cfg.AllowDirect {
-		fmt.Printf("           Direct Get: %t\n", cfg.AllowDirect)
-	}
-	if cfg.MirrorDirect {
-		fmt.Printf("    Mirror Direct Get: %t\n", cfg.MirrorDirect)
-	}
-	fmt.Printf("    Allows Msg Delete: %v\n", !cfg.DenyDelete)
-	fmt.Printf("         Allows Purge: %v\n", !cfg.DenyPurge)
-	fmt.Printf("       Allows Rollups: %v\n", cfg.RollupAllowed)
+	cols.AddRow("Discard Policy", dnp)
+	cols.AddRow("Duplicate Window", cfg.Duplicates)
+	cols.AddRowIf("Direct Get", cfg.AllowDirect, cfg.AllowDirect)
+	cols.AddRowIf("Mirror Direct Get", cfg.MirrorDirect, cfg.MirrorDirect)
+	cols.AddRow("Allows Msg Delete", !cfg.DenyDelete)
+	cols.AddRow("Allows Purge", !cfg.DenyPurge)
+	cols.AddRow("Allows Rollups", cfg.RollupAllowed)
 
-	fmt.Println()
-	fmt.Println("Limits:")
-	fmt.Println()
+	cols.AddSectionTitle("Limits")
 
 	if cfg.MaxMsgs == -1 {
-		fmt.Println("     Maximum Messages: unlimited")
+		cols.AddRow("Maximum Messages", "unlimited")
 	} else {
-		fmt.Printf("     Maximum Messages: %s\n", humanize.Comma(cfg.MaxMsgs))
+		cols.AddRow("Maximum Messages", cfg.MaxMsgs)
 	}
 	if cfg.MaxMsgsPer <= 0 {
-		fmt.Println("  Maximum Per Subject: unlimited")
+		cols.AddRow("Maximum Per Subject", "unlimited")
 	} else {
-		fmt.Printf("  Maximum Per Subject: %s\n", humanize.Comma(cfg.MaxMsgsPer))
+		cols.AddRow("Maximum Per Subject", cfg.MaxMsgsPer)
 	}
 	if cfg.MaxBytes == -1 {
-		fmt.Println("        Maximum Bytes: unlimited")
+		cols.AddRow("Maximum Bytes", "unlimited")
 	} else {
-		fmt.Printf("        Maximum Bytes: %s\n", humanize.IBytes(uint64(cfg.MaxBytes)))
+		cols.AddRow("Maximum Bytes", humanize.IBytes(uint64(cfg.MaxBytes)))
 	}
 	if cfg.MaxAge <= 0 {
-		fmt.Println("          Maximum Age: unlimited")
+		cols.AddRow("Maximum Age", "unlimited")
 	} else {
-		fmt.Printf("          Maximum Age: %s\n", humanizeDuration(cfg.MaxAge))
+		cols.AddRow("Maximum Age", cfg.MaxAge)
 	}
 	if cfg.MaxMsgSize == -1 {
-		fmt.Println(" Maximum Message Size: unlimited")
+		cols.AddRow("Maximum Message Size", "unlimited")
 	} else {
-		fmt.Printf(" Maximum Message Size: %s\n", humanize.IBytes(uint64(cfg.MaxMsgSize)))
+		cols.AddRow("Maximum Message Size", humanize.IBytes(uint64(cfg.MaxMsgSize)))
 	}
 	if cfg.MaxConsumers == -1 {
-		fmt.Println("    Maximum Consumers: unlimited")
+		cols.AddRow("Maximum Consumers", "unlimited")
 	} else {
-		fmt.Printf("    Maximum Consumers: %s\n", humanize.Comma(int64(cfg.MaxConsumers)))
-	}
-	if cfg.Template != "" {
-		fmt.Printf("  Managed by Template: %s\n", cfg.Template)
+		cols.AddRow("Maximum Consumers", cfg.MaxConsumers)
 	}
 
 	if len(cfg.Metadata) > 0 {
-		fmt.Println()
-		fmt.Println("Metadata:")
-		fmt.Println()
-		dumpMapStrings(cfg.Metadata, 3)
+		cols.AddSectionTitle("Metadata")
+		cols.AddMapStrings(cfg.Metadata)
 	}
 
 	if cfg.Mirror != nil || len(cfg.Sources) > 0 {
-		fmt.Println("Replication:")
-		fmt.Println()
+		cols.AddSectionTitle("Replication")
 	}
-
-	if cfg.Mirror != nil {
-		fmt.Printf("               Mirror: %s\n", c.renderSource(cfg.Mirror))
-	}
+	cols.AddRowIfNotEmpty("Mirror", c.renderSource(cfg.Mirror))
 
 	if len(cfg.Sources) > 0 {
-		fmt.Printf("              Sources: ")
 		sort.Slice(cfg.Sources, func(i, j int) bool {
 			return cfg.Sources[i].Name < cfg.Sources[j].Name
 		})
 
 		for i, source := range cfg.Sources {
+			l := ""
 			if i == 0 {
-				fmt.Println(c.renderSource(source))
-			} else {
-				fmt.Printf("                       %s\n", c.renderSource(source))
+				l = "Sources"
 			}
+
+			cols.AddRow(l, c.renderSource(source))
 		}
 	}
 
-	fmt.Println()
+	cols.Println()
 }
 
 func (c *streamCmd) renderSource(s *api.StreamSource) string {
+	if s == nil {
+		return ""
+	}
+
 	parts := []string{s.Name}
 	if s.OptStartSeq > 0 {
 		parts = append(parts, fmt.Sprintf("Start Seq: %s", humanize.Comma(int64(s.OptStartSeq))))
@@ -1698,20 +1675,19 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		return
 	}
 
+	var cols *columnWriter
 	if c.showStateOnly {
-		fmt.Printf("State for Stream %s created %s\n", c.stream, info.Created.Local().Format("2006-01-02 15:04:05"))
-		fmt.Println()
+		cols = newColumns(fmt.Sprintf("State for Stream %s created %s", c.stream, info.Created.Local().Format("2006-01-02 15:04:05")))
 	} else {
-		fmt.Printf("Information for Stream %s created %s\n", c.stream, info.Created.Local().Format("2006-01-02 15:04:05"))
-		fmt.Println()
-		c.showStreamConfig(info.Config)
+		cols = newColumns(fmt.Sprintf("Information for Stream %s created %s", c.stream, info.Created.Local().Format("2006-01-02 15:04:05")))
+		c.showStreamConfig(cols, info.Config)
 	}
 
 	if info.Cluster != nil && info.Cluster.Name != "" {
-		fmt.Println("Cluster Information:")
-		fmt.Println()
-		fmt.Printf("                 Name: %s\n", info.Cluster.Name)
-		fmt.Printf("               Leader: %s\n", info.Cluster.Leader)
+		cols.AddSectionTitle("Cluster Information")
+
+		cols.AddRow("Name", info.Cluster.Name)
+		cols.AddRow("Leader", info.Cluster.Leader)
 		for _, r := range info.Cluster.Replicas {
 			state := []string{r.Name}
 
@@ -1738,80 +1714,75 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 				state = append(state, fmt.Sprintf("%s operation behind", humanize.Comma(int64(r.Lag))))
 			}
 
-			fmt.Printf("              Replica: %s\n", strings.Join(state, ", "))
+			cols.AddRow("Replica", state)
 
 		}
-		fmt.Println()
+		cols.Println()
 	}
 
 	showSource := func(s *api.StreamSourceInfo) {
-		fmt.Printf("          Stream Name: %s\n", s.Name)
-		fmt.Printf("                  Lag: %s\n", humanize.Comma(int64(s.Lag)))
+		cols.AddRow("Stream Name", s.Name)
+		cols.AddRow("Lag", s.Lag)
 		if s.Active > 0 && s.Active < math.MaxInt64 {
-			fmt.Printf("            Last Seen: %v\n", humanizeDuration(s.Active))
+			cols.AddRow("Last Seen", s.Active)
 		} else {
-			fmt.Printf("            Last Seen: never\n")
+			cols.AddRow("Last Seen", "never")
 		}
 		if s.External != nil {
-			fmt.Printf("      Ext. API Prefix: %s\n", s.External.ApiPrefix)
+			cols.AddRow("Ext. API Prefix", s.External.ApiPrefix)
 			if s.External.DeliverPrefix != "" {
-				fmt.Printf(" Ext. Delivery Prefix: %s\n", s.External.DeliverPrefix)
+				cols.AddRow("Ext. Delivery Prefix", s.External.DeliverPrefix)
 			}
 		}
 		if s.Error != nil {
-			fmt.Printf("                Error: %s\n", s.Error.Description)
+			cols.AddRow("Error", s.Error.Description)
 		}
 	}
 	if info.Mirror != nil {
-		fmt.Println("Mirror Information:")
-		fmt.Println()
+		cols.AddSectionTitle("Mirror Information")
 		showSource(info.Mirror)
-		fmt.Println()
 	}
 
 	if len(info.Sources) > 0 {
-		fmt.Println("Source Information:")
-		fmt.Println()
+		cols.AddSectionTitle("Source Information")
 		for _, s := range info.Sources {
 			showSource(s)
-			fmt.Println()
+			cols.Println()
 		}
 	}
 
-	fmt.Println("State:")
-	fmt.Println()
-	fmt.Printf("             Messages: %s\n", humanize.Comma(int64(info.State.Msgs)))
-	fmt.Printf("                Bytes: %s\n", humanize.IBytes(info.State.Bytes))
+	cols.AddSectionTitle("State")
+	cols.AddRow("Messages", info.State.Msgs)
+	cols.AddRow("Bytes", humanize.IBytes(info.State.Bytes))
 	if info.State.Lost != nil && len(info.State.Lost.Msgs) > 0 {
-		fmt.Printf("        Lost Messages: %s (%s)\n", humanize.Comma(int64(len(info.State.Lost.Msgs))), humanize.IBytes(info.State.Lost.Bytes))
+		cols.AddRowf("Lost Messages", "%s (%s)", humanize.Comma(int64(len(info.State.Lost.Msgs))), humanize.IBytes(info.State.Lost.Bytes))
 	}
 
 	if info.State.FirstTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
-		fmt.Printf("             FirstSeq: %s\n", humanize.Comma(int64(info.State.FirstSeq)))
+		cols.AddRow("FirstSeq", info.State.FirstSeq)
 	} else {
-		fmt.Printf("             FirstSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.FirstSeq)), info.State.FirstTime.Format("2006-01-02T15:04:05"))
+		cols.AddRowf("FirstSeq", "%s @ %s UTC", humanize.Comma(int64(info.State.FirstSeq)), info.State.FirstTime.Format("2006-01-02T15:04:05"))
 	}
 
 	if info.State.LastTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
-		fmt.Printf("              LastSeq: %s\n", humanize.Comma(int64(info.State.LastSeq)))
+		cols.AddRow("LastSeq", info.State.LastSeq)
 	} else {
-		fmt.Printf("              LastSeq: %s @ %s UTC\n", humanize.Comma(int64(info.State.LastSeq)), info.State.LastTime.Format("2006-01-02T15:04:05"))
+		cols.AddRowf("LastSeq", "%s @ %s UTC", humanize.Comma(int64(info.State.LastSeq)), info.State.LastTime.Format("2006-01-02T15:04:05"))
 	}
 
 	if len(info.State.Deleted) > 0 { // backwards compat with older servers
-		fmt.Printf("     Deleted Messages: %s\n", humanize.Comma(int64(len(info.State.Deleted))))
+		cols.AddRow("Deleted Messages", len(info.State.Deleted))
 	} else if info.State.NumDeleted > 0 {
-		fmt.Printf("     Deleted Messages: %s\n", humanize.Comma(int64(info.State.NumDeleted)))
+		cols.AddRow("Deleted Messages", info.State.NumDeleted)
 	}
 
-	fmt.Printf("     Active Consumers: %s\n", humanize.Comma(int64(info.State.Consumers)))
+	cols.AddRow("Active Consumers", info.State.Consumers)
 
-	if info.State.NumSubjects > 0 { // available from 2.8
-		fmt.Printf("   Number of Subjects: %s\n", humanize.Comma(int64(info.State.NumSubjects)))
+	if info.State.NumSubjects > 0 {
+		cols.AddRow("Number of Subjects", info.State.NumSubjects)
 	}
 
 	if len(info.Alternates) > 0 {
-		fmt.Printf("           Alternates: ")
 		lName := 0
 		lCluster := 0
 		for _, s := range info.Alternates {
@@ -1830,12 +1801,14 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 			}
 
 			if i == 0 {
-				fmt.Println(msg)
+				cols.AddRow("Alternates", msg)
 			} else {
-				fmt.Printf("                       %s\n", msg)
+				cols.AddRow("", msg)
 			}
 		}
 	}
+
+	cols.Frender(os.Stdout)
 }
 
 func (c *streamCmd) stateAction(pc *fisk.ParseContext) error {

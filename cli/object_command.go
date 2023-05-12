@@ -265,44 +265,40 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 		nfo = status.(*nats.ObjectBucketStatus).StreamInfo()
 	}
 
+	cols := newColumns("")
+	defer cols.Frender(os.Stdout)
+
 	if nfo == nil {
-		fmt.Printf("Information for Object Store Bucket %s\n", status.Bucket())
+		cols.SetHeading(fmt.Sprintf("Information for Object Store Bucket %s", status.Bucket()))
 	} else {
-		fmt.Printf("Information for Object Store Bucket %s created %s\n", status.Bucket(), nfo.Created.Local().Format(time.RFC3339))
+		cols.SetHeading(fmt.Sprintf("Information for Object Store Bucket %s created %s", status.Bucket(), nfo.Created.Local().Format(time.RFC3339)))
 	}
 
-	fmt.Println()
-	fmt.Println("Configuration:")
-	fmt.Println()
-	fmt.Printf("         Bucket Name: %s\n", status.Bucket())
-	if status.Description() != "" {
-		fmt.Printf("         Description: %s\n", status.Description())
-	}
-	fmt.Printf("            Replicas: %d\n", status.Replicas())
+	cols.AddSectionTitle("Configuration")
+	cols.AddRowf("Bucket Name", status.Bucket())
+	cols.AddRowIfNotEmpty("Description", status.Description())
+	cols.AddRow("Replicas", status.Replicas())
 	if status.TTL() == 0 {
-		fmt.Printf("                 TTL: unlimited\n")
+		cols.AddRow("TTL", "unlimited")
 	} else {
-		fmt.Printf("                 TTL: %s\n", humanizeDuration(status.TTL()))
+		cols.AddRow("TTL", status.TTL())
 	}
-
-	fmt.Printf("              Sealed: %v\n", status.Sealed())
-	fmt.Printf("                Size: %s\n", humanize.IBytes(status.Size()))
+	cols.AddRow("Sealed", status.Sealed())
+	cols.AddRow("Size", humanize.IBytes(status.Size()))
 	if nfo != nil {
 		if nfo.Config.MaxBytes == -1 {
-			fmt.Printf(" Maximum Bucket Size: unlimited\n")
+			cols.AddRow("Maximum Bucket Size", "unlimited")
 		} else {
-			fmt.Printf(" Maximum Bucket Size: %s\n", humanize.IBytes(uint64(nfo.Config.MaxBytes)))
+			cols.AddRow("Maximum Bucket Size", humanize.IBytes(uint64(nfo.Config.MaxBytes)))
 		}
 	}
-	fmt.Printf("  Backing Store Kind: %s\n", status.BackingStore())
+	cols.AddRow("Backing Store Kind", status.BackingStore())
 	if status.BackingStore() == "JetStream" {
-		fmt.Printf("    JetStream Stream: %s\n", nfo.Config.Name)
+		cols.AddRow("JetStream Stream", nfo.Config.Name)
 
 		if nfo.Cluster != nil {
-			fmt.Println("\nCluster Information:")
-			fmt.Println()
-			renderNatsGoClusterInfo(nfo)
-			fmt.Println()
+			cols.AddSectionTitle("Cluster Information")
+			renderNatsGoClusterInfo(cols, nfo)
 		}
 	}
 

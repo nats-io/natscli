@@ -394,25 +394,25 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 		return color.GreenString("OK")
 	}
 
-	fmt.Printf("NATS Configuration Context %q\n\n", c.name)
-	c.showIfNotEmpty("      Description: %s\n", cfg.Description())
-	c.showIfNotEmpty("      Server URLs: %s\n", cfg.ServerURL())
-	c.showIfNotEmpty("     SOCKS5 Proxy: %s\n", cfg.SocksProxy())
-	c.showIfNotEmpty("         Username: %s\n", cfg.User())
-	c.showIfNotEmpty("         Password: *********\n", cfg.Password())
-	c.showIfNotEmpty("            Token: %s\n", cfg.Token())
-	c.showIfNotEmpty("      Credentials: %s (%s)\n", cfg.Creds(), checkFile(cfg.Creds()))
-	c.showIfNotEmpty("             NKey: %s (%s)\n", cfg.NKey(), checkFile(cfg.NKey()))
-	c.showIfNotEmpty("      Certificate: %s (%s)\n", cfg.Certificate(), checkFile(cfg.Certificate()))
-	c.showIfNotEmpty("              Key: %s (%s)\n", cfg.Key(), checkFile(cfg.Key()))
-	c.showIfNotEmpty("               CA: %s (%s)\n", cfg.CA(), checkFile(cfg.CA()))
-	c.showIfNotEmpty("       NSC Lookup: %s\n", cfg.NscURL())
-	c.showIfNotEmpty("    JS API Prefix: %s\n", cfg.JSAPIPrefix())
-	c.showIfNotEmpty("  JS Event Prefix: %s\n", cfg.JSEventPrefix())
-	c.showIfNotEmpty("        JS Domain: %s\n", cfg.JSDomain())
-	c.showIfNotEmpty("     Inbox Prefix: %s\n", cfg.InboxPrefix())
-	c.showIfNotEmpty("             Path: %s\n", cfg.Path())
-	c.showIfNotEmpty("     Color Scheme: %s\n", cfg.ColorScheme())
+	cols := newColumns(fmt.Sprintf("NATS Configuration Context %q", c.name))
+	cols.AddRowIfNotEmpty("Description", cfg.Description())
+	cols.AddRowIfNotEmpty("Server URLs", cfg.ServerURL())
+	cols.AddRowIfNotEmpty("SOCKS5 Proxy", cfg.SocksProxy())
+	cols.AddRowIfNotEmpty("Username", cfg.User())
+	cols.AddRowIfNotEmpty("Password", strings.Repeat("*", len(cfg.Password())))
+	cols.AddRowIfNotEmpty("Token", cfg.Token())
+	cols.AddRowIf("Credentials", fmt.Sprintf("%s (%s)", cfg.Creds(), checkFile(cfg.Creds())), cfg.Creds() != "")
+	cols.AddRowIf("NKey", fmt.Sprintf("%s (%s)", cfg.NKey(), checkFile(cfg.NKey())), cfg.NKey() != "")
+	cols.AddRowIf("Certificate", fmt.Sprintf("%s (%s)", cfg.Certificate(), checkFile(cfg.Certificate())), cfg.Certificate() != "")
+	cols.AddRowIf("Key", fmt.Sprintf("%s (%s)", cfg.Key(), checkFile(cfg.Key())), cfg.Key() != "")
+	cols.AddRowIf("CA", fmt.Sprintf("%s (%s)", cfg.CA(), checkFile(cfg.CA())), cfg.CA() != "")
+	cols.AddRowIfNotEmpty("NSC Lookup", cfg.NscURL())
+	cols.AddRowIfNotEmpty("JS API Prefix", cfg.JSAPIPrefix())
+	cols.AddRowIfNotEmpty("JS Event Prefix", cfg.JSEventPrefix())
+	cols.AddRowIfNotEmpty("JS Domain", cfg.JSDomain())
+	cols.AddRowIfNotEmpty("Inbox Prefix", cfg.InboxPrefix())
+	cols.AddRowIfNotEmpty("Path", cfg.Path())
+	cols.AddRowIfNotEmpty("Color Scheme", cfg.ColorScheme())
 
 	checkConn := func() error {
 		opts, err := cfg.NATSOptions()
@@ -433,11 +433,13 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 		err = checkConn()
 		if err != nil {
 			c.validateErrors++
-			fmt.Printf("       Connection: %s\n", color.RedString(err.Error()))
+			cols.AddRow("Connection", color.RedString(err.Error()))
 		} else {
-			fmt.Printf("       Connection: %s\n", color.GreenString("OK"))
+			cols.AddRow("Connection", color.GreenString("OK"))
 		}
 	}
+
+	cols.Frender(os.Stdout)
 
 	fmt.Println()
 
@@ -539,17 +541,4 @@ func (c *ctxCommand) selectCommand(pc *fisk.ParseContext) error {
 	}
 
 	return c.showCommand(pc)
-}
-
-func (c *ctxCommand) showIfNotEmpty(format string, val string, arg ...any) {
-	if val == "" {
-		return
-	}
-
-	if !strings.Contains(format, "%") {
-		fmt.Print(format)
-		return
-	}
-
-	fmt.Printf(format, append([]any{any(val)}, arg...)...)
 }

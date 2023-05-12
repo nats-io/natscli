@@ -564,110 +564,76 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		return
 	}
 
-	fmt.Printf("Information for Consumer %s > %s created %s\n", state.Stream, state.Name, state.Created.Local().Format(time.RFC3339))
-	fmt.Println()
-	fmt.Println("Configuration:")
-	fmt.Println()
-	if config.Name != "" {
-		fmt.Printf("                Name: %s\n", config.Name)
-	}
-	if config.Durable != "" && config.Durable != config.Name {
-		fmt.Printf("        Durable Name: %s\n", config.Durable)
-	}
-	if config.Description != "" {
-		fmt.Printf("         Description: %s\n", config.Description)
-	}
+	cols := newColumns(fmt.Sprintf("Information for Consumer %s > %s created %s", state.Stream, state.Name, state.Created.Local().Format(time.RFC3339)))
+
+	cols.AddSectionTitle("Configuration")
+
+	cols.AddRowIfNotEmpty("Name", config.Name)
+	cols.AddRowIf("Durable Name", config.Durable, config.Durable != "" && config.Durable != config.Name)
+	cols.AddRowIfNotEmpty("Description", config.Description)
+
 	if config.DeliverSubject != "" {
-		fmt.Printf("    Delivery Subject: %s\n", config.DeliverSubject)
+		cols.AddRow("Delivery Subject", config.DeliverSubject)
 	} else {
-		fmt.Printf("           Pull Mode: true\n")
+		cols.AddRow("Pull Mode", true)
 	}
 	if config.FilterSubject != "" {
-		fmt.Printf("      Filter Subject: %s\n", config.FilterSubject)
+		cols.AddRow("Filter Subject", config.FilterSubject)
 	} else if len(config.FilterSubjects) > 0 {
-		fmt.Printf("     Filter Subjects: %s\n", strings.Join(config.FilterSubjects, ", "))
+		cols.AddRow("Filter Subjects", config.FilterSubjects)
 	}
+
 	switch config.DeliverPolicy {
 	case api.DeliverAll:
-		fmt.Printf("      Deliver Policy: All\n")
+		cols.AddRow("Deliver Policy", "All")
 	case api.DeliverLast:
-		fmt.Printf("      Deliver Policy: Last\n")
+		cols.AddRow("Deliver Policy", "Last")
 	case api.DeliverNew:
-		fmt.Printf("      Deliver Policy: New\n")
+		cols.AddRow("Deliver Policy", "New")
 	case api.DeliverLastPerSubject:
-		fmt.Printf("      Deliver Policy: Last Per Subject\n")
+		cols.AddRow("Deliver Policy", "Last Per Subject")
 	case api.DeliverByStartTime:
-		fmt.Printf("      Deliver Policy: Since %v\n", config.OptStartTime)
+		cols.AddRowf("Deliver Policy", "Since %s", config.OptStartTime)
 	case api.DeliverByStartSequence:
-		fmt.Printf("      Deliver Policy: From Sequence %d\n", config.OptStartSeq)
+		cols.AddRowf("Deliver Policy", "From Sequence %d", config.OptStartSeq)
 	}
-	if config.DeliverGroup != "" && config.DeliverSubject != "" {
-		fmt.Printf(" Deliver Queue Group: %s\n", config.DeliverGroup)
-	}
-	fmt.Printf("          Ack Policy: %s\n", config.AckPolicy.String())
-	if config.AckPolicy != api.AckNone {
-		fmt.Printf("            Ack Wait: %v\n", config.AckWait)
-	}
-	fmt.Printf("       Replay Policy: %s\n", config.ReplayPolicy.String())
-	if config.MaxDeliver != -1 {
-		fmt.Printf("  Maximum Deliveries: %d\n", config.MaxDeliver)
-	}
-	if config.SampleFrequency != "" {
-		fmt.Printf("       Sampling Rate: %s\n", config.SampleFrequency)
-	}
-	if config.RateLimit > 0 {
-		fmt.Printf("          Rate Limit: %s / second\n", humanize.IBytes(config.RateLimit/8))
-	}
-	if config.MaxAckPending > 0 {
-		fmt.Printf("     Max Ack Pending: %s\n", humanize.Comma(int64(config.MaxAckPending)))
-	}
-	if config.MaxWaiting > 0 {
-		fmt.Printf("   Max Waiting Pulls: %s\n", humanize.Comma(int64(config.MaxWaiting)))
-	}
-	if config.Heartbeat > 0 {
-		fmt.Printf("      Idle Heartbeat: %s\n", humanizeDuration(config.Heartbeat))
-	}
-	if config.DeliverSubject != "" {
-		fmt.Printf("        Flow Control: %v\n", config.FlowControl)
-	}
-	if config.HeadersOnly {
-		fmt.Printf("        Headers Only: true\n")
-	}
-	if config.InactiveThreshold > 0 && config.DeliverSubject == "" {
-		fmt.Printf("  Inactive Threshold: %s\n", humanizeDuration(config.InactiveThreshold))
-	}
-	if config.MaxRequestExpires > 0 {
-		fmt.Printf("     Max Pull Expire: %s\n", humanizeDuration(config.MaxRequestExpires))
-	}
-	if config.MaxRequestBatch > 0 {
-		fmt.Printf("      Max Pull Batch: %s\n", humanize.Comma(int64(config.MaxRequestBatch)))
-	}
-	if config.MaxRequestMaxBytes > 0 {
-		fmt.Printf("   Max Pull MaxBytes: %s\n", humanize.Comma(int64(config.MaxRequestMaxBytes)))
-	}
-	if len(config.BackOff) > 0 {
-		fmt.Printf("             Backoff: %s\n", c.renderBackoff(config.BackOff))
-	}
-	if config.Replicas > 0 {
-		fmt.Printf("            Replicas: %d\n", config.Replicas)
-	}
-	if config.MemoryStorage {
-		fmt.Printf("      Memory Storage: yes\n")
-	}
-	fmt.Println()
+
+	cols.AddRowIf("Deliver Queue Group", config.DeliverGroup, config.DeliverGroup != "" && config.DeliverSubject != "")
+	cols.AddRow("Ack Policy", config.AckPolicy.String())
+	cols.AddRowIf("Ack Wait", config.AckWait, config.AckPolicy != api.AckNone)
+	cols.AddRow("Replay Policy", config.ReplayPolicy.String())
+	cols.AddRowIf("Maximum Deliveries:", config.MaxDeliver, config.MaxDeliver != -1)
+	cols.AddRowIfNotEmpty("Sampling Rate", config.SampleFrequency)
+	cols.AddRowIf("Rate Limit", fmt.Sprintf("%s / second", humanize.IBytes(config.RateLimit/8)), config.RateLimit > 0)
+	cols.AddRowIf("Max Ack Pending", config.MaxAckPending, config.MaxAckPending > 0)
+	cols.AddRowIf("Max Waiting Pulls", int64(config.MaxWaiting), config.MaxWaiting > 0)
+	cols.AddRowIf("Idle Heartbeat", config.Heartbeat, config.Heartbeat > 0)
+	cols.AddRowIf("Flow Control", config.FlowControl, config.DeliverSubject != "")
+	cols.AddRowIf("Headers Only", true, config.HeadersOnly)
+	cols.AddRowIf("Inactive Threshold", config.InactiveThreshold, config.InactiveThreshold > 0 && config.DeliverSubject == "")
+	cols.AddRowIf("Max Pull Expire", config.MaxRequestExpires, config.MaxRequestExpires > 0)
+	cols.AddRowIf("Max Pull Batch", config.MaxRequestBatch, config.MaxRequestBatch > 0)
+	cols.AddRowIf("Max Pull MaxBytes", config.MaxRequestMaxBytes, config.MaxRequestMaxBytes > 0)
+	cols.AddRowIf("Backoff", c.renderBackoff(config.BackOff), len(config.BackOff) > 0)
+	cols.AddRowIf("Replicas", config.Replicas, config.Replicas > 0)
+	cols.AddRowIf("Memory Storage", true, config.MemoryStorage)
 
 	if len(config.Metadata) > 0 {
-		fmt.Println("Metadata:")
-		fmt.Println()
-		dumpMapStrings(config.Metadata, 3)
-		fmt.Println()
+		cols.AddSectionTitle("Metadata")
+		maxLen := progressWidth()
+		for k, v := range config.Metadata {
+			if len(v) > maxLen && maxLen > 20 {
+				w := maxLen/2 - 10
+				v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
+			}
+			cols.AddRow(k, v)
+		}
 	}
 
 	if state.Cluster != nil && state.Cluster.Name != "" {
-		fmt.Println("Cluster Information:")
-		fmt.Println()
-		fmt.Printf("                Name: %s\n", state.Cluster.Name)
-		fmt.Printf("              Leader: %s\n", state.Cluster.Leader)
+		cols.AddSectionTitle("Cluster Information")
+		cols.AddRow("Name", state.Cluster.Name)
+		cols.AddRow("Leader", state.Cluster.Leader)
 		for _, r := range state.Cluster.Replicas {
 			since := fmt.Sprintf("seen %s ago", humanizeDuration(r.Active))
 			if r.Active == 0 || r.Active == math.MaxInt64 {
@@ -675,56 +641,55 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 			}
 
 			if r.Current {
-				fmt.Printf("             Replica: %s, current, %s\n", r.Name, since)
+				cols.AddRowf("Replica", "%s, current, %s", r.Name, since)
 			} else {
-				fmt.Printf("             Replica: %s, outdated, %s\n", r.Name, since)
+				cols.AddRowf("Replica", "%s, outdated, %s", r.Name, since)
 			}
 		}
-		fmt.Println()
 	}
 
-	fmt.Println("State:")
-	fmt.Println()
+	cols.AddSectionTitle("State")
+
 	if state.Delivered.Last == nil {
-		fmt.Printf("   Last Delivered Message: Consumer sequence: %s Stream sequence: %s\n", humanize.Comma(int64(state.Delivered.Consumer)), humanize.Comma(int64(state.Delivered.Stream)))
+		cols.AddRowf("Last Delivered Message", "Consumer sequence: %s Stream sequence: %s", humanize.Comma(int64(state.Delivered.Consumer)), humanize.Comma(int64(state.Delivered.Stream)))
 	} else {
-		fmt.Printf("   Last Delivered Message: Consumer sequence: %s Stream sequence: %s Last delivery: %s ago\n", humanize.Comma(int64(state.Delivered.Consumer)), humanize.Comma(int64(state.Delivered.Stream)), humanizeDuration(time.Since(*state.Delivered.Last)))
+		cols.AddRowf("Last Delivered Message", "Consumer sequence: %s Stream sequence: %s Last delivery: %s ago", humanize.Comma(int64(state.Delivered.Consumer)), humanize.Comma(int64(state.Delivered.Stream)), humanizeDuration(time.Since(*state.Delivered.Last)))
 	}
 
 	if config.AckPolicy != api.AckNone {
 		if state.AckFloor.Last == nil {
-			fmt.Printf("     Acknowledgment floor: Consumer sequence: %s Stream sequence: %s\n", humanize.Comma(int64(state.AckFloor.Consumer)), humanize.Comma(int64(state.AckFloor.Stream)))
+			cols.AddRowf("Acknowledgment floor", "Consumer sequence: %s Stream sequence: %s", humanize.Comma(int64(state.AckFloor.Consumer)), humanize.Comma(int64(state.AckFloor.Stream)))
 		} else {
-			fmt.Printf("     Acknowledgment floor: Consumer sequence: %s Stream sequence: %s Last Ack: %s ago\n", humanize.Comma(int64(state.AckFloor.Consumer)), humanize.Comma(int64(state.AckFloor.Stream)), humanizeDuration(time.Since(*state.AckFloor.Last)))
+			cols.AddRowf("Acknowledgment floor", "Consumer sequence: %s Stream sequence: %s Last Ack: %s ago", humanize.Comma(int64(state.AckFloor.Consumer)), humanize.Comma(int64(state.AckFloor.Stream)), humanizeDuration(time.Since(*state.AckFloor.Last)))
 		}
 		if config.MaxAckPending > 0 {
-			fmt.Printf("         Outstanding Acks: %s out of maximum %s\n", humanize.Comma(int64(state.NumAckPending)), humanize.Comma(int64(config.MaxAckPending)))
+			cols.AddRowf("Outstanding Acks", "%s out of maximum %s", humanize.Comma(int64(state.NumAckPending)), humanize.Comma(int64(config.MaxAckPending)))
 		} else {
-			fmt.Printf("         Outstanding Acks: %s\n", humanize.Comma(int64(state.NumAckPending)))
+			cols.AddRow("Outstanding Acks", state.NumAckPending)
 		}
-		fmt.Printf("     Redelivered Messages: %s\n", humanize.Comma(int64(state.NumRedelivered)))
+		cols.AddRow("Redelivered Messages", state.NumRedelivered)
 	}
 
-	fmt.Printf("     Unprocessed Messages: %s\n", humanize.Comma(int64(state.NumPending)))
+	cols.AddRow("Unprocessed Messages", state.NumPending)
 	if config.DeliverSubject == "" {
 		if config.MaxWaiting > 0 {
-			fmt.Printf("            Waiting Pulls: %s of maximum %s\n", humanize.Comma(int64(state.NumWaiting)), humanize.Comma(int64(config.MaxWaiting)))
+			cols.AddRowf("Waiting Pulls", "%s of maximum %s", humanize.Comma(int64(state.NumWaiting)), humanize.Comma(int64(config.MaxWaiting)))
 		} else {
-			fmt.Printf("            Waiting Pulls: %s of unlimited\n", humanize.Comma(int64(state.NumWaiting)))
+			cols.AddRowf("Waiting Pulls", "%s of unlimited", humanize.Comma(int64(state.NumWaiting)))
 		}
 	} else {
 		if state.PushBound {
 			if config.DeliverGroup != "" {
-				fmt.Printf("          Active Interest: Active using Queue Group %s", config.DeliverGroup)
+				cols.AddRowf("Active Interest", "Active using Queue Group %s", config.DeliverGroup)
 			} else {
-				fmt.Printf("          Active Interest: Active")
+				cols.AddRow("Active Interest", "Active")
 			}
 		} else {
-			fmt.Printf("          Active Interest: No interest")
+			cols.AddRow("Active Interest", "No interest")
 		}
 	}
 
-	fmt.Println()
+	cols.Frender(os.Stdout)
 }
 
 func (c *consumerCmd) infoAction(_ *fisk.ParseContext) error {

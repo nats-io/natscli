@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/choria-io/fisk"
@@ -293,43 +292,41 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	fmt.Println("Service Information:")
-	fmt.Println()
-	fmt.Printf("      Service: %v (%v)\n", nfo.Name, nfo.ID)
-	fmt.Printf("  Description: %v\n", nfo.Description)
-	fmt.Printf("      Version: %v\n", nfo.Version)
-	fmt.Printf("     Subjects: %v\n", strings.Join(nfo.Subjects, ", "))
+	cols := newColumns("Service Information")
+	defer cols.Frender(os.Stdout)
+	cols.AddRowf("Service", "%v (%v)", nfo.Name, nfo.ID)
+	cols.AddRow("Description", nfo.Description)
+	cols.AddRow("Version", nfo.Version)
+	cols.AddRow("Subjects", nfo.Subjects)
 	if len(nfo.Metadata) > 0 {
-		fmt.Println()
-		fmt.Printf("Metadata:")
-		dumpMapStrings(nfo.Metadata, 3)
+		cols.Println()
+		cols.AddSectionTitle("Metadata")
+		cols.AddMapStrings(nfo.Metadata)
 	}
-	fmt.Println()
 
-	fmt.Printf("Statistics for %d Endpoint(s):\n\n", len(stats.Endpoints))
+	cols.AddSectionTitle("Statistics for %d Endpoint(s)", len(stats.Endpoints))
 	for _, e := range stats.Endpoints {
 		if e.Name == "" {
 			e.Name = "default"
 		}
 
-		fmt.Printf("  %s Endpoint Statistics:\n", e.Name)
-		fmt.Println()
-		fmt.Printf("           Requests: %s\n", humanize.Comma(int64(e.NumRequests)))
-		fmt.Printf("             Errors: %s\n", humanize.Comma(int64(e.NumErrors)))
-		fmt.Printf("    Processing Time: %s (average %s)\n", humanizeDuration(e.ProcessingTime), humanizeDuration(e.AverageProcessingTime))
-		fmt.Printf("            Started: %v\n", stats.Started)
-		if e.LastError != "" {
-			fmt.Printf("     Last Error: %v\n", e.LastError)
-		}
+		cols.Indent(2)
+
+		cols.AddSectionTitle("%s Endpoint Statistics", e.Name)
+		cols.AddRow("Requests", e.NumRequests)
+		cols.AddRow("Errors", e.NumErrors)
+		cols.AddRowf("Processing Time", "%s (average %s)", humanizeDuration(e.ProcessingTime), humanizeDuration(e.AverageProcessingTime))
+		cols.AddRow("Started:", stats.Started)
+		cols.AddRowIfNotEmpty("Last Error", e.LastError)
+
 		if e.Data != nil {
-			fmt.Println()
-			fmt.Println("  Endpoint Specific Statistics:")
-			fmt.Println()
+			cols.AddSectionTitle("Endpoint Specific Statistics")
 			out := bytes.NewBuffer([]byte{})
 			json.Indent(out, e.Data, "    ", "    ")
-			fmt.Printf("    %s\n", out.String())
+			cols.Println("    " + out.String())
 		}
-		fmt.Println()
+
+		cols.Indent(0)
 	}
 
 	return nil

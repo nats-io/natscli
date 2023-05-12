@@ -32,7 +32,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"text/tabwriter"
 	"text/template"
 	"time"
 	"unicode"
@@ -1244,69 +1243,6 @@ func serverMinVersion(version string, major, minor, patch int) bool {
 		return false
 	}
 	return true
-}
-
-// StringsMapKeys returns the keys from a map[string]string in sorted order
-func stringsMapKeys(data map[string]string) []string {
-	keys := make([]string, len(data))
-	i := 0
-	for k := range data {
-		keys[i] = k
-		i++
-	}
-
-	sort.Strings(keys)
-
-	return keys
-}
-
-// IterateStringsMap iterates a map[string]string in key sorted order
-func iterateStringsMap(data map[string]string, cb func(k string, v string)) {
-	for _, k := range stringsMapKeys(data) {
-		cb(k, data[k])
-	}
-}
-
-// dumps strings into groups using  tabwriter, right aligned
-func dumpStrings(data []string, groups int, padding int) {
-	longest := longestString(data, 0)
-
-	tabw := tabwriter.NewWriter(os.Stdout, 1, longest, longest+padding, ' ', tabwriter.AlignRight)
-	sliceGroups(data, groups, func(grp []string) {
-		fmt.Fprint(tabw, strings.Join(grp, "\t"))
-	})
-	tabw.Flush()
-}
-
-// DumpMapStrings shows k: v of a map[string]string left padded by int, the k will be right aligned and value left aligned
-func dumpMapStrings(data map[string]string, leftPad int) {
-	longest := longestString(stringsMapKeys(data), 0) + leftPad
-
-	maxLen := progressWidth()
-
-	iterateStringsMap(data, func(k, v string) {
-		if len(v) > maxLen && maxLen > 20 {
-			w := maxLen/2 - 10
-			v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
-		}
-		fmt.Printf("%s: %s\n", strings.Repeat(" ", longest-len(k))+k, v)
-	})
-}
-
-// LongestString determines the length of the longest string in list, capped at max
-func longestString(list []string, max int) int {
-	longest := 0
-	for _, i := range list {
-		if len(i) > longest {
-			longest = len(i)
-		}
-
-		if max != 0 && longest > max {
-			return max
-		}
-	}
-
-	return longest
 }
 
 func surveyColors() []survey.AskOpt {
