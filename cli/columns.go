@@ -38,22 +38,14 @@ func newColumns(heading string, a ...any) *columnWriter {
 	w := &columnWriter{sep: ":"}
 	w.SetHeading(heading, a...)
 
-	if isatty.IsTerminal(os.Stdout.Fd()) {
-		color, ok := colsStyles[opts.Config.ColorScheme()]
-		if ok {
-			w.sep = color.Sprint(":")
-		}
-	}
-
 	return w
 }
 
 const (
-	kindTitle    = 0
-	kindRow      = 1
-	kindIndent   = 2
-	kindUnIndent = 3
-	kindLine     = 4
+	kindRow    = 1
+	kindIndent = 2
+	kindLine   = 3
+	kindTitle  = 4
 )
 
 // Frender renders to the writer 0
@@ -66,29 +58,39 @@ func (w *columnWriter) Frender(o io.Writer) error {
 		}
 	}
 
+	fh, ok := any(o).(*os.File)
+	if ok && isatty.IsTerminal(fh.Fd()) {
+		color, ok := colsStyles[opts.Config.ColorScheme()]
+		if ok {
+			w.sep = color.Sprint(":")
+		}
+	}
+
 	if w.heading != "" {
-		fmt.Fprintln(o, w.maybeAddColon(o, w.heading))
+		fmt.Fprintln(o, w.heading)
 		fmt.Fprintln(o)
 	}
 
+	prev := -1
 	for i, row := range w.rows {
 		switch row.kind {
 		case kindIndent:
 			w.indent = row.values[0].(string)
 
-		case kindUnIndent:
-			w.indent = ""
-
 		case kindTitle:
-			if i != 0 {
+			if i != 0 && prev != kindTitle && prev != kindLine {
 				fmt.Fprintln(o)
 			}
 			fmt.Fprintln(o, w.indent+w.maybeAddColon(o, row.values[0].(string)))
 			fmt.Fprintln(o)
+			prev = row.kind
 
 		case kindRow:
 			left := row.values[0].(string)
 			padding := longest - len(left) + 2
+			if padding < 0 {
+				padding = 0
+			}
 
 			if left == "" {
 				// when left is empty we assume it's a multi line continuation so no : in-front
@@ -96,9 +98,11 @@ func (w *columnWriter) Frender(o io.Writer) error {
 			} else {
 				fmt.Fprintf(o, "%s%s%s%s %v\n", w.indent, strings.Repeat(" ", padding), left, w.sep, row.values[1])
 			}
+			prev = row.kind
 
 		case kindLine:
 			fmt.Fprintln(o, append([]any{w.indent}, row.values...)...)
+			prev = row.kind
 		}
 	}
 
@@ -114,6 +118,11 @@ func (w *columnWriter) Render() (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// AddRow adds a row, v will be formatted if time.Time, time.Duration, []string, floats, ints and uints
+func (w *columnWriter) AddRow(t string, v any) {
+	w.rows = append(w.rows, &columnRow{kind: kindRow, values: []any{t, f(v)}})
 }
 
 // AddRowIf adds a row if the condition is true
@@ -132,14 +141,9 @@ func (w *columnWriter) AddRowIfNotEmpty(t string, v string) {
 	w.AddRow(t, v)
 }
 
-// AddRowf adds a row with printf like behavior on the value
+// AddRowf adds a row with printf like behavior on the value, no auto formatting of values will be done like in AddRow()
 func (w *columnWriter) AddRowf(t string, format string, a ...any) {
 	w.AddRow(t, fmt.Sprintf(format, a...))
-}
-
-// AddRow adds a row, v will be formatted if time.Time, time.Duration, []string, ints and uints
-func (w *columnWriter) AddRow(t string, v any) {
-	w.rows = append(w.rows, &columnRow{kind: kindRow, values: []any{t, f(v)}})
 }
 
 // AddSectionTitle adds a new section
@@ -221,6 +225,10 @@ func f(v any) string {
 		return humanize.Comma(int64(x))
 	case int64:
 		return humanize.Comma(x)
+	case float32:
+		return humanize.CommafWithDigits(float64(x), 3)
+	case float64:
+		return humanize.CommafWithDigits(x, 3)
 	default:
 		return fmt.Sprintf("%v", x)
 	}
