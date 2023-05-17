@@ -1,4 +1,4 @@
-// Copyright 2019-2020 The NATS Authors
+// Copyright 2019-2023 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -110,11 +110,12 @@ func (c *actCmd) backupAction(_ *fisk.ParseContext) error {
 		totalSize += state.Bytes
 	}
 
-	fmt.Printf("Performing backup of all streams to %s\n\n", c.backupDirectory)
-	fmt.Printf("    Streams: %s\n", humanize.Comma(int64(len(streams))))
-	fmt.Printf("       Size: %s\n", humanize.IBytes(totalSize))
-	fmt.Printf("  Consumers: %s\n", humanize.Comma(int64(totalConsumers)))
-	fmt.Println()
+	cols := newColumns("Performing backup of all streams to %s", c.backupDirectory)
+	cols.AddRow("Streams", len(streams))
+	cols.AddRow("Size", humanize.IBytes(totalSize))
+	cols.AddRow("Consumers:", totalConsumers)
+	cols.Println()
+	cols.Frender(os.Stdout)
 
 	if !c.force {
 		ok, err := askConfirmation("Perform backup", false)
@@ -327,54 +328,55 @@ type accountStats struct {
 	ServerInfo *server.ServerInfo
 }
 
-func (c *actCmd) renderTier(name string, tier api.JetStreamTier) {
-	fmt.Printf("   Tier: %s\n\n", name)
+func (c *actCmd) renderTier(cols *columnWriter, name string, tier api.JetStreamTier) {
+	cols.Indent(2)
+	defer cols.Indent(0)
 
-	fmt.Printf("      Configuration Requirements:\n\n")
-	fmt.Printf("         Stream Requires Max Bytes Set: %t\n", tier.Limits.MaxBytesRequired)
+	cols.AddSectionTitle("Tier: %s", name)
+	cols.Indent(6)
+	cols.AddSectionTitle("Configuration Requirements")
+	cols.AddRow("Stream Requires Max Bytes Set", tier.Limits.MaxBytesRequired)
 	if tier.Limits.MaxAckPending <= 0 {
-		fmt.Printf("          Consumer Maximum Ack Pending: Unlimited\n")
+		cols.AddRow("Consumer Maximum Ack Pending", "Unlimited")
 	} else {
-		fmt.Printf("          Consumer Maximum Ack Pending: %s\n", humanize.Comma(int64(tier.Limits.MaxAckPending)))
+		cols.AddRow("Consumer Maximum Ack Pending", tier.Limits.MaxAckPending)
 	}
-	fmt.Println()
-
-	fmt.Printf("      Stream Resource Usage Limits:\n\n")
+	cols.AddSectionTitle("Stream Resource Usage Limits")
 
 	if tier.Limits.MaxMemory == -1 {
-		fmt.Printf("                    Memory: %s of Unlimited\n", humanize.IBytes(tier.Memory))
+		cols.AddRowf("Memory", "%s of Unlimited", humanize.IBytes(tier.Memory))
 	} else {
-		fmt.Printf("                    Memory: %s of %s\n", humanize.IBytes(tier.Memory), humanize.IBytes(uint64(tier.Limits.MaxMemory)))
+		cols.AddRowf("Memory", "%s of %s", humanize.IBytes(tier.Memory), humanize.IBytes(uint64(tier.Limits.MaxMemory)))
 	}
 
 	if tier.Limits.MemoryMaxStreamBytes <= 0 {
-		fmt.Printf("         Memory Per Stream: Unlimited\n")
+		cols.AddRow("Memory Per Stream", "Unlimited")
 	} else {
-		fmt.Printf("         Memory Per Stream: %s\n", humanize.IBytes(uint64(tier.Limits.MemoryMaxStreamBytes)))
+		cols.AddRow("Memory Per Stream", humanize.IBytes(uint64(tier.Limits.MemoryMaxStreamBytes)))
 	}
 
 	if tier.Limits.MaxStore == -1 {
-		fmt.Printf("                   Storage: %s of Unlimited\n", humanize.IBytes(tier.Store))
+		cols.AddRowf("Storage", "%s of Unlimited", humanize.IBytes(tier.Store))
 	} else {
-		fmt.Printf("                   Storage: %s of %s\n", humanize.IBytes(tier.Store), humanize.IBytes(uint64(tier.Limits.MaxStore)))
+		cols.AddRowf("Storage", "%s of %s", humanize.IBytes(tier.Store), humanize.IBytes(uint64(tier.Limits.MaxStore)))
 	}
 
 	if tier.Limits.StoreMaxStreamBytes <= 0 {
-		fmt.Printf("        Storage Per Stream: Unlimited\n")
+		cols.AddRow("Storage Per Stream", "Unlimited")
 	} else {
-		fmt.Printf("        Storage Per Stream: %s\n", humanize.IBytes(uint64(tier.Limits.StoreMaxStreamBytes)))
+		cols.AddRow("Storage Per Stream", humanize.IBytes(uint64(tier.Limits.StoreMaxStreamBytes)))
 	}
 
 	if tier.Limits.MaxStreams == -1 {
-		fmt.Printf("                   Streams: %s of Unlimited\n", humanize.Comma(int64(tier.Streams)))
+		cols.AddRowf("Streams", "%s of Unlimited", humanize.Comma(int64(tier.Streams)))
 	} else {
-		fmt.Printf("                   Streams: %s of %s\n", humanize.Comma(int64(tier.Streams)), humanize.Comma(int64(tier.Limits.MaxStreams)))
+		cols.AddRowf("Streams", "%s of %s", humanize.Comma(int64(tier.Streams)), humanize.Comma(int64(tier.Limits.MaxStreams)))
 	}
 
 	if tier.Limits.MaxConsumers == -1 {
-		fmt.Printf("                 Consumers: %s of Unlimited\n", humanize.Comma(int64(tier.Consumers)))
+		cols.AddRowf("Consumers", "%s of Unlimited", humanize.Comma(int64(tier.Consumers)))
 	} else {
-		fmt.Printf("                 Consumers: %s of %s\n", humanize.Comma(int64(tier.Consumers)), humanize.Comma(int64(tier.Limits.MaxConsumers)))
+		cols.AddRowf("Consumers", "%s of %s", humanize.Comma(int64(tier.Consumers)), humanize.Comma(int64(tier.Limits.MaxConsumers)))
 	}
 
 	fmt.Println()
@@ -413,32 +415,29 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	fmt.Println("Connection Information:")
-	fmt.Println()
+	cols := newColumns("Account Information")
+	defer cols.Frender(os.Stdout)
+
 	if ui != nil {
-		fmt.Printf("                      User: %v\n", ui.UserID)
-		fmt.Printf("                   Account: %v\n", ui.Account)
+		cols.AddRow("User", ui.UserID)
+		cols.AddRow("Account", ui.Account)
 		if ui.Expires == 0 {
-			fmt.Printf("                   Expires: never\n")
+			cols.AddRow("Expires", "never")
 		} else {
-			fmt.Printf("                   Expires: %s\n", humanizeDuration(ui.Expires))
+			cols.AddRow("Expires", ui.Expires)
 		}
 	}
-	fmt.Printf("                 Client ID: %v\n", id)
-	fmt.Printf("                 Client IP: %v\n", ip)
-	fmt.Printf("                       RTT: %v\n", rtt)
-	fmt.Printf("         Headers Supported: %v\n", nc.HeadersSupported())
-	fmt.Printf("           Maximum Payload: %v\n", humanize.IBytes(uint64(nc.MaxPayload())))
-	if nc.ConnectedClusterName() != "" {
-		fmt.Printf("         Connected Cluster: %s\n", nc.ConnectedClusterName())
-	}
-	fmt.Printf("             Connected URL: %v\n", nc.ConnectedUrl())
-	fmt.Printf("         Connected Address: %v\n", nc.ConnectedAddr())
-	fmt.Printf("       Connected Server ID: %v\n", nc.ConnectedServerId())
-	fmt.Printf("  Connected Server Version: %s\n", nc.ConnectedServerVersion())
-	if nc.ConnectedServerId() != nc.ConnectedServerName() {
-		fmt.Printf("     Connected Server Name: %v\n", nc.ConnectedServerName())
-	}
+	cols.AddRow("Client ID", id)
+	cols.AddRow("Client IP", ip)
+	cols.AddRow("RTT", rtt)
+	cols.AddRow("Headers Supported", nc.HeadersSupported())
+	cols.AddRow("Maximum Payload", humanize.IBytes(uint64(nc.MaxPayload())))
+	cols.AddRowIfNotEmpty("Connected Cluster", nc.ConnectedClusterName())
+	cols.AddRow("Connected URL", nc.ConnectedUrl())
+	cols.AddRow("Connected Address", nc.ConnectedAddr())
+	cols.AddRow("Connected Server ID", nc.ConnectedServerId())
+	cols.AddRow("Connected Server Version", nc.ConnectedServerVersion())
+	cols.AddRowIf("Connected Server Name", nc.ConnectedServerName(), nc.ConnectedServerId() != nc.ConnectedServerName())
 
 	if tlsc.HandshakeComplete {
 		version := ""
@@ -455,17 +454,16 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 			version = fmt.Sprintf("unknown (%x)", tlsc.Version)
 		}
 
-		fmt.Printf("               TLS Version: %s using %s\n", version, tls.CipherSuiteName(tlsc.CipherSuite))
-		fmt.Printf("                TLS Server: %v\n", tlsc.ServerName)
+		cols.AddRowf("TLS Version", "%s using %s", version, tls.CipherSuiteName(tlsc.CipherSuite))
+		cols.AddRow("TLS Server Name", tlsc.ServerName)
 		if len(tlsc.VerifiedChains) > 0 {
-			fmt.Printf("              TLS Verified: issuer %s\n", tlsc.PeerCertificates[0].Issuer.String())
+			cols.AddRowf("TLS Verified", "issuer %s", tlsc.PeerCertificates[0].Issuer.String())
 		} else {
-			fmt.Printf("              TLS Verified: no\n")
+			cols.AddRow("TLS Verified", "no")
 		}
 	} else {
-		fmt.Printf("            TLS Connection: no\n")
+		cols.AddRow("TLS Connection", "no")
 	}
-	fmt.Println()
 
 	renderPerm := func(title string, p *server.SubjectPermission) {
 		if p == nil {
@@ -475,58 +473,64 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 			return
 		}
 
-		fmt.Printf("  %s\n", title)
+		cols.Indent(2)
+		cols.Println(title)
+
 		if len(p.Allow) > 0 {
-			fmt.Println("    Allow:")
 			sort.Strings(p.Allow)
-			for _, perm := range p.Allow {
-				fmt.Printf("      %s\n", perm)
+			for i, perm := range p.Allow {
+				if i == 0 {
+					cols.AddRow("Allow", perm)
+				} else {
+					cols.AddRow("", perm)
+				}
 			}
 		}
+
 		if len(p.Deny) > 0 {
-			fmt.Println()
-			fmt.Println("    Deny:")
+			cols.Println()
 			sort.Strings(p.Deny)
-			for _, perm := range p.Deny {
-				fmt.Printf("      %s\n", perm)
+			for i, perm := range p.Deny {
+				if i == 0 {
+					cols.AddRow("Deny", perm)
+				} else {
+					cols.AddRow("", perm)
+				}
 			}
 		}
+		cols.Indent(0)
 	}
 
 	if ui != nil && ui.Permissions != nil {
-		fmt.Println("Connection Permissions:")
-		fmt.Println()
-		renderPerm("Publish", ui.Permissions.Publish)
-		fmt.Println()
-		renderPerm("Subscribe", ui.Permissions.Subscribe)
-		fmt.Println()
+		cols.AddSectionTitle("Connection Permissions")
+		renderPerm("Publish:", ui.Permissions.Publish)
+		cols.Println()
+		renderPerm("Subscribe:", ui.Permissions.Subscribe)
+		cols.Println()
 	}
 
 	info, err := mgr.JetStreamAccountInfo()
 	if info != nil {
 		if info.Domain == "" {
-			fmt.Println("JetStream Account Information:")
+			cols.AddSectionTitle("JetStream Account Information")
 		} else {
-			fmt.Printf("JetStream Account Information for domain %s:\n", info.Domain)
+			cols.AddSectionTitle("JetStream Account Information for domain %s", info.Domain)
 		}
 	}
 
-	fmt.Println()
+	cols.Println()
+
 	switch err {
 	case nil:
-		fmt.Printf("Account Usage:\n\n")
-		if info.Domain != "" {
-			fmt.Printf("     Domain: %s\n", info.Domain)
-		}
-		fmt.Printf("    Storage: %s\n", humanize.IBytes(info.Store))
-		fmt.Printf("     Memory: %s\n", humanize.IBytes(info.Memory))
-		fmt.Printf("    Streams: %s\n", humanize.Comma(int64(info.Streams)))
-		fmt.Printf("  Consumers: %s\n", humanize.Comma(int64(info.Consumers)))
-		fmt.Println()
+		cols.AddSectionTitle("Account Usage")
+		cols.AddRowIfNotEmpty("Domain", info.Domain)
+		cols.AddRow("Storage", humanize.IBytes(info.Store))
+		cols.AddRow("Memory", humanize.IBytes(info.Memory))
+		cols.AddRow("Streams", info.Streams)
+		cols.AddRow("Consumers", info.Consumers)
 
-		fmt.Printf("Account Limits:\n\n")
-
-		fmt.Printf("   Max Message Payload: %s \n\n", humanize.IBytes(uint64(nc.MaxPayload())))
+		cols.AddSectionTitle("Account Limits")
+		cols.AddRow("Max Message Payload", humanize.IBytes(uint64(nc.MaxPayload())))
 
 		if len(info.Tiers) > 0 {
 			var tiers []string
@@ -536,21 +540,19 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 			sort.Strings(tiers)
 
 			for _, n := range tiers {
-				c.renderTier(n, info.Tiers[n])
+				c.renderTier(cols, n, info.Tiers[n])
 			}
 		} else {
-			c.renderTier("Default", info.JetStreamTier)
+			c.renderTier(cols, "Default", info.JetStreamTier)
 		}
 
 	case context.DeadlineExceeded:
-		fmt.Printf("   No response from JetStream server")
+		cols.Println("   No response from JetStream server")
 	case nats.ErrNoResponders:
-		fmt.Printf("   JetStream is not supported in this account")
+		cols.Println("   JetStream is not supported in this account")
 	default:
-		fmt.Printf("   Could not obtain account information: %s", err)
+		cols.Println("   Could not obtain account information: ", err.Error())
 	}
-
-	fmt.Println()
 
 	return nil
 }
