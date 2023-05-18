@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/choria-io/fisk"
@@ -87,26 +88,26 @@ func (c *microCmd) echoAction(_ *fisk.ParseContext) error {
 	echoHandler := func(req micro.Request) {
 		log.Printf("Handling request on subject %v", req.Subject())
 
-		resp := map[string]any{
-			"timestamp": time.Now(),
-			"request": map[string]any{
-				"body":    req.Data(),
-				"headers": req.Headers(),
-				"subject": req.Subject(),
-			},
-		}
-
-		hdr := nats.Header{
-			"ConnectedUrl": []string{nc.ConnectedUrlRedacted()},
-		}
+		hdr := nats.Header{}
+		hdr.Add("ConnectedUrl", nc.ConnectedUrlRedacted())
+		hdr.Add("Handler", strconv.Itoa(os.Getpid()))
+		hdr.Add("Subject", req.Subject())
+		hdr.Add("Timestamp", time.Now().Format(time.RFC3339))
 		if nc.ConnectedClusterName() != "" {
 			hdr.Add("ConnectedCluster", nc.ConnectedClusterName())
 		}
+
 		for k, v := range c.hdrs {
 			hdr.Add(k, v)
 		}
 
-		req.RespondJSON(resp, micro.WithHeaders(micro.Headers(hdr)))
+		for k, vs := range req.Headers() {
+			for _, v := range vs {
+				hdr.Add(k, v)
+			}
+		}
+
+		req.Respond(req.Data(), micro.WithHeaders(micro.Headers(hdr)))
 	}
 
 	err = srv.AddGroup(c.name).AddEndpoint("echo", micro.HandlerFunc(echoHandler), micro.WithEndpointMetadata(map[string]string{}))
@@ -114,9 +115,15 @@ func (c *microCmd) echoAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	cols := newColumns("NATS CLI Micro Service %s waiting for requests on %s", c.name, nc.ConnectedUrlRedacted())
+	cols := newColumns("NATS CLI Micro Service %s handler %d waiting for requests on %s", c.name, os.Getpid(), nc.ConnectedUrlRedacted())
 	cols.AddSectionTitle("Listening Subjects")
 	cols.AddRow(fmt.Sprintf("%s.echo", c.name), "Echo Service")
+	if len(c.hdrs) > 0 {
+		cols.AddSectionTitle("Custom Response Headers")
+		for k, v := range c.hdrs {
+			cols.AddRow(k, v)
+		}
+	}
 	cols.Println()
 	cols.AddSectionTitle("Requests Log")
 	cols.Frender(os.Stdout)
