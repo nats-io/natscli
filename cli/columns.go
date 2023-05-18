@@ -58,8 +58,7 @@ func (w *columnWriter) Frender(o io.Writer) error {
 		}
 	}
 
-	fh, ok := any(o).(*os.File)
-	if ok && isatty.IsTerminal(fh.Fd()) {
+	if w.isTerminal(o) {
 		color, ok := colsStyles[opts.Config.ColorScheme()]
 		if ok {
 			w.sep = color.Sprint(":")
@@ -81,7 +80,7 @@ func (w *columnWriter) Frender(o io.Writer) error {
 			if i != 0 && prev != kindTitle && prev != kindLine {
 				fmt.Fprintln(o)
 			}
-			fmt.Fprintln(o, w.indent+w.maybeAddColon(o, row.values[0].(string)))
+			fmt.Fprintln(o, w.indent+w.maybeAddColon(o, row.values[0].(string), false))
 			fmt.Fprintln(o)
 			prev = row.kind
 
@@ -183,15 +182,23 @@ func (w *columnWriter) Indent(width int) {
 	w.rows = append(w.rows, &columnRow{kind: kindIndent, values: []any{strings.Repeat(" ", width)}})
 }
 
-func (w *columnWriter) maybeAddColon(o io.Writer, v string) string {
+func (w *columnWriter) isTerminal(o io.Writer) bool {
+	fh, ok := any(o).(*os.File)
+	if !ok {
+		return false
+	}
+
+	return isatty.IsTerminal(fh.Fd())
+}
+
+func (w *columnWriter) maybeAddColon(o io.Writer, v string, colorize bool) string {
 	if strings.HasSuffix(v, ":") {
 		return v
 	}
 
 	c := ":"
 
-	fh, ok := any(o).(*os.File)
-	if ok && isatty.IsTerminal(fh.Fd()) {
+	if colorize && w.isTerminal(o) {
 		color, ok := colsStyles[opts.Config.ColorScheme()]
 		if ok {
 			c = color.Sprint(":")

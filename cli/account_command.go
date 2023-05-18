@@ -378,8 +378,6 @@ func (c *actCmd) renderTier(cols *columnWriter, name string, tier api.JetStreamT
 	} else {
 		cols.AddRowf("Consumers", "%s of %s", humanize.Comma(int64(tier.Consumers)), humanize.Comma(int64(tier.Limits.MaxConsumers)))
 	}
-
-	fmt.Println()
 }
 
 func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
@@ -517,8 +515,6 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 			cols.AddSectionTitle("JetStream Account Information for domain %s", info.Domain)
 		}
 	}
-
-	cols.Println()
 
 	switch err {
 	case nil:

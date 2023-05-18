@@ -83,7 +83,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 
 	connz := req.Command("connections", "Show connection details").Alias("conn").Alias("connz").Action(c.conns)
 	connz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
-	connz.Flag("sort", "Sort by a specific property").Default("cid").EnumVar(&c.sortOpt, "cid", "start", "subs", "pending", "msgs_to", "msgs_from", "bytes_to", "bytes_from", "last", "idle", "uptime", "stop", "reason")
+	connz.Flag("sort", "Sort by a specific property").Default("cid").EnumVar(&c.sortOpt, "cid", "start", "subs", "pending", "msgs_to", "msgs_from", "bytes_to", "bytes_from", "last", "idle", "uptime", "stop", "reason", "rtt")
 	connz.Flag("subscriptions", "Show subscriptions").UnNegatableBoolVar(&c.detail)
 	connz.Flag("filter-cid", "Filter on a specific CID").PlaceHolder("CID").Uint64Var(&c.cidFilter)
 	connz.Flag("filter-state", "Filter on a specific account state (open, closed, all)").PlaceHolder("STATE").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
