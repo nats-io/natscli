@@ -35,6 +35,8 @@ type microCmd struct {
 	id       string
 	showJSON bool
 	hdrs     map[string]string
+
+	nc *nats.Conn
 }
 
 func configureMicroCommand(app commandHost) {
@@ -69,53 +71,55 @@ func init() {
 	registerCommand("micro", 0, configureMicroCommand)
 }
 
+func (c *microCmd) echoHandler(req micro.Request) {
+	log.Printf("Handling request on subject %v", req.Subject())
+
+	hdr := nats.Header{}
+	hdr.Add("ConnectedUrl", c.nc.ConnectedUrlRedacted())
+	hdr.Add("Handler", strconv.Itoa(os.Getpid()))
+	hdr.Add("Subject", req.Subject())
+	hdr.Add("Timestamp", time.Now().Format(time.RFC3339))
+	if c.nc.ConnectedClusterName() != "" {
+		hdr.Add("ConnectedCluster", c.nc.ConnectedClusterName())
+	}
+
+	for k, v := range c.hdrs {
+		hdr.Add(k, v)
+	}
+
+	for k, vs := range req.Headers() {
+		for _, v := range vs {
+			hdr.Add(k, v)
+		}
+	}
+
+	req.Respond(req.Data(), micro.WithHeaders(micro.Headers(hdr)))
+}
+
 func (c *microCmd) serveAction(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
+	var err error
+
+	c.nc, _, err = prepareHelper("", natsOpts()...)
 	if err != nil {
 		return fmt.Errorf("setup failed: %v", err)
 	}
 
-	srv, err := micro.AddService(nc, micro.Config{
+	srv, err := micro.AddService(c.nc, micro.Config{
 		Name:        c.name,
 		Version:     "1.0.0",
-		Description: "NATS CLI Demo Service",
-		Metadata:    map[string]string{},
+		Description: fmt.Sprintf("NATS CLI Demo Service (%s)", c.name),
 	})
 	if err != nil {
 		return err
 	}
 
-	echoHandler := func(req micro.Request) {
-		log.Printf("Handling request on subject %v", req.Subject())
-
-		hdr := nats.Header{}
-		hdr.Add("ConnectedUrl", nc.ConnectedUrlRedacted())
-		hdr.Add("Handler", strconv.Itoa(os.Getpid()))
-		hdr.Add("Subject", req.Subject())
-		hdr.Add("Timestamp", time.Now().Format(time.RFC3339))
-		if nc.ConnectedClusterName() != "" {
-			hdr.Add("ConnectedCluster", nc.ConnectedClusterName())
-		}
-
-		for k, v := range c.hdrs {
-			hdr.Add(k, v)
-		}
-
-		for k, vs := range req.Headers() {
-			for _, v := range vs {
-				hdr.Add(k, v)
-			}
-		}
-
-		req.Respond(req.Data(), micro.WithHeaders(micro.Headers(hdr)))
-	}
-
-	err = srv.AddGroup(c.name).AddEndpoint("echo", micro.HandlerFunc(echoHandler), micro.WithEndpointMetadata(map[string]string{}))
+	grp := srv.AddGroup(c.name)
+	err = grp.AddEndpoint("echo", micro.HandlerFunc(c.echoHandler))
 	if err != nil {
 		return err
 	}
 
-	cols := newColumns("NATS CLI Micro Service %s handler %d waiting for requests on %s", c.name, os.Getpid(), nc.ConnectedUrlRedacted())
+	cols := newColumns("NATS CLI Micro Service %s handler %d waiting for requests on %s", c.name, os.Getpid(), c.nc.ConnectedUrlRedacted())
 	cols.AddSectionTitle("Listening Subjects")
 	cols.AddRow(fmt.Sprintf("%s.echo", c.name), "Echo Service")
 	if len(c.hdrs) > 0 {
@@ -124,7 +128,6 @@ func (c *microCmd) serveAction(_ *fisk.ParseContext) error {
 			cols.AddRow(k, v)
 		}
 	}
-	cols.Println()
 	cols.AddSectionTitle("Requests Log")
 	cols.Frender(os.Stdout)
 
