@@ -58,7 +58,7 @@ type rateTrackInt struct {
 	sync.Mutex
 }
 
-func (r *rateTrackInt) Comma() string  { return humanize.Comma(r.Rate()) }
+func (r *rateTrackInt) Comma() string  { return f(r.Rate()) }
 func (r *rateTrackInt) IBytes() string { return humanize.IBytes(uint64(r.Rate())) }
 func (r *rateTrackInt) Inc()           { r.IncN(1) }
 

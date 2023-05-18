@@ -111,7 +111,7 @@ func decorateScalarNode(n *yaml.Node, sch *jsonschema.Schema) {
 	if len(constraints) == 0 {
 		n.HeadComment = fmt.Sprintf("\n%s\n#\n  Type: %v", sch.Description, sch.Types[0])
 	} else {
-		n.HeadComment = fmt.Sprintf("\n%s\n#\n  Type: %v (%s)", sch.Description, sch.Types[0], strings.Join(constraints, " "))
+		n.HeadComment = fmt.Sprintf("\n%s\n#\n  Type: %v (%s)", sch.Description, sch.Types[0], f(constraints))
 	}
 
 	if sch.Comment != "" {
@@ -123,7 +123,7 @@ func decorateScalarNode(n *yaml.Node, sch *jsonschema.Schema) {
 		for _, v := range sch.Enum {
 			valid = append(valid, fmt.Sprintf("%v", v))
 		}
-		n.HeadComment = fmt.Sprintf("%s\n   Valid Values: %s", n.HeadComment, strings.Join(valid, ", "))
+		n.HeadComment = fmt.Sprintf("%s\n   Valid Values: %s", n.HeadComment, f(valid))
 	}
 }
 
@@ -174,7 +174,7 @@ func decoratedYamlMarshal(v typedData) ([]byte, error) {
 
 	node.HeadComment = fmt.Sprintf("Schema: %v", v.SchemaType())
 	if len(sch.Required) > 0 {
-		node.HeadComment = fmt.Sprintf("%s\n#\n  Required Items: %v", node.HeadComment, strings.Join(sch.Required, ", "))
+		node.HeadComment = fmt.Sprintf("%s\n#\n  Required Items: %v", node.HeadComment, f(sch.Required))
 	}
 
 	var parent *jsonschema.Schema

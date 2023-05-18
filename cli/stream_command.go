@@ -381,7 +381,7 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 	}
 
 	cols := 1
-	countWidth := len(humanize.Comma(int64(most)))
+	countWidth := len(f(most))
 	table := newTableWriter(fmt.Sprintf("%d Subjects in stream %s", len(names), c.stream))
 	switch {
 	case longest+countWidth < 20:
@@ -413,7 +413,7 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 		if i == 0 {
 			return ""
 		}
-		return humanize.Comma(int64(i))
+		return f(i)
 	}
 
 	sliceGroups(names, cols, func(g []string) {
@@ -934,7 +934,7 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 		return fmt.Errorf("backup timed out after receiving no data for a long period")
 	}
 
-	fmt.Printf("Received %s compressed data in %s chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), humanize.Comma(int64(fp.ChunksReceived())), stream.Name(), fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), humanize.IBytes(fp.UncompressedBytesReceived()))
+	fmt.Printf("Received %s compressed data in %s chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), f(fp.ChunksReceived()), stream.Name(), fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), humanize.IBytes(fp.UncompressedBytesReceived()))
 
 	return nil
 }
@@ -1115,7 +1115,7 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 			if c.reportRaw {
 				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, s.Mirror.Active, s.Mirror.Lag, apierr)
 			} else {
-				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, humanizeDuration(s.Mirror.Active), humanize.Comma(int64(s.Mirror.Lag)), apierr)
+				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, f(s.Mirror.Active), f(s.Mirror.Lag), apierr)
 			}
 		}
 
@@ -1133,7 +1133,7 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 			if c.reportRaw {
 				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, source.Active, source.Lag, apierr)
 			} else {
-				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, humanizeDuration(source.Active), humanize.Comma(int64(source.Lag)), apierr)
+				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, f(source.Active), f(source.Lag), apierr)
 			}
 
 		}
@@ -1153,7 +1153,7 @@ func (c *streamCmd) renderStreams(stats []streamStat) {
 				placement = fmt.Sprintf("cluster: %s ", s.Placement.Cluster)
 			}
 			if len(s.Placement.Tags) > 0 {
-				placement = fmt.Sprintf("%stags: %s", placement, strings.Join(s.Placement.Tags, ", "))
+				placement = fmt.Sprintf("%stags: %s", placement, f(s.Placement.Tags))
 			}
 		}
 
@@ -1164,9 +1164,9 @@ func (c *streamCmd) renderStreams(stats []streamStat) {
 			table.AddRow(s.Name, s.Storage, placement, s.Consumers, s.Msgs, s.Bytes, lost, s.Deleted, renderCluster(s.Cluster))
 		} else {
 			if s.LostMsgs > 0 {
-				lost = fmt.Sprintf("%s (%s)", humanize.Comma(int64(s.LostMsgs)), humanize.IBytes(s.LostBytes))
+				lost = fmt.Sprintf("%s (%s)", f(s.LostMsgs), humanize.IBytes(s.LostBytes))
 			}
-			table.AddRow(s.Name, s.Storage, placement, s.Consumers, humanize.Comma(s.Msgs), humanize.IBytes(s.Bytes), lost, s.Deleted, renderCluster(s.Cluster))
+			table.AddRow(s.Name, s.Storage, placement, s.Consumers, f(s.Msgs), humanize.IBytes(s.Bytes), lost, s.Deleted, renderCluster(s.Cluster))
 		}
 	}
 
@@ -1636,7 +1636,7 @@ func (c *streamCmd) renderSource(s *api.StreamSource) string {
 
 	parts := []string{s.Name}
 	if s.OptStartSeq > 0 {
-		parts = append(parts, fmt.Sprintf("Start Seq: %s", humanize.Comma(int64(s.OptStartSeq))))
+		parts = append(parts, fmt.Sprintf("Start Seq: %s", f(s.OptStartSeq)))
 	}
 
 	if s.OptStartTime != nil {
@@ -1654,7 +1654,7 @@ func (c *streamCmd) renderSource(s *api.StreamSource) string {
 		}
 	}
 
-	return strings.Join(parts, ", ")
+	return f(parts)
 }
 
 func (c *streamCmd) showStream(stream *jsm.Stream) error {
@@ -1677,9 +1677,9 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 
 	var cols *columnWriter
 	if c.showStateOnly {
-		cols = newColumns(fmt.Sprintf("State for Stream %s created %s", c.stream, info.Created.Local().Format("2006-01-02 15:04:05")))
+		cols = newColumns(fmt.Sprintf("State for Stream %s created %s", c.stream, f(info.Created.Local())))
 	} else {
-		cols = newColumns(fmt.Sprintf("Information for Stream %s created %s", c.stream, info.Created.Local().Format("2006-01-02 15:04:05")))
+		cols = newColumns(fmt.Sprintf("Information for Stream %s created %s", c.stream, f(info.Created.Local())))
 		c.showStreamConfig(cols, info.Config)
 	}
 
@@ -1702,16 +1702,16 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 			}
 
 			if r.Active > 0 && r.Active < math.MaxInt64 {
-				state = append(state, fmt.Sprintf("seen %s ago", humanizeDuration(r.Active)))
+				state = append(state, fmt.Sprintf("seen %s ago", f(r.Active)))
 			} else {
 				state = append(state, "not seen")
 			}
 
 			switch {
 			case r.Lag > 1:
-				state = append(state, fmt.Sprintf("%s operations behind", humanize.Comma(int64(r.Lag))))
+				state = append(state, fmt.Sprintf("%s operations behind", f(r.Lag)))
 			case r.Lag == 1:
-				state = append(state, fmt.Sprintf("%s operation behind", humanize.Comma(int64(r.Lag))))
+				state = append(state, fmt.Sprintf("%s operation behind", f(r.Lag)))
 			}
 
 			cols.AddRow("Replica", state)
@@ -1755,19 +1755,19 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	cols.AddRow("Messages", info.State.Msgs)
 	cols.AddRow("Bytes", humanize.IBytes(info.State.Bytes))
 	if info.State.Lost != nil && len(info.State.Lost.Msgs) > 0 {
-		cols.AddRowf("Lost Messages", "%s (%s)", humanize.Comma(int64(len(info.State.Lost.Msgs))), humanize.IBytes(info.State.Lost.Bytes))
+		cols.AddRowf("Lost Messages", "%s (%s)", f(len(info.State.Lost.Msgs)), humanize.IBytes(info.State.Lost.Bytes))
 	}
 
 	if info.State.FirstTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
 		cols.AddRow("FirstSeq", info.State.FirstSeq)
 	} else {
-		cols.AddRowf("FirstSeq", "%s @ %s UTC", humanize.Comma(int64(info.State.FirstSeq)), info.State.FirstTime.Format("2006-01-02T15:04:05"))
+		cols.AddRowf("FirstSeq", "%s @ %s UTC", f(info.State.FirstSeq), f(info.State.FirstTime))
 	}
 
 	if info.State.LastTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
 		cols.AddRow("LastSeq", info.State.LastSeq)
 	} else {
-		cols.AddRowf("LastSeq", "%s @ %s UTC", humanize.Comma(int64(info.State.LastSeq)), info.State.LastTime.Format("2006-01-02T15:04:05"))
+		cols.AddRowf("LastSeq", "%s @ %s UTC", f(info.State.LastSeq), f(info.State.LastTime))
 	}
 
 	if len(info.State.Deleted) > 0 { // backwards compat with older servers
@@ -2589,7 +2589,7 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string
 	table.AddHeaders("Name", "Description", "Created", "Messages", "Size", "Last Message")
 	for _, s := range streams {
 		nfo, _ := s.LatestInformation()
-		table.AddRow(s.Name(), s.Description(), nfo.Created.Local().Format("2006-01-02 15:04:05"), humanize.Comma(int64(nfo.State.Msgs)), humanize.IBytes(nfo.State.Bytes), humanizeDuration(time.Since(nfo.State.LastTime)))
+		table.AddRow(s.Name(), s.Description(), f(nfo.Created.Local()), f(nfo.State.Msgs), humanize.IBytes(nfo.State.Bytes), f(time.Since(nfo.State.LastTime)))
 	}
 
 	fmt.Fprintln(&out, table.Render())

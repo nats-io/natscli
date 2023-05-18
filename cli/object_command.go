@@ -146,9 +146,9 @@ func (c *objCommand) watchAction(_ *fisk.ParseContext) error {
 		}
 
 		if i.Deleted {
-			fmt.Printf("[%s] %s %s > %s\n", i.ModTime.Format("2006-01-02 15:04:05"), color.RedString("DEL"), i.Bucket, i.Name)
+			fmt.Printf("[%s] %s %s > %s\n", f(i.ModTime), color.RedString("DEL"), i.Bucket, i.Name)
 		} else {
-			fmt.Printf("[%s] %s %s > %s: %s bytes in %s chunks\n", i.ModTime.Format("2006-01-02 15:04:05"), color.GreenString("PUT"), i.Bucket, i.Name, humanize.IBytes(i.Size), humanize.Comma(int64(i.Chunks)))
+			fmt.Printf("[%s] %s %s > %s: %s bytes in %s chunks\n", f(i.ModTime), color.GreenString("PUT"), i.Bucket, i.Name, humanize.IBytes(i.Size), f(i.Chunks))
 		}
 	}
 
@@ -315,7 +315,7 @@ func (c *objCommand) showObjectInfo(nfo *nats.ObjectInfo) {
 	}
 	fmt.Printf("               Size: %s\n", humanize.IBytes(nfo.Size))
 	fmt.Printf("  Modification Time: %s\n", nfo.ModTime.Format(time.RFC822Z))
-	fmt.Printf("             Chunks: %s\n", humanize.Comma(int64(nfo.Chunks)))
+	fmt.Printf("             Chunks: %s\n", f(nfo.Chunks))
 	fmt.Printf("             Digest: %s %x\n", digest[0], digestBytes)
 	if nfo.Deleted {
 		fmt.Printf("            Deleted: %v\n", nfo.Deleted)
@@ -376,7 +376,7 @@ func (c *objCommand) listBuckets() error {
 	for _, s := range found {
 		nfo, _ := s.LatestInformation()
 
-		table.AddRow(strings.TrimPrefix(s.Name(), "OBJ_"), s.Description(), nfo.Created.Format("2006-01-02 15:01:05"), humanize.IBytes(nfo.State.Bytes), humanizeDuration(time.Since(nfo.State.LastTime)))
+		table.AddRow(strings.TrimPrefix(s.Name(), "OBJ_"), s.Description(), f(nfo.Created), humanize.IBytes(nfo.State.Bytes), f(time.Since(nfo.State.LastTime)))
 	}
 
 	fmt.Println(table.Render())
@@ -586,9 +586,9 @@ func (c *objCommand) getAction(_ *fisk.ParseContext) error {
 	elapsed := time.Since(start)
 	if elapsed > 2*time.Second {
 		bps := float64(nfo.Size) / elapsed.Seconds()
-		fmt.Printf("Wrote: %s to %s in %v average %s/s\n", humanize.IBytes(uint64(wc)), of.Name(), humanizeDuration(elapsed), humanize.IBytes(uint64(bps)))
+		fmt.Printf("Wrote: %s to %s in %v average %s/s\n", humanize.IBytes(uint64(wc)), of.Name(), f(elapsed), humanize.IBytes(uint64(bps)))
 	} else {
-		fmt.Printf("Wrote: %s to %s in %v\n", humanize.IBytes(uint64(wc)), of.Name(), humanizeDuration(elapsed))
+		fmt.Printf("Wrote: %s to %s in %v\n", humanize.IBytes(uint64(wc)), of.Name(), f(elapsed))
 	}
 
 	return nil

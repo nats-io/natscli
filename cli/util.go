@@ -41,7 +41,6 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
-	"github.com/dustin/go-humanize"
 	"github.com/gosuri/uiprogress"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
@@ -848,7 +847,7 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	}
 	sort.Strings(compact)
 
-	return strings.Join(compact, ", ")
+	return f(compact)
 }
 
 func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte)) error {
@@ -1028,7 +1027,7 @@ func renderRaftLeaders(leaders map[string]*raftLeader, grpTitle string) {
 		if dots <= 0 {
 			dots = 1
 		}
-		table.AddRow(l.name, l.cluster, humanize.Comma(int64(l.groups)), strings.Repeat("*", dots))
+		table.AddRow(l.name, l.cluster, f(l.groups), strings.Repeat("*", dots))
 	}
 	fmt.Println(table.Render())
 }
