@@ -33,10 +33,12 @@ type microCmd struct {
 	name     string
 	id       string
 	showJSON bool
+	hdrs     map[string]string
 }
 
 func configureMicroCommand(app commandHost) {
-	c := &microCmd{}
+	c := &microCmd{hdrs: map[string]string{}}
+
 	mc := app.Command("micro", "Micro Services discovery and management").Alias("a")
 	mc.HelpLong("WARNING: This command is experimental")
 
@@ -56,10 +58,72 @@ func configureMicroCommand(app commandHost) {
 
 	ping := mc.Command("ping", "Sends a ping to all services").Action(c.pingAction)
 	ping.Arg("service", "Service to show").StringVar(&c.name)
+
+	echo := mc.Command("echo", "Runs a demo Micro service").Action(c.echoAction)
+	echo.Arg("name", "A name for the service to run on").Required().StringVar(&c.name)
+	echo.Flag("header", "Headers to add to responses").Short('H').StringMapVar(&c.hdrs)
 }
 
 func init() {
 	registerCommand("micro", 0, configureMicroCommand)
+}
+
+func (c *microCmd) echoAction(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return fmt.Errorf("setup failed: %v", err)
+	}
+
+	srv, err := micro.AddService(nc, micro.Config{
+		Name:        c.name,
+		Version:     "1.0.0",
+		Description: "NATS CLI Demo Service",
+		Metadata:    map[string]string{},
+	})
+	if err != nil {
+		return err
+	}
+
+	echoHandler := func(req micro.Request) {
+		log.Printf("Handling request on subject %v", req.Subject())
+
+		resp := map[string]any{
+			"timestamp": time.Now(),
+			"request": map[string]any{
+				"body":    req.Data(),
+				"headers": req.Headers(),
+				"subject": req.Subject(),
+			},
+		}
+
+		hdr := nats.Header{
+			"ConnectedUrl": []string{nc.ConnectedUrlRedacted()},
+		}
+		if nc.ConnectedClusterName() != "" {
+			hdr.Add("ConnectedCluster", nc.ConnectedClusterName())
+		}
+		for k, v := range c.hdrs {
+			hdr.Add(k, v)
+		}
+
+		req.RespondJSON(resp, micro.WithHeaders(micro.Headers(hdr)))
+	}
+
+	err = srv.AddGroup(c.name).AddEndpoint("echo", micro.HandlerFunc(echoHandler), micro.WithEndpointMetadata(map[string]string{}))
+	if err != nil {
+		return err
+	}
+
+	cols := newColumns("NATS CLI Micro Service %s waiting for requests on %s", c.name, nc.ConnectedUrlRedacted())
+	cols.AddSectionTitle("Listening Subjects")
+	cols.AddRow(fmt.Sprintf("%s.echo", c.name), "Echo Service")
+	cols.Println()
+	cols.AddSectionTitle("Requests Log")
+	cols.Frender(os.Stdout)
+
+	<-ctx.Done()
+
+	return nil
 }
 
 func (c *microCmd) makeSubj(v micro.Verb, s string, i string) string {
