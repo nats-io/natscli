@@ -132,7 +132,7 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 	cols.AddRow("Complete", nfo.Complete)
 	cols.AddRow("Expired", nfo.Expired)
 	cols.AddRow("System Account", nfo.IsSystem)
-	cols.AddRowf("Updated", "%v (%s ago)", nfo.LastUpdate.Format("2006-01-02T15:04:05"), humanizeDuration(time.Since(nfo.LastUpdate)))
+	cols.AddRowf("Updated", "%v (%s ago)", f(nfo.LastUpdate), f(time.Since(nfo.LastUpdate)))
 	cols.AddRow("JetStream", nfo.JetStream)
 	cols.AddRowIfNotEmpty("Issuer", nfo.IssuerKey)
 	cols.AddRowIfNotEmpty("Tag", nfo.NameTag)
@@ -174,7 +174,7 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 		cols.AddSectionTitle("Revoked Users")
 
 		for r, t := range nfo.RevokedUser {
-			cols.AddRowf(r, "%s (%s ago)", t, humanizeDuration(time.Since(t)))
+			cols.AddRowf(r, "%s (%s ago)", t, f(time.Since(t)))
 		}
 	}
 

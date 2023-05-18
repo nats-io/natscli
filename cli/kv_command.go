@@ -248,7 +248,7 @@ func (c *kvCommand) displayKeyInfo(kv nats.KeyValue, keys []string) error {
 
 		row := []interface{}{
 			kve.Key(),
-			kve.Created().Format("2006-01-02 15:04:05"),
+			f(kve.Created()),
 			kve.Delta(),
 			kve.Revision(),
 		}
@@ -306,7 +306,7 @@ func (c *kvCommand) lsBuckets() error {
 	for _, s := range found {
 		nfo, _ := s.LatestInformation()
 
-		table.AddRow(strings.TrimPrefix(s.Name(), "KV_"), s.Description(), nfo.Created.Format("2006-01-02 15:04:05"), humanize.IBytes(nfo.State.Bytes), humanize.Comma(int64(nfo.State.Msgs)), humanizeDuration(time.Since(nfo.State.LastTime)))
+		table.AddRow(strings.TrimPrefix(s.Name(), "KV_"), s.Description(), f(nfo.Created), humanize.IBytes(nfo.State.Bytes), f(nfo.State.Msgs), f(time.Since(nfo.State.LastTime)))
 	}
 
 	fmt.Println(table.Render())
@@ -366,7 +366,7 @@ func (c *kvCommand) historyAction(_ *fisk.ParseContext) error {
 			val = fmt.Sprintf("%s...%s", val[0:15], val[len(val)-15:])
 		}
 
-		table.AddRow(r.Key(), r.Revision(), c.strForOp(r.Operation()), r.Created().Format(time.RFC822), humanize.Comma(int64(len(r.Value()))), val)
+		table.AddRow(r.Key(), r.Revision(), c.strForOp(r.Operation()), f(r.Created()), f(len(r.Value())), val)
 	}
 
 	fmt.Println(table.Render())
@@ -497,7 +497,7 @@ func (c *kvCommand) getAction(_ *fisk.ParseContext) error {
 	pv := base64IfNotPrintable(res.Value())
 	lpv := len(pv)
 	if len(pv) > 120 {
-		fmt.Printf("Showing first 120 bytes of %s, use --raw for full data\n\n", humanize.Comma(int64(lpv)))
+		fmt.Printf("Showing first 120 bytes of %s, use --raw for full data\n\n", f(lpv))
 		fmt.Println(pv[:120])
 	} else {
 		fmt.Println(base64IfNotPrintable(res.Value()))
@@ -662,11 +662,11 @@ func (c *kvCommand) watchAction(_ *fisk.ParseContext) error {
 
 		switch res.Operation() {
 		case nats.KeyValueDelete:
-			fmt.Printf("[%s] %s %s > %s\n", res.Created().Format("2006-01-02 15:04:05"), color.RedString(c.strForOp(res.Operation())), res.Bucket(), res.Key())
+			fmt.Printf("[%s] %s %s > %s\n", f(res.Created()), color.RedString(c.strForOp(res.Operation())), res.Bucket(), res.Key())
 		case nats.KeyValuePurge:
-			fmt.Printf("[%s] %s %s > %s\n", res.Created().Format("2006-01-02 15:04:05"), color.RedString(c.strForOp(res.Operation())), res.Bucket(), res.Key())
+			fmt.Printf("[%s] %s %s > %s\n", f(res.Created()), color.RedString(c.strForOp(res.Operation())), res.Bucket(), res.Key())
 		case nats.KeyValuePut:
-			fmt.Printf("[%s] %s %s > %s: %s\n", res.Created().Format("2006-01-02 15:04:05"), color.GreenString(c.strForOp(res.Operation())), res.Bucket(), res.Key(), res.Value())
+			fmt.Printf("[%s] %s %s > %s: %s\n", f(res.Created()), color.GreenString(c.strForOp(res.Operation())), res.Bucket(), res.Key(), res.Value())
 		}
 	}
 
@@ -817,14 +817,14 @@ func renderNatsGoClusterInfo(cols *columnWriter, info *nats.StreamInfo) {
 		}
 
 		if r.Active > 0 && r.Active < math.MaxInt64 {
-			state = append(state, fmt.Sprintf("seen %s ago", humanizeDuration(r.Active)))
+			state = append(state, fmt.Sprintf("seen %s ago", f(r.Active)))
 		} else {
 			state = append(state, "not seen")
 		}
 
 		switch {
 		case r.Lag > 1:
-			state = append(state, fmt.Sprintf("%s operations behind", humanize.Comma(int64(r.Lag))))
+			state = append(state, fmt.Sprintf("%s operations behind", f(r.Lag)))
 		case r.Lag == 1:
 			state = append(state, fmt.Sprintf("%d operation behind", r.Lag))
 		}

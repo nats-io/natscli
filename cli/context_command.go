@@ -463,7 +463,7 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	fmt.Println()
 
 	if c.hasOverrides() {
-		fmt.Printf("%s: Shell environment overrides in place using %v", color.HiRedString("WARNING"), strings.Join(c.overrideVars(), ", "))
+		fmt.Printf("%s: Shell environment overrides in place using %v", color.HiRedString("WARNING"), f(c.overrideVars()))
 		fmt.Println()
 	}
 

@@ -548,13 +548,13 @@ func (c *consumerCmd) renderBackoff(bo []time.Duration) string {
 			times = append(times, d.String())
 		}
 
-		return fmt.Sprintf("%s (%d total)", strings.Join(times, ", "), len(bo))
+		return fmt.Sprintf("%s (%d total)", f(times), len(bo))
 	} else {
 		for _, p := range bo {
 			times = append(times, p.String())
 		}
 
-		return strings.Join(times, ", ")
+		return f(times)
 	}
 }
 
@@ -635,7 +635,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		cols.AddRow("Name", state.Cluster.Name)
 		cols.AddRow("Leader", state.Cluster.Leader)
 		for _, r := range state.Cluster.Replicas {
-			since := fmt.Sprintf("seen %s ago", humanizeDuration(r.Active))
+			since := fmt.Sprintf("seen %s ago", f(r.Active))
 			if r.Active == 0 || r.Active == math.MaxInt64 {
 				since = "not seen"
 			}
@@ -651,19 +651,19 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	cols.AddSectionTitle("State")
 
 	if state.Delivered.Last == nil {
-		cols.AddRowf("Last Delivered Message", "Consumer sequence: %s Stream sequence: %s", humanize.Comma(int64(state.Delivered.Consumer)), humanize.Comma(int64(state.Delivered.Stream)))
+		cols.AddRowf("Last Delivered Message", "Consumer sequence: %s Stream sequence: %s", f(state.Delivered.Consumer), f(state.Delivered.Stream))
 	} else {
-		cols.AddRowf("Last Delivered Message", "Consumer sequence: %s Stream sequence: %s Last delivery: %s ago", humanize.Comma(int64(state.Delivered.Consumer)), humanize.Comma(int64(state.Delivered.Stream)), humanizeDuration(time.Since(*state.Delivered.Last)))
+		cols.AddRowf("Last Delivered Message", "Consumer sequence: %s Stream sequence: %s Last delivery: %s ago", f(state.Delivered.Consumer), f(state.Delivered.Stream), f(time.Since(*state.Delivered.Last)))
 	}
 
 	if config.AckPolicy != api.AckNone {
 		if state.AckFloor.Last == nil {
-			cols.AddRowf("Acknowledgment floor", "Consumer sequence: %s Stream sequence: %s", humanize.Comma(int64(state.AckFloor.Consumer)), humanize.Comma(int64(state.AckFloor.Stream)))
+			cols.AddRowf("Acknowledgment floor", "Consumer sequence: %s Stream sequence: %s", f(state.AckFloor.Consumer), f(state.AckFloor.Stream))
 		} else {
-			cols.AddRowf("Acknowledgment floor", "Consumer sequence: %s Stream sequence: %s Last Ack: %s ago", humanize.Comma(int64(state.AckFloor.Consumer)), humanize.Comma(int64(state.AckFloor.Stream)), humanizeDuration(time.Since(*state.AckFloor.Last)))
+			cols.AddRowf("Acknowledgment floor", "Consumer sequence: %s Stream sequence: %s Last Ack: %s ago", f(state.AckFloor.Consumer), f(state.AckFloor.Stream), f(time.Since(*state.AckFloor.Last)))
 		}
 		if config.MaxAckPending > 0 {
-			cols.AddRowf("Outstanding Acks", "%s out of maximum %s", humanize.Comma(int64(state.NumAckPending)), humanize.Comma(int64(config.MaxAckPending)))
+			cols.AddRowf("Outstanding Acks", "%s out of maximum %s", f(state.NumAckPending), f(config.MaxAckPending))
 		} else {
 			cols.AddRow("Outstanding Acks", state.NumAckPending)
 		}
@@ -673,9 +673,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	cols.AddRow("Unprocessed Messages", state.NumPending)
 	if config.DeliverSubject == "" {
 		if config.MaxWaiting > 0 {
-			cols.AddRowf("Waiting Pulls", "%s of maximum %s", humanize.Comma(int64(state.NumWaiting)), humanize.Comma(int64(config.MaxWaiting)))
+			cols.AddRowf("Waiting Pulls", "%s of maximum %s", f(state.NumWaiting), f(config.MaxWaiting))
 		} else {
-			cols.AddRowf("Waiting Pulls", "%s of unlimited", humanize.Comma(int64(state.NumWaiting)))
+			cols.AddRowf("Waiting Pulls", "%s of unlimited", f(state.NumWaiting))
 		}
 	} else {
 		if state.PushBound {
@@ -1427,7 +1427,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 			}
 
 		} else {
-			fmt.Printf("[%s] subj: %s / tries: %d / cons seq: %d / str seq: %d / pending: %s\n", time.Now().Format("15:04:05"), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), humanize.Comma(int64(info.Pending())))
+			fmt.Printf("[%s] subj: %s / tries: %d / cons seq: %d / str seq: %d / pending: %s\n", time.Now().Format("15:04:05"), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence(), f(info.Pending()))
 		}
 
 		if len(msg.Header) > 0 {
@@ -1521,7 +1521,7 @@ func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 			now := time.Now().Format("15:04:05")
 
 			if msginfo != nil {
-				fmt.Printf("[%s] subj: %s / tries: %d / cons seq: %d / str seq: %d / pending: %s\n", now, m.Subject, msginfo.Delivered(), msginfo.ConsumerSequence(), msginfo.StreamSequence(), humanize.Comma(int64(msginfo.Pending())))
+				fmt.Printf("[%s] subj: %s / tries: %d / cons seq: %d / str seq: %d / pending: %s\n", now, m.Subject, msginfo.Delivered(), msginfo.ConsumerSequence(), msginfo.StreamSequence(), f(msginfo.Pending()))
 			} else {
 				fmt.Printf("[%s] %s reply: %s\n", now, m.Subject, m.Reply)
 			}
@@ -1648,7 +1648,7 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 
 	leaders := make(map[string]*raftLeader)
 
-	table := newTableWriter(fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, humanize.Comma(int64(ss.Consumers))))
+	table := newTableWriter(fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, f(ss.Consumers)))
 	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
 	missing, err := s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
@@ -1681,10 +1681,10 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 				if upct > 100 {
 					upct = 100
 				}
-				unprocessed = fmt.Sprintf("%s / %0.0f%%", humanize.Comma(int64(cs.NumPending)), upct)
+				unprocessed = fmt.Sprintf("%s / %0.0f%%", f(cs.NumPending), upct)
 			}
 
-			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), humanizeDuration(cons.AckWait()), humanize.Comma(int64(cs.NumAckPending)), humanize.Comma(int64(cs.NumRedelivered)), unprocessed, humanize.Comma(int64(cs.AckFloor.Stream)), renderCluster(cs.Cluster))
+			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), f(cons.AckWait()), f(cs.NumAckPending), f(cs.NumRedelivered), unprocessed, f(cs.AckFloor.Stream), renderCluster(cs.Cluster))
 		}
 	})
 	if err != nil {

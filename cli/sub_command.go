@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -127,7 +126,7 @@ func startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, subjectRepor
 
 				for count, k := range keys {
 
-					subjectRows = append(subjectRows, []any{k, humanize.Comma(subjectReportMap[k]), humanize.IBytes(uint64(subjectBytesReportMap[k]))})
+					subjectRows = append(subjectRows, []any{k, f(subjectReportMap[k]), humanize.IBytes(uint64(subjectBytesReportMap[k]))})
 					totalCount += subjectReportMap[k]
 					totalBytes += subjectBytesReportMap[k]
 					if (count + 1) == subjCount {
@@ -144,7 +143,7 @@ func startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, subjectRepor
 				}
 				table := newTableWriter(tableHeaderString)
 				table.AddHeaders("Subject", "Message Count", "Bytes")
-				table.AddFooter("Totals", humanize.Comma(totalCount), humanize.IBytes(uint64(totalBytes)))
+				table.AddFooter("Totals", f(totalCount), humanize.IBytes(uint64(totalBytes)))
 				for i := range subjectRows {
 					table.AddRow(subjectRows[i]...)
 				}
@@ -329,7 +328,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 
 	var ignoredSubjInfo string
 	if len(ignoreSubjects) > 0 {
-		ignoredSubjInfo = fmt.Sprintf("\nIgnored subjects: %s", strings.Join(ignoreSubjects, ", "))
+		ignoredSubjInfo = fmt.Sprintf("\nIgnored subjects: %s", f(ignoreSubjects))
 	}
 
 	if (!c.raw && c.dump == "") || c.inbox {
@@ -387,7 +386,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 				if err != nil {
 					return err
 				}
-				subMsg = strings.Join(str.Config.Subjects, ", ")
+				subMsg = f(str.Config.Subjects)
 			}
 			opts = append(opts, nats.BindStream(c.stream))
 		}
@@ -415,7 +414,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			}
 
 			start := time.Now().Add(-1 * d)
-			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with messages since %s %s", subMsg, humanizeDuration(d), ignoredSubjInfo)
+			log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with messages since %s %s", subMsg, f(d), ignoredSubjInfo)
 
 			opts = append(opts, nats.StartTime(start))
 		case c.deliverLastPerSubject:

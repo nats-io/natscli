@@ -157,7 +157,7 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 	cols.AddRow("Memory", humanize.IBytes(uint64(varz.Mem)))
 	cols.AddRow("Connections", varz.Connections)
 	cols.AddRow("Subscriptions", varz.Subscriptions)
-	cols.AddRowf("Messages", "%s in %s out", humanize.Comma(varz.InMsgs), humanize.Comma(varz.OutMsgs))
+	cols.AddRowf("Messages", "%s in %s out", f(varz.InMsgs), f(varz.OutMsgs))
 	cols.AddRowf("Bytes", "%s in %s out", humanize.IBytes(uint64(varz.InBytes)), humanize.IBytes(uint64(varz.OutBytes)))
 	cols.AddRow("Slow Consumers", varz.SlowConsumers)
 

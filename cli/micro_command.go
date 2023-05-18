@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/choria-io/fisk"
-	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
@@ -241,7 +240,7 @@ func (c *microCmd) pingAction(_ *fisk.ParseContext) error {
 			return
 		}
 		r := resp.(*micro.Ping)
-		fmt.Printf("%-50s rtt=%s\n", fmt.Sprintf("%s %s", r.Name, r.ID), humanizeDuration(time.Since(start)))
+		fmt.Printf("%-50s rtt=%s\n", fmt.Sprintf("%s %s", r.Name, r.ID), f(time.Since(start)))
 	})
 	if err != nil {
 		return err
@@ -312,7 +311,7 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 				id = ""
 			}
 
-			table.AddRow(id, e.Name, humanize.Comma(int64(e.NumRequests)), humanize.Comma(int64(e.NumErrors)), humanizeDuration(e.ProcessingTime), humanizeDuration(e.AverageProcessingTime))
+			table.AddRow(id, e.Name, f(e.NumRequests), f(e.NumErrors), f(e.ProcessingTime), f(e.AverageProcessingTime))
 			requests += e.NumRequests
 			errors += e.NumErrors
 			runTime += e.ProcessingTime
@@ -324,7 +323,7 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 		avg = runTime / time.Duration(requests+errors)
 	}
 
-	table.AddFooter("", "", humanize.Comma(int64(requests)), humanize.Comma(int64(errors)), humanizeDuration(runTime), humanizeDuration(avg))
+	table.AddFooter("", "", f(requests), f(errors), f(runTime), f(avg))
 
 	fmt.Println(table.Render())
 
@@ -388,9 +387,9 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 
 		cols.AddSectionTitle("%s Endpoint Statistics", e.Name)
 		cols.AddRow("Requests", e.NumRequests)
+		cols.AddRowf("Processing Time", "%s (average %s)", f(e.ProcessingTime), f(e.AverageProcessingTime))
+		cols.AddRowf("Started:", "%s (%s ago)", f(stats.Started), f(time.Since(stats.Started)))
 		cols.AddRow("Errors", e.NumErrors)
-		cols.AddRowf("Processing Time", "%s (average %s)", humanizeDuration(e.ProcessingTime), humanizeDuration(e.AverageProcessingTime))
-		cols.AddRow("Started:", stats.Started)
 		cols.AddRowIfNotEmpty("Last Error", e.LastError)
 
 		if e.Data != nil {

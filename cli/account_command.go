@@ -22,7 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/choria-io/fisk"
@@ -260,17 +259,17 @@ func (c *actCmd) reportServerStats(_ *fisk.ParseContext) error {
 			sz.ServerInfo.Host,
 			sz.ServerInfo.Cluster,
 			sz.ServerInfo.Version,
-			strings.Join(sz.ServerInfo.Tags, ", "),
-			humanize.Comma(int64(stats.Conns)),
-			humanize.Comma(int64(stats.LeafNodes)),
+			f(sz.ServerInfo.Tags),
+			f(stats.Conns),
+			f(stats.LeafNodes),
 			humanize.IBytes(uint64(stats.Sent.Bytes)),
-			humanize.Comma(stats.Sent.Msgs),
+			f(stats.Sent.Msgs),
 			humanize.IBytes(uint64(stats.Received.Bytes)),
-			humanize.Comma(stats.Received.Msgs),
-			humanize.Comma(stats.SlowConsumers),
+			f(stats.Received.Msgs),
+			f(stats.SlowConsumers),
 		)
 	}
-	table.AddFooter(len(res), "", "", "", humanize.Comma(int64(conn)), humanize.Comma(int64(ln)), humanize.IBytes(uint64(sb)), humanize.Comma(sm), humanize.IBytes(uint64(rb)), humanize.Comma(rm), humanize.Comma(sc))
+	table.AddFooter(len(res), "", "", "", f(conn), f(ln), humanize.IBytes(uint64(sb)), f(sm), humanize.IBytes(uint64(rb)), f(rm), f(sc))
 	fmt.Print(table.Render())
 	fmt.Println()
 
@@ -368,15 +367,15 @@ func (c *actCmd) renderTier(cols *columnWriter, name string, tier api.JetStreamT
 	}
 
 	if tier.Limits.MaxStreams == -1 {
-		cols.AddRowf("Streams", "%s of Unlimited", humanize.Comma(int64(tier.Streams)))
+		cols.AddRowf("Streams", "%s of Unlimited", f(tier.Streams))
 	} else {
-		cols.AddRowf("Streams", "%s of %s", humanize.Comma(int64(tier.Streams)), humanize.Comma(int64(tier.Limits.MaxStreams)))
+		cols.AddRowf("Streams", "%s of %s", f(tier.Streams), f(tier.Limits.MaxStreams))
 	}
 
 	if tier.Limits.MaxConsumers == -1 {
-		cols.AddRowf("Consumers", "%s of Unlimited", humanize.Comma(int64(tier.Consumers)))
+		cols.AddRowf("Consumers", "%s of Unlimited", f(tier.Consumers))
 	} else {
-		cols.AddRowf("Consumers", "%s of %s", humanize.Comma(int64(tier.Consumers)), humanize.Comma(int64(tier.Limits.MaxConsumers)))
+		cols.AddRowf("Consumers", "%s of %s", f(tier.Consumers), f(tier.Limits.MaxConsumers))
 	}
 }
 

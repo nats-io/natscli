@@ -258,14 +258,14 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			row = append(row, js.Data.Config.Domain)
 		}
 		row = append(row,
-			humanize.Comma(int64(rStreams)),
-			humanize.Comma(int64(rConsumers)),
-			humanize.Comma(int64(rMessages)),
+			f(rStreams),
+			f(rConsumers),
+			f(rMessages),
 			humanize.IBytes(rBytes),
 			humanize.IBytes(jss.Memory),
 			humanize.IBytes(jss.Store),
-			humanize.Comma(int64(jss.API.Total)),
-			humanize.Comma(int64(jss.API.Errors)))
+			f(jss.API.Total),
+			f(jss.API.Errors))
 
 		table.AddRow(row...)
 	}
@@ -274,7 +274,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	if renderDomain {
 		row = append(row, "")
 	}
-	row = append(row, humanize.Comma(int64(streams)), humanize.Comma(int64(consumers)), humanize.Comma(int64(msgs)), humanize.IBytes(bytes), humanize.IBytes(memory), humanize.IBytes(store), humanize.Comma(int64(apiTotal)), humanize.Comma(int64(apiErr)))
+	row = append(row, f(streams), f(consumers), f(msgs), humanize.IBytes(bytes), humanize.IBytes(memory), humanize.IBytes(store), f(apiTotal), f(apiErr))
 	table.AddFooter(row...)
 
 	fmt.Print(table.Render())
@@ -324,7 +324,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 				online = color.New(color.Bold).Sprint("false")
 			}
 
-			table.AddRow(cNames[i], peer, leader, replica.Current, online, humanizeDuration(replica.Active), humanize.Comma(int64(replica.Lag)))
+			table.AddRow(cNames[i], peer, leader, replica.Current, online, f(replica.Active), f(replica.Lag))
 		}
 		fmt.Print(table.Render())
 
@@ -403,7 +403,7 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 	table.AddHeaders("Account", "Connections", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
 
 	for _, acct := range accounts {
-		table.AddRow(acct.Account, humanize.Comma(int64(acct.Connections)), humanize.Comma(acct.InMsgs), humanize.Comma(acct.OutMsgs), humanize.IBytes(uint64(acct.InBytes)), humanize.IBytes(uint64(acct.OutBytes)), humanize.Comma(int64(acct.Subs)))
+		table.AddRow(acct.Account, f(acct.Connections), f(acct.InMsgs), f(acct.OutMsgs), humanize.IBytes(uint64(acct.InBytes)), humanize.IBytes(uint64(acct.OutBytes)), f(acct.Subs))
 	}
 
 	fmt.Print(table.Render())
@@ -517,7 +517,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		limit = c.topk
 	}
 
-	table := newTableWriter(fmt.Sprintf("Top %d Connections out of %s by %s", limit, humanize.Comma(int64(total)), c.sort))
+	table := newTableWriter(fmt.Sprintf("Top %d Connections out of %s by %s", limit, f(total), c.sort))
 	table.AddHeaders("CID", "Name", "Server", "Cluster", "IP", "Account", "Uptime", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
 
 	var oMsgs int64
@@ -567,12 +567,12 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		}
 
 		if i < limit {
-			table.AddRow(cid, name, srvName, cluster, fmt.Sprintf("%s:%d", info.IP, info.Port), acc, info.Uptime, humanize.Comma(info.InMsgs), humanize.Comma(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), len(info.Subs))
+			table.AddRow(cid, name, srvName, cluster, fmt.Sprintf("%s:%d", info.IP, info.Port), acc, info.Uptime, f(info.InMsgs), f(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), f(len(info.Subs)))
 		}
 	}
 
 	if len(report) > 1 {
-		table.AddFooter("", fmt.Sprintf("Totals for %s connections", humanize.Comma(int64(total))), "", "", "", "", "", humanize.Comma(iMsgs), humanize.Comma(oMsgs), humanize.IBytes(uint64(iBytes)), humanize.IBytes(uint64(oBytes)), humanize.Comma(int64(subs)))
+		table.AddFooter("", fmt.Sprintf("Totals for %s connections", humanize.Comma(int64(total))), "", "", "", "", "", f(iMsgs), f(oMsgs), humanize.IBytes(uint64(iBytes)), humanize.IBytes(uint64(oBytes)), f(subs))
 	}
 
 	fmt.Print(table.Render())

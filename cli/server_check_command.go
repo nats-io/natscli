@@ -326,11 +326,11 @@ func (c *SrvCheckCmd) checkVarz(check *monitor.Result, vz *server.Varz) error {
 		}
 
 		if up <= c.srvUptimeCrit {
-			check.Critical("Up %s", humanizeDuration(up))
+			check.Critical("Up %s", f(up))
 		} else if up <= c.srvUptimeWarn {
-			check.Warn("Up %s", humanizeDuration(up))
+			check.Warn("Up %s", f(up))
 		} else {
-			check.Ok("Up %s", humanizeDuration(up))
+			check.Ok("Up %s", f(up))
 		}
 	}
 

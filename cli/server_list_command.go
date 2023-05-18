@@ -200,16 +200,16 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			cHosts[i],
 			ssm.Server.Version,
 			jsEnabled,
-			humanize.Comma(int64(ssm.Stats.Connections)),
-			humanize.Comma(int64(ssm.Stats.NumSubs)),
+			f(ssm.Stats.Connections),
+			f(ssm.Stats.NumSubs),
 			len(ssm.Stats.Routes),
 			len(ssm.Stats.Gateways),
 			humanize.IBytes(uint64(ssm.Stats.Mem)),
 			fmt.Sprintf("%.0f", ssm.Stats.CPU),
 			ssm.Stats.Cores,
 			ssm.Stats.SlowConsumers,
-			humanizeDuration(ssm.Server.Time.Sub(ssm.Stats.Start)),
-			ssm.rtt.Round(time.Millisecond))
+			f(ssm.Server.Time.Sub(ssm.Stats.Start)),
+			f(ssm.rtt.Round(time.Millisecond)))
 	}
 
 	table.AddFooter(
@@ -218,13 +218,13 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		servers,
 		"",
 		js,
-		humanize.Comma(int64(connections)),
-		humanize.Comma(int64(subs)),
+		f(connections),
+		f(subs),
 		"", "",
 		humanize.IBytes(uint64(memory)),
 		"",
 		"",
-		humanize.Comma(slow),
+		f(slow),
 		"",
 		"")
 
