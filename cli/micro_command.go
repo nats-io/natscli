@@ -60,7 +60,7 @@ func configureMicroCommand(app commandHost) {
 	ping := mc.Command("ping", "Sends a ping to all services").Action(c.pingAction)
 	ping.Arg("service", "Service to show").StringVar(&c.name)
 
-	echo := mc.Command("echo", "Runs a demo Micro service").Action(c.echoAction)
+	echo := mc.Command("serve", "Runs a demo Micro service").Action(c.serveAction)
 	echo.Arg("name", "A name for the service to run on").Required().StringVar(&c.name)
 	echo.Flag("header", "Headers to add to responses").Short('H').StringMapVar(&c.hdrs)
 }
@@ -69,7 +69,7 @@ func init() {
 	registerCommand("micro", 0, configureMicroCommand)
 }
 
-func (c *microCmd) echoAction(_ *fisk.ParseContext) error {
+func (c *microCmd) serveAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return fmt.Errorf("setup failed: %v", err)
