@@ -223,38 +223,49 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
+	editFile := path
 
 	var ctx *natscontext.Context
 
 	ctx, err = natscontext.New(c.name, true)
 	if err != nil {
-		return fmt.Errorf("invalid context, use --no-update to edit it without validation: %v", err)
-	}
-
-	tpl, err := template.New("context").Funcs(template.FuncMap{"t": func(s any) (string, error) {
-		res, err := yaml.Marshal(s)
+		fmt.Printf("Context file %s cannot be loaded: %v\n\n", path, err)
+		ok, err := askConfirmation("Edit the JSON file", false)
 		if err != nil {
-			return "", err
+			return err
 		}
-		return string(bytes.TrimRight(res, "\n")), nil
-	}}).Parse(ctxYamlTemplate)
-	if err != nil {
-		return err
+		if !ok {
+			return fmt.Errorf("corrupt context configuration file: %v", err)
+		}
+		fmt.Println()
+	} else {
+		tpl, err := template.New("context").Funcs(template.FuncMap{"t": func(s any) (string, error) {
+			res, err := yaml.Marshal(s)
+			if err != nil {
+				return "", err
+			}
+			return string(bytes.TrimRight(res, "\n")), nil
+		}}).Parse(ctxYamlTemplate)
+		if err != nil {
+			return err
+		}
+
+		f, err := os.CreateTemp("", "")
+		if err != nil {
+			return fmt.Errorf("could not create temporary copy to edit: %w", err)
+		}
+		defer f.Close()
+
+		err = tpl.ExecuteTemplate(f, "context", ctx)
+		if err != nil {
+			return fmt.Errorf("could not create temporary copy to edit: %w", err)
+		}
+		f.Close()
+
+		editFile = f.Name()
 	}
 
-	f, err := os.CreateTemp("", "")
-	if err != nil {
-		return fmt.Errorf("could not create temporary copy to edit: %w", err)
-	}
-	defer f.Close()
-
-	err = tpl.ExecuteTemplate(f, "context", ctx)
-	if err != nil {
-		return fmt.Errorf("could not create temporary copy to edit: %w", err)
-	}
-	f.Close()
-
-	cmd := exec.Command(editor, f.Name())
+	cmd := exec.Command(editor, editFile)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -264,35 +275,43 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 		return err
 	}
 
-	yctx, err := os.ReadFile(f.Name())
-	if err != nil {
-		return fmt.Errorf("could not read temporary copy: %w", err)
-	}
+	if path != editFile {
+		yctx, err := os.ReadFile(editFile)
+		if err != nil {
+			return fmt.Errorf("could not read temporary copy: %w", err)
+		}
 
-	jctx, err := yaml.YAMLToJSON(yctx)
-	if err != nil {
-		return err
-	}
-	buff := bytes.NewBuffer([]byte{})
-	err = json.Indent(buff, jctx, "", "  ")
-	if err != nil {
-		return fmt.Errorf("could not format JSON output: %w", err)
-	}
+		jctx, err := yaml.YAMLToJSON(yctx)
+		if err != nil {
+			return err
+		}
+		buff := bytes.NewBuffer([]byte{})
+		err = json.Indent(buff, jctx, "", "  ")
+		if err != nil {
+			return fmt.Errorf("could not format JSON output: %w", err)
+		}
 
-	err = os.Rename(path, path+".bak")
-	if err != nil {
-		return fmt.Errorf("could not create a backup of the context definition: %w", err)
-	}
+		err = os.Rename(path, path+".bak")
+		if err != nil {
+			return fmt.Errorf("could not create a backup of the context definition: %w", err)
+		}
 
-	err = os.WriteFile(path, buff.Bytes(), 0600)
-	if err != nil {
-		return fmt.Errorf("could not save the context: %w", err)
+		err = os.WriteFile(path, buff.Bytes(), 0600)
+		if err != nil {
+			return fmt.Errorf("could not save the context: %w", err)
+		}
+
 	}
 
 	// There was an error with some data in the modified config
 	// Save the known clean version and show the error
 	err = c.showCommand(pc)
 	if err != nil {
+		// but not if the file was already corrupt and we are editing the json directly
+		if path == editFile {
+			return err
+		}
+
 		if ctx != nil {
 			ctx.Save(c.name)
 		}
