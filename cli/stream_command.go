@@ -1539,7 +1539,7 @@ func (c *streamCmd) showStreamConfig(cols *columnWriter, cfg api.StreamConfig) {
 	cols.AddRow("Replicas", cfg.Replicas)
 	cols.AddRowIf("Sealed", true, cfg.Sealed)
 	cols.AddRow("Storage", cfg.Storage.String())
-	cols.AddRowIf("Compression", cfg.Compression, cfg.Storage == api.FileStorage)
+	cols.AddRowIf("Compression", cfg.Compression, cfg.Compression != api.NoCompression)
 	if cfg.Placement != nil {
 		cols.AddRowIfNotEmpty("Placement Cluster", cfg.Placement.Cluster)
 		cols.AddRowIf("Placement Tags", cfg.Placement.Tags, len(cfg.Placement.Tags) > 0)
