@@ -373,7 +373,7 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 		}
 
 		if len(c.filterSubjects) == 1 {
-			ncfg.FilterSubject = c.filterSubjects[1]
+			ncfg.FilterSubject = c.filterSubjects[0]
 		} else if len(c.filterSubjects) > 1 {
 			ncfg.FilterSubjects = c.filterSubjects
 		}
