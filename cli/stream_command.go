@@ -1989,7 +1989,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	fisk.FatalIfError(err, "invalid compression algorithm")
 
 	if c.replicas == 0 {
-		c.replicas, err = askOneInt("Replication", "1", "When clustered, defines how many replicas of the data to store.  Settable using --replicas.")
+		c.replicas, err = askOneInt("Replication", "1", "When clustered, defines how many replicas of the data to store.  Settable using --replicas")
 		fisk.FatalIfError(err, "invalid input")
 	}
 	if c.replicas <= 0 {
@@ -2084,7 +2084,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 			err = askOne(&survey.Input{
 				Message: "Duplicate tracking time window",
 				Default: defaultDW,
-				Help:    "Duplicate messages are identified by the Msg-Id headers and tracked within a window of this size. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --dupe-window.",
+				Help:    "Duplicate messages are identified by the Msg-Id headers and tracked within a window of this size. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --dupe-window",
 			}, &c.dupeWindow)
 			fisk.FatalIfError(err, "invalid input")
 		}
