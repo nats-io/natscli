@@ -658,9 +658,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 
 	if config.AckPolicy != api.AckNone {
 		if state.AckFloor.Last == nil {
-			cols.AddRowf("Acknowledgment floor", "Consumer sequence: %s Stream sequence: %s", f(state.AckFloor.Consumer), f(state.AckFloor.Stream))
+			cols.AddRowf("Acknowledgment Floor", "Consumer sequence: %s Stream sequence: %s", f(state.AckFloor.Consumer), f(state.AckFloor.Stream))
 		} else {
-			cols.AddRowf("Acknowledgment floor", "Consumer sequence: %s Stream sequence: %s Last Ack: %s ago", f(state.AckFloor.Consumer), f(state.AckFloor.Stream), f(time.Since(*state.AckFloor.Last)))
+			cols.AddRowf("Acknowledgment Floor", "Consumer sequence: %s Stream sequence: %s Last ack: %s ago", f(state.AckFloor.Consumer), f(state.AckFloor.Stream), f(time.Since(*state.AckFloor.Last)))
 		}
 		if config.MaxAckPending > 0 {
 			cols.AddRowf("Outstanding Acks", "%s out of maximum %s", f(state.NumAckPending), f(config.MaxAckPending))
