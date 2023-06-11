@@ -638,10 +638,6 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if str.Retention() == api.WorkQueuePolicy {
-		return fmt.Errorf("work queue stream contents can not be viewed")
-	}
-
 	pops := []jsm.PagerOption{
 		jsm.PagerSize(c.vwPageSize),
 	}
@@ -676,14 +672,16 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 		}
 	}()
 
+	shouldTerminate := false
+
 	for {
 		msg, last, err := pgr.NextMsg(ctx)
-		if err != nil && last {
-			log.Println("Reached apparent end of data")
-			return nil
-		}
 		if err != nil {
-			return err
+			if !last {
+				return err
+			}
+			// later we know we reached final last after showing the final message
+			shouldTerminate = true
 		}
 
 		switch {
@@ -708,6 +706,11 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 
 			fmt.Println()
 			outPutMSGBody(msg.Data, c.vwTranslate, msg.Subject, meta.Stream())
+		}
+
+		if shouldTerminate {
+			log.Println("Reached apparent end of data")
+			return nil
 		}
 
 		if last {
@@ -2589,7 +2592,7 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string
 	table.AddHeaders("Name", "Description", "Created", "Messages", "Size", "Last Message")
 	for _, s := range streams {
 		nfo, _ := s.LatestInformation()
-		table.AddRow(s.Name(), s.Description(), f(nfo.Created.Local()), f(nfo.State.Msgs), humanize.IBytes(nfo.State.Bytes), f(time.Since(nfo.State.LastTime)))
+		table.AddRow(s.Name(), s.Description(), f(nfo.Created.Local()), f(nfo.State.Msgs), humanize.IBytes(nfo.State.Bytes), f(sinceRefOrNow(nfo.TimeStamp, nfo.State.LastTime)))
 	}
 
 	fmt.Fprintln(&out, table.Render())

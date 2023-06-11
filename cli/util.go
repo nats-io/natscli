@@ -230,6 +230,13 @@ func isTerminal() bool {
 	return terminal.IsTerminal(int(os.Stdin.Fd()))
 }
 
+func sinceRefOrNow(ref time.Time, ts time.Time) time.Duration {
+	if ref.IsZero() {
+		return time.Since(ts)
+	}
+	return ref.Sub(ts)
+}
+
 func askConfirmation(prompt string, dflt bool) (bool, error) {
 	if !isTerminal() {
 		return false, fmt.Errorf("cannot ask for confirmation without a terminal")
