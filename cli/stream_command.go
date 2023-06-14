@@ -672,8 +672,6 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 		}
 	}()
 
-	shouldTerminate := false
-
 	for {
 		msg, last, err := pgr.NextMsg(ctx)
 		if err != nil {
@@ -681,7 +679,8 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 				return err
 			}
 			// later we know we reached final last after showing the final message
-			shouldTerminate = true
+			log.Println("Reached apparent end of data")
+			return nil
 		}
 
 		switch {
@@ -706,11 +705,6 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 
 			fmt.Println()
 			outPutMSGBody(msg.Data, c.vwTranslate, msg.Subject, meta.Stream())
-		}
-
-		if shouldTerminate {
-			log.Println("Reached apparent end of data")
-			return nil
 		}
 
 		if last {
