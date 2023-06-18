@@ -696,7 +696,7 @@ func (c *kvCommand) purgeAction(_ *fisk.ParseContext) error {
 
 func (c *kvCommand) rmBucketAction(_ *fisk.ParseContext) error {
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Deleted bucket %s?", c.bucket), false)
+		ok, err := askConfirmation(fmt.Sprintf("Delete bucket %s?", c.bucket), false)
 		if err != nil {
 			return err
 		}
