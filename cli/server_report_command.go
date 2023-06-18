@@ -166,7 +166,10 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		case "err":
 			return c.boolReverse(jszResponses[i].Data.JetStreamStats.API.Errors < jszResponses[j].Data.JetStreamStats.API.Errors)
 		default:
-			return c.boolReverse(jszResponses[i].Server.Cluster < jszResponses[j].Server.Cluster)
+			if jszResponses[i].Server.Cluster != jszResponses[j].Server.Cluster {
+				return c.boolReverse(jszResponses[i].Server.Cluster < jszResponses[j].Server.Cluster)
+			}
+			return c.boolReverse(jszResponses[i].Server.Name < jszResponses[j].Server.Name)
 		}
 	})
 
