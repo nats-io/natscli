@@ -129,6 +129,7 @@ type streamCmd struct {
 	fSourcedSet  bool
 	fMirrored    bool
 	fMirroredSet bool
+	fExpression  string
 
 	listNames    bool
 	vwStartId    int
@@ -235,7 +236,37 @@ func configureStreamCommand(app commandHost) {
 	strReport.Flag("dot", "Produce a GraphViz graph of replication topology").StringVar(&c.outFile)
 	strReport.Flag("leaders", "Show details about RAFT leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
 
+	findHelp := `Expression format:
+
+Using the --expression flag arbitrary complex matching can be done across any state field(s) from the stream information.
+
+Use this when trying to match on fields we don't specifically support or to perform complex boolean matches.
+
+We use the expr language to perform matching, see https://expr.medv.io/docs/Language-Definition for detail about the expression language.  Expressions you enter must return a boolean value.
+
+The following items are available to query, all using the same values seen in JSON from stream info:
+
+  * config - Stream configuration
+  * state - Stream state
+  * info - Stream information aka state.state
+
+Additionally there is Info (with a capital I) that is the golang structure and with keys matching the struct keys in the server.
+
+Finding streams with more than 10 messages:
+
+   nats s find --expression 'state.messages < 10'
+   nats s find --expression 'Info.State.Msgs < 10'
+
+Finding streams in multiple clusters:
+
+   nats s find --expression 'info.cluster.name in ["lon", "sfo"]'
+
+Finding streams with certain subjects configured:
+
+   nats s find --expression '"js.in.orders_1" in config.subjects'
+`
 	strFind := str.Command("find", "Finds streams matching certain criteria").Alias("query").Action(c.findAction)
+	strFind.HelpLong(findHelp)
 	strFind.Flag("server-name", "Display streams present on a regular expression matched server").StringVar(&c.fServer)
 	strFind.Flag("cluster", "Display streams present on a regular expression matched cluster").StringVar(&c.fCluster)
 	strFind.Flag("empty", "Display streams with no messages").UnNegatableBoolVar(&c.fEmpty)
@@ -248,6 +279,7 @@ func configureStreamCommand(app commandHost) {
 	strFind.Flag("mirrored", "Display that mirrors data from other streams").IsSetByUser(&c.fMirroredSet).UnNegatableBoolVar(&c.fMirrored)
 	strFind.Flag("names", "Show just the stream names").Short('n').UnNegatableBoolVar(&c.listNames)
 	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
+	strFind.Flag("expression", "Match streams using an expression language").StringVar(&c.fExpression)
 
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
@@ -488,6 +520,9 @@ func (c *streamCmd) findAction(_ *fisk.ParseContext) (err error) {
 	}
 	if c.fReplicas > 0 {
 		opts = append(opts, jsm.StreamQueryReplicas(c.fReplicas))
+	}
+	if c.fExpression != "" {
+		opts = append(opts, jsm.StreamQueryExpression(c.fExpression))
 	}
 
 	found, err := c.mgr.QueryStreams(opts...)
