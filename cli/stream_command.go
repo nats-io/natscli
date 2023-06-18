@@ -685,6 +685,8 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 		}
 
 		switch {
+		case msg == nil:
+			shouldTerminate = true
 		case c.vwRaw:
 			fmt.Println(string(msg.Data))
 		default:
