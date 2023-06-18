@@ -56,7 +56,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	c := &SrvReportCmd{}
 
 	report := srv.Command("report", "Report on various server metrics").Alias("rep")
-	report.Flag("reverse", "Reverse sort connections").Short('R').Default("true").BoolVar(&c.reverse)
+	report.Flag("reverse", "Reverse sort connections").Short('R').UnNegatableBoolVar(&c.reverse)
 
 	addFilterOpts := func(cmd *fisk.CmdClause) {
 		cmd.Flag("host", "Limit the report to a specific NATS server").StringVar(&c.server)
@@ -166,7 +166,10 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		case "err":
 			return c.boolReverse(jszResponses[i].Data.JetStreamStats.API.Errors < jszResponses[j].Data.JetStreamStats.API.Errors)
 		default:
-			return c.boolReverse(jszResponses[i].Server.Cluster < jszResponses[j].Server.Cluster)
+			if jszResponses[i].Server.Cluster != jszResponses[j].Server.Cluster {
+				return c.boolReverse(jszResponses[i].Server.Cluster < jszResponses[j].Server.Cluster)
+			}
+			return c.boolReverse(jszResponses[i].Server.Name < jszResponses[j].Server.Name)
 		}
 	})
 
@@ -480,7 +483,7 @@ func (c *SrvReportCmd) reportConnections(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvReportCmd) boolReverse(v bool) bool {
-	if !c.reverse {
+	if c.reverse {
 		return !v
 	}
 

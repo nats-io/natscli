@@ -977,11 +977,16 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	if c.consumer == "" && !c.ephemeral {
 		err = askOne(&survey.Input{
 			Message: "Consumer name",
-			Help:    "This will be used for the name of the durable subscription to be used when referencing this Consumer later. Settable using 'name' CLI argument",
+			Help:    "This will be used for the name to be used when referencing this Consumer later. Settable using 'name' CLI argument",
 		}, &c.consumer, survey.WithValidator(survey.Required))
 		fisk.FatalIfError(err, "could not request durable name")
 	}
-	cfg.Durable = c.consumer
+
+	if c.ephemeral {
+		cfg.Name = c.consumer
+	} else {
+		cfg.Durable = c.consumer
+	}
 
 	if ok, _ := regexp.MatchString(`\.|\*|>`, cfg.Durable); ok {
 		fisk.Fatalf("durable name can not contain '.', '*', '>'")

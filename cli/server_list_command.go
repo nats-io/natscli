@@ -183,6 +183,10 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		cHosts = compactStrings(hosts)
 	}
 
+	versionsOk := ""
+	gwaysOk := ""
+	routesOk := ""
+
 	for i, ssm := range results {
 		cluster := ssm.Server.Cluster
 		jsEnabled := "no"
@@ -192,6 +196,16 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			} else {
 				jsEnabled = "yes"
 			}
+		}
+
+		if ssm.Server.Version != results[0].ServerStatsMsg.Server.Version {
+			versionsOk = "X"
+		}
+		if len(ssm.Stats.Routes) != len(results[0].ServerStatsMsg.Stats.Routes) {
+			routesOk = "X"
+		}
+		if len(ssm.Stats.Gateways) != len(results[0].ServerStatsMsg.Stats.Gateways) {
+			gwaysOk = "X"
 		}
 
 		table.AddRow(
@@ -216,11 +230,12 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		"",
 		len(clusters),
 		servers,
-		"",
+		versionsOk,
 		js,
 		f(connections),
 		f(subs),
-		"", "",
+		routesOk,
+		gwaysOk,
 		humanize.IBytes(uint64(memory)),
 		"",
 		"",
