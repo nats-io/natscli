@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"runtime"
 	"sort"
 	"strconv"
 	"time"
@@ -109,9 +108,8 @@ func (c *microCmd) serveAction(_ *fisk.ParseContext) error {
 		Version:     "1.0.0",
 		Description: fmt.Sprintf("NATS CLI Demo Service (%s)", c.name),
 		Metadata: map[string]string{
-			"io.nats.client.flavor":  runtime.Version(),
-			"io.nats.client.version": nats.Version,
-			"io.nats.cli.version":    Version,
+			"_nats.client.created.library": "natscli",
+			"_nats.client.created.version": Version,
 		},
 	})
 	if err != nil {
