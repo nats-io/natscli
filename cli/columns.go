@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -100,8 +101,11 @@ func (w *columnWriter) Frender(o io.Writer) error {
 			prev = row.kind
 
 		case kindLine:
-			fmt.Fprintln(o, append([]any{w.indent}, row.values...)...)
-			prev = row.kind
+			// avoid 2 blank lines
+			if prev != kindTitle {
+				fmt.Fprintln(o, append([]any{w.indent}, row.values...)...)
+				prev = row.kind
+			}
 		}
 	}
 
@@ -164,15 +168,50 @@ func (w *columnWriter) Println(msg ...string) {
 	w.rows = append(w.rows, &columnRow{kind: kindLine, values: val})
 }
 
+// AddMapStringsAsValue adds a row with title t and the data as value, over multiple lines and correctly justified
+func (w *columnWriter) AddMapStringsAsValue(t string, data map[string]string) {
+	maxLen := progressWidth()
+
+	var list []string
+	for k := range data {
+		list = append(list, k)
+	}
+	sort.Strings(list)
+
+	for i, k := range list {
+		v := data[k]
+
+		if len(data[k]) > maxLen && maxLen > 20 {
+			w := maxLen/2 - 10
+			v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
+		}
+
+		if i == 0 {
+			w.AddRowf(t, "%s: %s", k, v)
+		} else {
+			w.AddRowf("", "%s: %s", k, v)
+		}
+	}
+}
+
 // AddMapStrings adds data with each key being a column title and value what follows the :
 func (w *columnWriter) AddMapStrings(data map[string]string) {
 	maxLen := progressWidth()
 
-	for k, v := range data {
-		if len(v) > maxLen && maxLen > 20 {
+	var list []string
+	for k := range data {
+		list = append(list, k)
+	}
+	sort.Strings(list)
+
+	for _, k := range list {
+		v := data[k]
+
+		if len(data[k]) > maxLen && maxLen > 20 {
 			w := maxLen/2 - 10
 			v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
 		}
+
 		w.AddRow(k, v)
 	}
 }
