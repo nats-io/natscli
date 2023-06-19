@@ -1284,9 +1284,8 @@ func surveyColors() []survey.AskOpt {
 				icons.SelectFocus.Format = "white"
 			}
 
-			// if a specific context is selected on the cli we will show it, but not the default one
-			if opts.CfgCtx != "" {
-				icons.Question.Text = fmt.Sprintf("[%s] ?", opts.CfgCtx)
+			if opts.Config != nil && opts.Config.Name != "" {
+				icons.Question.Text = fmt.Sprintf("[%s] ?", opts.Config.Name)
 				icons.Help.Text = ""
 			}
 		}),
