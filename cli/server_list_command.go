@@ -49,7 +49,7 @@ func configureServerListCommand(srv *fisk.CmdClause) {
 	ls := srv.Command("list", "List known servers").Alias("ls").Action(c.list)
 	ls.Arg("expect", "How many servers to expect").Uint32Var(&c.expect)
 	ls.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
-	ls.Flag("sort", "Sort servers by a specific key (name,conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("name,conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
+	ls.Flag("sort", "Sort servers by a specific key (name,cluster,conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("name,cluster,conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
 	ls.Flag("reverse", "Reverse sort servers").Short('R').UnNegatableBoolVar(&c.reverse)
 	ls.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 }
@@ -179,6 +179,13 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			return rev(stati.SlowConsumers < statj.SlowConsumers)
 		case "uptime":
 			return rev(stati.Start.UnixNano() > statj.Start.UnixNano())
+		case "cluster":
+			// we default to reverse, so we swap this since alpha is better by default
+			if results[i].Server.Cluster != results[j].Server.Cluster {
+				return !rev(results[i].Server.Cluster < results[j].Server.Cluster)
+			}
+
+			return !rev(results[i].Server.Name < results[j].Server.Name)
 		default:
 			return rev(results[i].rtt > results[j].rtt)
 		}
