@@ -146,15 +146,31 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 
 		switch c.sort {
 		case "name":
-			return results[i].Server.Name < results[j].Server.Name
+			return rev(results[i].Server.Name < results[j].Server.Name)
 		case "conns", "conn":
 			return rev(stati.Connections < statj.Connections)
 		case "subs", "sub":
 			return rev(stati.NumSubs < statj.NumSubs)
 		case "routes", "route":
-			return rev(len(stati.Routes) < len(statj.Routes))
+			// if routes are the same, most typical, we sort by name
+			il := len(stati.Routes)
+			jl := len(statj.Routes)
+
+			if il != jl {
+				return rev(il < jl)
+			}
+
+			return rev(results[i].Server.Name < results[j].Server.Name)
 		case "gws", "gw":
-			return rev(len(stati.Gateways) < len(statj.Gateways))
+			// if gateways are the same, most typical, we sort by name
+			il := len(stati.Gateways)
+			jl := len(statj.Gateways)
+
+			if il != jl {
+				return rev(il < jl)
+			}
+
+			return rev(results[i].Server.Name < results[j].Server.Name)
 		case "mem":
 			return rev(stati.Mem < statj.Mem)
 		case "cpu":

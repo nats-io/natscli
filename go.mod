@@ -3,7 +3,7 @@ module github.com/nats-io/natscli
 go 1.18
 
 require (
-	github.com/AlecAivazis/survey/v2 v2.3.6
+	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/choria-io/fisk v0.5.2
 	github.com/dustin/go-humanize v1.0.1
@@ -17,13 +17,13 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.16.6
-	github.com/mattn/go-isatty v0.0.18
+	github.com/mattn/go-isatty v0.0.19
 	github.com/nats-io/jsm.go v0.0.36-0.20230618145645-3f5c479c76c0
 	github.com/nats-io/nats-server/v2 v2.9.19-0.20230616205649-42827596d857
 	github.com/nats-io/nats.go v1.27.0
 	github.com/nats-io/nuid v1.0.1
-	github.com/prometheus/client_golang v1.15.1
-	github.com/prometheus/common v0.43.0
+	github.com/prometheus/client_golang v1.16.0
+	github.com/prometheus/common v0.44.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
@@ -46,7 +46,7 @@ require (
 	github.com/nats-io/jwt/v2 v2.4.1 // indirect
 	github.com/nats-io/nkeys v0.4.4 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
-	github.com/prometheus/procfs v0.9.0 // indirect
+	github.com/prometheus/procfs v0.11.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	golang.org/x/net v0.11.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
