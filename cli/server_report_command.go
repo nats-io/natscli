@@ -150,9 +150,17 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		case "name":
 			return c.boolReverse(jszResponses[i].Server.Name < jszResponses[j].Server.Name)
 		case "streams":
-			return c.boolReverse(jszResponses[i].Data.Streams < jszResponses[j].Data.Streams)
+			if jszResponses[i].Data.Streams != jszResponses[j].Data.Streams {
+				return c.boolReverse(jszResponses[i].Data.Streams < jszResponses[j].Data.Streams)
+			}
+			return c.boolReverse(jszResponses[i].Server.Name < jszResponses[j].Server.Name)
+
 		case "consumers":
-			return c.boolReverse(jszResponses[i].Data.Consumers < jszResponses[j].Data.Consumers)
+			if jszResponses[i].Data.Consumers != jszResponses[j].Data.Consumers {
+				return c.boolReverse(jszResponses[i].Data.Consumers < jszResponses[j].Data.Consumers)
+			}
+			return c.boolReverse(jszResponses[i].Server.Name < jszResponses[j].Server.Name)
+
 		case "msgs":
 			return c.boolReverse(jszResponses[i].Data.Messages < jszResponses[j].Data.Messages)
 		case "mbytes", "bytes":
