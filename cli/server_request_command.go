@@ -372,12 +372,6 @@ func (c *SrvRequestCmd) routez(_ *fisk.ParseContext) error {
 	return nil
 }
 
-type serverConnzResponse struct {
-	Server server.ServerInfo `json:"server"`
-	Error  *server.ApiError  `json:"error"`
-	Data   *server.Connz     `json:"data"`
-}
-
 func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 	opts := &server.ConnzEventOptions{
 		ConnzOptions: server.ConnzOptions{
@@ -416,10 +410,10 @@ func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 
 	for _, m := range res {
 		if c.filterEmpty {
-			var r serverConnzResponse
+			var r server.ServerAPIConnzResponse
 			err = json.Unmarshal(m, &r)
 			if err == nil {
-				if r.Data.NumConns == 0 {
+				if r.Data == nil || r.Data.NumConns == 0 {
 					continue
 				}
 			}

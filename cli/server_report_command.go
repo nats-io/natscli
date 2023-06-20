@@ -426,14 +426,14 @@ func (c *SrvReportCmd) accountInfo(connz connzList) map[string]*srvReportAccount
 	result := make(map[string]*srvReportAccountInfo)
 
 	for _, conn := range connz {
-		for _, info := range conn.Connz.Conns {
+		for _, info := range conn.Data.Conns {
 			account, ok := result[info.Account]
 			if !ok {
 				result[info.Account] = &srvReportAccountInfo{Account: info.Account}
 				account = result[info.Account]
 			}
 
-			account.ConnInfo = append(account.ConnInfo, connInfo{info, conn.ServerInfo})
+			account.ConnInfo = append(account.ConnInfo, connInfo{info, conn.Server})
 			account.Connections++
 			account.InBytes += info.InBytes
 			account.OutBytes += info.OutBytes
@@ -444,13 +444,13 @@ func (c *SrvReportCmd) accountInfo(connz connzList) map[string]*srvReportAccount
 			// make sure we only store one server info per unique server
 			found := false
 			for _, s := range account.Server {
-				if s.ID == conn.ServerInfo.ID {
+				if s.ID == conn.Server.ID {
 					found = true
 					break
 				}
 			}
 			if !found {
-				account.Server = append(account.Server, conn.ServerInfo)
+				account.Server = append(account.Server, conn.Server)
 			}
 		}
 	}
@@ -604,71 +604,35 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 	}
 }
 
-type connz struct {
-	Connz      *server.Connz
-	ServerInfo *server.ServerInfo
-}
-
-type connzList []connz
+type connzList []*server.ServerAPIConnzResponse
 
 func (c connzList) flatConnInfo() []connInfo {
 	var conns []connInfo
 	for _, conn := range c {
-		for _, c := range conn.Connz.Conns {
-			conns = append(conns, connInfo{c, conn.ServerInfo})
+		for _, c := range conn.Data.Conns {
+			conns = append(conns, connInfo{c, conn.Server})
 		}
 	}
 	return conns
 }
 
-func parseConnzResp(resp []byte) (connz, error) {
-	reqresp := map[string]json.RawMessage{}
+func parseConnzResp(resp []byte) (*server.ServerAPIConnzResponse, error) {
+	reqresp := server.ServerAPIConnzResponse{}
 
 	err := json.Unmarshal(resp, &reqresp)
 	if err != nil {
-		return connz{}, err
+		return nil, err
 	}
 
-	errresp, ok := reqresp["error"]
-	if ok {
-		res := map[string]any{}
-		err := json.Unmarshal(errresp, &res)
-		if err != nil {
-			return connz{}, fmt.Errorf("invalid response received: %q", errresp)
-		}
-
-		msg, ok := res["description"]
-		if !ok {
-			return connz{}, fmt.Errorf("invalid response received: %q", errresp)
-		}
-
-		return connz{}, fmt.Errorf("invalid response received: %v", msg)
+	if reqresp.Error != nil {
+		return nil, fmt.Errorf("invalid response received: %v", reqresp.Error)
 	}
 
-	data, ok := reqresp["data"]
-	if !ok {
-		return connz{}, fmt.Errorf("no data received in response: %#v", reqresp)
+	if reqresp.Data == nil {
+		return nil, fmt.Errorf("no data received in response: %s", string(resp))
 	}
 
-	c := connz{
-		Connz:      &server.Connz{},
-		ServerInfo: &server.ServerInfo{},
-	}
-
-	s, ok := reqresp["server"]
-	if !ok {
-		return connz{}, fmt.Errorf("no server data received in response: %#v", reqresp)
-	}
-	err = json.Unmarshal(s, c.ServerInfo)
-	if err != nil {
-		return connz{}, err
-	}
-
-	err = json.Unmarshal(data, c.Connz)
-	if err != nil {
-		return connz{}, err
-	}
-	return c, nil
+	return &reqresp, nil
 }
 
 func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
@@ -696,7 +660,7 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 			return nil, err
 		}
 		result = append(result, co)
-		found += len(co.Connz.Conns)
+		found += len(co.Data.Conns)
 	}
 
 	if limit != 0 && found > limit {
@@ -705,8 +669,8 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 
 	offset := 0
 	for _, conn := range result {
-		if conn.Connz.Offset+conn.Connz.Limit < conn.Connz.Total {
-			offset = conn.Connz.Offset + conn.Connz.Limit + 1
+		if conn.Data.Offset+conn.Data.Limit < conn.Data.Total {
+			offset = conn.Data.Offset + conn.Data.Limit + 1
 			break
 		}
 	}
@@ -731,7 +695,6 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 
 		// get on offset
 		// iterate and add to results
-
 		req := &server.ConnzEventOptions{
 			ConnzOptions: server.ConnzOptions{
 				Subscriptions:       true,
@@ -758,16 +721,16 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 				return nil, err
 			}
 
-			found += len(conn.Connz.Conns)
+			found += len(conn.Data.Conns)
 
-			if len(conn.Connz.Conns) == 0 {
+			if len(conn.Data.Conns) == 0 {
 				continue
 			}
 
 			result = append(result, conn)
 
-			if conn.Connz.Offset+conn.Connz.Limit < conn.Connz.Total {
-				offset = conn.Connz.Offset + conn.Connz.Limit + 1
+			if conn.Data.Offset+conn.Data.Limit < conn.Data.Total {
+				offset = conn.Data.Offset + conn.Data.Limit + 1
 			}
 		}
 	}
