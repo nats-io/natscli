@@ -597,6 +597,10 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 
 		table := newTableWriter("Connections per server")
 		table.AddHeaders("Server", "Cluster", "Connections")
+		sort.Slice(serverNames, func(i, j int) bool {
+			return servers[serverNames[i]].conns < servers[serverNames[j]].conns
+		})
+
 		for _, n := range serverNames {
 			table.AddRow(n, servers[n].cluster, servers[n].conns)
 		}
