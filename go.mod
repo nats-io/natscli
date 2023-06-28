@@ -7,20 +7,20 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/choria-io/fisk v0.5.2
 	github.com/dustin/go-humanize v1.0.1
-	github.com/emicklei/dot v1.4.2
+	github.com/emicklei/dot v1.5.0
 	github.com/fatih/color v1.15.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gosuri/uiprogress v0.0.1
-	github.com/guptarohit/asciigraph v0.5.5
+	github.com/guptarohit/asciigraph v0.5.6
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.16.6
 	github.com/mattn/go-isatty v0.0.19
 	github.com/nats-io/jsm.go v0.0.36-0.20230618145645-3f5c479c76c0
-	github.com/nats-io/nats-server/v2 v2.9.19-0.20230616205649-42827596d857
-	github.com/nats-io/nats.go v1.27.0
+	github.com/nats-io/nats-server/v2 v2.9.20-0.20230628034157-c16d361ead4b
+	github.com/nats-io/nats.go v1.27.1
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/common v0.44.0
@@ -52,6 +52,6 @@ require (
 	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/text v0.10.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	google.golang.org/protobuf v1.30.0 // indirect
+	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
