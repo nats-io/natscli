@@ -16,10 +16,10 @@ require (
 	github.com/guptarohit/asciigraph v0.5.6
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.16.6
+	github.com/klauspost/compress v1.16.7
 	github.com/mattn/go-isatty v0.0.19
-	github.com/nats-io/jsm.go v0.0.36-0.20230618145645-3f5c479c76c0
-	github.com/nats-io/nats-server/v2 v2.9.20-0.20230628034157-c16d361ead4b
+	github.com/nats-io/jsm.go v0.0.36-0.20230704113056-542946ef99eb
+	github.com/nats-io/nats-server/v2 v2.9.20-0.20230629004853-cf393140ab60
 	github.com/nats-io/nats.go v1.27.1
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.16.0
