@@ -448,7 +448,7 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 		Placement:    placement,
 	}
 
-	if c.repubSource != "" && c.repubDest != "" {
+	if c.repubDest != "" {
 		cfg.RePublish = &nats.RePublish{
 			Source:      c.repubSource,
 			Destination: c.repubDest,
