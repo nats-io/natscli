@@ -154,6 +154,7 @@ func configureConsumerCommand(app commandHost) {
 	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
 	consLs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	consLs.Flag("names", "Show just the consumer names").Short('n').UnNegatableBoolVar(&c.listNames)
+	consLs.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	conReport := cons.Command("report", "Reports on Consumer statistics").Action(c.reportAction)
 	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
