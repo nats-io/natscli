@@ -227,7 +227,7 @@ func selectPageSize(count int) int {
 }
 
 func isTerminal() bool {
-	return terminal.IsTerminal(int(os.Stdin.Fd()))
+	return terminal.IsTerminal(int(os.Stdin.Fd())) && terminal.IsTerminal(int(os.Stdout.Fd()))
 }
 
 func sinceRefOrNow(ref time.Time, ts time.Time) time.Duration {
