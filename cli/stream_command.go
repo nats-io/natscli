@@ -290,6 +290,7 @@ Finding streams with certain subjects configured:
 	strState := str.Command("state", "Stream state").Action(c.stateAction)
 	strState.Arg("stream", "Stream to retrieve state information for").StringVar(&c.stream)
 	strState.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	strState.Flag("no-select", "Do not select streams from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	strSubs := str.Command("subjects", "Query subjects held in a stream").Alias("subj").Action(c.subjectsAction)
 	strSubs.Arg("stream", "Stream name").StringVar(&c.stream)
