@@ -662,6 +662,10 @@ func (c *streamCmd) removePeer(_ *fisk.ParseContext) error {
 }
 
 func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
+	if !isTerminal() {
+		return fmt.Errorf("interactive stream paging requires a valid terminal")
+	}
+
 	if c.vwPageSize > 25 {
 		c.vwPageSize = 25
 	}
