@@ -1292,20 +1292,36 @@ func surveyColors() []survey.AskOpt {
 	}
 }
 
-func outPutMSGBody(data []byte, filter, subject, stream string) {
+func outPutMSGBodyCompact(data []byte, filter string, subject string, stream string) (string, error) {
 	if len(data) == 0 {
 		fmt.Println("nil body")
-		return
+		return "", nil
 	}
 
 	data, err := filterDataThroughCmd(data, filter, subject, stream)
 	if err != nil {
 		// using q here so raw binary data will be escaped
 		fmt.Printf("%q\nError while translating msg body: %s\n\n", data, err.Error())
-		return
+		return "", err
 	}
 	output := string(data)
-	fmt.Println(output)
+	if strings.HasSuffix(output, "\n") {
+		fmt.Print(output)
+	} else {
+		fmt.Println(output)
+	}
+
+	return output, nil
+}
+
+func outPutMSGBody(data []byte, filter string, subject string, stream string) {
+	output, err := outPutMSGBodyCompact(data, filter, subject, stream)
+	if err != nil {
+		return
+	}
+
+	fmt.Println()
+
 	if !strings.HasSuffix(output, "\n") {
 		fmt.Println()
 	}

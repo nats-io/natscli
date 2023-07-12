@@ -19,7 +19,7 @@ require (
 	github.com/klauspost/compress v1.16.7
 	github.com/mattn/go-isatty v0.0.19
 	github.com/nats-io/jsm.go v0.0.36-0.20230704113056-542946ef99eb
-	github.com/nats-io/nats-server/v2 v2.9.20-0.20230629004853-cf393140ab60
+	github.com/nats-io/nats-server/v2 v2.9.20-0.20230712024539-cb1ff106704a
 	github.com/nats-io/nats.go v1.27.1
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.16.0
@@ -27,8 +27,8 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
-	golang.org/x/crypto v0.10.0
-	golang.org/x/term v0.9.0
+	golang.org/x/crypto v0.11.0
+	golang.org/x/term v0.10.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -48,9 +48,9 @@ require (
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/procfs v0.11.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	golang.org/x/net v0.11.0 // indirect
-	golang.org/x/sys v0.9.0 // indirect
-	golang.org/x/text v0.10.0 // indirect
+	golang.org/x/net v0.12.0 // indirect
+	golang.org/x/sys v0.10.0 // indirect
+	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

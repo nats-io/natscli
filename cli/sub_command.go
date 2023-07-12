@@ -92,7 +92,6 @@ func init() {
 }
 
 func startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, subjectReportMap map[string]int64, subjectBytesReportMap map[string]int64, subjCount int) {
-
 	go func() {
 		ticker := time.NewTicker(time.Second)
 
@@ -265,7 +264,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			if c.match && m.Reply != "" {
 				matchMap[m.Reply] = m
 			} else {
-				printMsg(c, m, nil, ctr)
+				c.printMsg(m, nil, ctr)
 			}
 		}
 
@@ -294,7 +293,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			return
 		}
 
-		printMsg(c, request, reply, ctr)
+		c.printMsg(request, reply, ctr)
 		delete(matchMap, reply.Subject)
 
 		// if reached limit and matched all requests
@@ -451,7 +450,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	return nil
 }
 
-func printMsg(c *subCmd, msg *nats.Msg, reply *nats.Msg, ctr uint) {
+func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint) {
 	var info *jsm.MsgInfo
 	if msg.Reply != "" {
 		info, _ = jsm.ParseJSMsgMetadata(msg)
@@ -486,8 +485,7 @@ func printMsg(c *subCmd, msg *nats.Msg, reply *nats.Msg, ctr uint) {
 
 	} else if c.raw {
 		// Output format 2/3: raw
-
-		fmt.Println(string(msg.Data))
+		outPutMSGBodyCompact(msg.Data, c.translate, "", "")
 		if reply != nil {
 			fmt.Println(string(reply.Data))
 		}
@@ -521,7 +519,6 @@ func printMsg(c *subCmd, msg *nats.Msg, reply *nats.Msg, ctr uint) {
 			prettyPrintMsg(reply, c.headersOnly, c.translate)
 
 		}
-
 	} // output format type dispatch
 }
 
