@@ -15,3 +15,6 @@ nats sub ORDERS.new --next
 
 # To report the number of subjects with message and byte count. The default `--report-top` is 10
 nats sub ">" --report-subjects --report-top=20
+
+# To base64 decode message bodies before rendering them
+nats sub 'encoded.sub' --translate "base64 -d"

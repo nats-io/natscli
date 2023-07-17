@@ -1087,10 +1087,6 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 
 	cfg.AckPolicy = c.ackPolicyFromString(c.ackPolicy)
-	if cfg.AckPolicy == api.AckNone && cfg.DeliverSubject == "" {
-		fisk.Fatalf("pull consumers can only be explicit or all acknowledgement modes")
-	}
-
 	if cfg.AckPolicy == api.AckNone {
 		cfg.MaxDeliver = -1
 	}
