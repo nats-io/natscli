@@ -36,16 +36,15 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/google/shlex"
-	"github.com/nats-io/jsm.go"
-
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
+	"github.com/google/shlex"
 	"github.com/gosuri/uiprogress"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/klauspost/compress/s2"
 	"github.com/mattn/go-isatty"
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
@@ -882,7 +881,7 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 
 	var finisher *time.Timer
 	if waitFor == 0 {
-		finisher = time.NewTimer(300 * time.Millisecond)
+		finisher = time.NewTimer(opts.Timeout)
 		go func() {
 			select {
 			case <-finisher.C:
