@@ -661,9 +661,7 @@ func (c *kvCommand) watchAction(_ *fisk.ParseContext) error {
 		}
 
 		switch res.Operation() {
-		case nats.KeyValueDelete:
-			fmt.Printf("[%s] %s %s > %s\n", f(res.Created()), color.RedString(c.strForOp(res.Operation())), res.Bucket(), res.Key())
-		case nats.KeyValuePurge:
+		case nats.KeyValueDelete, nats.KeyValuePurge:
 			fmt.Printf("[%s] %s %s > %s\n", f(res.Created()), color.RedString(c.strForOp(res.Operation())), res.Bucket(), res.Key())
 		case nats.KeyValuePut:
 			fmt.Printf("[%s] %s %s > %s: %s\n", f(res.Created()), color.GreenString(c.strForOp(res.Operation())), res.Bucket(), res.Key(), res.Value())
