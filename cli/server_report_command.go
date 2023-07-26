@@ -268,6 +268,11 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		if renderDomain {
 			row = append(row, js.Data.Config.Domain)
 		}
+		errCol := f(jss.API.Errors)
+		if jss.API.Total > 0 && jss.API.Errors > 0 {
+			errRate := float64(jss.API.Errors) * 100 / float64(jss.API.Total)
+			errCol += " / " + f(errRate) + "%"
+		}
 		row = append(row,
 			f(rStreams),
 			f(rConsumers),
@@ -276,7 +281,8 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			humanize.IBytes(jss.Memory),
 			humanize.IBytes(jss.Store),
 			f(jss.API.Total),
-			f(jss.API.Errors))
+			errCol,
+		)
 
 		table.AddRow(row...)
 	}
