@@ -103,6 +103,7 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 	cols.AddRow("Git Commit", varz.GitCommit)
 	cols.AddRow("Go Version", varz.GoVersion)
 	cols.AddRow("Start Time", varz.Start)
+	cols.AddRow("Config Load Time", varz.ConfigLoadTime)
 	cols.AddRow("Uptime", varz.Uptime)
 
 	cols.AddSectionTitle("Connection Details")
