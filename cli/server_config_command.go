@@ -33,7 +33,7 @@ func configureServerConfigCommand(srv *fisk.CmdClause) {
 
 	reload := cfg.Command("reload", "Reloads the runtime configuration").Action(c.reloadAction)
 	reload.Arg("id", "The server ID to trigger a reload for").Required().StringVar(&c.serverID)
-	reload.Flag("force", "Force reload without prompting").BoolVar(&c.force)
+	reload.Flag("force", "Force reload without prompting").Short('f').BoolVar(&c.force)
 }
 
 func (c *SrvConfigCmd) reloadAction(pc *fisk.ParseContext) error {
