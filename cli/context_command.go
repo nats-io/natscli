@@ -512,11 +512,17 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 		load = true
 	}
 
+	token := ""
+	if opts.Password == "" && opts.Username != "" {
+		token = opts.Username
+		opts.Username = ""
+	}
+
 	config, err := natscontext.New(lname, load,
 		natscontext.WithServerURL(opts.Servers),
 		natscontext.WithUser(opts.Username),
 		natscontext.WithPassword(opts.Password),
-		natscontext.WithToken(opts.Username),
+		natscontext.WithToken(token),
 		natscontext.WithCreds(opts.Creds),
 		natscontext.WithNKey(opts.Nkey),
 		natscontext.WithCertificate(opts.TlsCert),
