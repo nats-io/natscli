@@ -603,7 +603,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	cols.AddRow("Ack Policy", config.AckPolicy.String())
 	cols.AddRowIf("Ack Wait", config.AckWait, config.AckPolicy != api.AckNone)
 	cols.AddRow("Replay Policy", config.ReplayPolicy.String())
-	cols.AddRowIf("Maximum Deliveries:", config.MaxDeliver, config.MaxDeliver != -1)
+	cols.AddRowIf("Maximum Deliveries", config.MaxDeliver, config.MaxDeliver != -1)
 	cols.AddRowIfNotEmpty("Sampling Rate", config.SampleFrequency)
 	cols.AddRowIf("Rate Limit", fmt.Sprintf("%s / second", humanize.IBytes(config.RateLimit/8)), config.RateLimit > 0)
 	cols.AddRowIf("Max Ack Pending", config.MaxAckPending, config.MaxAckPending > 0)
