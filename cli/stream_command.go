@@ -116,6 +116,7 @@ type streamCmd struct {
 	metadata              map[string]string
 	metadataIsSet         bool
 	compression           string
+	firstSeq              uint64
 
 	fServer      string
 	fCluster     string
@@ -181,6 +182,9 @@ func configureStreamCommand(app commandHost) {
 		}
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
 		f.Flag("discard-per-subject", "Sets the 'new' discard policy and applies it to every subject in the stream").IsSetByUser(&c.discardPerSubjSet).BoolVar(&c.discardPerSubj)
+		if !edit {
+			f.Flag("first-sequence", "Sets the starting sequence").Uint64Var(&c.firstSeq)
+		}
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
 		f.Flag("max-bytes", "Maximum bytes to keep").PlaceHolder("BYTES").StringVar(&c.maxBytesLimitString)
 		f.Flag("max-consumers", "Maximum number of consumers to allow").Default("-1").IntVar(&c.maxConsumers)
@@ -1585,6 +1589,9 @@ func (c *streamCmd) showStreamConfig(cols *columnWriter, cfg api.StreamConfig) {
 	cols.AddRowIf("Sealed", true, cfg.Sealed)
 	cols.AddRow("Storage", cfg.Storage.String())
 	cols.AddRowIf("Compression", cfg.Compression, cfg.Compression != api.NoCompression)
+	if cfg.FirstSeq > 0 {
+		cols.AddRow("First Sequence", cfg.FirstSeq)
+	}
 	if cfg.Placement != nil {
 		cols.AddRowIfNotEmpty("Placement Cluster", cfg.Placement.Cluster)
 		cols.AddRowIf("Placement Tags", cfg.Placement.Tags, len(cfg.Placement.Tags) > 0)
@@ -1804,15 +1811,15 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	}
 
 	if info.State.FirstTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
-		cols.AddRow("FirstSeq", info.State.FirstSeq)
+		cols.AddRow("First Sequence", info.State.FirstSeq)
 	} else {
-		cols.AddRowf("FirstSeq", "%s @ %s UTC", f(info.State.FirstSeq), f(info.State.FirstTime))
+		cols.AddRowf("First Sequence", "%s @ %s UTC", f(info.State.FirstSeq), f(info.State.FirstTime))
 	}
 
 	if info.State.LastTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
-		cols.AddRow("LastSeq", info.State.LastSeq)
+		cols.AddRow("Last Sequence", info.State.LastSeq)
 	} else {
-		cols.AddRowf("LastSeq", "%s @ %s UTC", f(info.State.LastSeq), f(info.State.LastTime))
+		cols.AddRowf("Last Sequence", "%s @ %s UTC", f(info.State.LastSeq), f(info.State.LastTime))
 	}
 
 	if len(info.State.Deleted) > 0 { // backwards compat with older servers
@@ -2171,6 +2178,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		MaxAge:        maxAge,
 		Storage:       storage,
 		Compression:   compression,
+		FirstSeq:      c.firstSeq,
 		NoAck:         !c.ack,
 		Retention:     c.retentionPolicyFromString(),
 		Discard:       c.discardPolicyFromString(),
