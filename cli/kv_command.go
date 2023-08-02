@@ -29,6 +29,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/columns"
 )
 
 type kvCommand struct {
@@ -798,7 +799,7 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 	return nil
 }
 
-func renderNatsGoClusterInfo(cols *columnWriter, info *nats.StreamInfo) {
+func renderNatsGoClusterInfo(cols *columns.Writer, info *nats.StreamInfo) {
 	cols.AddRow("Name", info.Cluster.Name)
 	cols.AddRow("Leader", info.Cluster.Leader)
 	for _, r := range info.Cluster.Replicas {
