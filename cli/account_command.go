@@ -30,6 +30,7 @@ import (
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/columns"
 )
 
 type actCmd struct {
@@ -327,7 +328,7 @@ type accountStats struct {
 	ServerInfo *server.ServerInfo
 }
 
-func (c *actCmd) renderTier(cols *columnWriter, name string, tier api.JetStreamTier) {
+func (c *actCmd) renderTier(cols *columns.Writer, name string, tier api.JetStreamTier) {
 	cols.Indent(2)
 	defer cols.Indent(0)
 

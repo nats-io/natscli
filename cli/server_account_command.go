@@ -9,6 +9,7 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/natscli/columns"
 )
 
 type srvAccountCommand struct {
@@ -181,7 +182,7 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *srvAccountCommand) renderMappings(cols *columnWriter, subj string, mappings []*server.MapDest) {
+func (c *srvAccountCommand) renderMappings(cols *columns.Writer, subj string, mappings []*server.MapDest) {
 	if len(mappings) == 0 {
 		return
 	}
@@ -204,7 +205,7 @@ func (c *srvAccountCommand) renderMappings(cols *columnWriter, subj string, mapp
 	cols.Println()
 }
 
-func (c *srvAccountCommand) renderExport(cols *columnWriter, exp *server.ExtExport) {
+func (c *srvAccountCommand) renderExport(cols *columns.Writer, exp *server.ExtExport) {
 	cols.AddRow("Subject", exp.Subject)
 	cols.AddRow("Type", exp.Type.String())
 	cols.AddRow("Tokens Required", exp.TokenReq)
@@ -252,7 +253,7 @@ func (c *srvAccountCommand) renderExport(cols *columnWriter, exp *server.ExtExpo
 	cols.Println()
 }
 
-func (c *srvAccountCommand) renderImport(cols *columnWriter, imp *server.ExtImport) {
+func (c *srvAccountCommand) renderImport(cols *columns.Writer, imp *server.ExtImport) {
 	local := string(imp.LocalSubject)
 	subj := string(imp.Subject)
 	if local == "" {
