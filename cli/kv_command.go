@@ -29,6 +29,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/columns"
 )
 
 type kvCommand struct {
@@ -448,7 +449,7 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 		Placement:    placement,
 	}
 
-	if c.repubSource != "" && c.repubDest != "" {
+	if c.repubDest != "" {
 		cfg.RePublish = &nats.RePublish{
 			Source:      c.repubSource,
 			Destination: c.repubDest,
@@ -661,9 +662,7 @@ func (c *kvCommand) watchAction(_ *fisk.ParseContext) error {
 		}
 
 		switch res.Operation() {
-		case nats.KeyValueDelete:
-			fmt.Printf("[%s] %s %s > %s\n", f(res.Created()), color.RedString(c.strForOp(res.Operation())), res.Bucket(), res.Key())
-		case nats.KeyValuePurge:
+		case nats.KeyValueDelete, nats.KeyValuePurge:
 			fmt.Printf("[%s] %s %s > %s\n", f(res.Created()), color.RedString(c.strForOp(res.Operation())), res.Bucket(), res.Key())
 		case nats.KeyValuePut:
 			fmt.Printf("[%s] %s %s > %s: %s\n", f(res.Created()), color.GreenString(c.strForOp(res.Operation())), res.Bucket(), res.Key(), res.Value())
@@ -696,7 +695,7 @@ func (c *kvCommand) purgeAction(_ *fisk.ParseContext) error {
 
 func (c *kvCommand) rmBucketAction(_ *fisk.ParseContext) error {
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Deleted bucket %s?", c.bucket), false)
+		ok, err := askConfirmation(fmt.Sprintf("Delete bucket %s?", c.bucket), false)
 		if err != nil {
 			return err
 		}
@@ -800,7 +799,7 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 	return nil
 }
 
-func renderNatsGoClusterInfo(cols *columnWriter, info *nats.StreamInfo) {
+func renderNatsGoClusterInfo(cols *columns.Writer, info *nats.StreamInfo) {
 	cols.AddRow("Name", info.Cluster.Name)
 	cols.AddRow("Leader", info.Cluster.Leader)
 	for _, r := range info.Cluster.Replicas {

@@ -40,6 +40,7 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/columns"
 	"gopkg.in/yaml.v3"
 )
 
@@ -116,6 +117,7 @@ type streamCmd struct {
 	metadata              map[string]string
 	metadataIsSet         bool
 	compression           string
+	firstSeq              uint64
 
 	fServer      string
 	fCluster     string
@@ -129,6 +131,7 @@ type streamCmd struct {
 	fSourcedSet  bool
 	fMirrored    bool
 	fMirroredSet bool
+	fExpression  string
 
 	listNames    bool
 	vwStartId    int
@@ -180,6 +183,9 @@ func configureStreamCommand(app commandHost) {
 		}
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
 		f.Flag("discard-per-subject", "Sets the 'new' discard policy and applies it to every subject in the stream").IsSetByUser(&c.discardPerSubjSet).BoolVar(&c.discardPerSubj)
+		if !edit {
+			f.Flag("first-sequence", "Sets the starting sequence").Uint64Var(&c.firstSeq)
+		}
 		f.Flag("max-age", "Maximum age of messages to keep").Default("").StringVar(&c.maxAgeLimit)
 		f.Flag("max-bytes", "Maximum bytes to keep").PlaceHolder("BYTES").StringVar(&c.maxBytesLimitString)
 		f.Flag("max-consumers", "Maximum number of consumers to allow").Default("-1").IntVar(&c.maxConsumers)
@@ -192,7 +198,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers").IsSetByUser(&c.allowRollupSet).BoolVar(&c.allowRollup)
 		f.Flag("deny-delete", "Deny messages from being deleted via the API").IsSetByUser(&c.denyDeleteSet).BoolVar(&c.denyDelete)
 		f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
-		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).BoolVar(&c.allowDirect)
+		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).Default("true").BoolVar(&c.allowDirect)
 		f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
 		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
 		f.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SOURCE").StringVar(&c.repubSource)
@@ -235,7 +241,37 @@ func configureStreamCommand(app commandHost) {
 	strReport.Flag("dot", "Produce a GraphViz graph of replication topology").StringVar(&c.outFile)
 	strReport.Flag("leaders", "Show details about RAFT leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
 
+	findHelp := `Expression format:
+
+Using the --expression flag arbitrary complex matching can be done across any state field(s) from the stream information.
+
+Use this when trying to match on fields we don't specifically support or to perform complex boolean matches.
+
+We use the expr language to perform matching, see https://expr.medv.io/docs/Language-Definition for detail about the expression language.  Expressions you enter must return a boolean value.
+
+The following items are available to query, all using the same values seen in JSON from stream info:
+
+  * config - Stream configuration
+  * state - Stream state
+  * info - Stream information aka state.state
+
+Additionally there is Info (with a capital I) that is the golang structure and with keys matching the struct keys in the server.
+
+Finding streams with more than 10 messages:
+
+   nats s find --expression 'state.messages < 10'
+   nats s find --expression 'Info.State.Msgs < 10'
+
+Finding streams in multiple clusters:
+
+   nats s find --expression 'info.cluster.name in ["lon", "sfo"]'
+
+Finding streams with certain subjects configured:
+
+   nats s find --expression '"js.in.orders_1" in config.subjects'
+`
 	strFind := str.Command("find", "Finds streams matching certain criteria").Alias("query").Action(c.findAction)
+	strFind.HelpLong(findHelp)
 	strFind.Flag("server-name", "Display streams present on a regular expression matched server").StringVar(&c.fServer)
 	strFind.Flag("cluster", "Display streams present on a regular expression matched cluster").StringVar(&c.fCluster)
 	strFind.Flag("empty", "Display streams with no messages").UnNegatableBoolVar(&c.fEmpty)
@@ -248,6 +284,7 @@ func configureStreamCommand(app commandHost) {
 	strFind.Flag("mirrored", "Display that mirrors data from other streams").IsSetByUser(&c.fMirroredSet).UnNegatableBoolVar(&c.fMirrored)
 	strFind.Flag("names", "Show just the stream names").Short('n').UnNegatableBoolVar(&c.listNames)
 	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
+	strFind.Flag("expression", "Match streams using an expression language").StringVar(&c.fExpression)
 
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
@@ -258,6 +295,7 @@ func configureStreamCommand(app commandHost) {
 	strState := str.Command("state", "Stream state").Action(c.stateAction)
 	strState.Arg("stream", "Stream to retrieve state information for").StringVar(&c.stream)
 	strState.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	strState.Flag("no-select", "Do not select streams from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	strSubs := str.Command("subjects", "Query subjects held in a stream").Alias("subj").Action(c.subjectsAction)
 	strSubs.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -489,6 +527,9 @@ func (c *streamCmd) findAction(_ *fisk.ParseContext) (err error) {
 	if c.fReplicas > 0 {
 		opts = append(opts, jsm.StreamQueryReplicas(c.fReplicas))
 	}
+	if c.fExpression != "" {
+		opts = append(opts, jsm.StreamQueryExpression(c.fExpression))
+	}
 
 	found, err := c.mgr.QueryStreams(opts...)
 	if err != nil {
@@ -627,6 +668,10 @@ func (c *streamCmd) removePeer(_ *fisk.ParseContext) error {
 }
 
 func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
+	if !isTerminal() {
+		return fmt.Errorf("interactive stream paging requires a valid terminal")
+	}
+
 	if c.vwPageSize > 25 {
 		c.vwPageSize = 25
 	}
@@ -636,10 +681,6 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 	str, err := c.loadStream(c.stream)
 	if err != nil {
 		return err
-	}
-
-	if str.Retention() == api.WorkQueuePolicy {
-		return fmt.Errorf("work queue stream contents can not be viewed")
 	}
 
 	pops := []jsm.PagerOption{
@@ -676,17 +717,21 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 		}
 	}()
 
+	shouldTerminate := false
+
 	for {
 		msg, last, err := pgr.NextMsg(ctx)
-		if err != nil && last {
-			log.Println("Reached apparent end of data")
-			return nil
-		}
 		if err != nil {
-			return err
+			if !last {
+				return err
+			}
+			// later we know we reached final last after showing the final message
+			shouldTerminate = true
 		}
 
 		switch {
+		case msg == nil:
+			shouldTerminate = true
 		case c.vwRaw:
 			fmt.Println(string(msg.Data))
 		default:
@@ -708,6 +753,11 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 
 			fmt.Println()
 			outPutMSGBody(msg.Data, c.vwTranslate, msg.Subject, meta.Stream())
+		}
+
+		if shouldTerminate {
+			log.Println("Reached apparent end of data")
+			return nil
 		}
 
 		if last {
@@ -1531,7 +1581,7 @@ func (c *streamCmd) cpAction(pc *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *streamCmd) showStreamConfig(cols *columnWriter, cfg api.StreamConfig) {
+func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig) {
 
 	cols.AddRowIfNotEmpty("Description", cfg.Description)
 
@@ -1540,6 +1590,9 @@ func (c *streamCmd) showStreamConfig(cols *columnWriter, cfg api.StreamConfig) {
 	cols.AddRowIf("Sealed", true, cfg.Sealed)
 	cols.AddRow("Storage", cfg.Storage.String())
 	cols.AddRowIf("Compression", cfg.Compression, cfg.Compression != api.NoCompression)
+	if cfg.FirstSeq > 0 {
+		cols.AddRow("First Sequence", cfg.FirstSeq)
+	}
 	if cfg.Placement != nil {
 		cols.AddRowIfNotEmpty("Placement Cluster", cfg.Placement.Cluster)
 		cols.AddRowIf("Placement Tags", cfg.Placement.Tags, len(cfg.Placement.Tags) > 0)
@@ -1675,7 +1728,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		return
 	}
 
-	var cols *columnWriter
+	var cols *columns.Writer
 	if c.showStateOnly {
 		cols = newColumns(fmt.Sprintf("State for Stream %s created %s", c.stream, f(info.Created.Local())))
 	} else {
@@ -1759,15 +1812,15 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	}
 
 	if info.State.FirstTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
-		cols.AddRow("FirstSeq", info.State.FirstSeq)
+		cols.AddRow("First Sequence", info.State.FirstSeq)
 	} else {
-		cols.AddRowf("FirstSeq", "%s @ %s UTC", f(info.State.FirstSeq), f(info.State.FirstTime))
+		cols.AddRowf("First Sequence", "%s @ %s UTC", f(info.State.FirstSeq), f(info.State.FirstTime))
 	}
 
 	if info.State.LastTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
-		cols.AddRow("LastSeq", info.State.LastSeq)
+		cols.AddRow("Last Sequence", info.State.LastSeq)
 	} else {
-		cols.AddRowf("LastSeq", "%s @ %s UTC", f(info.State.LastSeq), f(info.State.LastTime))
+		cols.AddRowf("Last Sequence", "%s @ %s UTC", f(info.State.LastSeq), f(info.State.LastTime))
 	}
 
 	if len(info.State.Deleted) > 0 { // backwards compat with older servers
@@ -1989,7 +2042,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	fisk.FatalIfError(err, "invalid compression algorithm")
 
 	if c.replicas == 0 {
-		c.replicas, err = askOneInt("Replication", "1", "When clustered, defines how many replicas of the data to store.  Settable using --replicas.")
+		c.replicas, err = askOneInt("Replication", "1", "When clustered, defines how many replicas of the data to store.  Settable using --replicas")
 		fisk.FatalIfError(err, "invalid input")
 	}
 	if c.replicas <= 0 {
@@ -2084,7 +2137,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 			err = askOne(&survey.Input{
 				Message: "Duplicate tracking time window",
 				Default: defaultDW,
-				Help:    "Duplicate messages are identified by the Msg-Id headers and tracked within a window of this size. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --dupe-window.",
+				Help:    "Duplicate messages are identified by the Msg-Id headers and tracked within a window of this size. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --dupe-window",
 			}, &c.dupeWindow)
 			fisk.FatalIfError(err, "invalid input")
 		}
@@ -2126,6 +2179,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		MaxAge:        maxAge,
 		Storage:       storage,
 		Compression:   compression,
+		FirstSeq:      c.firstSeq,
 		NoAck:         !c.ack,
 		Retention:     c.retentionPolicyFromString(),
 		Discard:       c.discardPolicyFromString(),
@@ -2589,7 +2643,7 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string
 	table.AddHeaders("Name", "Description", "Created", "Messages", "Size", "Last Message")
 	for _, s := range streams {
 		nfo, _ := s.LatestInformation()
-		table.AddRow(s.Name(), s.Description(), f(nfo.Created.Local()), f(nfo.State.Msgs), humanize.IBytes(nfo.State.Bytes), f(time.Since(nfo.State.LastTime)))
+		table.AddRow(s.Name(), s.Description(), f(nfo.Created.Local()), f(nfo.State.Msgs), humanize.IBytes(nfo.State.Bytes), f(sinceRefOrNow(nfo.TimeStamp, nfo.State.LastTime)))
 	}
 
 	fmt.Fprintln(&out, table.Render())

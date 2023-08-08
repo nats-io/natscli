@@ -154,6 +154,7 @@ func configureConsumerCommand(app commandHost) {
 	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
 	consLs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	consLs.Flag("names", "Show just the consumer names").Short('n').UnNegatableBoolVar(&c.listNames)
+	consLs.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	conReport := cons.Command("report", "Reports on Consumer statistics").Action(c.reportAction)
 	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -602,7 +603,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	cols.AddRow("Ack Policy", config.AckPolicy.String())
 	cols.AddRowIf("Ack Wait", config.AckWait, config.AckPolicy != api.AckNone)
 	cols.AddRow("Replay Policy", config.ReplayPolicy.String())
-	cols.AddRowIf("Maximum Deliveries:", config.MaxDeliver, config.MaxDeliver != -1)
+	cols.AddRowIf("Maximum Deliveries", config.MaxDeliver, config.MaxDeliver != -1)
 	cols.AddRowIfNotEmpty("Sampling Rate", config.SampleFrequency)
 	cols.AddRowIf("Rate Limit", fmt.Sprintf("%s / second", humanize.IBytes(config.RateLimit/8)), config.RateLimit > 0)
 	cols.AddRowIf("Max Ack Pending", config.MaxAckPending, config.MaxAckPending > 0)
@@ -653,14 +654,14 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	if state.Delivered.Last == nil {
 		cols.AddRowf("Last Delivered Message", "Consumer sequence: %s Stream sequence: %s", f(state.Delivered.Consumer), f(state.Delivered.Stream))
 	} else {
-		cols.AddRowf("Last Delivered Message", "Consumer sequence: %s Stream sequence: %s Last delivery: %s ago", f(state.Delivered.Consumer), f(state.Delivered.Stream), f(time.Since(*state.Delivered.Last)))
+		cols.AddRowf("Last Delivered Message", "Consumer sequence: %s Stream sequence: %s Last delivery: %s ago", f(state.Delivered.Consumer), f(state.Delivered.Stream), f(sinceRefOrNow(state.TimeStamp, *state.Delivered.Last)))
 	}
 
 	if config.AckPolicy != api.AckNone {
 		if state.AckFloor.Last == nil {
 			cols.AddRowf("Acknowledgment Floor", "Consumer sequence: %s Stream sequence: %s", f(state.AckFloor.Consumer), f(state.AckFloor.Stream))
 		} else {
-			cols.AddRowf("Acknowledgment Floor", "Consumer sequence: %s Stream sequence: %s Last ack: %s ago", f(state.AckFloor.Consumer), f(state.AckFloor.Stream), f(time.Since(*state.AckFloor.Last)))
+			cols.AddRowf("Acknowledgment Floor", "Consumer sequence: %s Stream sequence: %s Last Ack: %s ago", f(state.AckFloor.Consumer), f(state.AckFloor.Stream), f(sinceRefOrNow(state.TimeStamp, *state.AckFloor.Last)))
 		}
 		if config.MaxAckPending > 0 {
 			cols.AddRowf("Outstanding Acks", "%s out of maximum %s", f(state.NumAckPending), f(config.MaxAckPending))
@@ -977,11 +978,16 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	if c.consumer == "" && !c.ephemeral {
 		err = askOne(&survey.Input{
 			Message: "Consumer name",
-			Help:    "This will be used for the name of the durable subscription to be used when referencing this Consumer later. Settable using 'name' CLI argument",
+			Help:    "This will be used for the name to be used when referencing this Consumer later. Settable using 'name' CLI argument",
 		}, &c.consumer, survey.WithValidator(survey.Required))
 		fisk.FatalIfError(err, "could not request durable name")
 	}
-	cfg.Durable = c.consumer
+
+	if c.ephemeral {
+		cfg.Name = c.consumer
+	} else {
+		cfg.Durable = c.consumer
+	}
 
 	if ok, _ := regexp.MatchString(`\.|\*|>`, cfg.Durable); ok {
 		fisk.Fatalf("durable name can not contain '.', '*', '>'")
@@ -1081,10 +1087,6 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 
 	cfg.AckPolicy = c.ackPolicyFromString(c.ackPolicy)
-	if cfg.AckPolicy == api.AckNone && cfg.DeliverSubject == "" {
-		fisk.Fatalf("pull consumers can only be explicit or all acknowledgement modes")
-	}
-
 	if cfg.AckPolicy == api.AckNone {
 		cfg.MaxDeliver = -1
 	}

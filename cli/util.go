@@ -36,16 +36,15 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/google/shlex"
-	"github.com/nats-io/jsm.go"
-
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
+	"github.com/google/shlex"
 	"github.com/gosuri/uiprogress"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/klauspost/compress/s2"
 	"github.com/mattn/go-isatty"
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
@@ -227,7 +226,14 @@ func selectPageSize(count int) int {
 }
 
 func isTerminal() bool {
-	return terminal.IsTerminal(int(os.Stdin.Fd()))
+	return terminal.IsTerminal(int(os.Stdin.Fd())) && terminal.IsTerminal(int(os.Stdout.Fd()))
+}
+
+func sinceRefOrNow(ref time.Time, ts time.Time) time.Duration {
+	if ref.IsZero() {
+		return time.Since(ts)
+	}
+	return ref.Sub(ts)
 }
 
 func askConfirmation(prompt string, dflt bool) (bool, error) {
@@ -512,44 +518,6 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 	}
 
 	return opts.Conn, opts.Mgr, err
-}
-
-func humanizeDuration(d time.Duration) string {
-	if d < time.Millisecond {
-		return d.Round(time.Microsecond).String()
-	}
-
-	if d < time.Second {
-		return d.Round(time.Millisecond).String()
-	}
-
-	if d == math.MaxInt64 {
-		return "never"
-	}
-
-	tsecs := d / time.Second
-	tmins := tsecs / 60
-	thrs := tmins / 60
-	tdays := thrs / 24
-	tyrs := tdays / 365
-
-	if tyrs > 0 {
-		return fmt.Sprintf("%dy%dd%dh%dm%ds", tyrs, tdays%365, thrs%24, tmins%60, tsecs%60)
-	}
-
-	if tdays > 0 {
-		return fmt.Sprintf("%dd%dh%dm%ds", tdays, thrs%24, tmins%60, tsecs%60)
-	}
-
-	if thrs > 0 {
-		return fmt.Sprintf("%dh%dm%ds", thrs, tmins%60, tsecs%60)
-	}
-
-	if tmins > 0 {
-		return fmt.Sprintf("%dm%ds", tmins, tsecs%60)
-	}
-
-	return fmt.Sprintf("%.2fs", d.Seconds())
 }
 
 const (
@@ -875,7 +843,7 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 
 	var finisher *time.Timer
 	if waitFor == 0 {
-		finisher = time.NewTimer(300 * time.Millisecond)
+		finisher = time.NewTimer(opts.Timeout)
 		go func() {
 			select {
 			case <-finisher.C:
@@ -1277,29 +1245,44 @@ func surveyColors() []survey.AskOpt {
 				icons.SelectFocus.Format = "white"
 			}
 
-			// if a specific context is selected on the cli we will show it, but not the default one
-			if opts.CfgCtx != "" {
-				icons.Question.Text = fmt.Sprintf("[%s] ?", opts.CfgCtx)
+			if opts.Config != nil && opts.Config.Name != "" {
+				icons.Question.Text = fmt.Sprintf("[%s] ?", opts.Config.Name)
 				icons.Help.Text = ""
 			}
 		}),
 	}
 }
 
-func outPutMSGBody(data []byte, filter, subject, stream string) {
+func outPutMSGBodyCompact(data []byte, filter string, subject string, stream string) (string, error) {
 	if len(data) == 0 {
 		fmt.Println("nil body")
-		return
+		return "", nil
 	}
 
 	data, err := filterDataThroughCmd(data, filter, subject, stream)
 	if err != nil {
 		// using q here so raw binary data will be escaped
 		fmt.Printf("%q\nError while translating msg body: %s\n\n", data, err.Error())
-		return
+		return "", err
 	}
 	output := string(data)
-	fmt.Println(output)
+	if strings.HasSuffix(output, "\n") {
+		fmt.Print(output)
+	} else {
+		fmt.Println(output)
+	}
+
+	return output, nil
+}
+
+func outPutMSGBody(data []byte, filter string, subject string, stream string) {
+	output, err := outPutMSGBodyCompact(data, filter, subject, stream)
+	if err != nil {
+		return
+	}
+
+	fmt.Println()
+
 	if !strings.HasSuffix(output, "\n") {
 		fmt.Println()
 	}

@@ -20,6 +20,7 @@ func configureServerCommand(app commandHost) {
 	configureServerAccountCommand(srv)
 	configureServerCheckCommand(srv)
 	configureServerClusterCommand(srv)
+	configureServerConfigCommand(srv)
 	configureServerInfoCommand(srv)
 	configureServerListCommand(srv)
 	configureServerMappingCommand(srv)

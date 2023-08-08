@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -33,6 +34,7 @@ import (
 type ctxCommand struct {
 	json             bool
 	completionFormat bool
+	namesFormat      bool
 	activate         bool
 	description      string
 	name             string
@@ -47,6 +49,7 @@ func configureCtxCommand(app commandHost) {
 
 	context := app.Command("context", "Manage nats configuration contexts").Alias("ctx")
 	addCheat("contexts", context)
+
 	save := context.Command("save", "Update or create a context").Alias("add").Alias("create").Action(c.createCommand)
 	save.Arg("name", "The context name to act on").Required().StringVar(&c.name)
 	save.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
@@ -65,6 +68,8 @@ func configureCtxCommand(app commandHost) {
 
 	ls := context.Command("ls", "List known contexts").Alias("list").Alias("l").Action(c.listCommand)
 	ls.Flag("completion", "Format the list for use by shell completion").Hidden().UnNegatableBoolVar(&c.completionFormat)
+	ls.Flag("json", "Show the list in JSON format").Short('j').UnNegatableBoolVar(&c.json)
+	ls.Flag("names", "List just the names of known contexts").UnNegatableBoolVar(&c.namesFormat)
 
 	rm := context.Command("rm", "Remove a context").Alias("remove").Action(c.removeCommand)
 	rm.Arg("name", "The context name to remove").Required().StringVar(&c.name)
@@ -322,6 +327,26 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 	return nil
 }
 
+func (c *ctxCommand) renderListNames(current string, known []*natscontext.Context) {
+	var names []string
+	for _, v := range known {
+		names = append(names, v.Name)
+	}
+	sort.Strings(names)
+
+	for _, v := range names {
+		fmt.Println(v)
+	}
+}
+
+func (c *ctxCommand) renderListJson(current string, known []*natscontext.Context) {
+	sort.Slice(known, func(i, j int) bool {
+		return known[i].Name < known[j].Name
+	})
+
+	printJSON(known)
+}
+
 func (c *ctxCommand) renderListCompletion(current string, known []*natscontext.Context) {
 	for _, nctx := range known {
 		name := strings.ReplaceAll(nctx.Name, ":", `\:`)
@@ -371,9 +396,14 @@ func (c *ctxCommand) listCommand(_ *fisk.ParseContext) error {
 		contexts = append(contexts, cfg)
 	}
 
-	if c.completionFormat {
+	switch {
+	case c.completionFormat:
 		c.renderListCompletion(current, contexts)
-	} else {
+	case c.json:
+		c.renderListJson(current, contexts)
+	case c.namesFormat:
+		c.renderListNames(current, contexts)
+	default:
 		c.renderListTable(current, contexts)
 	}
 
@@ -482,11 +512,17 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 		load = true
 	}
 
+	token := ""
+	if opts.Password == "" && opts.Username != "" {
+		token = opts.Username
+		opts.Username = ""
+	}
+
 	config, err := natscontext.New(lname, load,
 		natscontext.WithServerURL(opts.Servers),
 		natscontext.WithUser(opts.Username),
 		natscontext.WithPassword(opts.Password),
-		natscontext.WithToken(opts.Username),
+		natscontext.WithToken(token),
 		natscontext.WithCreds(opts.Creds),
 		natscontext.WithNKey(opts.Nkey),
 		natscontext.WithCertificate(opts.TlsCert),

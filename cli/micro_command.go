@@ -107,6 +107,10 @@ func (c *microCmd) serveAction(_ *fisk.ParseContext) error {
 		Name:        c.name,
 		Version:     "1.0.0",
 		Description: fmt.Sprintf("NATS CLI Demo Service (%s)", c.name),
+		Metadata: map[string]string{
+			"_nats.client.created.library": "natscli",
+			"_nats.client.created.version": Version,
+		},
 	})
 	if err != nil {
 		return err
@@ -370,12 +374,21 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 	cols.AddRowf("Service", "%v (%v)", nfo.Name, nfo.ID)
 	cols.AddRow("Description", nfo.Description)
 	cols.AddRow("Version", nfo.Version)
-	cols.AddRow("Subjects", nfo.Subjects)
 	if len(nfo.Metadata) > 0 {
-		cols.Println()
-		cols.AddSectionTitle("Metadata")
-		cols.AddMapStrings(nfo.Metadata)
+		cols.AddMapStringsAsValue("Metadata", nfo.Metadata)
 	}
+
+	cols.AddSectionTitle("Endpoints:")
+	cols.Indent(2)
+	for _, e := range nfo.Endpoints {
+		cols.Println()
+		cols.AddRow("Name", e.Name)
+		cols.AddRow("Subject", e.Subject)
+		if len(e.Metadata) > 0 {
+			cols.AddMapStringsAsValue("Metadata", e.Metadata)
+		}
+	}
+	cols.Indent(0)
 
 	cols.AddSectionTitle("Statistics for %d Endpoint(s)", len(stats.Endpoints))
 	for _, e := range stats.Endpoints {

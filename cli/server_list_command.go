@@ -49,7 +49,7 @@ func configureServerListCommand(srv *fisk.CmdClause) {
 	ls := srv.Command("list", "List known servers").Alias("ls").Action(c.list)
 	ls.Arg("expect", "How many servers to expect").Uint32Var(&c.expect)
 	ls.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
-	ls.Flag("sort", "Sort servers by a specific key (name,conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("name,conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
+	ls.Flag("sort", "Sort servers by a specific key (name,cluster,conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("name,cluster,conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
 	ls.Flag("reverse", "Reverse sort servers").Short('R').UnNegatableBoolVar(&c.reverse)
 	ls.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 }
@@ -146,15 +146,31 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 
 		switch c.sort {
 		case "name":
-			return results[i].Server.Name < results[j].Server.Name
+			return rev(results[i].Server.Name < results[j].Server.Name)
 		case "conns", "conn":
 			return rev(stati.Connections < statj.Connections)
 		case "subs", "sub":
 			return rev(stati.NumSubs < statj.NumSubs)
 		case "routes", "route":
-			return rev(len(stati.Routes) < len(statj.Routes))
+			// if routes are the same, most typical, we sort by name
+			il := len(stati.Routes)
+			jl := len(statj.Routes)
+
+			if il != jl {
+				return rev(il < jl)
+			}
+
+			return rev(results[i].Server.Name < results[j].Server.Name)
 		case "gws", "gw":
-			return rev(len(stati.Gateways) < len(statj.Gateways))
+			// if gateways are the same, most typical, we sort by name
+			il := len(stati.Gateways)
+			jl := len(statj.Gateways)
+
+			if il != jl {
+				return rev(il < jl)
+			}
+
+			return rev(results[i].Server.Name < results[j].Server.Name)
 		case "mem":
 			return rev(stati.Mem < statj.Mem)
 		case "cpu":
@@ -163,6 +179,13 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			return rev(stati.SlowConsumers < statj.SlowConsumers)
 		case "uptime":
 			return rev(stati.Start.UnixNano() > statj.Start.UnixNano())
+		case "cluster":
+			// we default to reverse, so we swap this since alpha is better by default
+			if results[i].Server.Cluster != results[j].Server.Cluster {
+				return !rev(results[i].Server.Cluster < results[j].Server.Cluster)
+			}
+
+			return !rev(results[i].Server.Name < results[j].Server.Name)
 		default:
 			return rev(results[i].rtt > results[j].rtt)
 		}
@@ -183,6 +206,10 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		cHosts = compactStrings(hosts)
 	}
 
+	versionsOk := ""
+	gwaysOk := ""
+	routesOk := ""
+
 	for i, ssm := range results {
 		cluster := ssm.Server.Cluster
 		jsEnabled := "no"
@@ -192,6 +219,16 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			} else {
 				jsEnabled = "yes"
 			}
+		}
+
+		if ssm.Server.Version != results[0].ServerStatsMsg.Server.Version {
+			versionsOk = "X"
+		}
+		if len(ssm.Stats.Routes) != len(results[0].ServerStatsMsg.Stats.Routes) {
+			routesOk = "X"
+		}
+		if len(ssm.Stats.Gateways) != len(results[0].ServerStatsMsg.Stats.Gateways) {
+			gwaysOk = "X"
 		}
 
 		table.AddRow(
@@ -216,11 +253,12 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		"",
 		len(clusters),
 		servers,
-		"",
+		versionsOk,
 		js,
 		f(connections),
 		f(subs),
-		"", "",
+		routesOk,
+		gwaysOk,
 		humanize.IBytes(uint64(memory)),
 		"",
 		"",

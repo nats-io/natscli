@@ -16,6 +16,7 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"os"
 	"strconv"
 	"sync"
@@ -126,7 +127,7 @@ Remember to use --no-progress to measure performance more accurately
 	bench.Flag("no-progress", "Disable progress bar while publishing").UnNegatableBoolVar(&c.noProgress)
 	bench.Flag("csv", "Save benchmark data to CSV file").StringVar(&c.csvFile)
 	bench.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
-	bench.Flag("storage", "JetStream storage (memory/file) for the \"benchstream\" stream").Default("memory").EnumVar(&c.storage, "memory", "file")
+	bench.Flag("storage", "JetStream storage (memory/file) for the \"benchstream\" stream").Default("file").EnumVar(&c.storage, "memory", "file")
 	bench.Flag("replicas", "Number of stream replicas for the \"benchstream\" stream").Default("1").IntVar(&c.replicas)
 	bench.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes").Default("1GB").StringVar(&c.streamMaxBytesString)
 	bench.Flag("stream", "When set to something else than \"benchstream\": use (and do not attempt to define) the specified stream when creating durable subscribers. Otherwise define and use the \"benchstream\" stream").Default(DefaultStreamName).StringVar(&c.streamName)
@@ -143,7 +144,7 @@ Remember to use --no-progress to measure performance more accurately
 	bench.Flag("pubsleep", "Sleep for the specified interval after publishing each message").Default("0s").DurationVar(&c.pubSleep)
 	bench.Flag("history", "History depth for the bucket in KV mode").Default("1").Uint8Var(&c.history)
 	bench.Flag("multisubject", "Multi-subject mode, each message is published on a subject that includes the publisher's message sequence number as a token").UnNegatableBoolVar(&c.multiSubject)
-	bench.Flag("multisubjectmax", "The maximum number of subjects to use in multi-subject mode (0 means no max)").Default("0").IntVar(&c.multiSubjectMax)
+	bench.Flag("multisubjectmax", "The maximum number of subjects to use in multi-subject mode (0 means no max)").Default("100000").IntVar(&c.multiSubjectMax)
 	bench.Flag("retries", "The maximum number of retries in JS operations").Default("3").IntVar(&c.retries)
 	bench.Flag("dedup", "Sets a message id in the header to use JS Publish de-duplication").Default("false").UnNegatableBoolVar(&c.deDuplication)
 	bench.Flag("dedupwindow", "Sets the duration of the stream's deduplication functionality").Default("2m").DurationVar(&c.deDuplicationWindow)
@@ -634,7 +635,7 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 	if c.kv {
 		log.Printf("Starting KV putter, putting %s messages", f(numMsg))
 	} else {
-		log.Printf("Starting publisher, publishing %s messages", (numMsg))
+		log.Printf("Starting publisher, publishing %s messages", f(numMsg))
 	}
 
 	if !c.noProgress {
@@ -648,6 +649,12 @@ func (c *benchCmd) runPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *syn
 	}
 
 	<-trigger
+
+	// introduces some jitter between the publishers if pubSleep is set and more than one publisher
+	if c.pubSleep != 0 && pubNumber != "0" {
+		n := rand.Intn(int(c.pubSleep))
+		time.Sleep(time.Duration(n))
+	}
 
 	start := time.Now()
 
