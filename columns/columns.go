@@ -194,6 +194,32 @@ func (w *Writer) Println(msg ...string) {
 	w.rows = append(w.rows, &columnRow{kind: kindLine, values: val})
 }
 
+// AddMapIntsAsValue adds a row with title t and the data as value. Optionally sorts by value.
+func (w *Writer) AddMapIntsAsValue(t string, data map[string]int, sortValues bool, reverse bool) {
+	var list []string
+	for k := range data {
+		list = append(list, k)
+	}
+
+	if sortValues {
+		sort.Slice(list, func(i, j int) bool {
+			if reverse {
+				return data[list[i]] > data[list[j]]
+			} else {
+				return data[list[i]] < data[list[j]]
+			}
+		})
+	}
+
+	for i, k := range list {
+		if i == 0 {
+			w.AddRowf(t, "%s: %s", k, F(data[k]))
+		} else {
+			w.AddRowf("", "%s: %s", k, F(data[k]))
+		}
+	}
+}
+
 // AddMapStringsAsValue adds a row with title t and the data as value, over multiple lines and correctly justified
 func (w *Writer) AddMapStringsAsValue(t string, data map[string]string) {
 	maxLen := screenWidth()
@@ -217,6 +243,28 @@ func (w *Writer) AddMapStringsAsValue(t string, data map[string]string) {
 		} else {
 			w.AddRowf("", "%s: %s", k, v)
 		}
+	}
+}
+
+// AddMapInts adds data with each key being a column title and value what follows the :. Optionally sorts by value
+func (w *Writer) AddMapInts(data map[string]int, sortValues bool, reverse bool) {
+	var list []string
+	for k := range data {
+		list = append(list, k)
+	}
+
+	if sortValues {
+		sort.Slice(list, func(i, j int) bool {
+			if reverse {
+				return data[list[i]] > data[list[j]]
+			} else {
+				return data[list[i]] < data[list[j]]
+			}
+		})
+	}
+
+	for _, k := range list {
+		w.AddRowf(k, F(data[k]))
 	}
 }
 
