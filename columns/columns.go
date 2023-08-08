@@ -151,7 +151,7 @@ func (w *Writer) Render() (string, error) {
 
 // AddRow adds a row, v will be formatted if time.Time, time.Duration, []string, floats, ints and uints
 func (w *Writer) AddRow(t string, v any) {
-	w.rows = append(w.rows, &columnRow{kind: kindRow, values: []any{t, F(v)}})
+	w.rows = append(w.rows, &columnRow{kind: kindRow, values: []any{strings.TrimSuffix(t, w.sep), F(v)}})
 }
 
 // AddRowIf adds a row if the condition is true
