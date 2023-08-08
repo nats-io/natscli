@@ -1811,7 +1811,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		cols.AddRowf("Lost Messages", "%s (%s)", f(len(info.State.Lost.Msgs)), humanize.IBytes(info.State.Lost.Bytes))
 	}
 
-	if info.State.FirstTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
+	if info.State.FirstTime.Equal(time.Unix(0, 0)) || info.State.FirstTime.IsZero() {
 		cols.AddRow("First Sequence", info.State.FirstSeq)
 	} else {
 		cols.AddRowf("First Sequence", "%s @ %s UTC", f(info.State.FirstSeq), f(info.State.FirstTime))
