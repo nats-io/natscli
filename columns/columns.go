@@ -113,7 +113,7 @@ func (w *Writer) Frender(o io.Writer) error {
 
 		case kindRow:
 			left := row.values[0].(string)
-			padding := longest - len(left) + 2
+			padding := longest - utf8StringLen(left) + 2
 			if padding < 0 {
 				padding = 0
 			}
@@ -194,6 +194,32 @@ func (w *Writer) Println(msg ...string) {
 	w.rows = append(w.rows, &columnRow{kind: kindLine, values: val})
 }
 
+// AddMapIntsAsValue adds a row with title t and the data as value. Optionally sorts by value.
+func (w *Writer) AddMapIntsAsValue(t string, data map[string]int, sortValues bool, reverse bool) {
+	var list []string
+	for k := range data {
+		list = append(list, k)
+	}
+
+	if sortValues {
+		sort.Slice(list, func(i, j int) bool {
+			if reverse {
+				return data[list[i]] > data[list[j]]
+			} else {
+				return data[list[i]] < data[list[j]]
+			}
+		})
+	}
+
+	for i, k := range list {
+		if i == 0 {
+			w.AddRowf(t, "%s: %s", k, F(data[k]))
+		} else {
+			w.AddRowf("", "%s: %s", k, F(data[k]))
+		}
+	}
+}
+
 // AddMapStringsAsValue adds a row with title t and the data as value, over multiple lines and correctly justified
 func (w *Writer) AddMapStringsAsValue(t string, data map[string]string) {
 	maxLen := screenWidth()
@@ -207,7 +233,7 @@ func (w *Writer) AddMapStringsAsValue(t string, data map[string]string) {
 	for i, k := range list {
 		v := data[k]
 
-		if len(data[k]) > maxLen && maxLen > 20 {
+		if utf8StringLen(data[k]) > maxLen && maxLen > 20 {
 			w := maxLen/2 - 10
 			v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
 		}
@@ -217,6 +243,28 @@ func (w *Writer) AddMapStringsAsValue(t string, data map[string]string) {
 		} else {
 			w.AddRowf("", "%s: %s", k, v)
 		}
+	}
+}
+
+// AddMapInts adds data with each key being a column title and value what follows the :. Optionally sorts by value
+func (w *Writer) AddMapInts(data map[string]int, sortValues bool, reverse bool) {
+	var list []string
+	for k := range data {
+		list = append(list, k)
+	}
+
+	if sortValues {
+		sort.Slice(list, func(i, j int) bool {
+			if reverse {
+				return data[list[i]] > data[list[j]]
+			} else {
+				return data[list[i]] < data[list[j]]
+			}
+		})
+	}
+
+	for _, k := range list {
+		w.AddRowf(k, F(data[k]))
 	}
 }
 
@@ -233,7 +281,7 @@ func (w *Writer) AddMapStrings(data map[string]string) {
 	for _, k := range list {
 		v := data[k]
 
-		if len(data[k]) > maxLen && maxLen > 20 {
+		if utf8StringLen(data[k]) > maxLen && maxLen > 20 {
 			w := maxLen/2 - 10
 			v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
 		}
@@ -271,6 +319,15 @@ func (w *Writer) maybeAddColon(o io.Writer, v string, colorize bool) string {
 	}
 
 	return v + c
+}
+
+func utf8StringLen(s string) int {
+	c := 0
+	for range s {
+		c++
+	}
+
+	return c
 }
 
 func F(v any) string {
