@@ -113,7 +113,7 @@ func (w *Writer) Frender(o io.Writer) error {
 
 		case kindRow:
 			left := row.values[0].(string)
-			padding := longest - len(left) + 2
+			padding := longest - utf8StringLen(left) + 2
 			if padding < 0 {
 				padding = 0
 			}
@@ -233,7 +233,7 @@ func (w *Writer) AddMapStringsAsValue(t string, data map[string]string) {
 	for i, k := range list {
 		v := data[k]
 
-		if len(data[k]) > maxLen && maxLen > 20 {
+		if utf8StringLen(data[k]) > maxLen && maxLen > 20 {
 			w := maxLen/2 - 10
 			v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
 		}
@@ -281,7 +281,7 @@ func (w *Writer) AddMapStrings(data map[string]string) {
 	for _, k := range list {
 		v := data[k]
 
-		if len(data[k]) > maxLen && maxLen > 20 {
+		if utf8StringLen(data[k]) > maxLen && maxLen > 20 {
 			w := maxLen/2 - 10
 			v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
 		}
@@ -319,6 +319,15 @@ func (w *Writer) maybeAddColon(o io.Writer, v string, colorize bool) string {
 	}
 
 	return v + c
+}
+
+func utf8StringLen(s string) int {
+	c := 0
+	for range s {
+		c++
+	}
+
+	return c
 }
 
 func F(v any) string {
