@@ -520,44 +520,6 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 	return opts.Conn, opts.Mgr, err
 }
 
-func humanizeDuration(d time.Duration) string {
-	if d < time.Millisecond {
-		return d.Round(time.Microsecond).String()
-	}
-
-	if d < time.Second {
-		return d.Round(time.Millisecond).String()
-	}
-
-	if d == math.MaxInt64 {
-		return "never"
-	}
-
-	tsecs := d / time.Second
-	tmins := tsecs / 60
-	thrs := tmins / 60
-	tdays := thrs / 24
-	tyrs := tdays / 365
-
-	if tyrs > 0 {
-		return fmt.Sprintf("%dy%dd%dh%dm%ds", tyrs, tdays%365, thrs%24, tmins%60, tsecs%60)
-	}
-
-	if tdays > 0 {
-		return fmt.Sprintf("%dd%dh%dm%ds", tdays, thrs%24, tmins%60, tsecs%60)
-	}
-
-	if thrs > 0 {
-		return fmt.Sprintf("%dh%dm%ds", thrs, tmins%60, tsecs%60)
-	}
-
-	if tmins > 0 {
-		return fmt.Sprintf("%dm%ds", tmins, tsecs%60)
-	}
-
-	return fmt.Sprintf("%.2fs", d.Seconds())
-}
-
 const (
 	hdrLine   = "NATS/1.0\r\n"
 	crlf      = "\r\n"

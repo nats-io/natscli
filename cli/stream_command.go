@@ -40,6 +40,7 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/columns"
 	"gopkg.in/yaml.v3"
 )
 
@@ -1580,7 +1581,7 @@ func (c *streamCmd) cpAction(pc *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *streamCmd) showStreamConfig(cols *columnWriter, cfg api.StreamConfig) {
+func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig) {
 
 	cols.AddRowIfNotEmpty("Description", cfg.Description)
 
@@ -1727,7 +1728,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		return
 	}
 
-	var cols *columnWriter
+	var cols *columns.Writer
 	if c.showStateOnly {
 		cols = newColumns(fmt.Sprintf("State for Stream %s created %s", c.stream, f(info.Created.Local())))
 	} else {
