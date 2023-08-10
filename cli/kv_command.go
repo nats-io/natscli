@@ -466,15 +466,10 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	if len(c.sources) != 0 {
-		var sources []*nats.StreamSource
-
-		for _, source := range c.sources {
-			sources = append(sources, &nats.StreamSource{
-				Name: source,
-			})
-		}
-		cfg.Sources = sources
+	for _, source := range c.sources {
+		cfg.Sources = append(cfg.Sources, &nats.StreamSource{
+			Name: source,
+		})
 	}
 
 	store, err := js.CreateKeyValue(cfg)
@@ -761,12 +756,12 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 		if nfo.Config.MaxBytes == -1 {
 			cols.AddRow("Maximum Bucket Size", "unlimited")
 		} else {
-			cols.AddRow("Maximum Bucket Size", nfo.Config.MaxBytes)
+			cols.AddRow("Maximum Bucket Size", humanize.IBytes(uint64(nfo.Config.MaxBytes)))
 		}
 		if nfo.Config.MaxMsgSize == -1 {
 			cols.AddRow("Maximum Value Size", "unlimited")
 		} else {
-			cols.AddRow("Maximum Value Size", nfo.Config.MaxMsgSize)
+			cols.AddRow("Maximum Value Size", humanize.IBytes(uint64(nfo.Config.MaxMsgSize)))
 		}
 		if nfo.Config.MaxAge <= 0 {
 			cols.AddRow("Maximum Age", "unlimited")

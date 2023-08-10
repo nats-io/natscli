@@ -427,6 +427,7 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 	cols := 1
 	countWidth := len(f(most))
 	table := newTableWriter(fmt.Sprintf("%d Subjects in stream %s", len(names), c.stream))
+
 	switch {
 	case longest+countWidth < 20:
 		cols = 3
@@ -1055,6 +1056,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 		if len(info.State.Deleted) > 0 {
 			deleted = len(info.State.Deleted)
 		}
+
 		s := streamStat{
 			Name:      info.Config.Name,
 			Consumers: info.State.Consumers,
@@ -1068,6 +1070,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 			Sources:   info.Sources,
 			Placement: info.Config.Placement,
 		}
+
 		if info.State.Lost != nil {
 			s.LostBytes = info.State.Lost.Bytes
 			s.LostMsgs = len(info.State.Lost.Msgs)
@@ -1085,6 +1088,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 					snode = dg.Node(source.Name)
 				}
 				edge := dg.Edge(snode, node).Attr("color", "green")
+
 				if source.FilterSubject != "" && source.SubjectTransformDest == "" {
 					edge.Label(source.FilterSubject)
 				} else if source.FilterSubject != "" && source.SubjectTransformDest != "" {
@@ -1419,16 +1423,16 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 
 	if cfg.RePublish != nil {
 		repubConfig = *cfg.RePublish
-	} else {
-		repubConfig = api.RePublish{}
 	}
 
 	if c.repubSource != "" {
 		repubConfig.Source = c.repubSource
 	}
+
 	if c.repubDest != "" {
 		repubConfig.Destination = c.repubDest
 	}
+
 	if c.repubHeadersOnly {
 		repubConfig.HeadersOnly = true
 	} else if repubConfig.HeadersOnly {
@@ -1449,8 +1453,6 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 
 	if cfg.SubjectTransform != nil {
 		subjectTransformConfig = *cfg.SubjectTransform
-	} else {
-		subjectTransformConfig = api.SubjectTransformConfig{}
 	}
 
 	if c.subjectTransformSource != "" {
@@ -1458,12 +1460,6 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 	}
 	if c.subjectTransformDest != "" {
 		subjectTransformConfig.Destination = c.subjectTransformDest
-	}
-
-	if subjectTransformConfig.Source == "" && subjectTransformConfig.Destination == "" {
-		cfg.SubjectTransform = nil
-	} else {
-		cfg.SubjectTransform = &subjectTransformConfig
 	}
 
 	if c.noSubjectTransform {
@@ -1644,9 +1640,11 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRowIf("Sealed", true, cfg.Sealed)
 	cols.AddRow("Storage", cfg.Storage.String())
 	cols.AddRowIf("Compression", cfg.Compression, cfg.Compression != api.NoCompression)
+
 	if cfg.FirstSeq > 0 {
 		cols.AddRow("First Sequence", cfg.FirstSeq)
 	}
+
 	if cfg.Placement != nil {
 		cols.AddRowIfNotEmpty("Placement Cluster", cfg.Placement.Cluster)
 		cols.AddRowIf("Placement Tags", cfg.Placement.Tags, len(cfg.Placement.Tags) > 0)
@@ -1661,6 +1659,7 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 		}
 		cols.AddRowf("Subject Transform", "%s to %s", source, cfg.SubjectTransform.Destination)
 	}
+
 	if cfg.RePublish != nil {
 		if cfg.RePublish.HeadersOnly {
 			cols.AddRowf("Republishing Headers", "%s to %s", cfg.RePublish.Source, cfg.RePublish.Destination)
@@ -1671,6 +1670,7 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRow("Retention", cfg.Retention.String())
 	cols.AddRow("Acknowledgments", !cfg.NoAck)
 	dnp := cfg.Discard.String()
+
 	if cfg.DiscardNewPer {
 		dnp = "New Per Subject"
 	}
@@ -1723,6 +1723,7 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	if cfg.Mirror != nil || len(cfg.Sources) > 0 {
 		cols.AddSectionTitle("Replication")
 	}
+
 	cols.AddRowIfNotEmpty("Mirror", c.renderSource(cfg.Mirror))
 
 	if len(cfg.Sources) > 0 {
@@ -1753,10 +1754,11 @@ func (c *streamCmd) renderSource(s *api.StreamSource) string {
 	if s.FilterSubject == "" && s.SubjectTransformDest == "" {
 		parts = append(parts, s.Name)
 	} else {
-		var filter = ">"
+		filter := ">"
 		if s.FilterSubject != "" {
 			filter = s.FilterSubject
 		}
+
 		if s.SubjectTransformDest != "" {
 			parts = append(parts, fmt.Sprintf("%s (%s to %s)", s.Name, filter, s.SubjectTransformDest))
 		} else {
@@ -1771,10 +1773,12 @@ func (c *streamCmd) renderSource(s *api.StreamSource) string {
 	if s.OptStartTime != nil {
 		parts = append(parts, fmt.Sprintf("Start Time: %v", s.OptStartTime))
 	}
+
 	if s.External != nil {
 		if s.External.ApiPrefix != "" {
 			parts = append(parts, fmt.Sprintf("API Prefix: %s", s.External.ApiPrefix))
 		}
+
 		if s.External.DeliverPrefix != "" {
 			parts = append(parts, fmt.Sprintf("Delivery Prefix: %s", s.External.DeliverPrefix))
 		}
@@ -1848,8 +1852,9 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 
 	showSource := func(s *api.StreamSourceInfo) {
 		cols.AddRow("Stream Name", s.Name)
+
 		if s.SubjectTransformDest != "" {
-			var filter = ">"
+			filter := ">"
 			if s.FilterSubject != "" {
 				filter = s.FilterSubject
 			}
@@ -1857,18 +1862,22 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		} else {
 			cols.AddRowIfNotEmpty("Subject Filter", s.FilterSubject)
 		}
+
 		cols.AddRow("Lag", s.Lag)
+
 		if s.Active > 0 && s.Active < math.MaxInt64 {
 			cols.AddRow("Last Seen", s.Active)
 		} else {
 			cols.AddRow("Last Seen", "never")
 		}
+
 		if s.External != nil {
 			cols.AddRow("Ext. API Prefix", s.External.ApiPrefix)
 			if s.External.DeliverPrefix != "" {
 				cols.AddRow("Ext. Delivery Prefix", s.External.DeliverPrefix)
 			}
 		}
+
 		if s.Error != nil {
 			cols.AddRow("Error", s.Error.Description)
 		}
@@ -1890,6 +1899,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	cols.AddSectionTitle("State")
 	cols.AddRow("Messages", info.State.Msgs)
 	cols.AddRow("Bytes", humanize.IBytes(info.State.Bytes))
+
 	if info.State.Lost != nil && len(info.State.Lost.Msgs) > 0 {
 		cols.AddRowf("Lost Messages", "%s (%s)", f(len(info.State.Lost.Msgs)), humanize.IBytes(info.State.Lost.Bytes))
 	}
@@ -1899,11 +1909,13 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	} else {
 		cols.AddRowf("First Sequence", "%s @ %s UTC", f(info.State.FirstSeq), f(info.State.FirstTime))
 	}
+
 	if info.State.LastTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
 		cols.AddRow("Last Sequence", info.State.LastSeq)
 	} else {
 		cols.AddRowf("Last Sequence", "%s @ %s UTC", f(info.State.LastSeq), f(info.State.LastTime))
 	}
+
 	if len(info.State.Deleted) > 0 { // backwards compat with older servers
 		cols.AddRow("Deleted Messages", len(info.State.Deleted))
 	} else if info.State.NumDeleted > 0 {
@@ -1915,6 +1927,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	if info.State.NumSubjects > 0 {
 		cols.AddRow("Number of Subjects", info.State.NumSubjects)
 	}
+
 	if len(info.Alternates) > 0 {
 		lName := 0
 		lCluster := 0
@@ -1926,6 +1939,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 				lCluster = len(s.Cluster)
 			}
 		}
+
 		for i, s := range info.Alternates {
 			msg := fmt.Sprintf("%s%s: Cluster: %s%s", strings.Repeat(" ", lName-len(s.Name)), s.Name, strings.Repeat(" ", lCluster-len(s.Cluster)), s.Cluster)
 			if s.Domain != "" {
@@ -2165,6 +2179,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	var maxAge time.Duration
+
 	if c.maxBytesLimit == 0 {
 		reqd := ""
 		defltSize := "-1"
@@ -2205,11 +2220,13 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	var dupeWindow time.Duration
+
 	if c.dupeWindow == "" && c.mirror == "" {
 		defaultDW := (2 * time.Minute).String()
 		if maxAge > 0 && maxAge < 2*time.Minute {
 			defaultDW = maxAge.String()
 		}
+
 		if c.acceptDefaults {
 			c.dupeWindow = defaultDW
 		} else {
@@ -2303,18 +2320,15 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		}
 	}
 
-	if c.repubSource != "" || c.repubDest != "" {
-		cfg.RePublish = &api.RePublish{
-			Source:      c.repubSource,
-			Destination: c.repubDest,
-			HeadersOnly: c.repubHeadersOnly,
-		}
+	cfg.RePublish = &api.RePublish{
+		Source:      c.repubSource,
+		Destination: c.repubDest,
+		HeadersOnly: c.repubHeadersOnly,
 	}
 
 	if (c.subjectTransformSource != "" && c.subjectTransformDest == "") || (c.subjectTransformSource == "" && c.subjectTransformDest != "") {
 		fisk.Fatalf("must specify both --transform-source and --transform-destination")
-	}
-	if c.subjectTransformSource != "" && c.subjectTransformDest != "" {
+
 		cfg.SubjectTransform = &api.SubjectTransformConfig{
 			Source:      c.subjectTransformSource,
 			Destination: c.subjectTransformDest,
@@ -2477,6 +2491,7 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 
 func (c *streamCmd) parseStreamSource(source string) (*api.StreamSource, error) {
 	ss := &api.StreamSource{}
+
 	if isJsonString(source) {
 		err := json.Unmarshal([]byte(source), ss)
 		if err != nil {
@@ -2517,7 +2532,6 @@ func (c *streamCmd) validateCfg(cfg *api.StreamConfig) (bool, []byte, []string, 
 }
 
 func (c *streamCmd) addAction(pc *fisk.ParseContext) (err error) {
-
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	fisk.FatalIfError(err, "could not create Stream")
 
@@ -2738,6 +2752,7 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string
 	} else {
 		table = newTableWriter(fmt.Sprintf("Streams matching %s", c.filterSubject))
 	}
+
 	table.AddHeaders("Name", "Description", "Created", "Messages", "Size", "Last Message")
 	for _, s := range streams {
 		nfo, _ := s.LatestInformation()
