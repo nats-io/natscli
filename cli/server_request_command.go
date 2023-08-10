@@ -26,11 +26,13 @@ import (
 )
 
 type SrvRequestCmd struct {
-	name    string
-	host    string
-	cluster string
-	account string
-	tags    []string
+	name     string
+	host     string
+	cluster  string
+	account  string
+	stream   string
+	consumer string
+	tags     []string
 
 	limit   int
 	offset  int
@@ -42,6 +44,7 @@ type SrvRequestCmd struct {
 	includeConfig    bool
 	leaderOnly       bool
 	includeAll       bool
+	includeDetails   bool
 
 	detail        bool
 	sortOpt       string
@@ -123,6 +126,10 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	healthz := req.Command("jetstream-health", "Request JetStream health status").Alias("healthz").Action(c.healthz)
 	healthz.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
 	healthz.Flag("server-only", "Restricts the health check to the JetStream server only, do not check streams and consumers").Short('S').BoolVar(&c.jsServerOnly)
+	healthz.Flag("account", "Check only a specific Account").StringVar(&c.account)
+	healthz.Flag("stream", "Check only a specific Stream").StringVar(&c.stream)
+	healthz.Flag("consumer", "Check only a specific Consumer").StringVar(&c.consumer)
+	healthz.Flag("details", "Include extended details about all failures").Default("true").BoolVar(&c.includeDetails)
 
 	profilez := req.Command("profile", "Run a profile").Action(c.profilez)
 	profilez.Arg("profile", "Specify the name of the profile to run (allocs, heap, goroutine, mutex, threadcreate, block)").StringVar(&c.profileName)
@@ -137,7 +144,14 @@ func (c *SrvRequestCmd) healthz(_ *fisk.ParseContext) error {
 	}
 
 	opts := server.HealthzEventOptions{
-		HealthzOptions:     server.HealthzOptions{JSEnabledOnly: c.jsEnabled, JSServerOnly: c.jsServerOnly},
+		HealthzOptions: server.HealthzOptions{
+			JSEnabledOnly: c.jsEnabled,
+			JSServerOnly:  c.jsServerOnly,
+			Details:       c.includeDetails,
+			Account:       c.account,
+			Stream:        c.stream,
+			Consumer:      c.consumer,
+		},
 		EventFilterOptions: c.reqFilter(),
 	}
 
