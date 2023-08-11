@@ -578,6 +578,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	} else {
 		cols.AddRow("Pull Mode", true)
 	}
+
 	if config.FilterSubject != "" {
 		cols.AddRow("Filter Subject", config.FilterSubject)
 	} else if len(config.FilterSubjects) > 0 {
@@ -672,6 +673,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	}
 
 	cols.AddRow("Unprocessed Messages", state.NumPending)
+
 	if config.DeliverSubject == "" {
 		if config.MaxWaiting > 0 {
 			cols.AddRowf("Waiting Pulls", "%s of maximum %s", f(state.NumWaiting), f(config.MaxWaiting))
@@ -698,6 +700,7 @@ func (c *consumerCmd) infoAction(_ *fisk.ParseContext) error {
 
 	var err error
 	consumer := c.selectedConsumer
+
 	if consumer == nil {
 		consumer, err = c.mgr.LoadConsumer(c.stream, c.consumer)
 		fisk.FatalIfError(err, "could not load Consumer %s > %s", c.stream, c.consumer)
