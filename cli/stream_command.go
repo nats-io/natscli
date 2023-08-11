@@ -1710,7 +1710,7 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	if cfg.MaxMsgSize == -1 {
 		cols.AddRow("Maximum Message Size", "unlimited")
 	} else {
-		cols.AddRow("Maximum Message Size", cfg.MaxMsgSize)
+		cols.AddRow("Maximum Message Size", humanize.IBytes(uint64(cfg.MaxMsgSize)))
 	}
 	if cfg.MaxConsumers == -1 {
 		cols.AddRow("Maximum Consumers", "unlimited")
