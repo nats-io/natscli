@@ -1280,6 +1280,16 @@ func (c *streamCmd) loadConfigFile(file string) (*api.StreamConfig, error) {
 	return &cfg, nil
 }
 
+func (c *streamCmd) checkRepubTransform() {
+	if (c.repubSource != "" && c.repubDest == "") || (c.repubSource == "" && c.repubDest != "") || (c.repubHeadersOnly && (c.repubSource == "" || c.repubDest == "")) {
+		fisk.Fatalf("must specify both --republish-source and --republish-destination")
+	}
+
+	if (c.subjectTransformSource != "" && c.subjectTransformDest == "") || (c.subjectTransformSource == "" && c.subjectTransformDest != "") {
+		fisk.Fatalf("must specify both --transform-source and --transform-destination")
+	}
+}
+
 func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContext) (api.StreamConfig, error) {
 	var err error
 
@@ -1295,6 +1305,8 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 
 		return *cfg, nil
 	}
+
+	c.checkRepubTransform()
 
 	cfg.NoAck = !c.ack
 
@@ -1419,25 +1431,12 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		return cfg, fmt.Errorf("invalid compression algorithm")
 	}
 
-	if c.noRepub {
-		cfg.RePublish = nil
-	} else {
-		var repubConfig api.RePublish
-
-		if cfg.RePublish != nil {
-			repubConfig = *cfg.RePublish
+	if !c.noRepub && c.repubSource != "" && c.repubDest != "" {
+		cfg.RePublish = &api.RePublish{
+			Source:      c.repubSource,
+			Destination: c.repubDest,
+			HeadersOnly: c.repubHeadersOnly,
 		}
-
-		if c.repubSource != "" {
-			repubConfig.Source = c.repubSource
-		}
-
-		if c.repubDest != "" {
-			repubConfig.Destination = c.repubDest
-		}
-
-		repubConfig.HeadersOnly = c.repubHeadersOnly
-		cfg.RePublish = &repubConfig
 	}
 
 	if c.noSubjectTransform {
@@ -2312,9 +2311,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		}
 	}
 
-	if (c.repubSource != "" && c.repubDest == "") || (c.repubSource == "" && c.repubDest != "") || (c.repubHeadersOnly && (c.repubSource == "" || c.repubDest == "")) {
-		fisk.Fatalf("must specify both --republish-source and --republish-destination")
-	}
+	c.checkRepubTransform()
 
 	if c.repubSource != "" && c.repubDest != "" {
 		cfg.RePublish = &api.RePublish{
@@ -2322,10 +2319,6 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 			Destination: c.repubDest,
 			HeadersOnly: c.repubHeadersOnly,
 		}
-	}
-
-	if (c.subjectTransformSource != "" && c.subjectTransformDest == "") || (c.subjectTransformSource == "" && c.subjectTransformDest != "") {
-		fisk.Fatalf("must specify both --transform-source and --transform-destination")
 	}
 
 	if c.subjectTransformSource != "" && c.subjectTransformDest != "" {
