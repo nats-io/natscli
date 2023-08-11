@@ -1282,11 +1282,22 @@ func (c *streamCmd) loadConfigFile(file string) (*api.StreamConfig, error) {
 
 func (c *streamCmd) checkRepubTransform() {
 	if (c.repubSource != "" && c.repubDest == "") || (c.repubSource == "" && c.repubDest != "") || (c.repubHeadersOnly && (c.repubSource == "" || c.repubDest == "")) {
-		fisk.Fatalf("must specify both --republish-source and --republish-destination")
+		msg := "must specify both --republish-source and --republish-destination"
+
+		if c.repubHeadersOnly {
+			msg = msg + " when using --headers-only"
+		}
+		fisk.Fatalf(msg)
 	}
 
 	if (c.subjectTransformSource != "" && c.subjectTransformDest == "") || (c.subjectTransformSource == "" && c.subjectTransformDest != "") {
-		fisk.Fatalf("must specify both --transform-source and --transform-destination")
+		msg := "must specify both --transform-source and --transform-destination"
+
+		if c.repubHeadersOnly {
+			msg = msg + " when using --headers-only"
+		}
+
+		fisk.Fatalf(msg)
 	}
 }
 
