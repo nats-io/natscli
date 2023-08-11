@@ -752,7 +752,7 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 	if nfo != nil {
 		cols.AddRowIfNotEmpty("Description", nfo.Config.Description)
 
-		cols.AddRow("Bucket Size", nfo.State.Bytes)
+		cols.AddRow("Bucket Size", humanize.IBytes(nfo.State.Bytes))
 		if nfo.Config.MaxBytes == -1 {
 			cols.AddRow("Maximum Bucket Size", "unlimited")
 		} else {

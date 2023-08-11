@@ -208,7 +208,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
 		f.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SOURCE").StringVar(&c.repubSource)
 		f.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
-		f.Flag("republish-headers", "Republish only message headers, no bodies").BoolVar(&c.repubHeadersOnly)
+		f.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
 		if edit {
 			f.Flag("no-republish", "Removes current republish configuration").UnNegatableBoolVar(&c.noRepub)
 			f.Flag("no-transform", "Removes current subject transform configuration").UnNegatableBoolVar(&c.noSubjectTransform)
@@ -1419,51 +1419,43 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		return cfg, fmt.Errorf("invalid compression algorithm")
 	}
 
-	var repubConfig api.RePublish
-
-	if cfg.RePublish != nil {
-		repubConfig = *cfg.RePublish
-	}
-
-	if c.repubSource != "" {
-		repubConfig.Source = c.repubSource
-	}
-
-	if c.repubDest != "" {
-		repubConfig.Destination = c.repubDest
-	}
-
-	if c.repubHeadersOnly {
-		repubConfig.HeadersOnly = true
-	} else if repubConfig.HeadersOnly {
-		repubConfig.HeadersOnly = false
-	}
-
-	if (repubConfig.Source == "" || repubConfig.Source == ">") && repubConfig.Destination == "" {
-		cfg.RePublish = nil
-	} else {
-		cfg.RePublish = &repubConfig
-	}
-
 	if c.noRepub {
 		cfg.RePublish = nil
-	}
+	} else {
+		var repubConfig api.RePublish
 
-	var subjectTransformConfig api.SubjectTransformConfig
+		if cfg.RePublish != nil {
+			repubConfig = *cfg.RePublish
+		}
 
-	if cfg.SubjectTransform != nil {
-		subjectTransformConfig = *cfg.SubjectTransform
-	}
+		if c.repubSource != "" {
+			repubConfig.Source = c.repubSource
+		}
 
-	if c.subjectTransformSource != "" {
-		subjectTransformConfig.Source = c.subjectTransformSource
-	}
-	if c.subjectTransformDest != "" {
-		subjectTransformConfig.Destination = c.subjectTransformDest
+		if c.repubDest != "" {
+			repubConfig.Destination = c.repubDest
+		}
+
+		repubConfig.HeadersOnly = c.repubHeadersOnly
+		cfg.RePublish = &repubConfig
 	}
 
 	if c.noSubjectTransform {
 		cfg.SubjectTransform = nil
+	} else {
+		var subjectTransformConfig api.SubjectTransformConfig
+
+		if cfg.SubjectTransform != nil {
+			subjectTransformConfig = *cfg.SubjectTransform
+		}
+
+		if c.subjectTransformSource != "" {
+			subjectTransformConfig.Source = c.subjectTransformSource
+		}
+
+		if c.subjectTransformDest != "" {
+			subjectTransformConfig.Destination = c.subjectTransformDest
+		}
 	}
 
 	return cfg, nil
@@ -1697,7 +1689,7 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	if cfg.MaxBytes == -1 {
 		cols.AddRow("Maximum Bytes", "unlimited")
 	} else {
-		cols.AddRow("Maximum Bytes", cfg.MaxBytes)
+		cols.AddRow("Maximum Bytes", humanize.IBytes(uint64(cfg.MaxBytes)))
 	}
 	if cfg.MaxAge <= 0 {
 		cols.AddRow("Maximum Age", "unlimited")
@@ -2320,15 +2312,23 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		}
 	}
 
-	cfg.RePublish = &api.RePublish{
-		Source:      c.repubSource,
-		Destination: c.repubDest,
-		HeadersOnly: c.repubHeadersOnly,
+	if (c.repubSource != "" && c.repubDest == "") || (c.repubSource == "" && c.repubDest != "") || (c.repubHeadersOnly && (c.repubSource == "" || c.repubDest == "")) {
+		fisk.Fatalf("must specify both --republish-source and --republish-destination")
+	}
+
+	if c.repubSource != "" && c.repubDest != "" {
+		cfg.RePublish = &api.RePublish{
+			Source:      c.repubSource,
+			Destination: c.repubDest,
+			HeadersOnly: c.repubHeadersOnly,
+		}
 	}
 
 	if (c.subjectTransformSource != "" && c.subjectTransformDest == "") || (c.subjectTransformSource == "" && c.subjectTransformDest != "") {
 		fisk.Fatalf("must specify both --transform-source and --transform-destination")
+	}
 
+	if c.subjectTransformSource != "" && c.subjectTransformDest != "" {
 		cfg.SubjectTransform = &api.SubjectTransformConfig{
 			Source:      c.subjectTransformSource,
 			Destination: c.subjectTransformDest,
