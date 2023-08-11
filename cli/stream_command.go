@@ -1287,6 +1287,7 @@ func (c *streamCmd) checkRepubTransform() {
 		if c.repubHeadersOnly {
 			msg = msg + " when using --headers-only"
 		}
+
 		fisk.Fatalf(msg)
 	}
 
