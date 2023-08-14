@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -33,6 +34,7 @@ type SrvRequestCmd struct {
 	stream   string
 	consumer string
 	tags     []string
+	cid      uint64
 
 	limit   int
 	offset  int
@@ -135,6 +137,37 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	profilez.Arg("profile", "Specify the name of the profile to run (allocs, heap, goroutine, mutex, threadcreate, block)").StringVar(&c.profileName)
 	profilez.Arg("dir", "Set the output directory for profile files").Default(".").ExistingDirVar(&c.profileDir)
 	profilez.Flag("debug", "Set the debug level of the profile").IntVar(&c.profileDebug)
+
+	kick := req.Command("kick", "Disconnects a client immediately").Action(c.kick)
+	kick.Arg("client", "The Client ID to disconnect").Required().PlaceHolder("ID").Uint64Var(&c.cid)
+	kick.Arg("server", "The Server ID to disconnect the client from").Required().PlaceHolder("SERVER_ID").StringVar(&c.host)
+}
+
+func (c *SrvRequestCmd) kick(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	res, err := doReq(&server.KickClientReq{CID: c.cid}, fmt.Sprintf("$SYS.REQ.SERVER.%s.KICK", c.host), 1, nc)
+	if err != nil {
+		return err
+	}
+
+	if len(res) == 0 {
+		return fmt.Errorf("no responses received")
+	}
+
+	for _, m := range res {
+		var b bytes.Buffer
+		err := json.Indent(&b, m, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(b.String())
+	}
+
+	return nil
 }
 
 func (c *SrvRequestCmd) healthz(_ *fisk.ParseContext) error {
