@@ -382,6 +382,7 @@ Finding streams with certain subjects configured:
 	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the Stream cluster").Alias("pr").Action(c.removePeer)
 	strClusterRemovePeer.Arg("stream", "The stream to act on").StringVar(&c.stream)
 	strClusterRemovePeer.Arg("peer", "The name of the peer to remove").StringVar(&c.peerName)
+	strClusterRemovePeer.Flag("force", "Force sealing without prompting").Short('f').UnNegatableBoolVar(&c.force)
 }
 
 func init() {
@@ -647,12 +648,16 @@ func (c *streamCmd) removePeer(_ *fisk.ParseContext) error {
 		return fmt.Errorf("stream %q is not clustered", stream.Name())
 	}
 
-	if c.peerName == "" {
-		peerNames := []string{info.Cluster.Leader}
-		for _, r := range info.Cluster.Replicas {
-			peerNames = append(peerNames, r.Name)
-		}
+	peerNames := []string{info.Cluster.Leader}
+	for _, r := range info.Cluster.Replicas {
+		peerNames = append(peerNames, r.Name)
+	}
 
+	if len(peerNames) == 1 && !c.force {
+		return fmt.Errorf("removing the only peer on a stream will result in data loss, use --force to force")
+	}
+
+	if c.peerName == "" {
 		err = askOne(&survey.Select{
 			Message: "Select a Peer",
 			Options: peerNames,
