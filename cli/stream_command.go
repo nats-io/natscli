@@ -759,7 +759,7 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 				for k, vs := range msg.Header {
 					for _, v := range vs {
 						if k == "Nats-Stream-Source" {
-							v = strings.ReplaceAll(v, "\f", "\u21B5")
+							v = strings.ReplaceAll(v, "\f", "\u240A")
 						}
 
 						fmt.Printf("  %s: %s\n", k, v)
