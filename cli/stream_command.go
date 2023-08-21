@@ -1762,21 +1762,7 @@ func (c *streamCmd) renderSource(s *api.StreamSource) string {
 	}
 
 	var parts []string
-
-	if s.FilterSubject == "" && s.SubjectTransformDest == "" {
-		parts = append(parts, s.Name)
-	} else {
-		filter := ">"
-		if s.FilterSubject != "" {
-			filter = s.FilterSubject
-		}
-
-		if s.SubjectTransformDest != "" {
-			parts = append(parts, fmt.Sprintf("%s (%s to %s)", s.Name, filter, s.SubjectTransformDest))
-		} else {
-			parts = append(parts, fmt.Sprintf("%s (%s)", s.Name, s.FilterSubject))
-		}
-	}
+	parts = append(parts, s.Name)
 
 	if s.OptStartSeq > 0 {
 		parts = append(parts, fmt.Sprintf("Start Seq: %s", f(s.OptStartSeq)))
@@ -1865,20 +1851,14 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	showSource := func(s *api.StreamSourceInfo) {
 		cols.AddRow("Stream Name", s.Name)
 
-		if s.SubjectTransformDest != "" {
-			filter := ">"
-
-			if s.FilterSubject != "" {
-				filter = s.FilterSubject
-			}
-
-			cols.AddRowf("Subject Filter and Transform", "%s to %s", filter, s.SubjectTransformDest)
-		} else {
-			if s.SubjectTransformDest == "" && len(s.SubjectTransforms) == 0 {
+		switch s.SubjectTransformDest {
+		case "":
+			switch len(s.SubjectTransforms) {
+			case 0:
 				cols.AddRowIfNotEmpty("Subject Filter", s.FilterSubject)
-			} else {
+			default:
 				for i := range s.SubjectTransforms {
-					var t string
+					t := ""
 
 					if i == 0 {
 						if len(s.SubjectTransforms) > 1 {
@@ -1886,8 +1866,6 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 						} else {
 							t = "Subject Filter and Transform"
 						}
-					} else {
-						t = ""
 					}
 
 					if s.SubjectTransforms[i].Destination == "" {
@@ -1897,6 +1875,14 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 					}
 				}
 			}
+		default:
+			filter := ">"
+
+			if s.FilterSubject != "" {
+				filter = s.FilterSubject
+			}
+
+			cols.AddRowf("Subject Filter and Transform", "%s to %s", filter, s.SubjectTransformDest)
 		}
 
 		cols.AddRow("Lag", s.Lag)
@@ -2431,22 +2417,21 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 			destinations = append(destinations, destination)
 		}
 
-		if len(sources) > 0 {
-			if len(sources) == 1 {
-				mirror.FilterSubject = sources[0]
-				mirror.SubjectTransformDest = destinations[0]
-			} else {
-				transforms := make([]api.SubjectTransformConfig, len(sources))
+		switch {
+		case len(sources) == 1:
+			mirror.FilterSubject = sources[0]
+			mirror.SubjectTransformDest = destinations[0]
+		case len(sources) > 1:
+			transforms := make([]api.SubjectTransformConfig, len(sources))
 
-				for i := range sources {
-					transforms[i] = api.SubjectTransformConfig{
-						Source:      sources[i],
-						Destination: destinations[i],
-					}
+			for i := range sources {
+				transforms[i] = api.SubjectTransformConfig{
+					Source:      sources[i],
+					Destination: destinations[i],
 				}
-
-				mirror.SubjectTransforms = transforms
 			}
+
+			mirror.SubjectTransforms = transforms
 		}
 	}
 
@@ -2545,22 +2530,21 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 			destinations = append(destinations, destination)
 		}
 
-		if len(sources) > 0 {
-			if len(sources) == 1 {
-				cfg.FilterSubject = sources[0]
-				cfg.SubjectTransformDest = destinations[0]
-			} else {
-				transforms := make([]api.SubjectTransformConfig, len(sources))
+		switch {
+		case len(sources) == 1:
+			cfg.FilterSubject = sources[0]
+			cfg.SubjectTransformDest = destinations[0]
+		case len(sources) > 1:
+			transforms := make([]api.SubjectTransformConfig, len(sources))
 
-				for i := range sources {
-					transforms[i] = api.SubjectTransformConfig{
-						Source:      sources[i],
-						Destination: destinations[i],
-					}
+			for i := range sources {
+				transforms[i] = api.SubjectTransformConfig{
+					Source:      sources[i],
+					Destination: destinations[i],
 				}
-
-				cfg.SubjectTransforms = transforms
 			}
+
+			cfg.SubjectTransforms = transforms
 		}
 	}
 
