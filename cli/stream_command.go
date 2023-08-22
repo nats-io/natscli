@@ -1851,31 +1851,8 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	showSource := func(s *api.StreamSourceInfo) {
 		cols.AddRow("Stream Name", s.Name)
 
-		switch s.SubjectTransformDest {
-		case "":
-			switch len(s.SubjectTransforms) {
-			case 0:
-				cols.AddRowIfNotEmpty("Subject Filter", s.FilterSubject)
-			default:
-				for i := range s.SubjectTransforms {
-					t := ""
-
-					if i == 0 {
-						if len(s.SubjectTransforms) > 1 {
-							t = "Subject Filters and Transforms"
-						} else {
-							t = "Subject Filter and Transform"
-						}
-					}
-
-					if s.SubjectTransforms[i].Destination == "" {
-						cols.AddRowf(t, "%s to [no transform]", s.SubjectTransforms[i].Source)
-					} else {
-						cols.AddRowf(t, "%s to %s", s.SubjectTransforms[i].Source, s.SubjectTransforms[i].Destination)
-					}
-				}
-			}
-		default:
+		switch {
+		case s.SubjectTransformDest != "":
 			filter := ">"
 
 			if s.FilterSubject != "" {
@@ -1883,6 +1860,26 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 			}
 
 			cols.AddRowf("Subject Filter and Transform", "%s to %s", filter, s.SubjectTransformDest)
+		case len(s.SubjectTransforms) == 0:
+			cols.AddRowIfNotEmpty("Subject Filter", s.FilterSubject)
+		case len(s.SubjectTransforms) > 0:
+			for i := range s.SubjectTransforms {
+				t := ""
+
+				if i == 0 {
+					if len(s.SubjectTransforms) > 1 {
+						t = "Subject Filters and Transforms"
+					} else {
+						t = "Subject Filter and Transform"
+					}
+				}
+
+				if s.SubjectTransforms[i].Destination == "" {
+					cols.AddRowf(t, "%s to [no transform]", s.SubjectTransforms[i].Source)
+				} else {
+					cols.AddRowf(t, "%s to %s", s.SubjectTransforms[i].Source, s.SubjectTransforms[i].Destination)
+				}
+			}
 		}
 
 		cols.AddRow("Lag", s.Lag)
