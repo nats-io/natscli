@@ -758,6 +758,10 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 				fmt.Println()
 				for k, vs := range msg.Header {
 					for _, v := range vs {
+						if k == "Nats-Stream-Source" {
+							v = strings.ReplaceAll(v, "\f", "\u240A")
+						}
+
 						fmt.Printf("  %s: %s\n", k, v)
 					}
 				}
@@ -1758,21 +1762,7 @@ func (c *streamCmd) renderSource(s *api.StreamSource) string {
 	}
 
 	var parts []string
-
-	if s.FilterSubject == "" && s.SubjectTransformDest == "" {
-		parts = append(parts, s.Name)
-	} else {
-		filter := ">"
-		if s.FilterSubject != "" {
-			filter = s.FilterSubject
-		}
-
-		if s.SubjectTransformDest != "" {
-			parts = append(parts, fmt.Sprintf("%s (%s to %s)", s.Name, filter, s.SubjectTransformDest))
-		} else {
-			parts = append(parts, fmt.Sprintf("%s (%s)", s.Name, s.FilterSubject))
-		}
-	}
+	parts = append(parts, s.Name)
 
 	if s.OptStartSeq > 0 {
 		parts = append(parts, fmt.Sprintf("Start Seq: %s", f(s.OptStartSeq)))
@@ -1861,14 +1851,35 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	showSource := func(s *api.StreamSourceInfo) {
 		cols.AddRow("Stream Name", s.Name)
 
-		if s.SubjectTransformDest != "" {
+		switch {
+		case s.SubjectTransformDest != "":
 			filter := ">"
+
 			if s.FilterSubject != "" {
 				filter = s.FilterSubject
 			}
-			cols.AddRowf("Subject Transform", "%s to %s", filter, s.SubjectTransformDest)
-		} else {
+
+			cols.AddRowf("Subject Filter and Transform", "%s to %s", filter, s.SubjectTransformDest)
+		case len(s.SubjectTransforms) == 0:
 			cols.AddRowIfNotEmpty("Subject Filter", s.FilterSubject)
+		case len(s.SubjectTransforms) > 0:
+			for i := range s.SubjectTransforms {
+				t := ""
+
+				if i == 0 {
+					if len(s.SubjectTransforms) > 1 {
+						t = "Subject Filters and Transforms"
+					} else {
+						t = "Subject Filter and Transform"
+					}
+				}
+
+				if s.SubjectTransforms[i].Destination == "" {
+					cols.AddRowf(t, "%s to [no transform]", s.SubjectTransforms[i].Source)
+				} else {
+					cols.AddRowf(t, "%s to %s", s.SubjectTransforms[i].Source, s.SubjectTransforms[i].Destination)
+				}
+			}
 		}
 
 		cols.AddRow("Lag", s.Lag)
@@ -2370,12 +2381,55 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 				mirror.OptStartTime = &t
 			}
 		}
+	}
 
-		err = askOne(&survey.Input{
-			Message: "Filter mirror by subject",
-			Help:    "Only replicate data matching this subject",
-		}, &mirror.FilterSubject)
-		fisk.FatalIfError(err, "could not request filter")
+	ok, err = askConfirmation("Adjust mirror filter and transform", false)
+	fisk.FatalIfError(err, "Could not request mirror details")
+
+	if ok {
+		var sources []string
+		var destinations []string
+
+		for {
+			var source string
+			var destination string
+
+			err = askOne(&survey.Input{
+				Message: "Filter mirror by subject (hit enter to finish)",
+				Help:    "Only replicate data matching this subject",
+			}, &source)
+			fisk.FatalIfError(err, "could not request filter")
+
+			if source == "" {
+				break
+			}
+
+			err = askOne(&survey.Input{
+				Message: "Subject transform destination",
+				Help:    "Transform the subjects using this destination (hit enter for no transformation)",
+			}, &destination)
+			fisk.FatalIfError(err, "could not request transform destination")
+
+			sources = append(sources, source)
+			destinations = append(destinations, destination)
+		}
+
+		switch {
+		case len(sources) == 1:
+			mirror.FilterSubject = sources[0]
+			mirror.SubjectTransformDest = destinations[0]
+		case len(sources) > 1:
+			transforms := make([]api.SubjectTransformConfig, len(sources))
+
+			for i := range sources {
+				transforms[i] = api.SubjectTransformConfig{
+					Source:      sources[i],
+					Destination: destinations[i],
+				}
+			}
+
+			mirror.SubjectTransforms = transforms
+		}
 	}
 
 	ok, err = askConfirmation("Import mirror from a different JetStream domain", false)
@@ -2443,18 +2497,52 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 		}
 	}
 
-	err = askOne(&survey.Input{
-		Message: fmt.Sprintf("%s Filter source by subject", prefix),
-		Help:    "Only replicate data matching this subject",
-	}, &cfg.FilterSubject)
-	fisk.FatalIfError(err, "could not request filter")
+	ok, err = askConfirmation(fmt.Sprintf("Adjust source %q filter and transform", name), false)
+	fisk.FatalIfError(err, "Could not request source details")
 
-	if cfg.FilterSubject != "" {
-		err = askOne(&survey.Input{
-			Message: fmt.Sprintf("%s Subject mapping transform", prefix),
-			Help:    "Map matching subjects according to this transform destination",
-		}, &cfg.SubjectTransformDest)
-		fisk.FatalIfError(err, "could not request subject mapping destination transform")
+	if ok {
+		var sources []string
+		var destinations []string
+		for {
+			var source string
+			var destination string
+
+			err = askOne(&survey.Input{
+				Message: "Filter source by subject (hit enter to finish)",
+				Help:    "Only replicate data matching this subject",
+			}, &source)
+			fisk.FatalIfError(err, "could not request filter")
+
+			if source == "" {
+				break
+			}
+
+			err = askOne(&survey.Input{
+				Message: "Subject transform destination",
+				Help:    "Transform the subjects using this destination (hit enter for no transformation)",
+			}, &destination)
+			fisk.FatalIfError(err, "could not request transform destination")
+
+			sources = append(sources, source)
+			destinations = append(destinations, destination)
+		}
+
+		switch {
+		case len(sources) == 1:
+			cfg.FilterSubject = sources[0]
+			cfg.SubjectTransformDest = destinations[0]
+		case len(sources) > 1:
+			transforms := make([]api.SubjectTransformConfig, len(sources))
+
+			for i := range sources {
+				transforms[i] = api.SubjectTransformConfig{
+					Source:      sources[i],
+					Destination: destinations[i],
+				}
+			}
+
+			cfg.SubjectTransforms = transforms
+		}
 	}
 
 	ok, err = askConfirmation(fmt.Sprintf("Import %q from a different JetStream domain", name), false)
