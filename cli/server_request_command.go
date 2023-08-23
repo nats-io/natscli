@@ -40,13 +40,14 @@ type SrvRequestCmd struct {
 	offset  int
 	waitFor uint32
 
-	includeAccounts  bool
-	includeStreams   bool
-	includeConsumers bool
-	includeConfig    bool
-	leaderOnly       bool
-	includeAll       bool
-	includeDetails   bool
+	includeAccounts   bool
+	includeStreams    bool
+	includeConsumers  bool
+	includeConfig     bool
+	leaderOnly        bool
+	includeRaftGroups bool
+	includeAll        bool
+	includeDetails    bool
 
 	detail        bool
 	sortOpt       string
@@ -122,6 +123,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	jsz.Flag("streams", "Include details about Streams").UnNegatableBoolVar(&c.includeStreams)
 	jsz.Flag("consumer", "Include details about Consumers").UnNegatableBoolVar(&c.includeConsumers)
 	jsz.Flag("config", "Include details about configuration").UnNegatableBoolVar(&c.includeConfig)
+	jsz.Flag("raft", "Include details about raft groups").UnNegatableBoolVar(&c.includeRaftGroups)
 	jsz.Flag("leader", "Request a response from the Meta-group leader only").UnNegatableBoolVar(&c.leaderOnly)
 	jsz.Flag("all", "Include accounts, streams, consumers and configuration").UnNegatableBoolVar(&c.includeAll)
 
@@ -288,6 +290,9 @@ func (c *SrvRequestCmd) jsz(_ *fisk.ParseContext) error {
 	}
 	if c.includeConfig || c.includeAll {
 		opts.JSzOptions.Config = true
+	}
+	if c.includeRaftGroups || c.includeAll {
+		opts.JSzOptions.RaftGroups = true
 	}
 
 	res, err := c.doReq("JSZ", &opts, nc)
