@@ -258,7 +258,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 			log.Fatalf("NATS connection failed: %v", err)
 		}
 
-		js, err = nc.JetStream(nats.MaxWait(c.jsTimeout))
+		js, err = nc.JetStream(append(jsOpts(), nats.MaxWait(c.jsTimeout))...)
 		if err != nil {
 			log.Fatalf("Couldn't get the JetStream context: %v", err)
 		}
@@ -507,7 +507,7 @@ func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg 
 }
 
 func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, idPrefix string, pubNumber string, offset int) {
-	js, err := nc.JetStream()
+	js, err := nc.JetStream(jsOpts()...)
 	if err != nil {
 		log.Fatalf("Couldn't get the JetStream context: %v", err)
 	}
@@ -562,7 +562,7 @@ func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byt
 			case <-time.After(c.jsTimeout):
 				c.retriesUsed = true
 				log.Printf("JS PubAsync ack timeout (pending=%d)", js.PublishAsyncPending())
-				js, err = nc.JetStream()
+				js, err = nc.JetStream(jsOpts()...)
 				if err != nil {
 					log.Fatalf("Couldn't get the JetStream context: %v", err)
 				}
@@ -597,7 +597,7 @@ func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byt
 }
 
 func kvPutter(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) {
-	js, err := nc.JetStream()
+	js, err := nc.JetStream(jsOpts()...)
 	if err != nil {
 		log.Fatalf("Couldn't get the JetStream context: %v", err)
 	}
@@ -737,7 +737,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 		if c.js {
 			var js nats.JetStreamContext
 
-			js, err = nc.JetStream()
+			js, err = nc.JetStream(jsOpts()...)
 			if err != nil {
 				log.Fatalf("Couldn't get the JetStream context: %v", err)
 			}
@@ -800,7 +800,7 @@ func (c *benchCmd) runSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sy
 	if c.kv {
 		var js nats.JetStreamContext
 
-		js, err = nc.JetStream()
+		js, err = nc.JetStream(jsOpts()...)
 		if err != nil {
 			log.Fatalf("Couldn't get the JetStream context: %v", err)
 		}
