@@ -372,6 +372,28 @@ func natsOpts() []nats.Option {
 	}...)
 }
 
+func jsOpts() []nats.JSOpt {
+	jso := []nats.JSOpt{
+		nats.Domain(opts.JsDomain),
+		nats.APIPrefix(opts.JsApiPrefix),
+		nats.MaxWait(opts.Timeout),
+	}
+
+	if opts.Trace {
+		ct := &nats.ClientTrace{
+			RequestSent: func(subj string, payload []byte) {
+				log.Printf(">>> %s\n%s\n\n", subj, string(payload))
+			},
+			ResponseReceived: func(subj string, payload []byte, hdr nats.Header) {
+				log.Printf("<<< %s: %s", subj, string(payload))
+			},
+		}
+		jso = append(jso, ct)
+	}
+
+	return jso
+}
+
 func addCheat(name string, cmd *fisk.CmdClause) {
 	if opts.NoCheats {
 		return
@@ -427,25 +449,7 @@ func prepareJSHelper() (*nats.Conn, nats.JetStreamContext, error) {
 		return opts.Conn, opts.JSc, nil
 	}
 
-	jso := []nats.JSOpt{
-		nats.Domain(opts.JsDomain),
-		nats.APIPrefix(opts.JsApiPrefix),
-		nats.MaxWait(opts.Timeout),
-	}
-
-	if opts.Trace {
-		ct := &nats.ClientTrace{
-			RequestSent: func(subj string, payload []byte) {
-				log.Printf(">>> %s\n%s\n\n", subj, string(payload))
-			},
-			ResponseReceived: func(subj string, payload []byte, hdr nats.Header) {
-				log.Printf("<<< %s: %s", subj, string(payload))
-			},
-		}
-		jso = append(jso, ct)
-	}
-
-	opts.JSc, err = opts.Conn.JetStream(jso...)
+	opts.JSc, err = opts.Conn.JetStream(jsOpts()...)
 	if err != nil {
 		return nil, nil, err
 	}
