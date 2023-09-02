@@ -179,6 +179,9 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 	if c.numPubs == 0 && c.numSubs == 0 {
 		log.Fatal("You must have at least one publisher or at least one subscriber... try adding --pub 1 and/or --sub 1 to the arguments")
 	}
+	if opts.Config == nil {
+		log.Fatalf("Unknown context %q", opts.CfgCtx)
+	}
 	if (c.request || c.reply) && c.js {
 		log.Fatal("Request-reply mode is not applicable to JetStream benchmarking")
 	} else if !c.js && !c.kv {
