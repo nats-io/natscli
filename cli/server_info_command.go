@@ -144,6 +144,11 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 		cols.AddRow("File In Use", humanize.IBytes(js.Stats.Store))
 		cols.AddRow("API Requests", js.Stats.API.Total)
 		cols.AddRow("API Errors", js.Stats.API.Errors)
+		// would be zero on machines that dont support this setting
+		if js.Config.SyncInterval > 0 {
+			cols.AddRow("Always sync writes to disk", js.Config.SyncAlways)
+			cols.AddRow("Write sync Frequency", js.Config.SyncInterval)
+		}
 	}
 
 	cols.AddSectionTitle("Limits")
