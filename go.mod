@@ -20,7 +20,7 @@ require (
 	github.com/mattn/go-isatty v0.0.19
 	github.com/nats-io/jsm.go v0.0.36-0.20230824125805-3da3c9787750
 	github.com/nats-io/nats-server/v2 v2.9.22-0.20230904183412-002446a51dfa
-	github.com/nats-io/nats.go v1.28.1-0.20230809215439-7b119491f08f
+	github.com/nats-io/nats.go v1.28.1-0.20230906111030-128efc031c08
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/common v0.44.0
