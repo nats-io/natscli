@@ -45,6 +45,7 @@ type objCommand struct {
 	placementTags       []string
 	maxBucketSize       int64
 	maxBucketSizeString string
+	metadata            map[string]string
 
 	description string
 	replicas    uint
@@ -52,7 +53,9 @@ type objCommand struct {
 }
 
 func configureObjectCommand(app commandHost) {
-	c := &objCommand{}
+	c := &objCommand{
+		metadata: map[string]string{},
+	}
 
 	help := `Interacts with a JetStream based Object store
 
@@ -74,6 +77,8 @@ NOTE: This is an experimental feature.
 	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 	add.Flag("tags", "Place the store on servers that has specific tags").StringsVar(&c.placementTags)
 	add.Flag("cluster", "Place the store on a specific cluster").StringVar(&c.placementCluster)
+	add.Flag("metadata", "Adds metadata to the bucvket").PlaceHolder("META").StringMapVar(&c.metadata)
+
 	add.PreAction(c.parseLimitStrings)
 
 	put := obj.Command("put", "Puts a file into the store").Action(c.putAction)
@@ -295,6 +300,10 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 	cols.AddRow("Backing Store Kind", status.BackingStore())
 	if status.BackingStore() == "JetStream" {
 		cols.AddRow("JetStream Stream", nfo.Config.Name)
+
+		if len(nfo.Config.Metadata) > 0 {
+			cols.AddMapStringsAsValue("Metadata", nfo.Config.Metadata)
+		}
 
 		if nfo.Cluster != nil {
 			cols.AddSectionTitle("Cluster Information")
@@ -617,7 +626,8 @@ func (c *objCommand) addAction(_ *fisk.ParseContext) error {
 		Storage:     st,
 		Replicas:    int(c.replicas),
 		Placement:   placement,
-		MaxBytes:    int64(c.maxBucketSize),
+		MaxBytes:    c.maxBucketSize,
+		Metadata:    c.metadata,
 	})
 	if err != nil {
 		return err
