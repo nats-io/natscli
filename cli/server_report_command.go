@@ -77,7 +77,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	acct.Arg("account", "Account to produce a report for").StringVar(&c.account)
 	acct.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(acct)
-	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs,uptime,cid)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs", "uptime", "cid")
+	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs")
 	acct.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	acct.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
@@ -410,6 +410,14 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 			return c.boolReverse(accounts[i].Subs < accounts[j].Subs)
 		}
 	})
+
+	if c.topk > 0 && c.topk < len(accounts) {
+		if c.reverse {
+			accounts = accounts[len(accounts)-c.topk:]
+		} else {
+			accounts = accounts[0:c.topk]
+		}
+	}
 
 	if c.json {
 		printJSON(accounts)
