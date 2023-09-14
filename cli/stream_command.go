@@ -1292,7 +1292,7 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 			if c.reportRaw {
 				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, "", "", s.Mirror.Active, s.Mirror.Lag, apierr)
 			} else {
-				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, f(s.Mirror.Active), f(s.Mirror.Lag), apierr)
+				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, "", "", f(s.Mirror.Active), f(s.Mirror.Lag), apierr)
 			}
 		}
 
