@@ -1204,10 +1204,14 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 				}
 				edge := dg.Edge(snode, node).Attr("color", "green")
 
-				if source.FilterSubject != "" && source.SubjectTransformDest == "" {
+				if source.FilterSubject == "" {
+					continue
+				}
+
+				if len(source.SubjectTransforms) == 0 {
 					edge.Label(source.FilterSubject)
-				} else if source.FilterSubject != "" && source.SubjectTransformDest != "" {
-					edge.Label(source.FilterSubject + " to " + source.SubjectTransformDest)
+				} else if len(source.SubjectTransforms) == 1 {
+					edge.Label(source.SubjectTransforms[0].Source + " to " + source.SubjectTransforms[0].Destination)
 				}
 			}
 		}
@@ -1751,7 +1755,6 @@ func (c *streamCmd) cpAction(pc *fisk.ParseContext) error {
 }
 
 func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig) {
-
 	cols.AddRowIfNotEmpty("Description", cfg.Description)
 	cols.AddRowIf("Subjects", cfg.Subjects, len(cfg.Subjects) > 0)
 	cols.AddRow("Replicas", cfg.Replicas)
@@ -2520,21 +2523,11 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 			destinations = append(destinations, destination)
 		}
 
-		switch {
-		case len(sources) == 1:
-			mirror.FilterSubject = sources[0]
-			mirror.SubjectTransformDest = destinations[0]
-		case len(sources) > 1:
-			transforms := make([]api.SubjectTransformConfig, len(sources))
-
-			for i := range sources {
-				transforms[i] = api.SubjectTransformConfig{
-					Source:      sources[i],
-					Destination: destinations[i],
-				}
-			}
-
-			mirror.SubjectTransforms = transforms
+		for i := range sources {
+			mirror.SubjectTransforms = append(mirror.SubjectTransforms, api.SubjectTransformConfig{
+				Source:      sources[i],
+				Destination: destinations[i],
+			})
 		}
 	}
 
@@ -2633,21 +2626,11 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 			destinations = append(destinations, destination)
 		}
 
-		switch {
-		case len(sources) == 1:
-			cfg.FilterSubject = sources[0]
-			cfg.SubjectTransformDest = destinations[0]
-		case len(sources) > 1:
-			transforms := make([]api.SubjectTransformConfig, len(sources))
-
-			for i := range sources {
-				transforms[i] = api.SubjectTransformConfig{
-					Source:      sources[i],
-					Destination: destinations[i],
-				}
-			}
-
-			cfg.SubjectTransforms = transforms
+		for i := range sources {
+			cfg.SubjectTransforms = append(cfg.SubjectTransforms, api.SubjectTransformConfig{
+				Source:      sources[i],
+				Destination: destinations[i],
+			})
 		}
 	}
 
