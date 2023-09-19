@@ -304,7 +304,7 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 	}
 
 	table := newTableWriter(fmt.Sprintf("%s Service Statistics", c.name))
-	table.AddHeaders("ID", "Endpoint", "Requests", "Errors", "Processing Time", "Average Time")
+	table.AddHeaders("ID", "Endpoint", "Requests", "Queue Group", "Errors", "Processing Time", "Average Time")
 
 	var requests, errors int
 	var runTime time.Duration
@@ -315,7 +315,7 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 				id = ""
 			}
 
-			table.AddRow(id, e.Name, f(e.NumRequests), f(e.NumErrors), f(e.ProcessingTime), f(e.AverageProcessingTime))
+			table.AddRow(id, e.Name, f(e.NumRequests), e.QueueGroup, f(e.NumErrors), f(e.ProcessingTime), f(e.AverageProcessingTime))
 			requests += e.NumRequests
 			errors += e.NumErrors
 			runTime += e.ProcessingTime
@@ -327,7 +327,7 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 		avg = runTime / time.Duration(requests+errors)
 	}
 
-	table.AddFooter("", "", f(requests), f(errors), f(runTime), f(avg))
+	table.AddFooter("", "", f(requests), "", f(errors), f(runTime), f(avg))
 
 	fmt.Println(table.Render())
 
@@ -384,6 +384,9 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 		cols.Println()
 		cols.AddRow("Name", e.Name)
 		cols.AddRow("Subject", e.Subject)
+		if e.QueueGroup != "" {
+			cols.AddRow("Queue Group", e.QueueGroup)
+		}
 		if len(e.Metadata) > 0 {
 			cols.AddMapStringsAsValue("Metadata", e.Metadata)
 		}
@@ -399,7 +402,7 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 		cols.Indent(2)
 
 		cols.AddSectionTitle("%s Endpoint Statistics", e.Name)
-		cols.AddRow("Requests", e.NumRequests)
+		cols.AddRowf("Requests", "%s in group %s", f(e.NumRequests), e.QueueGroup)
 		cols.AddRowf("Processing Time", "%s (average %s)", f(e.ProcessingTime), f(e.AverageProcessingTime))
 		cols.AddRowf("Started:", "%s (%s ago)", f(stats.Started), f(time.Since(stats.Started)))
 		cols.AddRow("Errors", e.NumErrors)

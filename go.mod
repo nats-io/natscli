@@ -2,7 +2,7 @@ module github.com/nats-io/natscli
 
 go 1.20
 
-replace github.com/nats-io/nats.go v1.29.0 => github.com/nats-io/nats.go v1.28.1-0.20230906111030-128efc031c08
+replace github.com/nats-io/nats.go v1.29.0 => github.com/nats-io/nats.go v1.29.1-0.20230919140757-2f5f7e0b1abc
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
