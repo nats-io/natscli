@@ -101,7 +101,7 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	check.Flag("outfile", "Save output to a file rather than STDOUT").StringVar(&checkRenderOutFile)
 	check.PreAction(c.parseRenderFormat)
 
-	conn := check.Command("connection", "Checks basic server connection").Alias("conn").Default().Action(c.checkConnection)
+	conn := check.Command("connection", "Checks basic server connection").Alias("conn").Action(c.checkConnection)
 	conn.Flag("connect-warn", "Warning threshold to allow for establishing connections").Default("500ms").PlaceHolder("DURATION").DurationVar(&c.connectWarning)
 	conn.Flag("connect-critical", "Critical threshold to allow for establishing connections").Default("1s").PlaceHolder("DURATION").DurationVar(&c.connectCritical)
 	conn.Flag("rtt-warn", "Warning threshold to allow for server RTT").Default("500ms").PlaceHolder("DURATION").DurationVar(&c.rttWarning)
