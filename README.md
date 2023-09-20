@@ -289,7 +289,7 @@ The command receives the message data as raw bytes through stdin and the output 
 
 #### Examples for using the translation feature:
 
-Here we use the [jq](https://github.com/stedolan/jq) tool to format our json message paylot into a more readable format:
+Here we use the [jq](https://github.com/stedolan/jq) tool to format our json message payload into a more readable format:
 
 We subscribe to a subject that will receive json data.
 ```
