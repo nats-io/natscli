@@ -55,7 +55,7 @@ checksum:
 brews:
   - name: nats
     folder: Formula
-    tap:
+    repository:
       owner: nats-io
       name: homebrew-nats-tools
     url_template: "https://github.com/nats-io/natscli/releases/download/{{ .Tag }}/nats-{{.Version}}-{{ .Os }}-{{ .Arch }}{{if .Arm}}{{.Arm}}{{end}}.zip"
