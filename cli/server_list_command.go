@@ -36,11 +36,12 @@ type SrvLsCmd struct {
 }
 
 type srvListCluster struct {
-	name  string
-	nodes []string
-	gwOut int
-	gwIn  int
-	conns int
+	name       string
+	nodes      []string
+	gwOut      int
+	gwIn       int
+	conns      int
+	routeSizes []int
 }
 
 func configureServerListCommand(srv *fisk.CmdClause) {
@@ -105,12 +106,14 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		if cluster != "" {
 			_, ok := clusters[cluster]
 			if !ok {
-				clusters[cluster] = &srvListCluster{cluster, []string{}, 0, 0, 0}
+				clusters[cluster] = &srvListCluster{name: cluster}
 			}
 
 			clusters[cluster].conns += ssm.Stats.Connections
 			clusters[cluster].nodes = append(clusters[cluster].nodes, ssm.Server.Name)
 			clusters[cluster].gwOut += len(ssm.Stats.Gateways)
+			clusters[cluster].routeSizes = append(clusters[cluster].routeSizes, len(ssm.Stats.Routes))
+
 			for _, g := range ssm.Stats.Gateways {
 				clusters[cluster].gwIn += g.NumInbound
 			}
@@ -210,6 +213,16 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 	gwaysOk := ""
 	routesOk := ""
 
+	// handle asymmetric clusters by ensuring each cluster has same route count
+	// rather than all nodes in all clusters having the same route count
+	for _, v := range clusters {
+		for _, s := range v.routeSizes {
+			if s != v.routeSizes[0] {
+				routesOk = "X"
+			}
+		}
+	}
+
 	for i, ssm := range results {
 		cluster := ssm.Server.Cluster
 		jsEnabled := "no"
@@ -224,9 +237,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		if ssm.Server.Version != results[0].ServerStatsMsg.Server.Version {
 			versionsOk = "X"
 		}
-		if len(ssm.Stats.Routes) != len(results[0].ServerStatsMsg.Stats.Routes) {
-			routesOk = "X"
-		}
+
 		if len(ssm.Stats.Gateways) != len(results[0].ServerStatsMsg.Stats.Gateways) {
 			gwaysOk = "X"
 		}
