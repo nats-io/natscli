@@ -142,6 +142,7 @@ func (r *Result) renderHuman() string {
 		lines++
 	}
 	if lines > 0 {
+		fmt.Fprintln(buf)
 		fmt.Fprintln(buf, "Check Metrics")
 		fmt.Fprintln(buf)
 		fmt.Fprint(buf, tblWriter.Render())
