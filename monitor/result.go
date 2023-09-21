@@ -21,6 +21,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/nats-io/natscli/columns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 )
@@ -109,40 +111,40 @@ func (r *Result) renderHuman() string {
 
 	fmt.Fprintf(buf, "%s: %s\n\n", r.Name, r.Status)
 
-	table := newTableWriter("")
-	table.AddHeaders("Status", "Message")
+	tblWriter := newTableWriter("")
+	tblWriter.AppendHeader(table.Row{"Status", "Message"})
 	lines := 0
 	for _, ok := range r.OKs {
-		table.AddRow("OK", ok)
+		tblWriter.AppendRow(table.Row{"OK", ok})
 		lines++
 	}
 	for _, warn := range r.Warnings {
-		table.AddRow("Warning", warn)
+		tblWriter.AppendRow(table.Row{"Warning", warn})
 		lines++
 	}
 	for _, crit := range r.Criticals {
-		table.AddRow("Critical", crit)
+		tblWriter.AppendRow(table.Row{"Critical", crit})
 		lines++
 	}
 
 	if lines > 0 {
 		fmt.Fprintln(buf, "Status Detail")
 		fmt.Fprintln(buf)
-		fmt.Fprint(buf, table.Render())
+		fmt.Fprint(buf, tblWriter.Render())
 		fmt.Fprintln(buf)
 	}
 
-	table = newTableWriter("")
-	table.AddHeaders("Metric", "Value", "Unit", "Critical Threshold", "Warning Threshold", "Description")
+	tblWriter = newTableWriter("")
+	tblWriter.AppendHeader(table.Row{"Metric", "Value", "Unit", "Critical Threshold", "Warning Threshold", "Description"})
 	lines = 0
 	for _, pd := range r.PerfData {
-		table.AddRow(pd.Name, pd.Value, pd.Unit, pd.Crit, pd.Warn, pd.Help)
+		tblWriter.AppendRow(table.Row{pd.Name, f(pd.Value), pd.Unit, f(pd.Crit), f(pd.Warn), pd.Help})
 		lines++
 	}
 	if lines > 0 {
 		fmt.Fprintln(buf, "Check Metrics")
 		fmt.Fprintln(buf)
-		fmt.Fprint(buf, table.Render())
+		fmt.Fprint(buf, tblWriter.Render())
 		fmt.Fprintln(buf)
 	}
 
@@ -295,4 +297,8 @@ func (r *Result) GenericExit() {
 	fmt.Println(r.String())
 
 	r.Exit()
+}
+
+func f(v any) string {
+	return columns.F(v)
 }

@@ -14,7 +14,8 @@
 package monitor
 
 import (
-	"github.com/xlab/tablewriter"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 )
 
 type Status string
@@ -26,12 +27,15 @@ var (
 	UnknownStatus  Status = "UNKNOWN"
 )
 
-func newTableWriter(title string) *tablewriter.Table {
-	table := tablewriter.CreateTable()
-	table.UTF8Box()
+func newTableWriter(title string) table.Writer {
+	tbl := table.NewWriter()
+	tbl.SetStyle(table.StyleRounded)
+	tbl.Style().Title.Align = text.AlignCenter
+	tbl.Style().Format.Header = text.FormatDefault
+
 	if title != "" {
-		table.AddTitle(title)
+		tbl.SetTitle(title)
 	}
 
-	return table
+	return tbl
 }
