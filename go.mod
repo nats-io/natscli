@@ -26,7 +26,6 @@ require (
 	github.com/prometheus/common v0.44.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
-	github.com/xlab/tablewriter v0.0.0-20160610135559-80b567a11ad5
 	golang.org/x/crypto v0.13.0
 	golang.org/x/term v0.12.0
 	gopkg.in/yaml.v3 v3.0.1
