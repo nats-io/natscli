@@ -18,8 +18,8 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.17.0
 	github.com/mattn/go-isatty v0.0.19
-	github.com/nats-io/jsm.go v0.1.0
-	github.com/nats-io/nats-server/v2 v2.10.0
+	github.com/nats-io/jsm.go v0.1.1-0.20230921074448-1bbb5650afc8
+	github.com/nats-io/nats-server/v2 v2.10.1
 	github.com/nats-io/nats.go v1.30.0
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.16.0
@@ -33,7 +33,7 @@ require (
 )
 
 require (
-	github.com/antonmedv/expr v1.15.2 // indirect
+	github.com/antonmedv/expr v1.15.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect

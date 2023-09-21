@@ -121,6 +121,8 @@ type streamCmd struct {
 	metadataIsSet          bool
 	compression            string
 	firstSeq               uint64
+	limitInactiveThreshold time.Duration
+	limitMaxAckPending     int
 
 	fServer      string
 	fCluster     string
@@ -209,6 +211,11 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SOURCE").StringVar(&c.repubSource)
 		f.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
 		f.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
+		if !edit {
+			f.Flag("limit-consumer-inactive", "The maximum Consumer inactive threshold the Stream allows").PlaceHolder("THRESHOLD").DurationVar(&c.limitInactiveThreshold)
+			f.Flag("limit-consumer-max-pending", "The maximum Consumer Ack Pending the stream Allows").PlaceHolder("PENDING").IntVar(&c.limitMaxAckPending)
+		}
+
 		if edit {
 			f.Flag("no-republish", "Removes current republish configuration").UnNegatableBoolVar(&c.noRepub)
 			f.Flag("no-transform", "Removes current subject transform configuration").UnNegatableBoolVar(&c.noSubjectTransform)
@@ -2415,6 +2422,14 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		AllowDirect:   c.allowDirect,
 		MirrorDirect:  c.allowMirrorDirectSet,
 		DiscardNewPer: c.discardPerSubj,
+	}
+
+	if c.limitInactiveThreshold > 0 {
+		cfg.ConsumerLimits.InactiveThreshold = c.limitInactiveThreshold
+	}
+
+	if c.limitMaxAckPending > 0 {
+		cfg.ConsumerLimits.MaxAckPending = c.limitMaxAckPending
 	}
 
 	if len(c.metadata) > 0 {
