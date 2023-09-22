@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"time"
@@ -25,9 +26,11 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/monitor"
+	"github.com/nats-io/nkeys"
 )
 
 type SrvCheckCmd struct {
@@ -86,10 +89,14 @@ type SrvCheckCmd struct {
 	msgRegexp   *regexp.Regexp
 	msgBodyAsTs bool
 
-	kvBucket     string
-	kvValuesCrit int
-	kvValuesWarn int
-	kvKey        string
+	kvBucket                 string
+	kvValuesCrit             int
+	kvValuesWarn             int
+	kvKey                    string
+	credentialValidityCrit   time.Duration
+	credentialValidityWarn   time.Duration
+	credentialRequiresExpire bool
+	credential               string
 }
 
 func configureServerCheckCommand(srv *fisk.CmdClause) {
@@ -170,6 +177,12 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	kv.Flag("values-critical", "Critical threshold for number of values in the bucket").Default("-1").IntVar(&c.kvValuesCrit)
 	kv.Flag("values-warn", "Warning threshold for number of values in the bucket").Default("-1").IntVar(&c.kvValuesWarn)
 	kv.Flag("key", "Requires a key to have any non-delete value set").StringVar(&c.kvKey)
+
+	cred := check.Command("credential", "Checks the validity of a NATS credential file").Action(c.checkCredentialAction)
+	cred.Flag("credential", "The file holding the NATS credential").Required().StringVar(&c.credential)
+	cred.Flag("validity-warn", "Warning threshold for time before expiry").DurationVar(&c.credentialValidityWarn)
+	cred.Flag("validity-critical", "Critical threshold for time before expiry").DurationVar(&c.credentialValidityCrit)
+	cred.Flag("require-expiry", "Requires the credential to have expiry set").Default("true").BoolVar(&c.credentialRequiresExpire)
 }
 
 var (
@@ -985,4 +998,62 @@ func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 	}
 
 	return nil
+}
+
+func (c *SrvCheckCmd) checkCredential(check *monitor.Result) error {
+	ok, err := fileAccessible(c.credential)
+	if err != nil {
+		check.Critical("credential not accessible: %v", err)
+		return nil
+	}
+
+	if !ok {
+		check.Critical("credential not accessible")
+		return nil
+	}
+
+	cb, err := os.ReadFile(c.credential)
+	if err != nil {
+		check.Critical("credential not accessible: %v", err)
+		return nil
+	}
+
+	token, err := nkeys.ParseDecoratedJWT(cb)
+	if err != nil {
+		check.Critical("invalid credential: %v", err)
+		return nil
+	}
+
+	claims, err := jwt.Decode(token)
+	if err != nil {
+		check.Critical("invalid credential: %v", err)
+	}
+
+	now := time.Now().UTC().Unix()
+	cd := claims.Claims()
+	until := cd.Expires - now
+	crit := int64(c.credentialValidityCrit.Seconds())
+	warn := int64(c.credentialValidityWarn.Seconds())
+
+	check.Pd(&monitor.PerfDataItem{Help: "Expiry time in seconds", Name: "expiry", Value: float64(until), Warn: float64(warn), Crit: float64(crit), Unit: "s"})
+
+	switch {
+	case cd.Expires == 0 && c.credentialRequiresExpire:
+		check.Critical("never expires")
+	case c.credentialValidityCrit > 0 && (until <= crit):
+		check.Critical("expires sooner than %s", f(c.credentialValidityCrit))
+	case c.credentialValidityWarn > 0 && (until <= warn):
+		check.Warn("expires sooner than %s", f(c.credentialValidityWarn))
+	default:
+		check.Ok("expires in %s", time.Unix(cd.Expires, 0).UTC())
+	}
+
+	return nil
+}
+
+func (c *SrvCheckCmd) checkCredentialAction(_ *fisk.ParseContext) error {
+	check := &monitor.Result{Name: "Credential", Check: "credential", OutFile: checkRenderOutFile, NameSpace: opts.PrometheusNamespace, RenderFormat: checkRenderFormat}
+	defer check.GenericExit()
+
+	return c.checkCredential(check)
 }

@@ -47,13 +47,13 @@ func assertListIsEmpty(t *testing.T, list []string) {
 	}
 }
 
-func assertListEquals(t *testing.T, list []string, crits ...string) {
+func assertListEquals(t *testing.T, list []string, vals ...string) {
 	t.Helper()
 
 	sort.Strings(list)
-	sort.Strings(crits)
+	sort.Strings(vals)
 
-	if !cmp.Equal(list, crits) {
+	if !cmp.Equal(list, vals) {
 		t.Fatalf("invalid items: %v", list)
 	}
 }
