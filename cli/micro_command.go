@@ -22,6 +22,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/choria-io/fisk"
@@ -98,6 +99,8 @@ func (c *microCmd) echoHandler(req micro.Request) {
 
 func (c *microCmd) serveAction(_ *fisk.ParseContext) error {
 	var err error
+	var combinedPayload int
+	var mu sync.Mutex
 
 	c.nc, _, err = prepareHelper("", natsOpts()...)
 	if err != nil {
@@ -112,13 +115,27 @@ func (c *microCmd) serveAction(_ *fisk.ParseContext) error {
 			"_nats.client.created.library": "natscli",
 			"_nats.client.created.version": Version,
 		},
+		StatsHandler: func(endpoint *micro.Endpoint) any {
+			mu.Lock()
+			defer mu.Unlock()
+
+			return map[string]any{
+				"total_payload": combinedPayload,
+			}
+		},
 	})
 	if err != nil {
 		return err
 	}
 
 	grp := srv.AddGroup(c.name)
-	err = grp.AddEndpoint("echo", micro.HandlerFunc(c.echoHandler))
+	err = grp.AddEndpoint("echo", micro.HandlerFunc(func(request micro.Request) {
+		mu.Lock()
+		combinedPayload += len(request.Data())
+		mu.Unlock()
+
+		c.echoHandler(request)
+	}))
 	if err != nil {
 		return err
 	}
@@ -403,7 +420,7 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 		cols.Indent(2)
 
 		cols.AddSectionTitle("%s Endpoint Statistics", e.Name)
-		cols.AddRowf("Requests", "%s in group %s", f(e.NumRequests), e.QueueGroup)
+		cols.AddRowf("Requests", "%s in group %q", f(e.NumRequests), e.QueueGroup)
 		cols.AddRowf("Processing Time", "%s (average %s)", f(e.ProcessingTime), f(e.AverageProcessingTime))
 		cols.AddRowf("Started:", "%s (%s ago)", f(stats.Started), f(time.Since(stats.Started)))
 		cols.AddRow("Errors", e.NumErrors)
@@ -413,7 +430,7 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 			cols.AddSectionTitle("Endpoint Specific Statistics")
 			out := bytes.NewBuffer([]byte{})
 			json.Indent(out, e.Data, "    ", "    ")
-			cols.Println("    " + out.String())
+			cols.Println(" " + out.String())
 		}
 
 		cols.Indent(0)
