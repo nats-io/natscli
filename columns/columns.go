@@ -98,6 +98,7 @@ func (w *Writer) Frender(o io.Writer) error {
 	}
 
 	prev := -1
+
 	for i, row := range w.rows {
 		switch row.kind {
 		case kindIndent:
@@ -128,10 +129,12 @@ func (w *Writer) Frender(o io.Writer) error {
 
 		case kindLine:
 			// avoid 2 blank lines
-			if prev != kindTitle {
-				fmt.Fprintln(o, append([]any{w.indent}, row.values...)...)
-				prev = row.kind
+			if prev == kindTitle && len(row.values) == 0 {
+				continue
 			}
+
+			fmt.Fprintln(o, append([]any{w.indent}, row.values...)...)
+			prev = row.kind
 		}
 	}
 
