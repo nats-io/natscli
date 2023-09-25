@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/antonmedv/expr"
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
@@ -28,16 +29,17 @@ import (
 type SrvReportCmd struct {
 	json bool
 
-	account string
-	waitFor int
-	sort    string
-	topk    int
-	reverse bool
-	compact bool
-	subject string
-	server  string
-	cluster string
-	tags    []string
+	filterExpression string
+	account          string
+	waitFor          int
+	sort             string
+	topk             int
+	reverse          bool
+	compact          bool
+	subject          string
+	server           string
+	cluster          string
+	tags             []string
 }
 
 type srvReportAccountInfo struct {
@@ -72,6 +74,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
 	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	conns.Flag("filter", "Expression based filter for connections").StringVar(&c.filterExpression)
 
 	acct := report.Command("accounts", "Report on account activity").Alias("acct").Action(c.reportAccount)
 	acct.Arg("account", "Account to produce a report for").StringVar(&c.account)
@@ -492,7 +495,7 @@ func (c *SrvReportCmd) reportConnections(_ *fisk.ParseContext) error {
 		return fmt.Errorf("did not get results from any servers")
 	}
 
-	conns := connz.flatConnInfo()
+	conns := connz.flatConnInfo(c.filterExpression)
 
 	if c.json {
 		printJSON(conns)
@@ -624,10 +627,39 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 
 type connzList []*server.ServerAPIConnzResponse
 
-func (c connzList) flatConnInfo() []connInfo {
+func (c connzList) flatConnInfo(filter string) []connInfo {
 	var conns []connInfo
 	for _, conn := range c {
+		srv := structWithoutOmitEmpty(*conn.Server)
+
 		for _, c := range conn.Data.Conns {
+			if filter != "" {
+				ci := structWithoutOmitEmpty(*c)
+				env := map[string]any{
+					"server": srv,
+					"Server": conn.Server,
+					"conns":  ci,
+					"Conns":  c,
+				}
+
+				program, err := expr.Compile(filter, expr.Env(env), expr.AsBool())
+				fisk.FatalIfError(err, "Invalid expression: %v", err)
+
+				out, err := expr.Run(program, env)
+				if err != nil {
+					fisk.FatalIfError(err, "Invalid expression: %v", err)
+				}
+
+				should, ok := out.(bool)
+				if !ok {
+					fisk.FatalIfError(err, "expression did not return a boolean")
+				}
+
+				if !should {
+					continue
+				}
+			}
+
 			conns = append(conns, connInfo{c, conn.Server})
 		}
 	}

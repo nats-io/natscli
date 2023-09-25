@@ -27,6 +27,7 @@ import (
 	"net/textproto"
 	"os"
 	"os/exec"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -1323,4 +1324,39 @@ func filterDataThroughCmd(data []byte, filter, subject, stream string) ([]byte, 
 	runner.Stdin = bytes.NewReader(data)
 	// maybe we want to do something on error?
 	return runner.CombinedOutput()
+}
+
+// given a non pointer instance of a type with a lot of omitempty json tags will return a new instance without those
+//
+// does not handle nested values
+func structWithoutOmitEmpty(s any) any {
+	st := reflect.TypeOf(s)
+
+	// It's a pointer struct, convert to the value that it points to.
+	if st.Kind() == reflect.Ptr {
+		st = st.Elem()
+	}
+
+	fs := []reflect.StructField{}
+	for i := 0; i < st.NumField(); i++ {
+		field := st.Field(i)
+		field.Tag = reflect.StructTag(strings.ReplaceAll(string(field.Tag), ",omitempty", ""))
+		fs = append(fs, field)
+	}
+
+	st2 := reflect.StructOf(fs)
+	v := reflect.ValueOf(s)
+
+	j, err := json.Marshal(v.Convert(st2).Interface())
+	if err != nil {
+		panic(err)
+	}
+
+	var res any
+	err = json.Unmarshal(j, &res)
+	if err != nil {
+		panic(err)
+	}
+
+	return res
 }
