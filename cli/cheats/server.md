@@ -14,6 +14,9 @@ nats server report connz --account WEATHER
 nats server report connz --sort in-msgs
 nats server report connz --top 10 --sort in-msgs
 
+# To limit connections report to surveyor connections and all from a specific IP using https://expr.medv.io/docs/Language-Definition
+nats server report connz --filter 'lower(conns.name) matches "surveyor" || conns.ip == "46.101.44.80"'
+
 # To report on accounts
 nats server report accounts
 nats server report accounts --account WEATHER --sort in-msgs --top 10
