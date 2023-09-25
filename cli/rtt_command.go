@@ -23,7 +23,6 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/natscli/columns"
 )
 
 type rttCmd struct {
@@ -155,7 +154,7 @@ func (c *rttCmd) calcRTT(server string, copts []nats.Option) (string, time.Durat
 
 		totalTime += rtt
 		if opts.Trace {
-			fmt.Printf("#%d:\trtt=%s\n", i, columns.HumanizeDuration(rtt))
+			fmt.Printf("#%d:\trtt=%s\n", i, rtt)
 			if i == c.iterations {
 				fmt.Println()
 			}
