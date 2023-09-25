@@ -143,6 +143,9 @@ func (c *rttCmd) calcRTT(server string, copts []nats.Option) (string, time.Durat
 
 	var totalTime time.Duration
 
+	if opts.Trace {
+		fmt.Printf("RTT iterations for server: %s\n", server)
+	}
 	for i := 1; i <= c.iterations; i++ {
 		rtt, err := nc.RTT()
 		if err != nil {
@@ -150,6 +153,12 @@ func (c *rttCmd) calcRTT(server string, copts []nats.Option) (string, time.Durat
 		}
 
 		totalTime += rtt
+		if opts.Trace {
+			fmt.Printf("#%d:\trtt=%s\n", i, rtt)
+			if i == c.iterations {
+				fmt.Println()
+			}
+		}
 	}
 
 	return nc.ConnectedUrl(), totalTime / time.Duration(c.iterations), nil
