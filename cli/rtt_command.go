@@ -120,7 +120,7 @@ func (c *rttCmd) performTest(targets []*rttTarget) (err error) {
 
 		for _, r := range target.Results {
 			r.Time = time.Now()
-			r.URL, r.RTT, err = c.calcRTT(target.URL, opts)
+			r.URL, r.RTT, err = c.calcRTT(r.Address, opts)
 			if err != nil {
 				return err
 			}
