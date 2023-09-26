@@ -789,8 +789,9 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	// first we figure out leader and downs based on the full names and build
 	// peers array which is a list of all the full names
 	leader := -1
-	warn := []int{}
-	var peers []string
+	peers := make([]string, 0, len(cluster.Replicas))
+	warn := make([]int, 0, len(cluster.Replicas))
+	obs := make([]int, 0, len(cluster.Replicas))
 
 	if cluster.Leader != "" {
 		peers = append(peers, cluster.Leader)
@@ -805,7 +806,13 @@ func renderCluster(cluster *api.ClusterInfo) string {
 			} else {
 				warn = append(warn, i)
 			}
-
+		}
+		if r.Observer {
+			if leader == 0 {
+				obs = append(obs, i+1)
+			} else {
+				obs = append(obs, i)
+			}
 		}
 		peers = append(peers, name)
 	}
@@ -814,6 +821,9 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	compact := compactStrings(peers)
 	if leader != -1 {
 		compact[0] = compact[0] + "*"
+	}
+	for _, i := range obs {
+		compact[i] = compact[i] + "^"
 	}
 	for _, i := range warn {
 		compact[i] = compact[i] + "!"
@@ -1359,4 +1369,37 @@ func structWithoutOmitEmpty(s any) any {
 	}
 
 	return res
+}
+
+func replicaInfoFor(r *api.PeerInfo) []string {
+	state := []string{r.Name}
+
+	if r.Current {
+		state = append(state, "current")
+	} else {
+		state = append(state, "outdated")
+	}
+
+	if r.Observer {
+		state = append(state, "observer")
+	}
+
+	if r.Offline {
+		state = append(state, "OFFLINE")
+	}
+
+	if r.Active > 0 && r.Active < math.MaxInt64 {
+		state = append(state, fmt.Sprintf("seen %s ago", f(r.Active)))
+	} else {
+		state = append(state, "not seen")
+	}
+
+	switch {
+	case r.Lag > 1:
+		state = append(state, fmt.Sprintf("%s operations behind", f(r.Lag)))
+	case r.Lag == 1:
+		state = append(state, fmt.Sprintf("%s operation behind", f(r.Lag)))
+	}
+
+	return state
 }

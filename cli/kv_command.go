@@ -838,6 +838,10 @@ func renderNatsGoClusterInfo(cols *columns.Writer, info *nats.StreamInfo) {
 			state = append(state, "outdated")
 		}
 
+		if r.Observer {
+			state = append(state, "observer")
+		}
+
 		if r.Offline {
 			state = append(state, "OFFLINE")
 		}
