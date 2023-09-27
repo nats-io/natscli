@@ -41,6 +41,8 @@ func coloredBorderStyle(c text.Color) table.Style {
 	s := table.StyleRounded
 	s.Color.Border = text.Colors{c}
 	s.Color.Separator = text.Colors{c}
+	s.Format.Footer = text.FormatDefault
+
 	return s
 }
 
