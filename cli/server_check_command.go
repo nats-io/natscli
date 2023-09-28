@@ -207,11 +207,7 @@ func (r *result) criticalIfErr(err error, format string, a ...any) bool {
 	return true
 }
 
-func (r *result) exitCode() int {
-	if checkRenderFormat == "prometheus" {
-		return 0
-	}
-
+func (r *result) nagiosCode() int {
 	switch r.Status {
 	case okCheckStatus:
 		return 0
@@ -222,6 +218,14 @@ func (r *result) exitCode() int {
 	default:
 		return 3
 	}
+}
+
+func (r *result) exitCode() int {
+	if checkRenderFormat == "prometheus" {
+		return 0
+	}
+
+	return r.nagiosCode()
 }
 
 func (r *result) Exit() {
@@ -307,7 +311,7 @@ func (r *result) renderPrometheus() string {
 	}, []string{"item", "status"})
 	prometheus.MustRegister(status)
 
-	status.WithLabelValues(sname, string(r.Status)).Set(float64(r.exitCode()))
+	status.WithLabelValues(sname, string(r.Status)).Set(float64(r.nagiosCode()))
 
 	var buf bytes.Buffer
 
