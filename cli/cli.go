@@ -156,7 +156,7 @@ func commonConfigure(cmd commandHost, cliOpts *Options, disable ...string) error
 	}
 
 	if opts.PrometheusNamespace == "" {
-		opts.PrometheusNamespace = ""
+		opts.PrometheusNamespace = "nats_server_check"
 	}
 
 	ctx = context.Background()
