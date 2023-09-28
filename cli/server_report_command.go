@@ -31,6 +31,7 @@ type SrvReportCmd struct {
 
 	filterExpression string
 	account          string
+	user             string
 	waitFor          int
 	sort             string
 	topk             int
@@ -73,6 +74,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
+	conns.Flag("username", "Limits responses only to those connections for a specific authentication username").StringVar(&c.user)
 	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	conns.Flag("filter", "Expression based filter for connections").StringVar(&c.filterExpression)
 
@@ -330,7 +332,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		}
 
 		table := newTableWriter("RAFT Meta Group Information")
-		table.AddHeaders("Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
+		table.AddHeaders("Connection Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
 		for i, replica := range cluster.Replicas {
 			leader := ""
 			peer := replica.Peer
@@ -694,6 +696,7 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 			Subscriptions:       true,
 			SubscriptionsDetail: false,
 			Username:            true,
+			User:                c.user,
 			Account:             c.account,
 			FilterSubject:       c.subject,
 		},
