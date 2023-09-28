@@ -1130,12 +1130,12 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	case len(c.filterSubjects) == 0 && !c.acceptDefaults:
 		sub := ""
 		err = askOne(&survey.Input{
-			Message: "Filter Stream by subject (blank for all)",
+			Message: "Filter Stream by subjects (blank for all)",
 			Default: "",
-			Help:    "Stream can consume more than one subject - or a wildcard - this allows you to filter out just a single subject from all the ones entering the Stream for delivery to the Consumer. Settable using --filter",
+			Help:    "Consumers can filter messages from the stream, this is a space or comma separated list that can include wildcards. Settable using --filter",
 		}, &sub)
 		fisk.FatalIfError(err, "could not ask for filtering subject")
-		c.filterSubjects = []string{sub}
+		c.filterSubjects = splitString(sub)
 	}
 
 	switch {
