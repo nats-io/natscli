@@ -639,16 +639,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		cols.AddRow("Name", state.Cluster.Name)
 		cols.AddRow("Leader", state.Cluster.Leader)
 		for _, r := range state.Cluster.Replicas {
-			since := fmt.Sprintf("seen %s ago", f(r.Active))
-			if r.Active == 0 || r.Active == math.MaxInt64 {
-				since = "not seen"
-			}
-
-			if r.Current {
-				cols.AddRowf("Replica", "%s, current, %s", r.Name, since)
-			} else {
-				cols.AddRowf("Replica", "%s, outdated, %s", r.Name, since)
-			}
+			cols.AddRow("Replica", replicaInfoFor(r))
 		}
 	}
 

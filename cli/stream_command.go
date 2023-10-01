@@ -1933,33 +1933,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		cols.AddRow("Name", info.Cluster.Name)
 		cols.AddRow("Leader", info.Cluster.Leader)
 		for _, r := range info.Cluster.Replicas {
-			state := []string{r.Name}
-
-			if r.Current {
-				state = append(state, "current")
-			} else {
-				state = append(state, "outdated")
-			}
-
-			if r.Offline {
-				state = append(state, "OFFLINE")
-			}
-
-			if r.Active > 0 && r.Active < math.MaxInt64 {
-				state = append(state, fmt.Sprintf("seen %s ago", f(r.Active)))
-			} else {
-				state = append(state, "not seen")
-			}
-
-			switch {
-			case r.Lag > 1:
-				state = append(state, fmt.Sprintf("%s operations behind", f(r.Lag)))
-			case r.Lag == 1:
-				state = append(state, fmt.Sprintf("%s operation behind", f(r.Lag)))
-			}
-
-			cols.AddRow("Replica", state)
-
+			cols.AddRow("Replica", replicaInfoFor(r))
 		}
 		cols.Println()
 	}
