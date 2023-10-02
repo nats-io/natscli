@@ -101,6 +101,15 @@ Known contexts:
 
 The context is selected as default, use `nats context --help` to see how to add, remove and edit contexts.
 
+To switch to another context we can use:
+```
+nats ctx select localhost
+```
+To switch context back to previous one, we can use `context previous` subcommand:
+```
+nats ctx -- -
+```
+
 ### Configuration file
 
 nats-cli stores contextes in `~/.config/nats/context`. Those contextes are stored as JSON documents. You can find the description and expected value for this configuration file by running `nats --help` and look for the global flags.
