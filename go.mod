@@ -5,7 +5,8 @@ go 1.20
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
-	github.com/choria-io/fisk v0.6.0
+	github.com/antonmedv/expr v1.15.3
+	github.com/choria-io/fisk v0.6.1
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.6.0
 	github.com/fatih/color v1.15.0
@@ -18,9 +19,11 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.17.0
 	github.com/mattn/go-isatty v0.0.19
-	github.com/nats-io/jsm.go v0.1.1-0.20230922064108-bb09405bc2c0
+	github.com/nats-io/jsm.go v0.1.1-0.20230929093219-c157aaec4932
+	github.com/nats-io/jwt/v2 v2.5.2
 	github.com/nats-io/nats-server/v2 v2.10.1
 	github.com/nats-io/nats.go v1.30.0
+	github.com/nats-io/nkeys v0.4.5
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/common v0.44.0
@@ -32,7 +35,6 @@ require (
 )
 
 require (
-	github.com/antonmedv/expr v1.15.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
@@ -42,12 +44,9 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
-	github.com/nats-io/jwt/v2 v2.5.2 // indirect
-	github.com/nats-io/nkeys v0.4.5 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/sevlyar/retag v0.0.0-20190429052747-c3f10e304082 // indirect
 	golang.org/x/net v0.15.0 // indirect
 	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
