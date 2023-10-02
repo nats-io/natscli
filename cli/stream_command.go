@@ -1282,7 +1282,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 
 func (c *streamCmd) renderReplication(stats []streamStat) {
 	table := newTableWriter("Replication Report")
-	table.AddHeaders("Stream", "Kind", "API Prefix", "Source Stream", "Filter", "Destination", "Active", "Lag", "Error")
+	table.AddHeaders("Stream", "Kind", "API Prefix", "Source Stream", "Filters and Transforms", "Active", "Lag", "Error")
 
 	for _, s := range stats {
 		if len(s.Sources) == 0 && s.Mirror == nil {
@@ -1318,14 +1318,20 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 				eApiPrefix = source.External.ApiPrefix
 			}
 
-			if source.SubjectTransformDest != "" && source.FilterSubject == "" {
-				source.FilterSubject = ">"
+			filterSubject := []string{}
+
+			for _, transform := range source.SubjectTransforms {
+				filterSubject = append(filterSubject, fmt.Sprintf("%s to %s", transform.Source, transform.Destination))
+			}
+
+			if len(filterSubject) == 0 && source.FilterSubject != "" {
+				filterSubject = append(filterSubject, fmt.Sprintf("%s untransformed", source.FilterSubject))
 			}
 
 			if c.reportRaw {
-				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, source.FilterSubject, source.SubjectTransformDest, source.Active, source.Lag, apierr)
+				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, strings.Join(filterSubject, ", "), source.Active, source.Lag, apierr)
 			} else {
-				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, source.FilterSubject, source.SubjectTransformDest, f(source.Active), f(source.Lag), apierr)
+				table.AddRow(s.Name, "Source", eApiPrefix, source.Name, strings.Join(filterSubject, ", "), f(source.Active), f(source.Lag), apierr)
 			}
 
 		}
@@ -1968,16 +1974,13 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		cols.AddRow("Stream Name", s.Name)
 
 		switch {
-		case s.SubjectTransformDest != "":
+		case s.FilterSubject != "":
 			filter := ">"
-
 			if s.FilterSubject != "" {
 				filter = s.FilterSubject
 			}
 
-			cols.AddRowf("Subject Filter and Transform", "%s to %s", filter, s.SubjectTransformDest)
-		case len(s.SubjectTransforms) == 0:
-			cols.AddRowIfNotEmpty("Subject Filter", s.FilterSubject)
+			cols.AddRowf("Subject Filter", filter)
 		case len(s.SubjectTransforms) > 0:
 			for i := range s.SubjectTransforms {
 				t := ""
@@ -1991,7 +1994,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 				}
 
 				if s.SubjectTransforms[i].Destination == "" {
-					cols.AddRowf(t, "%s to [no transform]", s.SubjectTransforms[i].Source)
+					cols.AddRowf(t, "%s untransformed", s.SubjectTransforms[i].Source)
 				} else {
 					cols.AddRowf(t, "%s to %s", s.SubjectTransforms[i].Source, s.SubjectTransforms[i].Destination)
 				}
