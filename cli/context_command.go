@@ -86,6 +86,8 @@ func configureCtxCommand(app commandHost) {
 	validate := context.Command("validate", "Validate one or all contexts").Action(c.validateCommand)
 	validate.Arg("name", "Validate a specific context, validates all when not supplied").StringVar(&c.name)
 	validate.Flag("connect", "Attempts to connect to NATS using the context while validating").UnNegatableBoolVar(&c.activate)
+
+	context.Command("previous", "switch to the previous context").Alias("-").Action(c.switchPreviousCtx)
 }
 
 func init() {
@@ -566,6 +568,19 @@ func (c *ctxCommand) removeCommand(_ *fisk.ParseContext) error {
 	}
 
 	return natscontext.DeleteContext(c.name)
+}
+
+func (c *ctxCommand) switchPreviousCtx(pc *fisk.ParseContext) error {
+	ctxToSwitch := natscontext.PreviousContext()
+	if ctxToSwitch == "" {
+		return c.showCommand(pc)
+	}
+
+	if err := natscontext.SelectContext(ctxToSwitch); err != nil {
+		return err
+	}
+
+	return c.showCommand(pc)
 }
 
 func (c *ctxCommand) selectCommand(pc *fisk.ParseContext) error {
