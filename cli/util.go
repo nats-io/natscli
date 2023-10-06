@@ -39,6 +39,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
+	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/gosuri/uiprogress"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -1359,4 +1360,83 @@ func structWithoutOmitEmpty(s any) any {
 	}
 
 	return res
+}
+
+// copied from choria-io/appbuilder
+func barGraph(w io.Writer, data map[string]float64, caption string, width int, bytes bool) error {
+	longest := 0
+	min := math.MaxFloat64
+	max := -math.MaxFloat64
+	keys := []string{}
+	for k, v := range data {
+		keys = append(keys, k)
+		if len(k) > longest {
+			longest = len(k)
+		}
+
+		if v < min {
+			min = v
+		}
+
+		if v > max {
+			max = v
+		}
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		return data[keys[i]] < data[keys[j]]
+	})
+
+	if caption != "" {
+		fmt.Fprintln(w, caption)
+		fmt.Fprintln(w)
+	}
+
+	var steps float64
+	if max == min {
+		steps = max / float64(width)
+	} else {
+		steps = (max - min) / float64(width)
+	}
+
+	longestLine := 0
+	for _, k := range keys {
+		v := data[k]
+
+		var blocks int
+		switch {
+		case v == 0:
+			// value 0 is always 0
+			blocks = 0
+		case len(keys) == 1:
+			// one entry, so we show full width
+			blocks = width
+		case min == max:
+			// all entries have same value, so we show full width
+			blocks = width
+		default:
+			blocks = int((v - min) / steps)
+		}
+
+		var h string
+		if bytes {
+			h = humanize.IBytes(uint64(v))
+		} else {
+			h = humanize.Commaf(v)
+		}
+
+		bar := strings.Repeat("█", blocks)
+		if blocks == 0 {
+			bar = "▏"
+		}
+
+		line := fmt.Sprintf("%s%s: %s (%s)", strings.Repeat(" ", longest-len(k)+2), k, bar, h)
+		if len(line) > longestLine {
+			longestLine = len(line)
+		}
+
+		fmt.Fprintln(w, line)
+	}
+
+	return nil
 }

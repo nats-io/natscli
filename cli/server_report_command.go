@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 
 	"github.com/antonmedv/expr"
@@ -94,6 +95,66 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	jsz.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
 	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
 	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
+
+	cpu := report.Command("cpu", "Reports on CPU uage").Action(c.reportCPU)
+	addFilterOpts(cpu)
+	cpu.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+
+	mem := report.Command("mem", "Reports on Memory usage").Action(c.reportMem)
+	addFilterOpts(mem)
+	mem.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+}
+
+func (c *SrvReportCmd) reportMem(_ *fisk.ParseContext) error {
+	return c.reportCpuOrMem(true)
+}
+
+func (c *SrvReportCmd) reportCPU(_ *fisk.ParseContext) error {
+	return c.reportCpuOrMem(false)
+}
+
+func (c *SrvReportCmd) reportCpuOrMem(mem bool) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	req := &server.StatszEventOptions{EventFilterOptions: c.reqFilter()}
+	results, err := doReq(req, "$SYS.REQ.SERVER.PING", c.waitFor, nc)
+	if err != nil {
+		return err
+	}
+
+	usage := map[string]float64{}
+
+	for _, result := range results {
+		sr := &server.ServerStatsMsg{}
+		err := json.Unmarshal(result, sr)
+		if err != nil {
+			return err
+		}
+
+		if mem {
+			usage[sr.Server.Name] = float64(sr.Stats.Mem)
+		} else {
+			usage[sr.Server.Name] = sr.Stats.CPU
+		}
+	}
+
+	if c.json {
+		return printJSON(usage)
+	}
+
+	width := progressWidth() / 2
+	if width > 30 {
+		width = 30
+	}
+
+	if mem {
+		return barGraph(os.Stdout, usage, "Memory Usage", width, true)
+	}
+
+	return barGraph(os.Stdout, usage, "CPU Usage", width, false)
 }
 
 func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
