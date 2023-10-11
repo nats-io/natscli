@@ -1201,7 +1201,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 	cfg.HeadersOnly = c.hdrsOnly
 
-	if !c.acceptDefaults && c.backoffMode == "" {
+	if cfg.AckPolicy != api.AckNone && !c.acceptDefaults && c.backoffMode == "" {
 		err = c.askBackoffPolicy()
 		if err != nil {
 			return nil, err
