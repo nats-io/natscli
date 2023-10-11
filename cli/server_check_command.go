@@ -51,6 +51,14 @@ type SrvCheckCmd struct {
 	subjectsWarn        int
 	subjectsCrit        int
 
+	consumerName                   string
+	consumerAckOutstandingCritical int
+	consumerWaitingCritical        int
+	consumerUnprocessedCritical    int
+	consumerLastDeliveryCritical   time.Duration
+	consumerLastAckCritical        time.Duration
+	consumerRedeliveryCritical     int
+
 	raftExpect       int
 	raftLagCritical  uint64
 	raftSeenCritical time.Duration
@@ -129,6 +137,16 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	stream.Flag("msgs-critical", "Critical if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesCrit)
 	stream.Flag("subjects-warn", "Critical threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsWarn)
 	stream.Flag("subjects-critical", "Warning threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsCrit)
+
+	consumer := check.Command("consumer", "Checks the health of a consumer").Action(c.checkConsumer)
+	consumer.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
+	consumer.Flag("consumer", "The consumer to check").Required().StringVar(&c.consumerName)
+	consumer.Flag("outstanding-ack-critical", "Maximum number of outstanding acks to allow").Default("-1").IntVar(&c.consumerAckOutstandingCritical)
+	consumer.Flag("waiting-critical", "Maximum number of waiting pulls to allow").Default("-1").IntVar(&c.consumerWaitingCritical)
+	consumer.Flag("unprocessed-critical", "Maximum number of unprocessed messages to allow").Default("-1").IntVar(&c.consumerUnprocessedCritical)
+	consumer.Flag("last-delivery-critical", "Time to allow since the last delivery").Default("0s").DurationVar(&c.consumerLastDeliveryCritical)
+	consumer.Flag("last-ack-critical", "Time to allow since the last ack").Default("0s").DurationVar(&c.consumerLastAckCritical)
+	consumer.Flag("redelivery-critical", "Maximum number of redeliveries to allow").Default("-1").IntVar(&c.consumerRedeliveryCritical)
 
 	msg := check.Command("message", "Checks properties of a message stored in a stream").Action(c.checkMsg)
 	msg.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
@@ -271,6 +289,75 @@ func (c *SrvCheckCmd) checkKVStatusAndBucket(check *monitor.Result, nc *nats.Con
 			&monitor.PerfDataItem{Name: "replicas", Value: float64(nfo.Config.Replicas)},
 		)
 	}
+}
+
+func (c *SrvCheckCmd) checkConsumerStatus(check *monitor.Result, nfo api.ConsumerInfo) {
+	check.Pd(&monitor.PerfDataItem{Name: "ack_pending", Value: float64(nfo.NumAckPending), Help: "The number of messages waiting to be Acknowledged", Crit: float64(c.consumerAckOutstandingCritical)})
+	check.Pd(&monitor.PerfDataItem{Name: "pull_waiting", Value: float64(nfo.NumWaiting), Help: "The number of waiting Pull requests", Crit: float64(c.consumerWaitingCritical)})
+	check.Pd(&monitor.PerfDataItem{Name: "pending", Value: float64(nfo.NumPending), Help: "The number of messages that have not yet been consumed", Crit: float64(c.consumerUnprocessedCritical)})
+	check.Pd(&monitor.PerfDataItem{Name: "redelivered", Value: float64(nfo.NumRedelivered), Help: "The number of messages currently being redelivered", Crit: float64(c.consumerRedeliveryCritical)})
+	if nfo.Delivered.Last != nil {
+		check.Pd(&monitor.PerfDataItem{Name: "last_delivery", Value: time.Since(*nfo.Delivered.Last).Seconds(), Unit: "s", Help: "Seconds since the last message was delivered", Crit: float64(c.consumerLastDeliveryCritical)})
+	}
+	if nfo.AckFloor.Last != nil {
+		check.Pd(&monitor.PerfDataItem{Name: "last_ack", Value: time.Since(*nfo.AckFloor.Last).Seconds(), Unit: "s", Help: "Seconds since the last message was acknowledged", Crit: float64(c.consumerLastDeliveryCritical)})
+	}
+
+	if c.consumerAckOutstandingCritical > 0 && nfo.NumAckPending >= c.consumerAckOutstandingCritical {
+		check.Critical("Ack Pending: %d", nfo.NumAckPending)
+	}
+
+	if c.consumerWaitingCritical > 0 && nfo.NumWaiting >= c.consumerWaitingCritical {
+		check.Critical("Waiting Pulls: %d", nfo.NumWaiting)
+	}
+
+	if c.consumerUnprocessedCritical > 0 && nfo.NumPending >= uint64(c.consumerUnprocessedCritical) {
+		check.Critical("Unprocessed Messages: %d", nfo.NumPending)
+	}
+
+	if c.consumerRedeliveryCritical > 0 && nfo.NumRedelivered > c.consumerRedeliveryCritical {
+		check.Critical("Redelivered Messages: %d", nfo.NumRedelivered)
+	}
+
+	switch {
+	case c.consumerLastDeliveryCritical <= 0:
+	case nfo.Delivered.Last == nil:
+		check.Critical("No deliveries")
+	case time.Since(*nfo.Delivered.Last) >= c.consumerLastDeliveryCritical:
+		check.Critical("Last delivery %v ago", time.Since(*nfo.Delivered.Last).Round(time.Second))
+	}
+
+	switch {
+	case c.consumerLastAckCritical <= 0:
+	case nfo.AckFloor.Last == nil:
+		check.Critical("No acknowledgements")
+	case time.Since(*nfo.AckFloor.Last) >= c.consumerLastAckCritical:
+		check.Critical("Last ack %v ago", time.Since(*nfo.AckFloor.Last).Round(time.Second))
+	}
+}
+
+func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
+	check := &monitor.Result{Name: fmt.Sprintf("%s_%s", c.sourcesStream, c.consumerName), Check: "consumer", OutFile: checkRenderOutFile, NameSpace: opts.PrometheusNamespace, RenderFormat: checkRenderFormat}
+	defer check.GenericExit()
+
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	check.CriticalIfErr(err, "connection failed: %s", err)
+
+	cons, err := mgr.LoadConsumer(c.sourcesStream, c.consumerName)
+	if err != nil {
+		check.Critical("consumer load failure: %v", err)
+		return nil
+	}
+
+	nfo, err := cons.LatestState()
+	if err != nil {
+		check.Critical("consumer state failure: %v", err)
+		return nil
+	}
+
+	c.checkConsumerStatus(check, nfo)
+
+	return nil
 }
 
 func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
