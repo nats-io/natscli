@@ -78,6 +78,158 @@ func dfltCmd() *SrvCheckCmd {
 	return &SrvCheckCmd{kvBucket: "TEST", kvValuesWarn: -1, kvValuesCrit: -1}
 }
 
+func TestCheckConsumer(t *testing.T) {
+	t.Run("Ack Pending", func(t *testing.T) {
+		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerAckOutstandingCritical: 100}
+		check := &monitor.Result{}
+
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			NumAckPending: 10,
+		})
+
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListIsEmpty(t, check.Criticals)
+
+		check = &monitor.Result{}
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			NumAckPending: 300,
+		})
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListEquals(t, check.Criticals, "Ack Pending: 300")
+	})
+
+	t.Run("Waiting Pulls", func(t *testing.T) {
+		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerWaitingCritical: 100}
+		check := &monitor.Result{}
+
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			NumWaiting: 10,
+		})
+
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListIsEmpty(t, check.Criticals)
+
+		check = &monitor.Result{}
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			NumWaiting: 300,
+		})
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListEquals(t, check.Criticals, "Waiting Pulls: 300")
+	})
+
+	t.Run("Pending", func(t *testing.T) {
+		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerUnprocessedCritical: 100}
+		check := &monitor.Result{}
+
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			NumPending: 10,
+		})
+
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListIsEmpty(t, check.Criticals)
+
+		check = &monitor.Result{}
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			NumPending: 300,
+		})
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListEquals(t, check.Criticals, "Unprocessed Messages: 300")
+	})
+
+	t.Run("Redelivered", func(t *testing.T) {
+		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerRedeliveryCritical: 100}
+		check := &monitor.Result{}
+
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			NumRedelivered: 10,
+		})
+
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListIsEmpty(t, check.Criticals)
+
+		check = &monitor.Result{}
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			NumRedelivered: 300,
+		})
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListEquals(t, check.Criticals, "Redelivered Messages: 300")
+	})
+
+	t.Run("Last Delivery", func(t *testing.T) {
+		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerLastDeliveryCritical: 10 * time.Second}
+		check := &monitor.Result{}
+
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{})
+
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListEquals(t, check.Criticals, "No deliveries")
+
+		check = &monitor.Result{}
+		last := time.Now().Add(-1 * time.Second)
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			Delivered: api.SequenceInfo{
+				Last: &last,
+			},
+		})
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListIsEmpty(t, check.Criticals)
+
+		check = &monitor.Result{}
+		last = time.Now().Add(-500 * time.Second)
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			Delivered: api.SequenceInfo{
+				Last: &last,
+			},
+		})
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListEquals(t, check.Criticals, "Last delivery 8m20s ago")
+	})
+
+	t.Run("Last Ack", func(t *testing.T) {
+		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerLastAckCritical: 10 * time.Second}
+		check := &monitor.Result{}
+
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{})
+
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListEquals(t, check.Criticals, "No acknowledgements")
+
+		check = &monitor.Result{}
+		last := time.Now().Add(-1 * time.Second)
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			AckFloor: api.SequenceInfo{
+				Last: &last,
+			},
+		})
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListIsEmpty(t, check.Criticals)
+
+		check = &monitor.Result{}
+		last = time.Now().Add(-500 * time.Second)
+		cmd.checkConsumerStatus(check, api.ConsumerInfo{
+			AckFloor: api.SequenceInfo{
+				Last: &last,
+			},
+		})
+		assertListIsEmpty(t, check.Warnings)
+		assertListIsEmpty(t, check.OKs)
+		assertListEquals(t, check.Criticals, "Last ack 8m20s ago")
+	})
+}
+
 func TestCheckMessage(t *testing.T) {
 	t.Run("Body timestamp", func(t *testing.T) {
 		withJetStream(t, func(_ *server.Server, nc *nats.Conn, mgr *jsm.Manager) {
