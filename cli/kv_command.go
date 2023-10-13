@@ -123,7 +123,7 @@ for an indefinite period or a per-bucket configured TTL.
 	update.Arg("revision", "The revision of the previous value in the bucket").Required().Uint64Var(&c.revision)
 
 	del := kv.Command("del", "Deletes a key or the entire bucket").Alias("rm").Action(c.deleteAction)
-	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+	del.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
 	del.Arg("key", "The key to act on").StringVar(&c.key)
 	del.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
@@ -156,7 +156,7 @@ for an indefinite period or a per-bucket configured TTL.
 	ls.Flag("display-value", "Display value in verbose output (has no effect without 'verbose')").UnNegatableBoolVar(&c.lsVerboseDisplayValue)
 
 	rmHistory := kv.Command("compact", "Reclaim space used by deleted keys").Action(c.compactAction)
-	rmHistory.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+	rmHistory.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
 	rmHistory.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 }
 
@@ -774,6 +774,33 @@ func (c *kvCommand) purgeAction(_ *fisk.ParseContext) error {
 }
 
 func (c *kvCommand) rmBucketAction(_ *fisk.ParseContext) error {
+	nc, js, err := prepareJSHelper()
+	if err != nil {
+		return err
+	}
+
+	if c.bucket == "" {
+		if c.bucket == "" {
+			known, err := c.knownBuckets(nc)
+			if err != nil {
+				return err
+			}
+
+			if len(known) == 0 {
+				return fmt.Errorf("no KV buckets found")
+			}
+
+			err = askOne(&survey.Select{
+				Message:  "Select a Bucket",
+				Options:  known,
+				PageSize: selectPageSize(len(known)),
+			}, &c.bucket)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Delete bucket %s?", c.bucket), false)
 		if err != nil {
