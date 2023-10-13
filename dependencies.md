@@ -21,7 +21,7 @@ This file lists the dependencies used in this repository.
 | github.com/guptarohit/asciigraph                 | BSD 3-Clause "New" or "Revised" License |
 | github.com/jedib0t/go-pretty                     | MIT License                             |
 | github.com/kballard/go-shellquote                | MIT License                             |
-| github.com/klauspost/compress                    | MIT License                             |
+| github.com/klauspost/compress                    | BSD 3-Clause "New" or "Revised" License |
 | github.com/mattn/go-colorable                    | MIT License                             |
 | github.com/mattn/go-isatty                       | MIT License                             |
 | github.com/mattn/go-runewidth                    | MIT License                             |
