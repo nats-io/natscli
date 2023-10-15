@@ -1937,6 +1937,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		cols.AddSectionTitle("Cluster Information")
 
 		cols.AddRow("Name", info.Cluster.Name)
+		cols.AddRowIfNotEmpty("Raft Group", info.Cluster.RaftGroup)
 		cols.AddRow("Leader", info.Cluster.Leader)
 		for _, r := range info.Cluster.Replicas {
 			state := []string{r.Name}
