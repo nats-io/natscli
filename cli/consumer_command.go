@@ -637,6 +637,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	if state.Cluster != nil && state.Cluster.Name != "" {
 		cols.AddSectionTitle("Cluster Information")
 		cols.AddRow("Name", state.Cluster.Name)
+		cols.AddRowIfNotEmpty("Raft Group", state.Cluster.RaftGroup)
 		cols.AddRow("Leader", state.Cluster.Leader)
 		for _, r := range state.Cluster.Replicas {
 			since := fmt.Sprintf("seen %s ago", f(r.Active))
