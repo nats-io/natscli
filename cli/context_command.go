@@ -257,7 +257,7 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 			return err
 		}
 
-		f, err := os.CreateTemp("", "")
+		f, err := os.CreateTemp("", "*.yaml")
 		if err != nil {
 			return fmt.Errorf("could not create temporary copy to edit: %w", err)
 		}
