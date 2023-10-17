@@ -140,7 +140,7 @@ func (c *errCmd) editAction(pc *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
-	tfile, err := os.CreateTemp("", "")
+	tfile, err := os.CreateTemp("", "*.json")
 	if err != nil {
 		return err
 	}

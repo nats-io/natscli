@@ -1615,7 +1615,7 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
 	}
 
-	tfile, err := os.CreateTemp("", "")
+	tfile, err := os.CreateTemp("", "*.yaml")
 	if err != nil {
 		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
 	}
