@@ -1364,7 +1364,7 @@ func (c *streamCmd) renderStreams(stats []streamStat) {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%s (%s)", f(s.LostMsgs), humanize.IBytes(s.LostBytes))
 			}
-			table.AddRow(s.Name, s.Storage, placement, s.Consumers, f(s.Msgs), humanize.IBytes(s.Bytes), lost, s.Deleted, renderCluster(s.Cluster))
+			table.AddRow(s.Name, s.Storage, placement, f(s.Consumers), f(s.Msgs), humanize.IBytes(s.Bytes), lost, f(s.Deleted), renderCluster(s.Cluster))
 		}
 	}
 
