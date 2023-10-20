@@ -739,6 +739,10 @@ func loadContext() error {
 		natscontext.WithColorScheme(opts.ColorScheme),
 	}
 
+	if opts.TlsFirst {
+		ctxOpts = append(ctxOpts, natscontext.WithTLSHandshakeFirst())
+	}
+
 	if opts.Username != "" && opts.Password == "" {
 		ctxOpts = append(ctxOpts, natscontext.WithToken(opts.Username))
 	} else {

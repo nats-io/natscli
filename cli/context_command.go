@@ -173,6 +173,9 @@ key: {{ .Key | t }}
 # Sets an optional x509 trust chain to use
 ca: {{ .CA | t }}
 
+# Performs TLS Handshake before Server sends a greeting
+tls_first: {{ .TLSHandshakeFirst | t }}
+
 # Retrieves connection information from 'nsc'
 #
 # Example: nsc://Acme+Inc/HR/Automation
@@ -457,6 +460,7 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	cols.AddRowIf("Certificate", fmt.Sprintf("%s (%s)", cfg.Certificate(), checkFile(cfg.Certificate())), cfg.Certificate() != "")
 	cols.AddRowIf("Key", fmt.Sprintf("%s (%s)", cfg.Key(), checkFile(cfg.Key())), cfg.Key() != "")
 	cols.AddRowIf("CA", fmt.Sprintf("%s (%s)", cfg.CA(), checkFile(cfg.CA())), cfg.CA() != "")
+	cols.AddRowIf("TLS First", cfg.TLSHandshakeFirst(), cfg.TLSHandshakeFirst())
 	cols.AddRowIfNotEmpty("NSC Lookup", cfg.NscURL())
 	cols.AddRowIfNotEmpty("JS API Prefix", cfg.JSAPIPrefix())
 	cols.AddRowIfNotEmpty("JS Event Prefix", cfg.JSEventPrefix())
@@ -520,7 +524,7 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 		opts.Username = ""
 	}
 
-	config, err := natscontext.New(lname, load,
+	ctxopts := []natscontext.Option{
 		natscontext.WithServerURL(opts.Servers),
 		natscontext.WithUser(opts.Username),
 		natscontext.WithPassword(opts.Password),
@@ -538,7 +542,12 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 		natscontext.WithJSDomain(opts.JsDomain),
 		natscontext.WithInboxPrefix(opts.InboxPrefix),
 		natscontext.WithColorScheme(opts.ColorScheme),
-	)
+	}
+	if opts.TlsFirst {
+		ctxopts = append(ctxopts, natscontext.WithTLSHandshakeFirst())
+	}
+
+	config, err := natscontext.New(lname, load, ctxopts...)
 	if err != nil {
 		return err
 	}
