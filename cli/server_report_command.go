@@ -745,8 +745,12 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		for _, conn := range conns {
 			env["server"] = srv
 			env["Server"] = co.Server
-			env["conns"] = structWithoutOmitEmpty(*conn)
+			env["conn"] = structWithoutOmitEmpty(*conn)
+			env["Conn"] = conn
+
+			// backward compat, the `s` here is a mistake
 			env["Conns"] = conn
+			env["conns"] = env["conn"]
 
 			out, err := expr.Run(program, env)
 			if err != nil {
