@@ -252,7 +252,7 @@ func configureStreamCommand(app commandHost) {
 	strReport.Flag("storage", "Sort by Storage type").Short('t').UnNegatableBoolVar(&c.reportSortStorage)
 	strReport.Flag("raw", "Show un-formatted numbers").Short('r').UnNegatableBoolVar(&c.reportRaw)
 	strReport.Flag("dot", "Produce a GraphViz graph of replication topology").StringVar(&c.outFile)
-	strReport.Flag("leaders", "Show details about RAFT leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
+	strReport.Flag("leaders", "Show details about cluster leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
 
 	findHelp := `Expression format:
 
@@ -705,7 +705,7 @@ func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 		return fmt.Errorf("stream has no current leader")
 	}
 
-	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(info.Cluster.Replicas)+1)
+	log.Printf("Requesting leader step down of %q in a %d peer cluster group", leader, len(info.Cluster.Replicas)+1)
 	err = stream.LeaderStepDown()
 	if err != nil {
 		return err
@@ -1937,7 +1937,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		cols.AddSectionTitle("Cluster Information")
 
 		cols.AddRow("Name", info.Cluster.Name)
-		cols.AddRowIfNotEmpty("Raft Group", info.Cluster.RaftGroup)
+		cols.AddRowIfNotEmpty("Cluster Group", info.Cluster.RaftGroup)
 		cols.AddRow("Leader", info.Cluster.Leader)
 		for _, r := range info.Cluster.Replicas {
 			state := []string{r.Name}
