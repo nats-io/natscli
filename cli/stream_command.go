@@ -377,6 +377,7 @@ Finding streams with certain subjects configured:
 	strRestore.Flag("config", "Load a different configuration when restoring the stream").ExistingFileVar(&c.inputFile)
 	strRestore.Flag("cluster", "Place the stream in a specific cluster").StringVar(&c.placementCluster)
 	strRestore.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
+	strRestore.Flag("replicas", "Override how many replicas of the data to create").Int64Var(&c.replicas)
 
 	strSeal := str.Command("seal", "Seals a stream preventing further updates").Action(c.sealAction)
 	strSeal.Arg("stream", "The name of the Stream to seal").Required().StringVar(&c.stream)
@@ -984,6 +985,10 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 			Cluster: c.placementCluster,
 			Tags:    c.placementTags,
 		}
+	}
+
+	if c.replicas > 0 {
+		cfg.Replicas = int(c.replicas)
 	}
 
 	opts = append(opts, jsm.RestoreConfiguration(*cfg))
