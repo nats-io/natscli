@@ -17,13 +17,13 @@ require (
 	github.com/guptarohit/asciigraph v0.5.6
 	github.com/jedib0t/go-pretty/v6 v6.4.8
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.17.1
+	github.com/klauspost/compress v1.17.2
 	github.com/mattn/go-isatty v0.0.20
 	github.com/nats-io/jsm.go v0.1.1-0.20231020115352-7a5f8d21a5bc
 	github.com/nats-io/jwt/v2 v2.5.2
-	github.com/nats-io/nats-server/v2 v2.10.4-0.20231014170031-a797f0d7945a
+	github.com/nats-io/nats-server/v2 v2.10.4-0.20231025041342-8d9a6cdc1af2
 	github.com/nats-io/nats.go v1.31.0
-	github.com/nats-io/nkeys v0.4.5
+	github.com/nats-io/nkeys v0.4.6
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/common v0.44.0
