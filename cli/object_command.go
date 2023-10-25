@@ -413,6 +413,13 @@ func (c *objCommand) lsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
+	if c.listNames {
+		for _, s := range contents {
+			fmt.Println(s.Name)
+		}
+		return nil
+	}
+
 	table := newTableWriter("Bucket Contents")
 	table.AddHeaders("Name", "Size", "Time")
 
