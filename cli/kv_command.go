@@ -112,7 +112,7 @@ for an indefinite period or a per-bucket configured TTL.
 	update := kv.Command("update", "Updates a key with a new value if the previous value matches the given revision").Action(c.updateAction)
 	update.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	update.Arg("key", "The key to act on").Required().StringVar(&c.key)
-	update.Arg("value", "The value to store, when empty reads STDIN").StringVar(&c.val)
+	update.Arg("value", "The value to store").Required().StringVar(&c.val)
 	update.Arg("revision", "The revision of the previous value in the bucket").Uint64Var(&c.revision)
 
 	del := kv.Command("del", "Deletes a key or the entire bucket").Alias("rm").Action(c.deleteAction)

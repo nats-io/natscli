@@ -772,7 +772,7 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 
 	req := &server.ConnzEventOptions{
 		ConnzOptions: server.ConnzOptions{
-			Subscriptions:       true,
+			Subscriptions:       false,
 			SubscriptionsDetail: false,
 			Username:            true,
 			User:                c.user,
@@ -839,7 +839,7 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		// iterate and add to results
 		req := &server.ConnzEventOptions{
 			ConnzOptions: server.ConnzOptions{
-				Subscriptions:       true,
+				Subscriptions:       false,
 				SubscriptionsDetail: false,
 				Account:             c.account,
 				Username:            true,
