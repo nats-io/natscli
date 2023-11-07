@@ -223,6 +223,28 @@ func (w *Writer) AddMapIntsAsValue(t string, data map[string]int, sortValues boo
 	}
 }
 
+// AddStringsAsValue adds multiple data items on the right under one heading on the left
+func (w *Writer) AddStringsAsValue(t string, data []string) {
+	maxLen := screenWidth()
+
+	vals := make([]string, len(data))
+	copy(vals, data)
+	sort.Strings(vals)
+
+	for i, val := range vals {
+		if utf8StringLen(val) > maxLen && maxLen > 20 {
+			w := maxLen/2 - 10
+			val = fmt.Sprintf("%v ... %v", val[0:w], val[len(val)-w:])
+		}
+
+		if i == 0 {
+			w.AddRowf(t, val)
+		} else {
+			w.AddRowf("", val)
+		}
+	}
+}
+
 // AddMapStringsAsValue adds a row with title t and the data as value, over multiple lines and correctly justified
 func (w *Writer) AddMapStringsAsValue(t string, data map[string]string) {
 	maxLen := screenWidth()
