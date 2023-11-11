@@ -56,7 +56,11 @@ func init() {
 }
 
 func (c *rttCmd) rtt(_ *fisk.ParseContext) error {
-	targets, err := c.targets()
+	servers, err := c.resolveServers()
+	if err != nil {
+		return err
+	}
+	targets, err := c.targets(servers)
 	if err != nil {
 		return err
 	}
@@ -164,16 +168,19 @@ func (c *rttCmd) calcRTT(server string, copts []nats.Option) (string, time.Durat
 	return nc.ConnectedUrl(), totalTime / time.Duration(c.iterations), nil
 }
 
-func (c *rttCmd) targets() (targets []*rttTarget, err error) {
+func (c *rttCmd) resolveServers() (string, error) {
 	servers := ""
 	if opts.Conn != nil {
 		servers = strings.Join(opts.Conn.DiscoveredServers(), ",")
 	} else if opts.Config != nil {
 		servers = opts.Config.ServerURL()
 	} else {
-		return nil, fmt.Errorf("cannot find a server list to test")
+		return "", fmt.Errorf("cannot find a server list to test")
 	}
+	return servers, nil
+}
 
+func (c *rttCmd) targets(servers string) (targets []*rttTarget, err error) {
 	for _, s := range strings.Split(servers, ",") {
 		if !strings.Contains(s, "://") {
 			s = fmt.Sprintf("nats://%s", s)
