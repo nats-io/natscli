@@ -38,7 +38,7 @@ func configureNgsCommand(app commandHost) {
 
 	rtt := ngs.Command("rtt", "Displays RTT for all NGS endpoints. See: https://docs.synadia.com/ngs/resources/connection-endpoints").Action(c.rttHandler)
 	rtt.Arg("iterations", "How many round trips to do when testing each NGS endpoint").Default("3").IntVar(&c.rttCmd.iterations)
-	rtt.Flag("global", fmt.Sprintf("query default (global) endpoint: %s", globalEp)).Default("true").Short('g').UnNegatableBoolVar(&c.global)
+	rtt.Flag("global", fmt.Sprintf("query default (global) endpoint: %s", globalEp)).Short('g').UnNegatableBoolVar(&c.global)
 	rtt.Flag("all-clouds", "query all Cloud Endpoints (AWS, AZ, GCP)").Short('c').UnNegatableBoolVar(&c.cloudAll)
 	rtt.Flag("aws", fmt.Sprintf("query AWS Cloud Endpoint: %s", cloudAWSEp)).UnNegatableBoolVar(&c.cloudAWS)
 	rtt.Flag("az", fmt.Sprintf("query AZ Cloud Endpoint: %s", cloudAZEp)).UnNegatableBoolVar(&c.cloudAZ)
@@ -173,6 +173,10 @@ func (c *ngsCmd) resolveServers() string {
 		if c.regionalUSWest {
 			servers = append(servers, regionalUSWest)
 		}
+	}
+
+	if len(servers) == 0 {
+		servers = append((servers), globalEp)
 	}
 
 	return fmtRes(servers)
