@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/choria-io/fisk"
+	"github.com/nats-io/nats.go"
 )
 
 type ngsCmd struct {
@@ -102,6 +104,9 @@ func (c *ngsCmd) rttHandler(_ *fisk.ParseContext) error {
 
 	err = c.rttCmd.performTest(targets)
 	if err != nil {
+		if errors.Is(err, nats.ErrAuthorization) {
+			fmt.Println("NGS server configuration needs to be specified (using context or flags).")
+		}
 		return err
 	}
 
