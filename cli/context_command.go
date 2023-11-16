@@ -78,6 +78,8 @@ func configureCtxCommand(app commandHost) {
 	pick := context.Command("select", "Select the default context").Alias("switch").Alias("set").Action(c.selectCommand)
 	pick.Arg("name", "The context name to select").StringVar(&c.name)
 
+	context.Command("unselect", "Ensures that no context is the default context").Action(c.unselectCommand)
+
 	info := context.Command("info", "Display information on the current or named context").Alias("show").Action(c.showCommand)
 	info.Arg("name", "The context name to show").StringVar(&c.name)
 	info.Flag("json", "Show the context in JSON format").Short('j').UnNegatableBoolVar(&c.json)
@@ -565,6 +567,17 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 }
 
 func (c *ctxCommand) removeCommand(_ *fisk.ParseContext) error {
+	if natscontext.SelectedContext() == c.name {
+		if !c.force {
+			return fmt.Errorf("cannot remove the selected context, select another one or use the unselect command")
+		}
+
+		err := natscontext.UnSelectContext()
+		if err != nil {
+			return err
+		}
+	}
+
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really delete context %q", c.name), false)
 		if err != nil {
@@ -590,6 +603,22 @@ func (c *ctxCommand) switchPreviousCtx(pc *fisk.ParseContext) error {
 	}
 
 	return c.showCommand(pc)
+}
+
+func (c *ctxCommand) unselectCommand(pc *fisk.ParseContext) error {
+	current := natscontext.SelectedContext()
+	if current == "" {
+		fmt.Println("No context currently selected")
+		return nil
+	}
+
+	err := natscontext.UnSelectContext()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Unselected the %q context\n", current)
+	return nil
 }
 
 func (c *ctxCommand) selectCommand(pc *fisk.ParseContext) error {
