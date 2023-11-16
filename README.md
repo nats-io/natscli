@@ -53,6 +53,14 @@ For Arch users there is an [AUR package](https://aur.archlinux.org/packages/nats
 yay natscli
 ```
 
+#### Installation from the shell
+
+The following script will install the latest version of the nats cli on Linux and OS X:
+
+```nohighlight
+curl -sf https://binaries.nats.dev/nats-io/natscli/nats@latest | sh
+```
+
 #### Nightly docker images
 
 Nightly builds are included in the `synadia/nats-server:nightly` Docker images.
