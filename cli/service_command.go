@@ -31,7 +31,7 @@ import (
 	"github.com/nats-io/nats.go/micro"
 )
 
-type microCmd struct {
+type serviceCmd struct {
 	name     string
 	id       string
 	showJSON bool
@@ -40,39 +40,38 @@ type microCmd struct {
 	nc *nats.Conn
 }
 
-func configureMicroCommand(app commandHost) {
-	c := &microCmd{hdrs: map[string]string{}}
+func configureServiceCommand(app commandHost) {
+	c := &serviceCmd{hdrs: map[string]string{}}
 
-	mc := app.Command("micro", "Micro Services discovery and management").Alias("a")
-	mc.HelpLong("WARNING: This command is experimental")
+	mc := app.Command("service", "Services discovery and management").Alias("micro")
 
-	ls := mc.Command("list", "List known Micro services").Alias("ls").Alias("l").Action(c.listAction)
-	ls.Arg("service", "List instances of a specific service").PlaceHolder("NAME").StringVar(&c.name)
+	ls := mc.Command("list", "List known Services").Alias("ls").Alias("l").Action(c.listAction)
+	ls.Arg("service", "List instances of a specific Service").PlaceHolder("NAME").StringVar(&c.name)
 	ls.Flag("json", "Show JSON output").Short('j').UnNegatableBoolVar(&c.showJSON)
 
-	info := mc.Command("info", "Show Micro service information").Alias("i").Action(c.infoAction)
+	info := mc.Command("info", "Show Service information").Alias("i").Action(c.infoAction)
 	info.Arg("service", "Service to show").Required().StringVar(&c.name)
 	info.Arg("id", "Show info for a specific ID").StringVar(&c.id)
 	info.Flag("json", "Show JSON output").Short('j').UnNegatableBoolVar(&c.showJSON)
 
-	stats := mc.Command("stats", "Report Micro service statistics").Action(c.statsAction)
+	stats := mc.Command("stats", "Report Service statistics").Action(c.statsAction)
 	stats.Arg("service", "Service to show").Required().StringVar(&c.name)
 	stats.Arg("id", "Show info for a specific ID").StringVar(&c.id)
 	stats.Flag("json", "Show JSON output").Short('j').UnNegatableBoolVar(&c.showJSON)
 
-	ping := mc.Command("ping", "Sends a ping to all services").Action(c.pingAction)
+	ping := mc.Command("ping", "Sends a ping to all Services").Action(c.pingAction)
 	ping.Arg("service", "Service to show").StringVar(&c.name)
 
-	echo := mc.Command("serve", "Runs a demo Micro service").Action(c.serveAction)
+	echo := mc.Command("serve", "Runs a demo Service").Action(c.serveAction)
 	echo.Arg("name", "A name for the service to run on").Required().StringVar(&c.name)
 	echo.Flag("header", "Headers to add to responses").Short('H').StringMapVar(&c.hdrs)
 }
 
 func init() {
-	registerCommand("micro", 0, configureMicroCommand)
+	registerCommand("service", 0, configureServiceCommand)
 }
 
-func (c *microCmd) echoHandler(req micro.Request) {
+func (c *serviceCmd) echoHandler(req micro.Request) {
 	log.Printf("Handling request on subject %v", req.Subject())
 
 	hdr := nats.Header{}
@@ -97,7 +96,7 @@ func (c *microCmd) echoHandler(req micro.Request) {
 	req.Respond(req.Data(), micro.WithHeaders(micro.Headers(hdr)))
 }
 
-func (c *microCmd) serveAction(_ *fisk.ParseContext) error {
+func (c *serviceCmd) serveAction(_ *fisk.ParseContext) error {
 	var err error
 	var combinedPayload int
 	var mu sync.Mutex
@@ -140,7 +139,7 @@ func (c *microCmd) serveAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	cols := newColumns("NATS CLI Micro Service %s handler %d waiting for requests on %s", c.name, os.Getpid(), c.nc.ConnectedUrlRedacted())
+	cols := newColumns("NATS CLI Service %s handler %d waiting for requests on %s", c.name, os.Getpid(), c.nc.ConnectedUrlRedacted())
 	cols.AddSectionTitle("Listening Subjects")
 	cols.AddRow(fmt.Sprintf("%s.echo", c.name), "Echo Service")
 	if len(c.hdrs) > 0 {
@@ -157,7 +156,7 @@ func (c *microCmd) serveAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *microCmd) makeSubj(v micro.Verb, s string, i string) string {
+func (c *serviceCmd) makeSubj(v micro.Verb, s string, i string) string {
 	if s == "" {
 		return fmt.Sprintf("%s.%s", micro.APIPrefix, v.String())
 	}
@@ -169,7 +168,7 @@ func (c *microCmd) makeSubj(v micro.Verb, s string, i string) string {
 	return fmt.Sprintf("%s.%s.%s.%s", micro.APIPrefix, v.String(), s, i)
 }
 
-func (c *microCmd) parseMessage(m []byte, expectedType string) (any, error) {
+func (c *serviceCmd) parseMessage(m []byte, expectedType string) (any, error) {
 	var (
 		t      string
 		parsed any
@@ -192,7 +191,7 @@ func (c *microCmd) parseMessage(m []byte, expectedType string) (any, error) {
 	return parsed, nil
 }
 
-func (c *microCmd) getInstanceStats(nc *nats.Conn, name string, id string) (*micro.Stats, error) {
+func (c *serviceCmd) getInstanceStats(nc *nats.Conn, name string, id string) (*micro.Stats, error) {
 	resp, err := doReq(nil, c.makeSubj(micro.StatsVerb, name, id), 1, nc)
 	if err != nil {
 		if errors.Is(err, nats.ErrNoResponders) {
@@ -213,11 +212,11 @@ func (c *microCmd) getInstanceStats(nc *nats.Conn, name string, id string) (*mic
 	return stats.(*micro.Stats), err
 }
 
-func (c *microCmd) getInfo(nc *nats.Conn, name string, id string, wait int) ([]*micro.Info, error) {
+func (c *serviceCmd) getInfo(nc *nats.Conn, name string, id string, wait int) ([]*micro.Info, error) {
 	resp, err := doReq(nil, c.makeSubj(micro.InfoVerb, name, id), wait, nc)
 	if err != nil {
 		if errors.Is(err, nats.ErrNoResponders) {
-			return nil, fmt.Errorf("no micro instances found")
+			return nil, fmt.Errorf("no service instances found")
 		}
 		return nil, err
 	}
@@ -242,7 +241,7 @@ func (c *microCmd) getInfo(nc *nats.Conn, name string, id string, wait int) ([]*
 	return nfos, nil
 }
 
-func (c *microCmd) pingAction(_ *fisk.ParseContext) error {
+func (c *serviceCmd) pingAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return fmt.Errorf("setup failed: %v", err)
@@ -279,7 +278,7 @@ func (c *microCmd) pingAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
+func (c *serviceCmd) statsAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return fmt.Errorf("setup failed: %v", err)
@@ -288,7 +287,7 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 	resp, err := doReq(nil, c.makeSubj(micro.StatsVerb, c.name, c.id), 0, nc)
 	if err != nil {
 		if errors.Is(err, nats.ErrNoResponders) {
-			return fmt.Errorf("no micro instances found")
+			return fmt.Errorf("no service instances found")
 		}
 
 		return err
@@ -352,7 +351,7 @@ func (c *microCmd) statsAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
+func (c *serviceCmd) infoAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return fmt.Errorf("setup failed: %v", err)
@@ -439,7 +438,7 @@ func (c *microCmd) infoAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *microCmd) listAction(_ *fisk.ParseContext) error {
+func (c *serviceCmd) listAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return fmt.Errorf("setup failed: %v", err)
@@ -462,9 +461,9 @@ func (c *microCmd) listAction(_ *fisk.ParseContext) error {
 
 	var table *tbl
 	if c.name == "" {
-		table = newTableWriter("All Micro Services")
+		table = newTableWriter("All Services")
 	} else {
-		table = newTableWriter(fmt.Sprintf("%s Micro Service", c.name))
+		table = newTableWriter(fmt.Sprintf("%s Service Instances", c.name))
 	}
 	table.AddHeaders("Name", "Version", "ID", "Description")
 	var pd, pv, pn string
