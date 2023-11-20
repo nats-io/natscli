@@ -27,6 +27,8 @@ import (
 	"net/textproto"
 	"os"
 	"os/exec"
+	"os/user"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"sort"
@@ -762,6 +764,11 @@ func loadContext() error {
 	return err
 }
 
+func fileExists(f string) bool {
+	_, err := os.Stat(f)
+	return !os.IsNotExist(err)
+}
+
 func fileAccessible(f string) (bool, error) {
 	stat, err := os.Stat(f)
 	if err != nil {
@@ -1443,4 +1450,37 @@ func barGraph(w io.Writer, data map[string]float64, caption string, width int, b
 	}
 
 	return nil
+}
+
+func nscDir() (string, error) {
+	parent, err := xdgConfigHome()
+	if err != nil {
+		return "", err
+	}
+
+	dir := filepath.Join(parent, "nats", "nsc")
+	err = os.MkdirAll(dir, 0700)
+	if err != nil {
+		return "", err
+	}
+
+	return dir, nil
+}
+
+func xdgConfigHome() (string, error) {
+	parent := os.Getenv("XDG_CONFIG_HOME")
+	if parent != "" {
+		return parent, nil
+	}
+
+	u, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+
+	if u.HomeDir == "" {
+		return "", fmt.Errorf("cannot determine home directory")
+	}
+
+	return filepath.Join(u.HomeDir, parent, ".config"), nil
 }

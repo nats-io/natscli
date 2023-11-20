@@ -1,8 +1,11 @@
 package cli
 
 func configureAuthCommand(app commandHost) {
-	auth := app.Command("auth", "Administers Decentralized Authentication")
+	auth := app.Command("auth", "NATS Decentralized Authentication")
 
+	auth.HelpLong("WARNING: This is experimental and subject to massive change, do not use yet")
+
+	configureAuthOperatorCommand(auth)
 	configureAuthNkeyCommand(auth)
 }
 
