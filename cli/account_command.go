@@ -472,31 +472,20 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 		}
 
 		cols.Indent(2)
+		defer cols.Indent(0)
+
 		cols.Println(title)
 
 		if len(p.Allow) > 0 {
 			sort.Strings(p.Allow)
-			for i, perm := range p.Allow {
-				if i == 0 {
-					cols.AddRow("Allow", perm)
-				} else {
-					cols.AddRow("", perm)
-				}
-			}
+			cols.AddStringsAsValue("Allow", p.Allow)
 		}
 
 		if len(p.Deny) > 0 {
 			cols.Println()
 			sort.Strings(p.Deny)
-			for i, perm := range p.Deny {
-				if i == 0 {
-					cols.AddRow("Deny", perm)
-				} else {
-					cols.AddRow("", perm)
-				}
-			}
+			cols.AddStringsAsValue("Deny", p.Deny)
 		}
-		cols.Indent(0)
 	}
 
 	if ui != nil && ui.Permissions != nil {

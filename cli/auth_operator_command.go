@@ -10,7 +10,6 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
-	"github.com/nats-io/natscli/columns"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
 	"github.com/synadia-io/jwt-auth-builder.go/providers/nsc"
 )
@@ -33,9 +32,6 @@ type authOperatorCommand struct {
 func configureAuthOperatorCommand(auth commandHost) {
 	c := &authOperatorCommand{}
 
-	// TODO:
-	//  rm - but nsc doesnt delete operators
-
 	op := auth.Command("operator", "Manage NATS Operators").Hidden().Alias("o").Alias("op")
 
 	// TODO:
@@ -52,7 +48,7 @@ func configureAuthOperatorCommand(auth commandHost) {
 	info.Arg("name", "Operator to view").StringVar(&c.operatorName)
 
 	ls := op.Command("list", "List Operators").Alias("ls").Action(c.lsAction)
-	ls.Flag("names", "Show just the Operator names").BoolVar(&c.listNames)
+	ls.Flag("names", "Show just the Operator names").UnNegatableBoolVar(&c.listNames)
 
 	edit := op.Command("edit", "Edit an Operator").Alias("update").Action(c.editAction)
 	edit.Arg("name", "Operator to edit").StringVar(&c.operatorName)
@@ -68,15 +64,15 @@ func configureAuthOperatorCommand(auth commandHost) {
 	gen.Flag("output", "Write resolver to a file").PlaceHolder("FILE").Short('o').StringVar(&c.outputFile)
 	gen.Flag("force", "Overwrite existing files without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	sk := op.Command("keys", "Manage Operator signing keys").Alias("sk").Alias("s")
+	sk := op.Command("keys", "Manage Operator Signing Keys").Alias("sk").Alias("s")
 
-	skls := sk.Command("list", "List signing keys").Alias("ls").Action(c.skListAction)
+	skls := sk.Command("list", "List Signing Keys").Alias("ls").Action(c.skListAction)
 	skls.Arg("name", "Operator to act on").StringVar(&c.operatorName)
 
-	skadd := sk.Command("add", "Adds a new signing key").Alias("new").Alias("create").Action(c.skAddAction)
+	skadd := sk.Command("add", "Adds a new Signing Key").Alias("new").Alias("create").Action(c.skAddAction)
 	skadd.Arg("name", "Operator to act on").StringVar(&c.operatorName)
 
-	skrm := sk.Command("rm", "Removes a signing key").Alias("delete").Action(c.skRmAction)
+	skrm := sk.Command("rm", "Removes a Signing Key").Alias("delete").Action(c.skRmAction)
 	skrm.Arg("name", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Arg("key", "The public key to remove").StringVar(&c.pubKey)
 	skrm.Flag("force", "Remove without prompting").Short('f').UnNegatableBoolVar(&c.force)
@@ -234,6 +230,7 @@ func (c *authOperatorCommand) fShowOperator(w io.Writer, op ab.Operator) error {
 
 	return err
 }
+
 func (c *authOperatorCommand) editAction(_ *fisk.ParseContext) error {
 	auth, operator, err := c.selectOperator(true)
 	if err != nil {
@@ -291,7 +288,7 @@ func (c *authOperatorCommand) lsAction(_ *fisk.ParseContext) error {
 
 	list := auth.Operators().List()
 	if len(list) == 0 {
-		fmt.Println("No operators found")
+		fmt.Println("No Operators found")
 		return nil
 	}
 
@@ -316,7 +313,7 @@ func (c *authOperatorCommand) addAction(_ *fisk.ParseContext) error {
 	if c.operatorName == "" {
 		err := askOne(&survey.Input{
 			Message: "Operator Name",
-			Help:    "A unique name for the operator being added",
+			Help:    "A unique name for the Operator being added",
 		}, &c.operatorName, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
@@ -328,7 +325,7 @@ func (c *authOperatorCommand) addAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if c.isKnown(auth, c.operatorName) {
+	if isAuthItemKnown(auth.Operators().List(), c.operatorName) {
 		return fmt.Errorf("operator %s already exist", c.operatorName)
 	}
 
@@ -382,42 +379,31 @@ func (c *authOperatorCommand) addAction(_ *fisk.ParseContext) error {
 	return c.fShowOperator(os.Stdout, auth.Operators().Get(c.operatorName))
 }
 
-func (c *authOperatorCommand) isKnown(auth *ab.AuthImpl, name string) bool {
-	for _, op := range auth.Operators().List() {
-		if op.Name() == name {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (c *authOperatorCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operator, error) {
 	auth, err := c.getAuth()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if c.operatorName == "" || !c.isKnown(auth, c.operatorName) {
+	if c.operatorName == "" || !isAuthItemKnown(auth.Operators().List(), c.operatorName) {
 		if !pick {
-			return nil, nil, fmt.Errorf("unknown operator: %v", c.operatorName)
+			return nil, nil, fmt.Errorf("unknown Operator: %v", c.operatorName)
 		}
 
 		operators := auth.Operators().List()
+		if len(operators) == 0 {
+			return nil, nil, fmt.Errorf("no operators found")
+		}
+
 		if len(operators) == 1 {
 			return auth, operators[0], nil
 		}
 
 		if !isTerminal() {
-			return nil, nil, fmt.Errorf("cannot pick an Operator without a terminal and no operator name supplied")
+			return nil, nil, fmt.Errorf("cannot pick an Operator without a terminal and no Operator name supplied")
 		}
 
-		names := []string{}
-		for _, op := range auth.Operators().List() {
-			names = append(names, op.Name())
-		}
-		sort.Strings(names)
-
+		names := sortedAuthNames(auth.Operators().List())
 		err = askOne(&survey.Select{
 			Message:  "Select an Operator",
 			Options:  names,
@@ -430,14 +416,14 @@ func (c *authOperatorCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operat
 
 	op := auth.Operators().Get(c.operatorName)
 	if op == nil {
-		return nil, nil, fmt.Errorf("unknown operator: %v", c.operatorName)
+		return nil, nil, fmt.Errorf("unknown Operator: %v", c.operatorName)
 	}
 
 	return auth, op, nil
 }
 
 func (c *authOperatorCommand) getAuth() (*ab.AuthImpl, error) {
-	storeDir, err := nscDir()
+	storeDir, err := nscStore()
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +432,7 @@ func (c *authOperatorCommand) getAuth() (*ab.AuthImpl, error) {
 }
 
 func (c *authOperatorCommand) showOperator(operator ab.Operator) (string, error) {
-	cols := columns.New("Operator %s (%s)", operator.Name(), operator.Subject())
+	cols := newColumns("Operator %s (%s)", operator.Name(), operator.Subject())
 	cols.AddSectionTitle("Configuration")
 	cols.AddRow("Name", operator.Name())
 	cols.AddRow("Subject", operator.Subject())

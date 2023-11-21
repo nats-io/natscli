@@ -1452,8 +1452,8 @@ func barGraph(w io.Writer, data map[string]float64, caption string, width int, b
 	return nil
 }
 
-func nscDir() (string, error) {
-	parent, err := xdgConfigHome()
+func nscStore() (string, error) {
+	parent, err := xdgShareHome()
 	if err != nil {
 		return "", err
 	}
@@ -1467,8 +1467,8 @@ func nscDir() (string, error) {
 	return dir, nil
 }
 
-func xdgConfigHome() (string, error) {
-	parent := os.Getenv("XDG_CONFIG_HOME")
+func xdgShareHome() (string, error) {
+	parent := os.Getenv("XDG_DATA_HOME")
 	if parent != "" {
 		return parent, nil
 	}
@@ -1482,5 +1482,5 @@ func xdgConfigHome() (string, error) {
 		return "", fmt.Errorf("cannot determine home directory")
 	}
 
-	return filepath.Join(u.HomeDir, parent, ".config"), nil
+	return filepath.Join(u.HomeDir, ".local", "share"), nil
 }
