@@ -152,6 +152,24 @@ func (w *Writer) Render() (string, error) {
 	return buf.String(), nil
 }
 
+// AddRowUnlimitedIf puts "unlimited" as a value if unlimited is true
+func (w *Writer) AddRowUnlimitedIf(t string, v any, unlimited bool) {
+	if unlimited {
+		w.AddRow(t, "unlimited")
+	} else {
+		w.AddRow(t, v)
+	}
+}
+
+// AddRowUnlimited puts "unlimited" as a value when v == unlimited
+func (w *Writer) AddRowUnlimited(t string, v int64, unlimited int64) {
+	if v == unlimited {
+		w.AddRow(t, "unlimited")
+	} else {
+		w.AddRow(t, v)
+	}
+}
+
 // AddRow adds a row, v will be formatted if time.Time, time.Duration, []string, floats, ints and uints
 func (w *Writer) AddRow(t string, v any) {
 	w.rows = append(w.rows, &columnRow{kind: kindRow, values: []any{strings.TrimSuffix(t, w.sep), F(v)}})
