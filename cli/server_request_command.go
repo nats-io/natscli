@@ -138,7 +138,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	profilez := req.Command("profile", "Run a profile").Action(c.profilez)
 	profilez.Arg("profile", "Specify the name of the profile to run (allocs, heap, goroutine, mutex, threadcreate, block)").StringVar(&c.profileName)
 	profilez.Arg("dir", "Set the output directory for profile files").Default(".").ExistingDirVar(&c.profileDir)
-	profilez.Flag("debug", "Set the debug level of the profile").IntVar(&c.profileDebug)
+	profilez.Flag("level", "Set the debug level of the profile").IntVar(&c.profileDebug)
 
 	kick := req.Command("kick", "Disconnects a client immediately").Action(c.kick)
 	kick.Arg("client", "The Client ID to disconnect").Required().PlaceHolder("ID").Uint64Var(&c.cid)
