@@ -120,6 +120,8 @@ type Options struct {
 	ColorScheme string
 	// TlsFirst configures theTLSHandshakeFirst behavior in nats.go
 	TlsFirst bool
+	// SkipTls disables TLS verification for connections
+	SkipTls bool
 }
 
 // SkipContexts used during tests
