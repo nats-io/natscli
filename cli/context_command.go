@@ -174,6 +174,14 @@ ca: {{ .CA | t }}
 # Performs TLS Handshake before Server sends a greeting
 tls_first: {{ .TLSHandshakeFirst | t }}
 
+# Windows Certificate Store support requires windows_cert_store and windows_cert_match to be set
+#
+# windows_cert_store must be one of 'user' or 'machine'
+# windows_cert_match_by may be 'subject' or 'issuer'
+windows_cert_store: {{ .WindowsCertStore | t }}
+windows_cert_match: {{ .WindowsCertStoreMatch | t }}
+windows_cert_match_by: {{ .WindowsCertStoreMatchBy | t }}
+
 # Retrieves connection information from 'nsc'
 #
 # Example: nsc://Acme+Inc/HR/Automation
@@ -455,9 +463,15 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	cols.AddRowIfNotEmpty("Token", cfg.Token())
 	cols.AddRowIf("Credentials", fmt.Sprintf("%s (%s)", cfg.Creds(), checkFile(cfg.Creds())), cfg.Creds() != "")
 	cols.AddRowIf("NKey", fmt.Sprintf("%s (%s)", cfg.NKey(), checkFile(cfg.NKey())), cfg.NKey() != "")
-	cols.AddRowIf("Certificate", fmt.Sprintf("%s (%s)", cfg.Certificate(), checkFile(cfg.Certificate())), cfg.Certificate() != "")
-	cols.AddRowIf("Key", fmt.Sprintf("%s (%s)", cfg.Key(), checkFile(cfg.Key())), cfg.Key() != "")
-	cols.AddRowIf("CA", fmt.Sprintf("%s (%s)", cfg.CA(), checkFile(cfg.CA())), cfg.CA() != "")
+	if cfg.WindowsCertStore() == "" {
+		cols.AddRowIf("Certificate", fmt.Sprintf("%s (%s)", cfg.Certificate(), checkFile(cfg.Certificate())), cfg.Certificate() != "")
+		cols.AddRowIf("Key", fmt.Sprintf("%s (%s)", cfg.Key(), checkFile(cfg.Key())), cfg.Key() != "")
+		cols.AddRowIf("CA", fmt.Sprintf("%s (%s)", cfg.CA(), checkFile(cfg.CA())), cfg.CA() != "")
+	} else {
+		cols.AddRow("Certificate Store", cfg.WindowsCertStore())
+		cols.AddRow("Certificate Store Match", cfg.WindowsCertStoreMatch())
+		cols.AddRow("Certificate Store Match By", cfg.WindowsCertStoreMatchBy())
+	}
 	cols.AddRowIf("TLS First", cfg.TLSHandshakeFirst(), cfg.TLSHandshakeFirst())
 	cols.AddRowIfNotEmpty("NSC Lookup", cfg.NscURL())
 	cols.AddRowIfNotEmpty("JS API Prefix", cfg.JSAPIPrefix())

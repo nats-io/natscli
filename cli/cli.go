@@ -118,8 +118,14 @@ type Options struct {
 	SocksProxy string
 	// ColorScheme influence table colors and more based on ValidStyles()
 	ColorScheme string
-	// TlsFirst configures theTLSHandshakeFirst behavior in nats.go
+	// TlsFirst configures the TLSHandshakeFirst behavior in nats.go
 	TlsFirst bool
+	// WinCertStoreType enables windows cert store - user or machine
+	WinCertStoreType string
+	// WinCertStoreMatchBy configures how to search for certs when using match - subject or issuer
+	WinCertStoreMatchBy string
+	// WinCertStoreMatch is the query to match with
+	WinCertStoreMatch string
 }
 
 // SkipContexts used during tests
