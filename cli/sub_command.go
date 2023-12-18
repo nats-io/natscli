@@ -348,7 +348,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 
 	case c.jetStream:
 		var js nats.JetStreamContext
-		js, err = nc.JetStream()
+		js, err = nc.JetStream(nats.MaxWait(opts.Timeout))
 		if err != nil {
 			return err
 		}
