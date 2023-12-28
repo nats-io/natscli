@@ -21,7 +21,6 @@ func configureSchemaCommand(app commandHost) {
 	configureSchemaInfoCommand(schema)
 	configureSchemaValidateCommand(schema)
 	configureSchemaReqCommand(schema)
-	configureSchemaRegistryCommand(schema)
 }
 
 func init() {
