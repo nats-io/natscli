@@ -357,6 +357,16 @@ func natsOpts() []nats.Option {
 	return append(copts, []nats.Option{
 		nats.Name(connectionName),
 		nats.MaxReconnects(-1),
+		nats.ConnectHandler(func(conn *nats.Conn) {
+			if opts.Trace {
+				log.Printf(">>> Connected to %s", conn.ConnectedUrlRedacted())
+			}
+		}),
+		nats.DiscoveredServersHandler(func(conn *nats.Conn) {
+			if opts.Trace {
+				log.Printf(">>> Discovered new servers, known servers are now %s", strings.Join(conn.Servers(), ", "))
+			}
+		}),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			if err != nil {
 				log.Printf("Disconnected due to: %s, will attempt reconnect", err)
@@ -370,7 +380,7 @@ func natsOpts() []nats.Option {
 			if url == "" {
 				log.Printf("Unexpected NATS error: %s", err)
 			} else {
-				log.Printf("Unexpected NATS error from server %s: %s", url, err)
+				log.Printf("Unexpected NATS error from server %s: %s", nc.ConnectedUrlRedacted(), err)
 			}
 		}),
 	}...)
