@@ -46,6 +46,7 @@ type actCmd struct {
 
 	placementCluster string
 	placementTags    []string
+	reverse          bool
 }
 
 func configureActCommand(app commandHost) {
@@ -60,6 +61,7 @@ func configureActCommand(app commandHost) {
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
+	conns.Flag("reverse", "Reverse sort connections").Short('R').UnNegatableBoolVar(&c.reverse)
 
 	report.Command("statistics", "Report on server statistics").Alias("stats").Alias("statsz").Action(c.reportServerStats)
 
@@ -209,6 +211,7 @@ func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
 		topk:    c.topk,
 		sort:    c.sort,
 		subject: c.subject,
+		reverse: c.reverse,
 	}
 
 	return cmd.reportConnections(pc)
