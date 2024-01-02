@@ -343,10 +343,14 @@ func (c *actCmd) renderTier(cols *columns.Writer, name string, tier api.JetStrea
 	}
 	cols.AddSectionTitle("Stream Resource Usage Limits")
 
+	reservedMem := ""
+	if tier.ReservedMemory > 0 {
+		reservedMem = fmt.Sprintf("(%s reserved)", humanize.IBytes(tier.ReservedMemory))
+	}
 	if tier.Limits.MaxMemory == -1 {
-		cols.AddRowf("Memory", "%s of Unlimited", humanize.IBytes(tier.Memory))
+		cols.AddRowf("Memory", "%s of Unlimited %s", humanize.IBytes(tier.Memory), reservedMem)
 	} else {
-		cols.AddRowf("Memory", "%s of %s", humanize.IBytes(tier.Memory), humanize.IBytes(uint64(tier.Limits.MaxMemory)))
+		cols.AddRowf("Memory", "%s of %s %s", humanize.IBytes(tier.Memory), humanize.IBytes(uint64(tier.Limits.MaxMemory)), reservedMem)
 	}
 
 	if tier.Limits.MemoryMaxStreamBytes <= 0 {
@@ -355,10 +359,15 @@ func (c *actCmd) renderTier(cols *columns.Writer, name string, tier api.JetStrea
 		cols.AddRow("Memory Per Stream", humanize.IBytes(uint64(tier.Limits.MemoryMaxStreamBytes)))
 	}
 
+	reservedStore := ""
+	if tier.ReservedStore > 0 {
+		reservedStore = fmt.Sprintf("(%s reserved)", humanize.IBytes(tier.ReservedStore))
+	}
+
 	if tier.Limits.MaxStore == -1 {
-		cols.AddRowf("Storage", "%s of Unlimited", humanize.IBytes(tier.Store))
+		cols.AddRowf("Storage", "%s of Unlimited %s", humanize.IBytes(tier.Store), reservedStore)
 	} else {
-		cols.AddRowf("Storage", "%s of %s", humanize.IBytes(tier.Store), humanize.IBytes(uint64(tier.Limits.MaxStore)))
+		cols.AddRowf("Storage", "%s of %s %s", humanize.IBytes(tier.Store), humanize.IBytes(uint64(tier.Limits.MaxStore)), reservedStore)
 	}
 
 	if tier.Limits.StoreMaxStreamBytes <= 0 {
