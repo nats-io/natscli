@@ -43,6 +43,8 @@ type SrvReportCmd struct {
 	server           string
 	cluster          string
 	tags             []string
+	stateFilter      string
+	filterReason     string
 }
 
 type srvReportAccountInfo struct {
@@ -77,6 +79,8 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
 	conns.Flag("username", "Limits responses only to those connections for a specific authentication username").StringVar(&c.user)
+	conns.Flag("state", "Limits responses only to those connections that are in a specific state (open, closed, all)").PlaceHolder("STATE").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
+	conns.Flag("closed-reason", "Filter results based on a closed reason").PlaceHolder("REASON").StringVar(&c.filterReason)
 	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	conns.Flag("filter", "Expression based filter for connections").StringVar(&c.filterExpression)
 
@@ -550,7 +554,13 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 	}
 
 	table := newTableWriter(fmt.Sprintf("Top %d Connections out of %s by %s", limit, f(total), c.sort))
-	table.AddHeaders("CID", "Name", "Server", "Cluster", "IP", "Account", "Uptime", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
+	showReason := c.stateFilter == "closed" || c.stateFilter == "all"
+	headers := []any{"CID", "Name", "Server", "Cluster", "IP", "Account", "Uptime", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs"}
+	if showReason {
+		headers = append(headers, "Reason")
+	}
+
+	table.AddHeaders(headers...)
 
 	var oMsgs int64
 	var iMsgs int64
@@ -599,12 +609,20 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		}
 
 		if i < limit {
-			table.AddRow(cid, name, srvName, cluster, fmt.Sprintf("%s:%d", info.IP, info.Port), acc, info.Uptime, f(info.InMsgs), f(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), f(len(info.Subs)))
+			values := []any{cid, name, srvName, cluster, fmt.Sprintf("%s:%d", info.IP, info.Port), acc, info.Uptime, f(info.InMsgs), f(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), f(len(info.Subs))}
+			if showReason {
+				values = append(values, info.Reason)
+			}
+			table.AddRow(values...)
 		}
 	}
 
 	if len(report) > 1 {
-		table.AddFooter("", fmt.Sprintf("Totals for %s connections", humanize.Comma(int64(total))), "", "", "", "", "", f(iMsgs), f(oMsgs), humanize.IBytes(uint64(iBytes)), humanize.IBytes(uint64(oBytes)), f(subs))
+		values := []any{"", fmt.Sprintf("Totals for %s connections", humanize.Comma(int64(total))), "", "", "", "", "", f(iMsgs), f(oMsgs), humanize.IBytes(uint64(iBytes)), humanize.IBytes(uint64(oBytes)), f(subs)}
+		if showReason {
+			values = append(values, "")
+		}
+		table.AddFooter(values...)
 	}
 
 	fmt.Print(table.Render())
@@ -670,7 +688,13 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 	var err error
 	env := map[string]any{}
 
-	if c.filterExpression != "" {
+	switch {
+	case c.filterReason != "" && c.filterExpression != "":
+		return nil, fmt.Errorf("cannot filter for closed reason and use a filter expression at the same time")
+	case c.filterReason != "":
+		c.filterExpression = fmt.Sprintf("lower(Conn.Reason) matches '%s'", c.filterReason)
+		fallthrough
+	case c.filterExpression != "":
 		program, err = expr.Compile(c.filterExpression, expr.Env(map[string]any{}), expr.AsBool(), expr.AllowUndefinedVariables())
 		fisk.FatalIfError(err, "Invalid expression: %v", err)
 	}
