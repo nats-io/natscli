@@ -470,12 +470,12 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	if cfg.WindowsCertStore() == "" {
 		cols.AddRowIf("Certificate", fmt.Sprintf("%s (%s)", cfg.Certificate(), checkFile(cfg.Certificate())), cfg.Certificate() != "")
 		cols.AddRowIf("Key", fmt.Sprintf("%s (%s)", cfg.Key(), checkFile(cfg.Key())), cfg.Key() != "")
-		cols.AddRowIf("CA", fmt.Sprintf("%s (%s)", cfg.CA(), checkFile(cfg.CA())), cfg.CA() != "")
 	} else {
 		cols.AddRow("Certificate Store", cfg.WindowsCertStore())
 		cols.AddRow("Certificate Store Match", cfg.WindowsCertStoreMatch())
 		cols.AddRow("Certificate Store Match By", cfg.WindowsCertStoreMatchBy())
 	}
+	cols.AddRowIf("CA", fmt.Sprintf("%s (%s)", cfg.CA(), checkFile(cfg.CA())), cfg.CA() != "")
 	cols.AddRowIf("TLS First", cfg.TLSHandshakeFirst(), cfg.TLSHandshakeFirst())
 	cols.AddRowIfNotEmpty("NSC Lookup", cfg.NscURL())
 	cols.AddRowIfNotEmpty("JS API Prefix", cfg.JSAPIPrefix())

@@ -544,10 +544,13 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 		}
 
 	case context.DeadlineExceeded:
+		cols.Println()
 		cols.Println("   No response from JetStream server")
-	case nats.ErrNoResponders:
+	case nats.ErrNoResponders, nats.ErrJetStreamNotEnabled:
+		cols.Println()
 		cols.Println("   JetStream is not supported in this account")
 	default:
+		cols.Println()
 		cols.Println("   Could not obtain account information: ", err.Error())
 	}
 
