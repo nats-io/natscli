@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
-	"github.com/synadia-io/jwt-auth-builder.go/providers/nsc"
 )
 
 type authAccountCommand struct {
@@ -135,8 +133,31 @@ func configureAuthAccountCommand(auth commandHost) {
 	skrm.Arg("key", "The key to remove").StringVar(&c.skRole)
 	skrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
-
 }
+
+func (c *authAccountCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator, ab.Account, error) {
+	auth, oper, acct, err := selectOperatorAccount(c.operatorName, c.accountName, pick)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	c.operatorName = oper.Name()
+	c.accountName = acct.Name()
+
+	return auth, oper, acct, nil
+}
+
+func (c *authAccountCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operator, error) {
+	auth, oper, err := selectOperator(c.operatorName, pick)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	c.operatorName = oper.Name()
+
+	return auth, oper, err
+}
+
 func (c *authAccountCommand) skRmAction(_ *fisk.ParseContext) error {
 	_, _, acct, err := c.selectAccount(true)
 	if err != nil {
@@ -310,46 +331,11 @@ func (c *authAccountCommand) showSk(limits ab.ScopeLimits) (string, error) {
 
 	cols.AddRow("Key", limits.Key())
 	cols.AddRow("Role", limits.Role())
-	cols.AddRow("Locale", limits.Locale())
-	cols.AddRow("Bearer Token", limits.BearerToken())
 
-	cols.AddSectionTitle("Limits")
-	cols.AddRowUnlimitedIf("Payload", limits.MaxPayload(), limits.MaxPayload() == -1)
-	cols.AddRowUnlimited("Subscriptions", limits.MaxSubscriptions(), -1)
-	if limits.MaxData() > 0 {
-		cols.AddRow("Data", limits.MaxData())
+	err := renderUserLimits(limits, cols)
+	if err != nil {
+		return "", err
 	}
-	cols.AddRow("Connection Types", limits.ConnectionTypes().Types())
-	cols.AddStringsAsValue("Connection Sources", limits.ConnectionSources().Sources())
-
-	cols.AddSectionTitle("Permissions")
-	cols.Indent(2)
-	cols.AddSectionTitle("Publish")
-	if len(limits.PubPermissions().Allow()) > 0 || len(limits.PubPermissions().Deny()) > 0 {
-		if len(limits.PubPermissions().Allow()) > 0 {
-			cols.AddStringsAsValue("Allow", limits.PubPermissions().Allow())
-		}
-		if len(limits.PubPermissions().Deny()) > 0 {
-			cols.AddStringsAsValue("Deny", limits.PubPermissions().Deny())
-		}
-	} else {
-		cols.Println("No permissions defined")
-	}
-
-	cols.AddSectionTitle("Subscribe")
-	if len(limits.SubPermissions().Allow()) > 0 || len(limits.SubPermissions().Deny()) > 0 {
-		if len(limits.SubPermissions().Allow()) > 0 {
-			cols.AddStringsAsValue("Allow", limits.PubPermissions().Allow())
-		}
-
-		if len(limits.SubPermissions().Deny()) > 0 {
-			cols.AddStringsAsValue("Deny", limits.PubPermissions().Deny())
-		}
-	} else {
-		cols.Println("No permissions defined")
-	}
-
-	cols.Indent(0)
 
 	return cols.Render()
 }
@@ -495,7 +481,7 @@ func (c *authAccountCommand) lsAction(_ *fisk.ParseContext) error {
 
 	table := newTableWriter("Accounts")
 	table.AddHeaders("Name", "Subject", "Users", "JetStream", "System")
-	for _, acct := range operator.Accounts().List() {
+	for _, acct := range list {
 		system := ""
 		js := ""
 		if acct.Subject() == operator.SystemAccount().Subject() {
@@ -774,90 +760,4 @@ func (c *authAccountCommand) validTiers(acct ab.Account) []int8 {
 	}
 
 	return tiers
-}
-
-func (c *authAccountCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator, ab.Account, error) {
-	auth, operator, err := c.selectOperator(pick)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	if c.accountName == "" || !isAuthItemKnown(operator.Accounts().List(), c.accountName) {
-		if !pick {
-			return nil, nil, nil, fmt.Errorf("unknown Account: %v", c.accountName)
-		}
-
-		if !isTerminal() {
-			return nil, nil, nil, fmt.Errorf("cannot pick an Account without a terminal and no Account name supplied")
-		}
-
-		names := sortedAuthNames(operator.Accounts().List())
-		err = askOne(&survey.Select{
-			Message:  "Select an Account",
-			Options:  names,
-			PageSize: selectPageSize(len(names)),
-		}, &c.accountName)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-	}
-
-	acct := operator.Accounts().Get(c.accountName)
-	if operator == nil {
-		return nil, nil, nil, fmt.Errorf("unknown Account: %v", c.accountName)
-	}
-
-	return auth, operator, acct, nil
-
-}
-func (c *authAccountCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operator, error) {
-	auth, err := c.getAuth()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if c.operatorName == "" || !isAuthItemKnown(auth.Operators().List(), c.operatorName) {
-		if !pick {
-			return nil, nil, fmt.Errorf("unknown operator: %v", c.operatorName)
-		}
-
-		operators := auth.Operators().List()
-		if len(operators) == 1 {
-			return auth, operators[0], nil
-		}
-
-		if !isTerminal() {
-			return nil, nil, fmt.Errorf("cannot pick an Operator without a terminal and no operator name supplied")
-		}
-
-		names := sortedAuthNames(auth.Operators().List())
-		if len(names) == 0 {
-			return nil, nil, fmt.Errorf("no operators found")
-		}
-
-		err = askOne(&survey.Select{
-			Message:  "Select an Operator",
-			Options:  names,
-			PageSize: selectPageSize(len(names)),
-		}, &c.operatorName)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	op := auth.Operators().Get(c.operatorName)
-	if op == nil {
-		return nil, nil, fmt.Errorf("unknown operator: %v", c.operatorName)
-	}
-
-	return auth, op, nil
-}
-
-func (c *authAccountCommand) getAuth() (*ab.AuthImpl, error) {
-	storeDir, err := nscStore()
-	if err != nil {
-		return nil, err
-	}
-
-	return ab.NewAuth(nsc.NewNscProvider(filepath.Join(storeDir, "stores"), filepath.Join(storeDir, "keys")))
 }

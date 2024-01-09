@@ -1,7 +1,15 @@
 package cli
 
 import (
+	"fmt"
+	"path/filepath"
 	"sort"
+	"strings"
+
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/nats-io/natscli/columns"
+	ab "github.com/synadia-io/jwt-auth-builder.go"
+	"github.com/synadia-io/jwt-auth-builder.go/providers/nsc"
 )
 
 func configureAuthCommand(app commandHost) {
@@ -11,6 +19,7 @@ func configureAuthCommand(app commandHost) {
 
 	configureAuthOperatorCommand(auth)
 	configureAuthAccountCommand(auth)
+	configureAuthUserCommand(auth)
 	configureAuthNkeyCommand(auth)
 }
 
@@ -23,7 +32,7 @@ type listWithNames interface {
 }
 
 func sortedAuthNames[list listWithNames](items []list) []string {
-	res := []string{}
+	var res []string
 	for _, i := range items {
 		res = append(res, i.Name())
 	}
@@ -40,4 +49,143 @@ func isAuthItemKnown[list listWithNames](items []list, name string) bool {
 	}
 
 	return false
+}
+
+func selectOperatorAccount(operatorName string, accountName string, pick bool) (*ab.AuthImpl, ab.Operator, ab.Account, error) {
+	auth, operator, err := selectOperator(operatorName, pick)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if accountName == "" || !isAuthItemKnown(operator.Accounts().List(), accountName) {
+		if !pick {
+			return nil, nil, nil, fmt.Errorf("unknown Account: %v", accountName)
+		}
+
+		if !isTerminal() {
+			return nil, nil, nil, fmt.Errorf("cannot pick an Account without a terminal and no Account name supplied")
+		}
+
+		names := sortedAuthNames(operator.Accounts().List())
+		err = askOne(&survey.Select{
+			Message:  "Select an Account",
+			Options:  names,
+			PageSize: selectPageSize(len(names)),
+		}, &accountName)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	acct := operator.Accounts().Get(accountName)
+	if operator == nil {
+		return nil, nil, nil, fmt.Errorf("unknown Account: %v", accountName)
+	}
+
+	return auth, operator, acct, nil
+}
+
+func selectOperator(operatorName string, pick bool) (*ab.AuthImpl, ab.Operator, error) {
+	auth, err := getAuthBuilder()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if operatorName == "" || !isAuthItemKnown(auth.Operators().List(), operatorName) {
+		if !pick {
+			return nil, nil, fmt.Errorf("unknown operator: %v", operatorName)
+		}
+
+		operators := auth.Operators().List()
+		if len(operators) == 1 {
+			return auth, operators[0], nil
+		}
+
+		if !isTerminal() {
+			return nil, nil, fmt.Errorf("cannot pick an Operator without a terminal and no operator name supplied")
+		}
+
+		names := sortedAuthNames(auth.Operators().List())
+		if len(names) == 0 {
+			return nil, nil, fmt.Errorf("no operators found")
+		}
+
+		err = askOne(&survey.Select{
+			Message:  "Select an Operator",
+			Options:  names,
+			PageSize: selectPageSize(len(names)),
+		}, &operatorName)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	op := auth.Operators().Get(operatorName)
+	if op == nil {
+		return nil, nil, fmt.Errorf("unknown operator: %v", operatorName)
+	}
+
+	return auth, op, nil
+}
+
+func getAuthBuilder() (*ab.AuthImpl, error) {
+	storeDir, err := nscStore()
+	if err != nil {
+		return nil, err
+	}
+
+	return ab.NewAuth(nsc.NewNscProvider(filepath.Join(storeDir, "stores"), filepath.Join(storeDir, "keys")))
+}
+
+func renderUserLimits(limits ab.UserLimits, cols *columns.Writer) error {
+	cols.AddRowIfNotEmpty("Locale", limits.Locale())
+	cols.AddRow("Bearer Token", limits.BearerToken())
+
+	cols.AddSectionTitle("Limits")
+
+	cols.AddRowUnlimited("Max Payload", limits.MaxPayload(), -1)
+	cols.AddRowUnlimited("Max Data", limits.MaxData(), -1)
+	cols.AddRowUnlimited("Max Subscriptions", limits.MaxSubscriptions(), -1)
+	cols.AddRowIfNotEmpty("Connection Types", strings.Join(limits.ConnectionTypes().Types(), ", "))
+	cols.AddRowIfNotEmpty("Connection Sources", strings.Join(limits.ConnectionSources().Sources(), ", "))
+
+	ctimes := limits.ConnectionTimes().List()
+	if len(ctimes) > 0 {
+		ranges := []string{}
+		for _, tr := range ctimes {
+			ranges = append(ranges, fmt.Sprintf("%s to %s", tr.Start, tr.End))
+		}
+		cols.AddStringsAsValue("Connection Times", ranges)
+	}
+
+	cols.AddSectionTitle("Permissions")
+	cols.Indent(2)
+	cols.AddSectionTitle("Publish")
+	if len(limits.PubPermissions().Allow()) > 0 || len(limits.PubPermissions().Deny()) > 0 {
+		if len(limits.PubPermissions().Allow()) > 0 {
+			cols.AddStringsAsValue("Allow", limits.PubPermissions().Allow())
+		}
+		if len(limits.PubPermissions().Deny()) > 0 {
+			cols.AddStringsAsValue("Deny", limits.PubPermissions().Deny())
+		}
+	} else {
+		cols.Println("No permissions defined")
+	}
+
+	cols.AddSectionTitle("Subscribe")
+	if len(limits.SubPermissions().Allow()) > 0 || len(limits.SubPermissions().Deny()) > 0 {
+		if len(limits.SubPermissions().Allow()) > 0 {
+			cols.AddStringsAsValue("Allow", limits.SubPermissions().Allow())
+		}
+
+		if len(limits.SubPermissions().Deny()) > 0 {
+			cols.AddStringsAsValue("Deny", limits.SubPermissions().Deny())
+		}
+	} else {
+		cols.Println("No permissions defined")
+	}
+
+	cols.Indent(0)
+
+	return nil
 }

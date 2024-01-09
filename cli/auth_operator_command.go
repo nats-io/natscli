@@ -5,13 +5,11 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
-	"github.com/synadia-io/jwt-auth-builder.go/providers/nsc"
 )
 
 type authOperatorCommand struct {
@@ -76,6 +74,17 @@ func configureAuthOperatorCommand(auth commandHost) {
 	skrm.Arg("name", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Arg("key", "The public key to remove").StringVar(&c.pubKey)
 	skrm.Flag("force", "Remove without prompting").Short('f').UnNegatableBoolVar(&c.force)
+}
+
+func (c *authOperatorCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operator, error) {
+	auth, oper, err := selectOperator(c.operatorName, pick)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	c.operatorName = oper.Name()
+
+	return auth, oper, err
 }
 
 func (c *authOperatorCommand) skRmAction(_ *fisk.ParseContext) error {
@@ -186,7 +195,7 @@ func (c *authOperatorCommand) generateAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authOperatorCommand) importAction(_ *fisk.ParseContext) error {
-	auth, err := c.getAuth()
+	auth, err := getAuthBuilder()
 	if err != nil {
 		return err
 	}
@@ -281,7 +290,7 @@ func (c *authOperatorCommand) infoAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authOperatorCommand) lsAction(_ *fisk.ParseContext) error {
-	auth, err := c.getAuth()
+	auth, err := getAuthBuilder()
 	if err != nil {
 		return err
 	}
@@ -320,7 +329,7 @@ func (c *authOperatorCommand) addAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	auth, err := c.getAuth()
+	auth, err := getAuthBuilder()
 	if err != nil {
 		return err
 	}
@@ -377,58 +386,6 @@ func (c *authOperatorCommand) addAction(_ *fisk.ParseContext) error {
 	}
 
 	return c.fShowOperator(os.Stdout, auth.Operators().Get(c.operatorName))
-}
-
-func (c *authOperatorCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operator, error) {
-	auth, err := c.getAuth()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if c.operatorName == "" || !isAuthItemKnown(auth.Operators().List(), c.operatorName) {
-		if !pick {
-			return nil, nil, fmt.Errorf("unknown Operator: %v", c.operatorName)
-		}
-
-		operators := auth.Operators().List()
-		if len(operators) == 0 {
-			return nil, nil, fmt.Errorf("no operators found")
-		}
-
-		if len(operators) == 1 {
-			return auth, operators[0], nil
-		}
-
-		if !isTerminal() {
-			return nil, nil, fmt.Errorf("cannot pick an Operator without a terminal and no Operator name supplied")
-		}
-
-		names := sortedAuthNames(auth.Operators().List())
-		err = askOne(&survey.Select{
-			Message:  "Select an Operator",
-			Options:  names,
-			PageSize: selectPageSize(len(names)),
-		}, &c.operatorName)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	op := auth.Operators().Get(c.operatorName)
-	if op == nil {
-		return nil, nil, fmt.Errorf("unknown Operator: %v", c.operatorName)
-	}
-
-	return auth, op, nil
-}
-
-func (c *authOperatorCommand) getAuth() (*ab.AuthImpl, error) {
-	storeDir, err := nscStore()
-	if err != nil {
-		return nil, err
-	}
-
-	return ab.NewAuth(nsc.NewNscProvider(filepath.Join(storeDir, "stores"), filepath.Join(storeDir, "keys")))
 }
 
 func (c *authOperatorCommand) showOperator(operator ab.Operator) (string, error) {
