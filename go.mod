@@ -8,14 +8,14 @@ require (
 	github.com/choria-io/fisk v0.6.2
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.6.0
-	github.com/expr-lang/expr v1.15.7
+	github.com/expr-lang/expr v1.15.8
 	github.com/fatih/color v1.16.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.5.6
-	github.com/jedib0t/go-pretty/v6 v6.4.9
+	github.com/jedib0t/go-pretty/v6 v6.5.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.17.4
 	github.com/mattn/go-isatty v0.0.20
@@ -28,10 +28,10 @@ require (
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common v0.45.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20231201125238-9011ec8a3346
+	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240109133600-fa7f0b1d8660
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
-	golang.org/x/crypto v0.17.0
-	golang.org/x/term v0.15.0
+	golang.org/x/crypto v0.18.0
+	golang.org/x/term v0.16.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -52,7 +52,7 @@ require (
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	golang.org/x/net v0.19.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/sys v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/protobuf v1.32.0 // indirect

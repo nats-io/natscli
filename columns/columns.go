@@ -98,6 +98,7 @@ func (w *Writer) Frender(o io.Writer) error {
 	}
 
 	prev := -1
+	prevEmpty := false
 
 	for i, row := range w.rows {
 		switch row.kind {
@@ -105,12 +106,13 @@ func (w *Writer) Frender(o io.Writer) error {
 			w.indent = row.values[0].(string)
 
 		case kindTitle:
-			if i != 0 && prev != kindTitle && prev != kindLine {
+			if (i != 0 && prev != kindTitle && prev != kindLine) || prev == kindLine && !prevEmpty {
 				fmt.Fprintln(o)
 			}
 			fmt.Fprintln(o, w.indent+w.maybeAddColon(o, row.values[0].(string), false))
 			fmt.Fprintln(o)
 			prev = row.kind
+			prevEmpty = false
 
 		case kindRow:
 			left := row.values[0].(string)
@@ -126,6 +128,7 @@ func (w *Writer) Frender(o io.Writer) error {
 				fmt.Fprintf(o, "%s%s%s%s %v\n", w.indent, strings.Repeat(" ", padding), left, w.sep, row.values[1])
 			}
 			prev = row.kind
+			prevEmpty = false
 
 		case kindLine:
 			// avoid 2 blank lines
@@ -135,6 +138,7 @@ func (w *Writer) Frender(o io.Writer) error {
 
 			fmt.Fprintln(o, append([]any{w.indent}, row.values...)...)
 			prev = row.kind
+			prevEmpty = len(row.values) == 0
 		}
 	}
 
