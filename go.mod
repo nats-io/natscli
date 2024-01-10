@@ -28,7 +28,7 @@ require (
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common v0.45.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240109133600-fa7f0b1d8660
+	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240110133806-b7e1342a16b5
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.18.0
 	golang.org/x/term v0.16.0
@@ -51,7 +51,7 @@ require (
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	golang.org/x/net v0.19.0 // indirect
+	golang.org/x/net v0.20.0 // indirect
 	golang.org/x/sys v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect

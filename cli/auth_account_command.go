@@ -255,52 +255,25 @@ func (c *authAccountCommand) skAddAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	limits, err := acct.ScopedSigningKeys().AddScope(c.skRole)
+	scope, err := acct.ScopedSigningKeys().AddScope(c.skRole)
 	if err != nil {
 		return err
 	}
 
-	err = limits.SetMaxSubscriptions(c.maxSubs)
-	if err != nil {
-		return err
-	}
-
-	err = limits.SetMaxPayload(c.maxPayload)
-	if err != nil {
-		return err
-	}
-
-	err = limits.SetBearerToken(c.bearerAllowed)
-	if err != nil {
-		return err
-	}
-
-	err = limits.SetLocale(c.locale)
-	if err != nil {
-		return err
-	}
-
+	limits := scope.(userLimitsManager).UserPermissionLimits()
+	limits.Subs = c.maxSubs
+	limits.Payload = c.maxPayload
+	limits.BearerToken = c.bearerAllowed
+	limits.Locale = c.locale
+	limits.Pub.Allow = c.pubAllow
+	limits.Pub.Deny = c.pubDeny
+	limits.Sub.Allow = c.subAllow
+	limits.Sub.Deny = c.subDeny
 	if len(c.connTypes) > 0 {
-		err = limits.ConnectionTypes().Set(c.connectionTypes()...)
-		if err != nil {
-			return err
-		}
+		limits.AllowedConnectionTypes = c.connectionTypes()
 	}
 
-	err = limits.PubPermissions().SetAllow(c.pubAllow...)
-	if err != nil {
-		return err
-	}
-	err = limits.PubPermissions().SetDeny(c.pubDeny...)
-	if err != nil {
-		return err
-	}
-
-	err = limits.SubPermissions().SetAllow(c.subAllow...)
-	if err != nil {
-		return err
-	}
-	err = limits.SubPermissions().SetDeny(c.subDeny...)
+	err = scope.(userLimitsManager).SetUserPermissionLimits(limits)
 	if err != nil {
 		return err
 	}
@@ -310,7 +283,7 @@ func (c *authAccountCommand) skAddAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	return c.fShowSk(os.Stdout, limits)
+	return c.fShowSk(os.Stdout, scope)
 }
 
 func (c *authAccountCommand) fShowSk(w io.Writer, limits ab.ScopeLimits) error {
@@ -508,7 +481,7 @@ func (c *authAccountCommand) infoAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authAccountCommand) updateAccount(acct ab.Account, js bool) error {
-	limits := acct.Limits().OperatorLimits()
+	limits := acct.Limits().(operatorLimitsManager).OperatorLimits()
 	limits.Conn = c.maxConns
 	limits.Subs = c.maxSubs
 	limits.Payload = c.maxPayload
@@ -532,7 +505,7 @@ func (c *authAccountCommand) updateAccount(acct ab.Account, js bool) error {
 		limits.JetStreamLimits.MaxAckPending = c.maxAckPending
 	}
 
-	err := acct.Limits().SetOperatorLimits(limits)
+	err := acct.Limits().(operatorLimitsManager).SetOperatorLimits(limits)
 	if err != nil {
 		return err
 	}
