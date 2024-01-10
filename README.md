@@ -72,7 +72,7 @@ To enable this we'll create a `demo` configuration and set it as default.
 
 First we add a configuration to capture the default `localhost` configuration.
 ```
-nats context add local --description "Localhost"
+nats context add localhost --description "Localhost"
 ```
 Output
 ```
