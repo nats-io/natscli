@@ -355,54 +355,28 @@ func (c *authUserCommand) updateUser(user ab.User) error {
 		return nil
 	}
 
-	err := user.SetLocale(c.userLocale)
-	if err != nil {
-		return err
-	}
-	err = user.SetBearerToken(c.bearerAllowed)
-	if err != nil {
-		return err
-	}
-	err = user.SetMaxPayload(c.maxPayload)
-	if err != nil {
-		return err
-	}
-	err = user.SetMaxData(c.maxData)
-	if err != nil {
-		return err
-	}
-	err = user.SetMaxSubscriptions(c.maxSubs)
-	if err != nil {
-		return err
-	}
+	limits := user.(*ab.UserData).UserPermissionLimits()
+	limits.Locale = c.userLocale
+	limits.BearerToken = c.bearerAllowed
+	limits.Payload = c.maxPayload
+	limits.Data = c.maxData
+	limits.Subs = c.maxSubs
 
 	// TODO: should allow adding/removing not just setting
 	if len(c.pubAllow) > 0 {
-		err = user.PubPermissions().SetAllow(c.pubAllow...)
-		if err != nil {
-			return err
-		}
+		limits.Pub.Allow = c.pubAllow
 	}
 	if len(c.pubDeny) > 0 {
-		err = user.PubPermissions().SetDeny(c.pubDeny...)
-		if err != nil {
-			return err
-		}
+		limits.Pub.Deny = c.pubDeny
 	}
 	if len(c.subAllow) > 0 {
-		err = user.SubPermissions().SetAllow(c.subAllow...)
-		if err != nil {
-			return err
-		}
+		limits.Sub.Allow = c.subAllow
 	}
 	if len(c.subDeny) > 0 {
-		err = user.SubPermissions().SetDeny(c.subDeny...)
-		if err != nil {
-			return err
-		}
+		limits.Sub.Deny = c.subDeny
 	}
 
-	return nil
+	return user.(*ab.UserData).SetUserPermissionLimits(limits)
 }
 
 func (c *authUserCommand) fShowUser(w io.Writer, user ab.User, acct ab.Account) error {

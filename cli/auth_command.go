@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/natscli/columns"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
 	"github.com/synadia-io/jwt-auth-builder.go/providers/nsc"
@@ -29,6 +30,16 @@ func init() {
 
 type listWithNames interface {
 	Name() string
+}
+
+type operatorLimitsManager interface {
+	OperatorLimits() jwt.OperatorLimits
+	SetOperatorLimits(limits jwt.OperatorLimits) error
+}
+
+type userLimitsManager interface {
+	UserPermissionLimits() jwt.UserPermissionLimits
+	SetUserPermissionLimits(limits jwt.UserPermissionLimits) error
 }
 
 func sortedAuthNames[list listWithNames](items []list) []string {
