@@ -143,23 +143,23 @@ func (c *SrvWatchAccountCmd) redraw() {
 
 		switch c.sort {
 		case "subs":
-			return ai.NumSubs > aj.NumSubs
+			return sortMultiSort(ai.NumSubs, aj.NumSubs, ai.Conns, aj.Conns)
 		case "slow":
-			return ai.SlowConsumers > aj.SlowConsumers
+			return sortMultiSort(ai.SlowConsumers, aj.SlowConsumers, ai.Conns, aj.Conns)
 		case "sentb":
-			return ai.Sent.Bytes > aj.Sent.Bytes
+			return sortMultiSort(ai.Sent.Bytes, aj.Sent.Bytes, ai.Conns, aj.Conns)
 		case "sentm":
-			return ai.Sent.Msgs > aj.Sent.Msgs
+			return sortMultiSort(ai.Sent.Msgs, aj.Sent.Msgs, ai.Conns, aj.Conns)
 		case "recvb":
-			return ai.Received.Bytes > aj.Received.Bytes
+			return sortMultiSort(ai.Received.Bytes, aj.Received.Bytes, ai.Conns, aj.Conns)
 		case "recvm":
-			return ai.Received.Msgs > aj.Received.Msgs
+			return sortMultiSort(ai.Received.Msgs, aj.Received.Msgs, ai.Conns, aj.Conns)
 		default:
-			return ai.Conns > aj.Conns
+			return sortMultiSort(ai.Conns, aj.Conns, ai.Conns, aj.Conns)
 		}
 	})
 
-	table := newTableWriter(fmt.Sprintf("Top %d Account activity by %s", c.topCount, c.sortNames[c.sort]))
+	table := newTableWriter(fmt.Sprintf("Top %d Account activity by %s at %s", c.topCount, c.sortNames[c.sort], time.Now().Format(time.DateTime)))
 	table.AddHeaders("Account", "Servers", "Connections", "Leafnodes", "Subscriptions", "Slow", "Sent", "Received")
 
 	var matched []*server.AccountStat

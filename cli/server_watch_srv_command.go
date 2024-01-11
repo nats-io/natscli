@@ -136,34 +136,36 @@ func (c *SrvWatchServerCmd) redraw() {
 	sort.Slice(servers, func(i, j int) bool {
 		si := servers[i].Stats
 		sj := servers[j].Stats
+		iName := servers[i].Server.Name
+		jName := servers[j].Server.Name
 
 		switch c.sort {
 		case "subs":
-			return si.NumSubs > sj.NumSubs
+			return sortMultiSort(si.NumSubs, sj.NumSubs, iName, jName)
 		case "sentb":
-			return si.Sent.Bytes > sj.Sent.Bytes
+			return sortMultiSort(si.Sent.Bytes, sj.Sent.Bytes, iName, jName)
 		case "sentm":
-			return si.Sent.Msgs > sj.Sent.Msgs
+			return sortMultiSort(si.Sent.Msgs, sj.Sent.Msgs, iName, jName)
 		case "recvb":
-			return si.Received.Bytes > sj.Received.Bytes
+			return sortMultiSort(si.Received.Bytes, sj.Received.Bytes, iName, jName)
 		case "recvm":
-			return si.Received.Msgs > sj.Received.Msgs
+			return sortMultiSort(si.Received.Msgs, sj.Received.Msgs, iName, jName)
 		case "slow":
-			return si.SlowConsumers > sj.SlowConsumers
+			return sortMultiSort(si.SlowConsumers, sj.SlowConsumers, iName, jName)
 		case "route":
-			return len(si.Routes) > len(sj.Routes)
+			return sortMultiSort(len(si.Routes), len(sj.Routes), iName, jName)
 		case "gway":
-			return len(si.Gateways) > len(sj.Gateways)
+			return sortMultiSort(len(si.Gateways), len(sj.Gateways), iName, jName)
 		case "mem":
-			return si.Mem > sj.Mem
+			return sortMultiSort(si.Mem, sj.Mem, iName, jName)
 		case "cpu":
-			return si.CPU > sj.CPU
+			return sortMultiSort(si.CPU, sj.CPU, iName, jName)
 		default:
-			return si.Connections > sj.Connections
+			return sortMultiSort(si.Connections, sj.Connections, iName, jName)
 		}
 	})
 
-	table := newTableWriter(fmt.Sprintf("Top %d Server activity by %s", c.topCount, c.sortNames[c.sort]))
+	table := newTableWriter(fmt.Sprintf("Top %d Server activity by %s at %s", c.topCount, c.sortNames[c.sort], time.Now().Format(time.DateTime)))
 	table.AddHeaders("Server", "Connections", "Subscription", "Slow", "Memory", "CPU", "Routes", "Gateways", "Sent", "Received")
 
 	var matched []*server.ServerStatsMsg
