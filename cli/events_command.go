@@ -84,7 +84,7 @@ func (c *eventsCmd) handleNATSEvent(m *nats.Msg) {
 		}
 
 		if kind == "io.nats.unknown_message" {
-			return fmt.Errorf("unknown event schema")
+			return fmt.Errorf("unknown event schema on subject %s", m.Subject)
 		}
 
 		ne, ok := event.(api.Event)
@@ -111,6 +111,9 @@ func (c *eventsCmd) handleNATSEvent(m *nats.Msg) {
 
 		return nil
 	}
+
+	c.Lock()
+	defer c.Unlock()
 
 	err := handle()
 	if err != nil {
