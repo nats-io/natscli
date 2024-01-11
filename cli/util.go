@@ -50,6 +50,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
 	terminal "golang.org/x/term"
@@ -853,9 +854,14 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 	var err error
 
 	if req != nil {
-		jreq, err = json.MarshalIndent(req, "", "  ")
-		if err != nil {
-			return err
+		switch val := req.(type) {
+		case string:
+			jreq = []byte(val)
+		default:
+			jreq, err = json.Marshal(req)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -940,7 +946,7 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 
 	msg := nats.NewMsg(subj)
 	msg.Data = jreq
-	if subj != "$SYS.REQ.SERVER.PING" {
+	if subj != "$SYS.REQ.SERVER.PING" && !strings.HasPrefix(subj, "$SYS.REQ.ACCOUNT") {
 		msg.Header.Set("Accept-Encoding", "snappy")
 	}
 	msg.Reply = sub.Subject
@@ -1496,4 +1502,21 @@ func xdgShareHome() (string, error) {
 	}
 
 	return filepath.Join(u.HomeDir, ".local", "share"), nil
+}
+
+func currentActiveServers(nc *nats.Conn) (int, error) {
+	var expect int
+
+	err := doReqAsync(nil, "$SYS.REQ.SERVER.PING", 1, nc, func(msg []byte) {
+		var res server.ServerStatsMsg
+
+		err := json.Unmarshal(msg, &res)
+		if err != nil {
+			return
+		}
+
+		expect = res.Stats.ActiveServers
+	})
+
+	return expect, err
 }
