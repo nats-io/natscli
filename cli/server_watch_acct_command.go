@@ -101,8 +101,7 @@ func (c *SrvWatchAccountCmd) accountsAction(_ *fisk.ParseContext) error {
 		select {
 		case <-tick.C:
 			c.redraw()
-		case sig := <-ctx.Done():
-			fmt.Printf("Exiting on %v\n", sig)
+		case <-ctx.Done():
 			return nil
 		}
 	}

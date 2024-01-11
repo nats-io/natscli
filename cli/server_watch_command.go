@@ -21,5 +21,6 @@ func configureServerWatchCommand(srv *fisk.CmdClause) {
 	watch := srv.Command("watch", "Live views of server conditions")
 
 	configureServerWatchAccountCommand(watch)
+	configureServerWatchJSCommand(watch)
 	configureServerWatchServerCommand(watch)
 }
