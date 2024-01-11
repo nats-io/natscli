@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
+	"github.com/fatih/color"
+	"github.com/nats-io/nats-server/v2/server"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
 )
 
@@ -47,6 +50,7 @@ type authAccountCommand struct {
 	pubDeny              []string
 	subAllow             []string
 	subDeny              []string
+	showJWT              bool
 }
 
 func configureAuthAccountCommand(auth commandHost) {
@@ -103,6 +107,11 @@ func configureAuthAccountCommand(auth commandHost) {
 	rm.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 	rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
+	push := acct.Command("push", "Push the account to the NATS Resolver").Action(c.pushAction)
+	push.Arg("name", "Account to act on").StringVar(&c.accountName)
+	push.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
+	push.Flag("show", "Show the Account JWT before pushing").UnNegatableBoolVar(&c.showJWT)
+
 	sk := acct.Command("keys", "Manage Scoped Signing Keys").Alias("sk").Alias("s")
 
 	skadd := sk.Command("add", "Adds a signing key").Alias("new").Alias("a").Alias("n").Action(c.skAddAction)
@@ -156,6 +165,93 @@ func (c *authAccountCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operato
 	c.operatorName = oper.Name()
 
 	return auth, oper, err
+}
+
+// temporary until the server go mod issues are resolved
+type serverAPIClaimUpdateResponse struct {
+	Server *server.ServerInfo `json:"server"`
+	Data   *claimUpdateStatus `json:"data,omitempty"`
+	Error  *claimUpdateError  `json:"error,omitempty"`
+}
+
+type claimUpdateError struct {
+	Account     string `json:"account,omitempty"`
+	Code        int    `json:"code"`
+	Description string `json:"description,omitempty"`
+}
+
+type claimUpdateStatus struct {
+	Account string `json:"account,omitempty"`
+	Code    int    `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+func (c *authAccountCommand) pushAction(_ *fisk.ParseContext) error {
+	_, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	if c.showJWT {
+		fmt.Printf("Account JWT for %s\n", c.accountName)
+		fmt.Println()
+		fmt.Println(acct.JWT())
+		fmt.Println()
+	}
+
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	expect, _ := currentActiveServers(nc)
+	if expect > 0 {
+		fmt.Printf("Updating account %s (%s) on %d server(s)\n", acct.Name(), acct.Subject(), expect)
+	} else {
+		fmt.Printf("Updating Account %s (%s) on all servers\n", acct.Name(), acct.Subject())
+	}
+	fmt.Println()
+
+	errStr := color.RedString("X")
+	okStr := color.GreenString("✓")
+	updated := 0
+	failed := 0
+
+	subj := fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.UPDATE", acct.Subject())
+	err = doReqAsync(acct.JWT(), subj, expect, nc, func(msg []byte) {
+		update := serverAPIClaimUpdateResponse{}
+		err = json.Unmarshal(msg, &update)
+		if err != nil {
+			fmt.Printf("%s Invalid JSON response received: %v: %s\n", errStr, err, string(msg))
+			failed++
+			return
+		}
+
+		if update.Error != nil {
+			fmt.Printf("%s Update failed on %s: %v\n", errStr, update.Server.Name, update.Error.Description)
+			failed++
+			return
+		}
+
+		fmt.Printf("%s Update of account %s completed on %s\n", okStr, update.Data.Account, update.Server.Name)
+		updated++
+	})
+	if err != nil {
+		return err
+	}
+
+	if failed > 0 {
+		if expect > 0 {
+			return fmt.Errorf("update failed on %d/%d servers", failed, expect)
+		}
+		return fmt.Errorf("update failed on %d servers", failed)
+	}
+
+	if updated == 0 {
+		return fmt.Errorf("no servers were updated")
+	}
+
+	return nil
 }
 
 func (c *authAccountCommand) skRmAction(_ *fisk.ParseContext) error {

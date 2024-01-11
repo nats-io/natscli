@@ -32,10 +32,6 @@ func configureAuthOperatorCommand(auth commandHost) {
 
 	op := auth.Command("operator", "Manage NATS Operators").Hidden().Alias("o").Alias("op")
 
-	// TODO:
-	//
-	// - system user
-	// - require signing keys
 	add := op.Command("add", "Adds a new Operator").Action(c.addAction)
 	add.Arg("name", "Unique name for this Operator").StringVar(&c.operatorName)
 	add.Flag("service", "URLs for the Operator services").PlaceHolder("URL").URLListVar(&c.operatorService)
