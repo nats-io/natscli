@@ -69,15 +69,15 @@ func (c *SrvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.topCount == 0 {
-		c.topCount = h - 6
+		c.topCount = h - 8
 	}
 
 	if c.topCount < 1 {
 		return fmt.Errorf("requested render limits exceed screen size")
 	}
 
-	if c.topCount > h-6 {
-		c.topCount = h - 6
+	if c.topCount > h-8 {
+		c.topCount = h - 8
 	}
 
 	nc, _, err := prepareHelper("", natsOpts()...)

@@ -1524,7 +1524,8 @@ func currentActiveServers(nc *nats.Conn) (int, error) {
 
 // clearScreen tries to ensure resetting original state of screen, todo windows
 func clearScreen() {
-	fmt.Print("\033[2J\033[1;1H\033[?25l")
+	fmt.Print("\033[2J")
+	fmt.Print("\033[H")
 }
 
 func sortMultiSort[V constraints.Ordered, S string | constraints.Ordered](i1 V, j1 V, i2 S, j2 S) bool {
