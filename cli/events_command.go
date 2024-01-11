@@ -173,7 +173,7 @@ func (c *eventsCmd) eventsAction(_ *fisk.ParseContext) error {
 
 	if len(c.extraSubjects) > 0 {
 		for _, s := range c.extraSubjects {
-			c.Printf("Listening for latency samples on %s\n", s)
+			c.Printf("Listening for advisories on %s\n", s)
 			nc.Subscribe(s, func(m *nats.Msg) {
 				c.handleNATSEvent(m)
 			})

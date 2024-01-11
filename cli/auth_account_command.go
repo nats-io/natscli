@@ -233,11 +233,18 @@ func (c *authAccountCommand) pushAction(_ *fisk.ParseContext) error {
 			return
 		}
 
-		fmt.Printf("%s Update of account %s completed on %s\n", okStr, update.Data.Account, update.Server.Name)
+		fmt.Printf("%s Update completed on %s\n", okStr, update.Server.Name)
 		updated++
 	})
 	if err != nil {
 		return err
+	}
+
+	fmt.Println()
+	if expect > 0 {
+		fmt.Printf("Success %d Failed %d Expected %d\n", updated, failed, expect)
+	} else {
+		fmt.Printf("Success %d Failed %d\n", updated, failed)
 	}
 
 	if failed > 0 {
@@ -249,6 +256,10 @@ func (c *authAccountCommand) pushAction(_ *fisk.ParseContext) error {
 
 	if updated == 0 {
 		return fmt.Errorf("no servers were updated")
+	}
+
+	if expect > 0 && (updated+failed != expect) {
+		return fmt.Errorf("received updated from only %d out of %d servers", updated+failed, expect)
 	}
 
 	return nil
