@@ -27,7 +27,6 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"golang.org/x/exp/constraints"
 	terminal "golang.org/x/term"
 )
 
@@ -122,14 +121,6 @@ func (c *SrvWatchJSCmd) handle(msg *nats.Msg) {
 	c.mu.Unlock()
 }
 
-func sortValueOrNames[V constraints.Ordered](i V, j V, iName string, jName string) bool {
-	if i > j {
-		return true
-	}
-
-	return iName > jName
-}
-
 func (c *SrvWatchJSCmd) redraw() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -146,19 +137,19 @@ func (c *SrvWatchJSCmd) redraw() {
 
 		switch c.sort {
 		case "mem":
-			return sortValueOrNames(si.Memory, sj.Memory, servers[i].Server.Name, servers[i].Server.Name)
+			return sortMultiSort(si.Memory, sj.Memory, servers[i].Server.Name, servers[j].Server.Name)
 		case "file":
-			return sortValueOrNames(si.Store, sj.Store, servers[i].Server.Name, servers[i].Server.Name)
+			return sortMultiSort(si.Store, sj.Store, servers[i].Server.Name, servers[j].Server.Name)
 		case "api":
-			return sortValueOrNames(si.API.Total, sj.API.Total, servers[i].Server.Name, servers[i].Server.Name)
+			return sortMultiSort(si.API.Total, sj.API.Total, servers[i].Server.Name, servers[j].Server.Name)
 		case "err":
-			return sortValueOrNames(si.API.Errors, sj.API.Errors, servers[i].Server.Name, servers[i].Server.Name)
+			return sortMultiSort(si.API.Errors, sj.API.Errors, servers[i].Server.Name, servers[j].Server.Name)
 		default:
-			return sortValueOrNames(si.HAAssets, sj.HAAssets, servers[i].Server.Name, servers[i].Server.Name)
+			return sortMultiSort(si.HAAssets, sj.HAAssets, servers[i].Server.Name, servers[j].Server.Name)
 		}
 	})
 
-	table := newTableWriter(fmt.Sprintf("Top %d Server activity by %s", c.topCount, c.sortNames[c.sort]))
+	table := newTableWriter(fmt.Sprintf("Top %d Server activity by %s at %s", c.topCount, c.sortNames[c.sort], time.Now().Format(time.DateTime)))
 	table.AddHeaders("Server", "HA Assets", "Memory", "File", "API", "API Errors")
 
 	var matched []*server.ServerStatsMsg

@@ -53,6 +53,7 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
+	"golang.org/x/exp/constraints"
 	terminal "golang.org/x/term"
 
 	"github.com/nats-io/jsm.go/natscontext"
@@ -1524,6 +1525,13 @@ func currentActiveServers(nc *nats.Conn) (int, error) {
 // clearScreen tries to ensure resetting original state of screen, todo windows
 func clearScreen() {
 	fmt.Print("\033[2J\033[1;1H\033[?25l")
+}
+
+func sortMultiSort[V constraints.Ordered, S string | constraints.Ordered](i1 V, j1 V, i2 S, j2 S) bool {
+	if i1 == j1 {
+		return i2 < j2
+	}
+	return i1 > j1
 }
 
 func mapKeys[M ~map[K]V, K comparable, V any](m M) []K {
