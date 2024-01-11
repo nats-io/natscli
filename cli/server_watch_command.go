@@ -33,14 +33,14 @@ import (
 type SrvWatchCmd struct {
 	topCount  int
 	sort      string
-	accounts  map[string]map[string]server.AccountStat
+	accounts  map[string]map[string]server.AccountNumConns
 	sortNames map[string]string
 	mu        sync.Mutex
 }
 
 func configureServerWatchCommand(srv *fisk.CmdClause) {
 	c := &SrvWatchCmd{
-		accounts: map[string]map[string]server.AccountStat{},
+		accounts: map[string]map[string]server.AccountNumConns{},
 		sortNames: map[string]string{
 			"conns": "Connections",
 			"subs":  "Subscriptions",
@@ -55,6 +55,12 @@ func configureServerWatchCommand(srv *fisk.CmdClause) {
 	watch := srv.Command("watch", "Live views of server conditions").Hidden()
 
 	accounts := watch.Command("accounts", "Watch account usage").Action(c.accountsAction)
+	accounts.HelpLong(`This waits for regular updates that each server sends and report seen totals.
+
+Since the updates are sent on a 30 second interval this is not a point in time view.
+The 'Servers' column will show how many servers sent statistics about an account.
+Only servers with active connections will send these updates.
+`)
 	accounts.Flag("sort", "Sorts by a specific property (conns*, subs, sentb, sentm, recvb, recvm, slow)").Default("conns").EnumVar(&c.sort, "conns", "subs", "sentb", "sentm", "recvb", "recvm", "slow")
 	accounts.Flag("number", "Amount of Accounts to show by the selected dimension").Default("10").Short('n').IntVar(&c.topCount)
 }
@@ -94,9 +100,9 @@ func (c *SrvWatchCmd) accountsAction(_ *fisk.ParseContext) error {
 
 		_, ok := c.accounts[conns.Account]
 		if !ok {
-			c.accounts[conns.Account] = map[string]server.AccountStat{}
+			c.accounts[conns.Account] = map[string]server.AccountNumConns{}
 		}
-		c.accounts[conns.Account][conns.Server.ID] = conns.AccountStat
+		c.accounts[conns.Account][conns.Server.ID] = conns
 	})
 	if err != nil {
 		return err
@@ -122,9 +128,12 @@ func (c *SrvWatchCmd) redraw() {
 	defer c.mu.Unlock()
 
 	var accounts []*server.AccountStat
+	seen := map[string]int{}
 
 	for acct := range c.accounts {
-		accounts = append(accounts, c.accountTotal(acct))
+		srvs, total := c.accountTotal(acct)
+		seen[acct] = srvs
+		accounts = append(accounts, total)
 	}
 
 	sort.Slice(accounts, func(i, j int) bool {
@@ -150,7 +159,7 @@ func (c *SrvWatchCmd) redraw() {
 	})
 
 	table := newTableWriter(fmt.Sprintf("Top %d Account activity by %s", c.topCount, c.sortNames[c.sort]))
-	table.AddHeaders("Account", "Connections", "Leafnodes", "Subscriptions", "Slow", "Sent", "Received")
+	table.AddHeaders("Account", "Servers", "Connections", "Leafnodes", "Subscriptions", "Slow", "Sent", "Received")
 
 	var matched []*server.AccountStat
 	if len(accounts) < c.topCount {
@@ -162,6 +171,7 @@ func (c *SrvWatchCmd) redraw() {
 	for _, account := range matched {
 		table.AddRow(
 			account.Account,
+			seen[account.Account],
 			f(account.Conns),
 			f(account.LeafNodes),
 			f(account.NumSubs),
@@ -176,15 +186,24 @@ func (c *SrvWatchCmd) redraw() {
 	fmt.Println(table.Render())
 }
 
-func (c *SrvWatchCmd) accountTotal(acct string) *server.AccountStat {
+func (c *SrvWatchCmd) accountTotal(acct string) (int, *server.AccountStat) {
 	stats, ok := c.accounts[acct]
 	if !ok {
-		return nil
+		return 0, nil
 	}
 
 	total := &server.AccountStat{}
+	var servers int
 
 	for _, stat := range stats {
+		// ignore old data since only servers with connections will send these
+		// we could lose a connection and the server should send one update but
+		// if we miss it we might have stale stuff here, so just ignore old things
+		if time.Since(stat.Server.Time) > 35*time.Second {
+			continue
+		}
+		servers++
+
 		total.Account = acct
 		total.TotalConns += stat.TotalConns
 		total.Conns += stat.Conns
@@ -197,5 +216,5 @@ func (c *SrvWatchCmd) accountTotal(acct string) *server.AccountStat {
 		total.Received.Bytes += stat.Received.Bytes
 	}
 
-	return total
+	return servers, total
 }
