@@ -1520,3 +1520,8 @@ func currentActiveServers(nc *nats.Conn) (int, error) {
 
 	return expect, err
 }
+
+// clearScreen tries to ensure resetting original state of screen, todo windows
+func clearScreen() {
+	fmt.Print("\033[2J\033[1;1H\033[?25l")
+}

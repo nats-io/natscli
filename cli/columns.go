@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/dustin/go-humanize"
 	"github.com/nats-io/natscli/columns"
 )
 
@@ -10,6 +11,10 @@ func newColumns(heading string, a ...any) *columns.Writer {
 	w.SetHeading(heading, a...)
 
 	return w
+}
+
+func fiBytes(v uint64) string {
+	return humanize.IBytes(v)
 }
 
 func f(v any) string {
