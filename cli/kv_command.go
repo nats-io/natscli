@@ -59,6 +59,7 @@ type kvCommand struct {
 	mirror                string
 	mirrorDomain          string
 	sources               []string
+	compression           bool
 }
 
 func configureKVCommand(app commandHost) {
@@ -82,6 +83,7 @@ for an indefinite period or a per-bucket configured TTL.
 	add.Flag("max-bucket-size", "Maximum size for the bucket").PlaceHolder("BYTES").StringVar(&c.maxBucketSizeString)
 	add.Flag("description", "A description for the bucket").StringVar(&c.description)
 	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
+	add.Flag("compress", "Compress the bucket data").BoolVar(&c.compression)
 	add.Flag("tags", "Place the bucket on servers that has specific tags").StringsVar(&c.placementTags)
 	add.Flag("cluster", "Place the bucket on a specific cluster").StringVar(&c.placementCluster)
 	add.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SRC").StringVar(&c.repubSource)
@@ -207,32 +209,36 @@ func (c *kvCommand) lsBucketKeys() error {
 		return fmt.Errorf("unable to load bucket: %s", err)
 	}
 
-	keys, err := kv.Keys()
+	lister, err := kv.ListKeys()
 	if err != nil {
-		if err == nats.ErrNoKeysFound {
-			fmt.Println("No keys found in bucket")
-			return nil
-		}
-
-		return fmt.Errorf("unable to fetch keys in bucket: %s", err)
+		return err
 	}
 
+	var found bool
 	if c.lsVerbose {
-		if err := c.displayKeyInfo(kv, keys); err != nil {
+		found, err = c.displayKeyInfo(kv, lister)
+		if err != nil {
 			return fmt.Errorf("unable to display key info: %s", err)
 		}
 	} else {
-		for _, v := range keys {
+		for v := range lister.Keys() {
+			found = true
 			fmt.Println(v)
 		}
+	}
+	if !found {
+		fmt.Println("No keys found in bucket")
+		return nil
 	}
 
 	return nil
 }
 
-func (c *kvCommand) displayKeyInfo(kv nats.KeyValue, keys []string) error {
+func (c *kvCommand) displayKeyInfo(kv nats.KeyValue, keys nats.KeyLister) (bool, error) {
+	var found bool
+
 	if kv == nil {
-		return errors.New("key value cannot be nil")
+		return found, errors.New("key value cannot be nil")
 	}
 
 	table := newTableWriter(fmt.Sprintf("Contents for bucket '%s'", c.bucket))
@@ -243,10 +249,11 @@ func (c *kvCommand) displayKeyInfo(kv nats.KeyValue, keys []string) error {
 		table.AddHeaders("Key", "Created", "Delta", "Revision")
 	}
 
-	for _, keyName := range keys {
+	for keyName := range keys.Keys() {
+		found = true
 		kve, err := kv.Get(keyName)
 		if err != nil {
-			return fmt.Errorf("unable to fetch key %s: %s", keyName, err)
+			return found, fmt.Errorf("unable to fetch key %s: %s", keyName, err)
 		}
 
 		row := []interface{}{
@@ -265,7 +272,7 @@ func (c *kvCommand) displayKeyInfo(kv nats.KeyValue, keys []string) error {
 
 	fmt.Println(table.Render())
 
-	return nil
+	return found, nil
 }
 
 func (c *kvCommand) lsBuckets() error {
@@ -449,6 +456,7 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 		Storage:      storage,
 		Replicas:     int(c.replicas),
 		Placement:    placement,
+		Compression:  c.compression,
 	}
 
 	if c.repubDest != "" {
@@ -747,6 +755,7 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 	cols.AddRow("Bucket Name", status.Bucket())
 	cols.AddRow("History Kept", status.History())
 	cols.AddRow("Values Stored", status.Values())
+	cols.AddRow("Compressed", status.IsCompressed())
 	cols.AddRow("Backing Store Kind", status.BackingStore())
 
 	if nfo != nil {
@@ -812,14 +821,6 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 		if nfo.Cluster != nil {
 			cols.AddSectionTitle("Cluster Information")
 			renderNatsGoClusterInfo(cols, nfo)
-		}
-
-		if !nfo.Config.AllowRollup || nfo.Config.Discard != nats.DiscardNew {
-			cols.Println()
-			cols.Println("Warning the bucket if not compatible with the latest")
-			cols.Println("configuration format and needs a configuration upgrade.")
-			cols.Println()
-			cols.Println("Please run: nats kv upgrade ", status.Bucket())
 		}
 	}
 
