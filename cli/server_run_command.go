@@ -20,7 +20,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -160,21 +159,7 @@ func (c *SrvRunCmd) getRandomPort() (string, error) {
 }
 
 func (c *SrvRunCmd) dataParentDir() (string, error) {
-	parent := os.Getenv("XDG_DATA_HOME")
-	if parent != "" {
-		return filepath.Join(parent, ".local", "share"), nil
-	}
-
-	u, err := user.Current()
-	if err != nil {
-		return "", err
-	}
-
-	if u.HomeDir == "" {
-		return "", fmt.Errorf("cannot determine home directory")
-	}
-
-	return filepath.Join(u.HomeDir, ".local", "share"), nil
+	return xdgShareHome()
 }
 
 func (c *SrvRunCmd) validate() error {
