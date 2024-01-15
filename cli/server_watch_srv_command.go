@@ -35,6 +35,7 @@ type SrvWatchServerCmd struct {
 	sort      string
 	servers   map[string]*server.ServerStatsMsg
 	sortNames map[string]string
+	lastMsg   time.Time
 	mu        sync.Mutex
 }
 
@@ -120,6 +121,7 @@ func (c *SrvWatchServerCmd) handle(msg *nats.Msg) {
 
 	c.mu.Lock()
 	c.servers[stat.Server.ID] = &stat
+	c.lastMsg = time.Now()
 	c.mu.Unlock()
 }
 
@@ -129,8 +131,27 @@ func (c *SrvWatchServerCmd) redraw() {
 
 	var servers []*server.ServerStatsMsg
 
-	for srv := range c.servers {
-		servers = append(servers, c.servers[srv])
+	var (
+		conns int
+		subs  uint32
+		slow  int64
+		mem   int64
+		sentB int64
+		sentM int64
+		recvB int64
+		recvM int64
+	)
+
+	for _, srv := range c.servers {
+		servers = append(servers, srv)
+		conns += srv.Stats.Connections
+		subs += srv.Stats.NumSubs
+		slow += srv.Stats.SlowConsumers
+		mem += srv.Stats.Mem
+		sentB += srv.Stats.Sent.Bytes
+		sentM += srv.Stats.Sent.Msgs
+		recvB += srv.Stats.Received.Bytes
+		recvM += srv.Stats.Received.Msgs
 	}
 
 	sort.Slice(servers, func(i, j int) bool {
@@ -165,7 +186,12 @@ func (c *SrvWatchServerCmd) redraw() {
 		}
 	})
 
-	table := newTableWriter(fmt.Sprintf("Top %d Server activity by %s at %s", c.topCount, c.sortNames[c.sort], time.Now().Format(time.DateTime)))
+	tc := fmt.Sprintf("%d", len(servers))
+	if len(servers) > c.topCount {
+		tc = fmt.Sprintf("%d / %d", c.topCount, len(servers))
+	}
+
+	table := newTableWriter(fmt.Sprintf("Top %s Server activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime)))
 	table.AddHeaders("Server", "Connections", "Subscription", "Slow", "Memory", "CPU", "Routes", "Gateways", "Sent", "Received")
 
 	var matched []*server.ServerStatsMsg
@@ -190,6 +216,8 @@ func (c *SrvWatchServerCmd) redraw() {
 			fmt.Sprintf("%s / %s", f(st.Received.Msgs), fiBytes(uint64(st.Received.Bytes))),
 		)
 	}
+
+	table.AddFooter("Totals (All Servers)", f(conns), f(subs), f(slow), fiBytes(uint64(mem)), "", "", "", fmt.Sprintf("%s / %s", f(sentM), fiBytes(uint64(sentB))), fmt.Sprintf("%s / %s", f(recvM), fiBytes(uint64(recvB))))
 
 	clearScreen()
 	fmt.Println(table.Render())
