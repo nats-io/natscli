@@ -94,6 +94,7 @@ type consumerCmd struct {
 	dryRun bool
 	mgr    *jsm.Manager
 	nc     *nats.Conn
+	nak    bool
 }
 
 func configureConsumerCommand(app commandHost) {
@@ -199,6 +200,7 @@ func configureConsumerCommand(app commandHost) {
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").IsSetByUser(&c.ackSetByUser).BoolVar(&c.ack)
+	consNext.Flag("nak", "Perform a Negative Acknowledgement on the message").UnNegatableBoolVar(&c.nak)
 	consNext.Flag("term", "Terms the message").Default("false").UnNegatableBoolVar(&c.term)
 	consNext.Flag("raw", "Show only the message").Short('r').UnNegatableBoolVar(&c.raw)
 	consNext.Flag("wait", "Wait up to this period to acknowledge messages").DurationVar(&c.ackWait)
@@ -1410,8 +1412,12 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 			c.ack = false
 		}
 
-		if c.ack {
+		if c.ack || c.nak {
 			fisk.Fatalf("can not both Acknowledge and Terminate message")
+		}
+
+		if c.ack && c.nak {
+			fisk.Fatalf("can not both Acknowledge and NaK message")
 		}
 	}
 
@@ -1466,7 +1472,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 		fmt.Println("\nTerminated message")
 	}
 
-	if c.ack {
+	if c.ack || c.nak {
 		var stime time.Duration
 		if c.ackWait > 0 {
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -1477,14 +1483,28 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 			time.Sleep(stime)
 		}
 
-		err = msg.Respond(nil)
+		ack := api.AckAck
+		if c.nak {
+			ack = api.AckNak
+		}
+		if opts.Trace {
+			log.Printf(">>> %s: %s", msg.Reply, string(api.AckNak))
+		}
+
+		err = msg.Respond(ack)
+
 		fisk.FatalIfError(err, "could not Acknowledge message")
 		c.nc.Flush()
+
 		if !c.raw {
+			neg := ""
+			if c.nak {
+				neg = "Negative "
+			}
 			if stime > 0 {
-				fmt.Printf("\nAcknowledged message after %s delay\n", stime)
+				fmt.Printf("\n%sAcknowledged message after %s delay\n", neg, stime)
 			} else {
-				fmt.Println("\nAcknowledged message")
+				fmt.Printf("\n%sAcknowledged message\n", neg)
 			}
 			fmt.Println()
 		}
