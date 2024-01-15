@@ -1099,6 +1099,7 @@ func newTableWriter(title string) *tbl {
 
 	tbl.writer.Style().Title.Align = text.AlignCenter
 	tbl.writer.Style().Format.Header = text.FormatDefault
+	tbl.writer.Style().Format.Footer = text.FormatDefault
 
 	if title != "" {
 		tbl.writer.SetTitle(title)
@@ -1532,6 +1533,7 @@ func sortMultiSort[V constraints.Ordered, S string | constraints.Ordered](i1 V, 
 	if i1 == j1 {
 		return i2 < j2
 	}
+
 	return i1 > j1
 }
 

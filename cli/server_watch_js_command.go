@@ -35,6 +35,7 @@ type SrvWatchJSCmd struct {
 	sort      string
 	servers   map[string]*server.ServerStatsMsg
 	sortNames map[string]string
+	lastMsg   time.Time
 	mu        sync.Mutex
 }
 
@@ -118,6 +119,7 @@ func (c *SrvWatchJSCmd) handle(msg *nats.Msg) {
 
 	c.mu.Lock()
 	c.servers[stat.Server.ID] = &stat
+	c.lastMsg = time.Now()
 	c.mu.Unlock()
 }
 
@@ -125,10 +127,27 @@ func (c *SrvWatchJSCmd) redraw() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var servers []*server.ServerStatsMsg
+	var (
+		servers  []*server.ServerStatsMsg
+		assets   int
+		mem      uint64
+		store    uint64
+		api      uint64
+		apiError uint64
+	)
 
-	for srv := range c.servers {
-		servers = append(servers, c.servers[srv])
+	for _, srv := range c.servers {
+		if srv.Stats.JetStream == nil {
+			continue
+		}
+
+		servers = append(servers, srv)
+
+		assets += srv.Stats.JetStream.Stats.HAAssets
+		mem += srv.Stats.JetStream.Stats.Memory
+		store += srv.Stats.JetStream.Stats.Store
+		api += srv.Stats.JetStream.Stats.API.Total
+		apiError += srv.Stats.JetStream.Stats.API.Errors
 	}
 
 	sort.Slice(servers, func(i, j int) bool {
@@ -149,7 +168,12 @@ func (c *SrvWatchJSCmd) redraw() {
 		}
 	})
 
-	table := newTableWriter(fmt.Sprintf("Top %d Server activity by %s at %s", c.topCount, c.sortNames[c.sort], time.Now().Format(time.DateTime)))
+	tc := fmt.Sprintf("%d", len(servers))
+	if len(servers) > c.topCount {
+		tc = fmt.Sprintf("%d / %d", c.topCount, len(servers))
+	}
+
+	table := newTableWriter(fmt.Sprintf("Top %s Server activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime)))
 	table.AddHeaders("Server", "HA Assets", "Memory", "File", "API", "API Errors")
 
 	var matched []*server.ServerStatsMsg
@@ -170,6 +194,7 @@ func (c *SrvWatchJSCmd) redraw() {
 			f(js.API.Errors),
 		)
 	}
+	table.AddFooter("Totals (All Servers)", f(assets), fiBytes(mem), fiBytes(store), f(api), f(apiError))
 
 	clearScreen()
 	fmt.Println(table.Render())

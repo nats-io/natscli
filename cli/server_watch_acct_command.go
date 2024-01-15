@@ -35,6 +35,7 @@ type SrvWatchAccountCmd struct {
 	sort      string
 	accounts  map[string]map[string]server.AccountNumConns
 	sortNames map[string]string
+	lastMsg   time.Time
 	mu        sync.Mutex
 }
 
@@ -122,6 +123,7 @@ func (c *SrvWatchAccountCmd) handle(msg *nats.Msg) {
 		c.accounts[conns.Account] = map[string]server.AccountNumConns{}
 	}
 	c.accounts[conns.Account][conns.Server.ID] = conns
+	c.lastMsg = time.Now()
 }
 
 func (c *SrvWatchAccountCmd) redraw() {
@@ -159,7 +161,12 @@ func (c *SrvWatchAccountCmd) redraw() {
 		}
 	})
 
-	table := newTableWriter(fmt.Sprintf("Top %d Account activity by %s at %s", c.topCount, c.sortNames[c.sort], time.Now().Format(time.DateTime)))
+	tc := fmt.Sprintf("%d", len(accounts))
+	if len(accounts) > c.topCount {
+		tc = fmt.Sprintf("%d / %d", c.topCount, len(accounts))
+	}
+
+	table := newTableWriter(fmt.Sprintf("Top %s Account activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime)))
 	table.AddHeaders("Account", "Servers", "Connections", "Leafnodes", "Subscriptions", "Slow", "Sent", "Received")
 
 	var matched []*server.AccountStat
