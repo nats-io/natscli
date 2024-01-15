@@ -180,25 +180,6 @@ func (c *authAccountCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operato
 	return auth, oper, err
 }
 
-// temporary until the server go mod issues are resolved
-type serverAPIClaimUpdateResponse struct {
-	Server *server.ServerInfo `json:"server"`
-	Data   *claimUpdateStatus `json:"data,omitempty"`
-	Error  *claimUpdateError  `json:"error,omitempty"`
-}
-
-type claimUpdateError struct {
-	Account     string `json:"account,omitempty"`
-	Code        int    `json:"code"`
-	Description string `json:"description,omitempty"`
-}
-
-type claimUpdateStatus struct {
-	Account string `json:"account,omitempty"`
-	Code    int    `json:"code,omitempty"`
-	Message string `json:"message,omitempty"`
-}
-
 func (c *authAccountCommand) pushAction(_ *fisk.ParseContext) error {
 	_, _, acct, err := c.selectAccount(true)
 	if err != nil {
@@ -232,7 +213,7 @@ func (c *authAccountCommand) pushAction(_ *fisk.ParseContext) error {
 
 	subj := fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.UPDATE", acct.Subject())
 	err = doReqAsync(acct.JWT(), subj, expect, nc, func(msg []byte) {
-		update := serverAPIClaimUpdateResponse{}
+		update := server.ServerAPIClaimUpdateResponse{}
 		err = json.Unmarshal(msg, &update)
 		if err != nil {
 			fmt.Printf("%s Invalid JSON response received: %v: %s\n", errStr, err, string(msg))
