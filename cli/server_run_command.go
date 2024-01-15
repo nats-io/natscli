@@ -158,10 +158,6 @@ func (c *SrvRunCmd) getRandomPort() (string, error) {
 	return port, err
 }
 
-func (c *SrvRunCmd) dataParentDir() (string, error) {
-	return xdgShareHome()
-}
-
 func (c *SrvRunCmd) validate() error {
 	if c.config.ExtendWithContext {
 		if opts.Config.ServerURL() == "" {
@@ -254,7 +250,7 @@ func (c *SrvRunCmd) prepareConfig() error {
 	c.config.ServicePasswordCrypt = string(b)
 
 	if c.config.JetStream {
-		parent, err := c.dataParentDir()
+		parent, err := xdgShareHome()
 		if err != nil {
 			return err
 		}
