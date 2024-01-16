@@ -27,12 +27,11 @@ builds:
       - arm
       - arm64
       - 386
+      - s390x
     goarm:
       - 6
       - 7
     ignore:
-      - goos: darwin
-        goarch: 386
       - goos: freebsd
         goarch: arm
       - goos: freebsd
