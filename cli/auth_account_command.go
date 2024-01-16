@@ -64,6 +64,7 @@ type authAccountCommand struct {
 	subAllow             []string
 	subDeny              []string
 	showJWT              bool
+	output               string
 }
 
 func configureAuthAccountCommand(auth commandHost) {
@@ -125,6 +126,10 @@ func configureAuthAccountCommand(auth commandHost) {
 	push.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	push.Flag("show", "Show the Account JWT before pushing").UnNegatableBoolVar(&c.showJWT)
 
+	pull := acct.Command("query", "Pull the account from the NATS Resolver and view it").Action(c.pullAction)
+	pull.Arg("name", "Account to act on").Required().StringVar(&c.accountName)
+	pull.Arg("output", "Saves the JWT to a file").StringVar(&c.output)
+
 	sk := acct.Command("keys", "Manage Scoped Signing Keys").Alias("sk").Alias("s")
 
 	skadd := sk.Command("add", "Adds a signing key").Alias("new").Alias("a").Alias("n").Action(c.skAddAction)
@@ -178,6 +183,39 @@ func (c *authAccountCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operato
 	c.operatorName = oper.Name()
 
 	return auth, oper, err
+}
+
+func (c *authAccountCommand) pullAction(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	var token string
+	err = doReqAsync(nil, fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", c.accountName), 1, nc, func(b []byte) {
+		token = string(b)
+	})
+	if err != nil {
+		return err
+	}
+
+	if token == "" {
+		return fmt.Errorf("did not receive a valid token from the server")
+	}
+
+	if c.output != "" {
+		err = os.WriteFile(c.output, []byte(token), 0700)
+		if err != nil {
+			return err
+		}
+	}
+
+	acct, err := ab.NewAccountFromJWT(token)
+	if err != nil {
+		return err
+	}
+
+	return c.fShowAccount(os.Stdout, nil, acct)
 }
 
 func (c *authAccountCommand) pushAction(_ *fisk.ParseContext) error {
@@ -751,9 +789,11 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 	cols := newColumns("Account %s (%s)", acct.Name(), acct.Subject())
 	cols.AddSectionTitle("Configuration")
 	cols.AddRow("Name", acct.Name())
-	cols.AddRow("Account", operator.Name())
 	cols.AddRow("Issuer", acct.Issuer())
-	cols.AddRow("System Account", operator.SystemAccount().Subject() == acct.Subject())
+	if operator != nil {
+		cols.AddRow("Account", operator.Name())
+		cols.AddRow("System Account", operator.SystemAccount().Subject() == acct.Subject())
+	}
 	cols.AddRow("JetStream", js.IsJetStreamEnabled())
 	cols.AddRowIf("Expiry", time.Unix(acct.Expiry(), 0), acct.Expiry() > 0)
 	cols.AddRow("Users", len(acct.Users().List()))

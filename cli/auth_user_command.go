@@ -58,12 +58,12 @@ func configureAuthUserCommand(auth commandHost) {
 		f.Flag("locale", "Sets the locale for the user connection").StringVar(&c.userLocale)
 		f.Flag("bearer", "Enables the use of bearer tokens").BoolVar(&c.bearerAllowed)
 		f.Flag("payload", "Maximum payload size to allow").IsSetByUser(&c.maxPayloadIsSet).Default("-1").Int64Var(&c.maxPayload)
+		f.Flag("subscriptions", "Maximum subscription count to allow").IsSetByUser(&c.maxSubsIsSet).Default("-1").Int64Var(&c.maxSubs)
 		f.Flag("pub-allow", "Allow publishing to a subject").StringsVar(&c.pubAllow)
 		f.Flag("pub-deny", "Deny publishing to a subject").StringsVar(&c.pubDeny)
 		f.Flag("sub-allow", "Allow subscribing to a subject").StringsVar(&c.subAllow)
 		f.Flag("sub-deny", "Deny subscribing to a subject").StringsVar(&c.subDeny)
 		f.Flag("data", "Maximum message data size to allow").Default("-1").Int64Var(&c.maxData)
-		f.Flag("subscriptions", "Maximum subscription count to allow").IsSetByUser(&c.maxSubsIsSet).Default("-1").Int64Var(&c.maxSubs)
 	}
 
 	add := user.Command("add", "Adds a new User").Action(c.addAction)
