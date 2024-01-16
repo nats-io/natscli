@@ -87,8 +87,8 @@ github.com/nats-io/nats.go v1.32.0 h1:Bx9BZS+aXYlxW08k8Gd3yR2s73pV5XSoAQUyp1Kwvp
 github.com/nats-io/nats.go v1.32.0/go.mod h1:Ubdu4Nh9exXdSz0RVWRFBbRfrbSxOYd26oF0wkWclB8=
 github.com/nats-io/nkeys v0.4.7 h1:RwNJbbIdYCoClSDNY7QVKZlyb/wfT6ugvFCiKy6vDvI=
 github.com/nats-io/nkeys v0.4.7/go.mod h1:kqXRgRDPlGy7nGaEDMuYzmiJCIAAWDK0IMBtDmGD0nc=
-github.com/nats-io/nsc/v2 v2.8.6-0.20231117160437-b49262c20be8 h1:MqR1Fp9vHrcKcs3BMRmEnHaF7m+fcWiKJEWT6cInMNM=
-github.com/nats-io/nsc/v2 v2.8.6-0.20231117160437-b49262c20be8/go.mod h1:iOC7u3x7LrisgXnlhk6TclXSZl4KI1r6OYqXf/l22m0=
+github.com/nats-io/nsc/v2 v2.8.6-0.20231220104935-3f89317df670 h1:NQzs7g/+Z4kC4XsYsKCQlwRcM4Hk0VyKuz7F4zUgjvQ=
+github.com/nats-io/nsc/v2 v2.8.6-0.20231220104935-3f89317df670/go.mod h1:Z2+aDD1PzpXk8kF1ro17cfGBzmBoWPbtvGW8hBssAdA=
 github.com/nats-io/nuid v1.0.1 h1:5iA8DT8V7q8WK2EScv2padNa/rTESc1KdnPw4TC2paw=
 github.com/nats-io/nuid v1.0.1/go.mod h1:19wcPz3Ph3q0Jbyiqsd0kePYG7A95tJPxeL+1OSON2c=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
@@ -114,8 +114,8 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
-github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240110145530-7404d7ddb699 h1:UeW+3v3XMO4HFazfKcUBjIC3MyWYT3XPl9p6h6sOCks=
-github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240110145530-7404d7ddb699/go.mod h1:3cZKwBfn+gN7MCMlk49JSpVD4yj1eOqX7jr9sCWtwys=
+github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240116162838-d0188a7c69ae h1:7WTvG7u7DgKSS5dpwzl2/vNrc8Bpgj2unGz+6F4rowc=
+github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240116162838-d0188a7c69ae/go.mod h1:xOFg06RDzcuXiex7madWNvDLM3GmJVCxrs0V2ncBLmU=
 github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f h1:SGznmvCovewbaSgBsHgdThtWsLj5aCLX/3ZXMLd1UD0=
 github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f/go.mod h1:IY84XkhrEJTdHYLNy/zObs8mXuUAp9I65VyarbPSCCY=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
