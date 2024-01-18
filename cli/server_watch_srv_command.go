@@ -66,7 +66,7 @@ func configureServerWatchServerCommand(watch *fisk.CmdClause) {
 Since the updates are sent on a 30 second interval this is not a point in time view.
 `)
 	servers.Flag("sort", fmt.Sprintf("Sorts by a specific property (%s)", strings.Join(sortKeys, ", "))).Default("conns").EnumVar(&c.sort, sortKeys...)
-	servers.Flag("number", "Amount of Accounts to show by the selected dimension").Default("10").Short('n').IntVar(&c.topCount)
+	servers.Flag("number", "Amount of Accounts to show by the selected dimension").Default("0").Short('n').IntVar(&c.topCount)
 }
 
 func (c *SrvWatchServerCmd) serversAction(_ *fisk.ParseContext) error {

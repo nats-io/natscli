@@ -63,7 +63,7 @@ The 'Servers' column will show how many servers sent statistics about an account
 Only servers with active connections will send these updates.
 `)
 	accounts.Flag("sort", fmt.Sprintf("Sorts by a specific property (%s)", strings.Join(sortKeys, ", "))).Default("conns").EnumVar(&c.sort, sortKeys...)
-	accounts.Flag("number", "Amount of Accounts to show by the selected dimension").Default("10").Short('n').IntVar(&c.topCount)
+	accounts.Flag("number", "Amount of Accounts to show by the selected dimension").Default("0").Short('n').IntVar(&c.topCount)
 }
 
 func (c *SrvWatchAccountCmd) accountsAction(_ *fisk.ParseContext) error {

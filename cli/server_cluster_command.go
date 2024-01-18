@@ -22,31 +22,96 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/connbalancer"
 	"github.com/nats-io/nats-server/v2/server"
 )
 
 type SrvClusterCmd struct {
-	json             bool
-	force            bool
-	peer             string
-	placementCluster string
+	json              bool
+	force             bool
+	peer              string
+	placementCluster  string
+	balanceServerName string
+	balanceIdle       time.Duration
+	balanceAccount    string
+	balanceSubject    string
+	balanceRunTime    time.Duration
+	balanceKinds      []string
 }
 
 func configureServerClusterCommand(srv *fisk.CmdClause) {
 	c := &SrvClusterCmd{}
 
-	raft := srv.Command("cluster", "Manage JetStream Clustering").Alias("r").Alias("raft")
-	raft.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	cluster := srv.Command("cluster", "Manage JetStream Clustering").Alias("r").Alias("raft")
 
-	sd := raft.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDown)
+	balance := cluster.Command("balance", "Balance cluster connections").Action(c.balanceAction)
+	balance.Arg("duration", "Spread balance requests over a certain duration").Default("2m").DurationVar(&c.balanceRunTime)
+	balance.Flag("server-name", "Restrict balancing to a specific server").PlaceHolder("NAME").StringVar(&c.balanceServerName)
+	balance.Flag("idle", "Balance connections that has been idle for a period").PlaceHolder("DURATION").DurationVar(&c.balanceIdle)
+	balance.Flag("account", "Balance connections in a certain account only").StringVar(&c.balanceAccount)
+	balance.Flag("subject", "Balance connections interested in certain subjects").StringVar(&c.balanceSubject)
+	balance.Flag("kind", "Balance only certain kinds of connection (*Client, Leafnode)").Default("Client").EnumsVar(&c.balanceKinds, "Client", "Leafnode")
+	balance.Flag("force", "Force rebalance without prompting").Short('f').UnNegatableBoolVar(&c.force)
+
+	sd := cluster.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDownAction)
 	sd.Flag("cluster", "Request placement of the leader in a specific cluster").StringVar(&c.placementCluster)
+	sd.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
-	rm := raft.Command("peer-remove", "Removes a server from a JetStream cluster").Alias("rm").Alias("pr").Action(c.metaPeerRemove)
+	rm := cluster.Command("peer-remove", "Removes a server from a JetStream cluster").Alias("rm").Alias("pr").Action(c.metaPeerRemoveAction)
 	rm.Arg("name", "The Server Name or ID to remove from the JetStream cluster").Required().StringVar(&c.peer)
 	rm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
+	rm.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 }
 
-func (c *SrvClusterCmd) metaPeerRemove(_ *fisk.ParseContext) error {
+func (c *SrvClusterCmd) balanceAction(_ *fisk.ParseContext) error {
+	if !c.force {
+		fmt.Println("Re-balancing will disconnect clients without knowing their current state.")
+		fmt.Println()
+		fmt.Println("The clients will trigger normal reconnect behavior. This can interrupt in-flight work.")
+		fmt.Println()
+		ok, err := askConfirmation("Really re-balance connections", false)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("balance canceled")
+		}
+	}
+
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	level := connbalancer.InfoLevel
+	if opts.Trace {
+		level = connbalancer.TraceLevel
+	}
+
+	balancer, err := connbalancer.New(nc, c.balanceRunTime, connbalancer.NewDefaultLogger(level), connbalancer.ConnectionSelector{
+		ServerName:      c.balanceServerName,
+		Idle:            c.balanceIdle,
+		Account:         c.balanceAccount,
+		SubjectInterest: c.balanceSubject,
+		Kind:            c.balanceKinds,
+	})
+	if err != nil {
+		return err
+	}
+
+	balanced, err := balancer.Balance(ctx)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println()
+
+	fmt.Printf("Balanced %s connections\n", f(balanced))
+
+	return nil
+}
+
+func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 	nc, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -92,7 +157,7 @@ func (c *SrvClusterCmd) metaPeerRemove(_ *fisk.ParseContext) error {
 	}
 
 	if !c.force {
-		fmt.Printf("Removing %s can not be reversed, data on this node will be inaccessible.\n\n", c.peer)
+		fmt.Printf("Removing %s can not be reversed, data on this node will be inaccessible and the server name can not be used again. You should only remove nodes that will not return in future.\n\n", c.peer)
 
 		var remove bool
 		if c.peer == foundName || strings.Contains(foundName, foundID) {
@@ -117,7 +182,7 @@ func (c *SrvClusterCmd) metaPeerRemove(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *SrvClusterCmd) metaLeaderStandDown(_ *fisk.ParseContext) error {
+func (c *SrvClusterCmd) metaLeaderStandDownAction(_ *fisk.ParseContext) error {
 	nc, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err

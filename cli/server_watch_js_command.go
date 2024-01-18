@@ -60,7 +60,7 @@ func configureServerWatchJSCommand(watch *fisk.CmdClause) {
 Since the updates are sent on a 30 second interval this is not a point in time view.
 `)
 	js.Flag("sort", fmt.Sprintf("Sorts by a specific property (%s)", strings.Join(sortKeys, ", "))).Default("assets").EnumVar(&c.sort, sortKeys...)
-	js.Flag("number", "Amount of Accounts to show by the selected dimension").Default("10").Short('n').IntVar(&c.topCount)
+	js.Flag("number", "Amount of Accounts to show by the selected dimension").Default("0").Short('n').IntVar(&c.topCount)
 }
 
 func (c *SrvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
