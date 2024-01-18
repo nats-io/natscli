@@ -126,9 +126,9 @@ func configureAuthAccountCommand(auth commandHost) {
 	push.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	push.Flag("show", "Show the Account JWT before pushing").UnNegatableBoolVar(&c.showJWT)
 
-	pull := acct.Command("query", "Pull the account from the NATS Resolver and view it").Action(c.pullAction)
-	pull.Arg("name", "Account to act on").Required().StringVar(&c.accountName)
-	pull.Arg("output", "Saves the JWT to a file").StringVar(&c.output)
+	query := acct.Command("query", "Pull the account from the NATS Resolver and view it").Alias("pull").Action(c.queryAction)
+	query.Arg("name", "Account to act on").Required().StringVar(&c.accountName)
+	query.Arg("output", "Saves the JWT to a file").StringVar(&c.output)
 
 	sk := acct.Command("keys", "Manage Scoped Signing Keys").Alias("sk").Alias("s")
 
@@ -185,7 +185,7 @@ func (c *authAccountCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operato
 	return auth, oper, err
 }
 
-func (c *authAccountCommand) pullAction(_ *fisk.ParseContext) error {
+func (c *authAccountCommand) queryAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err

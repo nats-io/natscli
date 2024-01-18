@@ -871,14 +871,14 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 	}
 
 	var (
-		mu  sync.Mutex
-		ctr = 0
+		mu       sync.Mutex
+		ctr      = 0
+		finisher *time.Timer
 	)
 
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 
-	var finisher *time.Timer
 	if waitFor == 0 {
 		finisher = time.NewTimer(opts.Timeout)
 		go func() {
