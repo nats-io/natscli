@@ -67,7 +67,7 @@ Available template functions are:
 	pub := app.Command("publish", "Generic data publish utility").Alias("pub").Action(c.publish)
 	addCheat("pub", pub)
 	pub.HelpLong(pubHelp)
-	pub.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
+	pub.Arg("subject", "Subject to publish to").Required().StringVar(&c.subject)
 	pub.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
 	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
 	pub.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
