@@ -76,7 +76,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	//	 - edit should diff and prompt
 	//   - imports/exports
 
-	acct := auth.Command("account", "Manage NATS Accounts").Hidden().Alias("a").Alias("acct")
+	acct := auth.Command("account", "Manage NATS Accounts").Alias("a").Alias("acct")
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Flag("expiry", "How long this account should be valid for as a duration").PlaceHolder("DURATION").DurationVar(&c.expiry)
@@ -158,7 +158,7 @@ func configureAuthAccountCommand(auth commandHost) {
 
 	skrm := sk.Command("rm", "Remove a scoped signing key").Action(c.skRmAction)
 	skrm.Arg("name", "Account to act on").StringVar(&c.accountName)
-	skrm.Arg("key", "The key to remove").StringVar(&c.skRole)
+	skrm.Flag("key", "The key to remove").StringVar(&c.skRole)
 	skrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 }

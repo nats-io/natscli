@@ -43,7 +43,7 @@ type authOperatorCommand struct {
 func configureAuthOperatorCommand(auth commandHost) {
 	c := &authOperatorCommand{}
 
-	op := auth.Command("operator", "Manage NATS Operators").Hidden().Alias("o").Alias("op")
+	op := auth.Command("operator", "Manage NATS Operators").Alias("o").Alias("op")
 
 	add := op.Command("add", "Adds a new Operator").Action(c.addAction)
 	add.Arg("name", "Unique name for this Operator").StringVar(&c.operatorName)
