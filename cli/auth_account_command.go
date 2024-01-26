@@ -25,6 +25,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/natscli/columns"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
 )
 
@@ -785,8 +786,11 @@ func (c *authAccountCommand) fShowAccount(w io.Writer, operator ab.Operator, acc
 func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) (string, error) {
 	limits := acct.Limits()
 	js := limits.JetStream()
+	serviceExports := len(acct.Exports().Services().List())
+	streamExports := len(acct.Exports().Streams().List())
 
 	cols := newColumns("Account %s (%s)", acct.Name(), acct.Subject())
+
 	cols.AddSectionTitle("Configuration")
 	cols.AddRow("Name", acct.Name())
 	cols.AddRow("Issuer", acct.Issuer())
@@ -797,6 +801,10 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 	cols.AddRow("JetStream", js.IsJetStreamEnabled())
 	cols.AddRowIf("Expiry", time.Unix(acct.Expiry(), 0), acct.Expiry() > 0)
 	cols.AddRow("Users", len(acct.Users().List()))
+	cols.AddRow("Revocations", len(acct.Revocations().List()))
+	cols.AddRow("Service Exports", serviceExports)
+	cols.AddRow("Stream Exports", streamExports)
+
 	cols.AddSectionTitle("Limits")
 	cols.AddRow("Bearer Tokens Allowed", !limits.DisallowBearerTokens())
 	cols.AddRowUnlimited("Subscriptions", limits.MaxSubscriptions(), -1)
@@ -808,6 +816,51 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 	cols.AddRowUnlimited("Leafnodes", limits.MaxLeafNodeConnections(), -1)
 	cols.AddRowUnlimited("Imports", limits.MaxImports(), -1)
 	cols.AddRowUnlimited("Exports", limits.MaxExports(), -1)
+
+	if serviceExports > 0 || streamExports > 0 {
+		renderExport := func(cols *columns.Writer, export ab.Export) {
+			revocations := len(export.Revocations().List())
+			cols.AddRowIfNotEmpty("Name", export.Name())
+			cols.AddRowIfNotEmpty("Description", export.Description())
+			cols.AddRowIfNotEmpty("Information", export.InfoURL())
+			cols.AddRowIf("Account Token Position", export.AccountTokenPosition(), export.AccountTokenPosition() > 0)
+			cols.AddRowIf("Token Required", export.TokenRequired(), export.TokenRequired())
+			cols.AddRowIf("Revocation", f(revocations), revocations > 0)
+		}
+
+		cols.AddSectionTitle("Exports")
+		cols.Indent(2)
+		if serviceExports > 0 {
+			cols.AddSectionTitle("Service Exports")
+			for _, export := range acct.Exports().Services().List() {
+				cols.AddSectionTitle(export.Subject())
+				cols.Indent(4)
+
+				renderExport(cols, export)
+				if export.Tracing() != nil {
+					if export.Tracing().SamplingRate > 0 {
+						cols.AddRow("Tracing", fmt.Sprintf("%s sampling %d%%", export.Tracing().Subject, export.Tracing().SamplingRate))
+					} else {
+						cols.AddRow("Tracing", export.Tracing().Subject)
+					}
+				}
+				cols.Indent(2)
+			}
+		}
+
+		if streamExports > 0 {
+			cols.AddSectionTitle("Stream Exports")
+			for _, export := range acct.Exports().Streams().List() {
+				cols.AddSectionTitle(export.Subject())
+				cols.Indent(4)
+
+				renderExport(cols, export)
+				cols.Indent(2)
+			}
+		}
+
+		cols.Indent(0)
+	}
 
 	if js.IsJetStreamEnabled() {
 		cols.Indent(2)

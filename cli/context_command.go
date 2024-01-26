@@ -50,7 +50,7 @@ func configureCtxCommand(app commandHost) {
 	context := app.Command("context", "Manage nats configuration contexts").Alias("ctx")
 	addCheat("contexts", context)
 
-	save := context.Command("save", "Update or create a context").Alias("add").Alias("create").Action(c.createCommand)
+	save := context.Command("add", "Update or create a context").Alias("create").Alias("save").Action(c.createCommand)
 	save.Arg("name", "The context name to act on").Required().StringVar(&c.name)
 	save.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
 	save.Flag("select", "Select the saved context as the default one").UnNegatableBoolVar(&c.activate)
