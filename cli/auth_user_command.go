@@ -47,12 +47,13 @@ type authUserCommand struct {
 	force           bool
 	credFile        string
 	expire          time.Duration
+	revoke          bool
 }
 
 func configureAuthUserCommand(auth commandHost) {
 	c := &authUserCommand{}
 
-	user := auth.Command("user", "Manage Account Users").Alias("u").Alias("usr").Hidden()
+	user := auth.Command("user", "Manage Account Users").Alias("u").Alias("usr").Alias("users")
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Flag("locale", "Sets the locale for the user connection").StringVar(&c.userLocale)
@@ -96,6 +97,7 @@ func configureAuthUserCommand(auth commandHost) {
 	rm.Arg("name", "Unique name for this User").StringVar(&c.userName)
 	rm.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
 	rm.Flag("account", "Account to query").StringVar(&c.accountName)
+	rm.Flag("revoke", "Also revokes the user before deleting it").UnNegatableBoolVar(&c.revoke)
 	rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	cred := user.Command("credential", "Creates a credential file for a user").Alias("cred").Action(c.credAction)
@@ -191,6 +193,17 @@ func (c *authUserCommand) rmAction(_ *fisk.ParseContext) error {
 
 		if !ok {
 			return nil
+		}
+	}
+
+	user := acct.Users().Get(c.userName)
+	if user == nil {
+		return fmt.Errorf("user does not exist")
+	}
+	if c.revoke {
+		err = acct.Revocations().Add(user.Subject(), time.Now())
+		if err != nil {
+			return fmt.Errorf("revocation failed: %v", err)
 		}
 	}
 
