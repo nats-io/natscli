@@ -177,10 +177,10 @@ func (c *trafficCmd) monitor(_ *fisk.ParseContext) error {
 			if len(raftRows) > 10 {
 				raftRows = raftRows[1:]
 			}
-			raftRows = append(raftRows, []any{c.raftProp.Comma(), c.raftVote.Comma(), c.raftAppend.Comma(), c.raftRemovePeer.Comma(), c.raftReply.Comma(), c.raftC.Comma()})
+			raftRows = append(raftRows, []any{c.raftVote.Comma(), c.raftAppend.Comma(), c.raftReply.Comma(), c.raftRemovePeer.Comma(), c.raftProp.Comma(), c.raftC.Comma()})
 
 			table := newTableWriter("Raft Traffic")
-			table.AddHeaders("Proposal", "Vote", "Append", "Remove Peer", "Reply", "Total Messages")
+			table.AddHeaders("Vote", "Append", "Reply", "Remove Peer", "Proposal", "Total Messages")
 			for i := range raftRows {
 				table.AddRow(raftRows[i]...)
 			}
