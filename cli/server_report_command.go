@@ -749,6 +749,13 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 	var err error
 	env := map[string]any{}
 
+	if c.waitFor == 0 {
+		c.waitFor, err = currentActiveServers(nc)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	switch {
 	case c.filterReason != "" && c.filterExpression != "":
 		return nil, fmt.Errorf("cannot filter for closed reason and use a filter expression at the same time")
@@ -796,12 +803,12 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 
 	state := server.ConnOpen
 	switch c.stateFilter {
-	case "open":
-		state = server.ConnOpen
+	case "all":
+		state = server.ConnAll
 	case "closed":
 		state = server.ConnClosed
 	default:
-		state = server.ConnAll
+		state = server.ConnOpen
 	}
 
 	req := &server.ConnzEventOptions{
