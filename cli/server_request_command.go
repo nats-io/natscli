@@ -442,12 +442,12 @@ func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 	}
 
 	switch c.stateFilter {
-	case "open":
-		opts.State = server.ConnOpen
+	case "all":
+		opts.State = server.ConnAll
 	case "closed":
 		opts.State = server.ConnClosed
 	default:
-		opts.State = server.ConnAll
+		opts.State = server.ConnOpen
 	}
 
 	nc, _, err := prepareHelper("", natsOpts()...)
