@@ -485,9 +485,9 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 
 	if c.topk > 0 && c.topk < len(accounts) {
 		if c.reverse {
-			accounts = accounts[len(accounts)-c.topk:]
-		} else {
 			accounts = accounts[0:c.topk]
+		} else {
+			accounts = accounts[len(accounts)-c.topk:]
 		}
 	}
 
@@ -807,8 +807,6 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		state = server.ConnAll
 	case "closed":
 		state = server.ConnClosed
-	default:
-		state = server.ConnOpen
 	}
 
 	req := &server.ConnzEventOptions{
