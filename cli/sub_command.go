@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,7 +34,7 @@ import (
 )
 
 type subCmd struct {
-	subject               string
+	subjects              []string
 	queue                 string
 	durable               string
 	raw                   bool
@@ -63,7 +64,7 @@ func configureSubCommand(app commandHost) {
 	act := app.Command("subscribe", "Generic subscription client").Alias("sub").Action(c.subscribe)
 	addCheat("sub", act)
 
-	act.Arg("subject", "Subject to subscribe to").StringVar(&c.subject)
+	act.Arg("subjects", "Subjects to subscribe to").StringsVar(&c.subjects)
 	act.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)
 	act.Flag("durable", "Use a durable consumer (requires JetStream)").StringVar(&c.durable)
 	act.Flag("raw", "Show the raw data received").Short('r').UnNegatableBoolVar(&c.raw)
@@ -159,14 +160,28 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 	defer nc.Close()
 
-	if c.subject == "" && c.inbox {
-		c.subject = nc.NewRespInbox()
-	} else if c.subject == "" && c.stream == "" {
+	c.jetStream = c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.stream != ""
+
+	switch {
+	case len(c.subjects) == 0 && c.inbox:
+		c.subjects = []string{nc.NewRespInbox()}
+	case len(c.subjects) == 0 && c.stream == "":
 		return fmt.Errorf("subject is required")
+	case len(c.subjects) > 1 && c.jetStream:
+		return fmt.Errorf("streams subscribe support only 1 subject")
 	}
 
+	if c.inbox && c.jetStream {
+		return fmt.Errorf("generating inboxes is not compatible with JetStream subscriptions")
+	}
+	if c.queue != "" && c.jetStream {
+		return fmt.Errorf("queue group subscriptions are not supported with JetStream")
+	}
 	if c.dump == "-" && c.inbox {
 		return fmt.Errorf("generating inboxes is not compatible with dumping to stdout using null terminated strings")
+	}
+	if c.reportSubjects && c.reportSubjectsCount == 0 {
+		return fmt.Errorf("subject count must be at least one")
 	}
 
 	if c.dump != "" && c.dump != "-" {
@@ -176,21 +191,8 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 	}
 
-	c.jetStream = c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.stream != ""
-
-	if c.inbox && c.jetStream {
-		return fmt.Errorf("generating inboxes is not compatible with JetStream subscriptions")
-	}
-	if c.queue != "" && c.jetStream {
-		return fmt.Errorf("queue group subscriptions are not supported with JetStream")
-	}
-
-	if c.reportSubjects && c.reportSubjectsCount == 0 {
-		return fmt.Errorf("subject count must be at least one")
-	}
-
 	var (
-		sub            *nats.Subscription
+		subs           []*nats.Subscription
 		mu             = sync.Mutex{}
 		subjMu         = sync.Mutex{}
 		dump           = c.dump != ""
@@ -269,7 +271,10 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 
 		if ctr == c.limit {
-			sub.Unsubscribe()
+			for _, sub := range subs {
+				sub.Unsubscribe()
+			}
+
 			// if no reply matching, or if didn't yet get all replies
 			if !c.match || len(matchMap) == 0 {
 				cancel()
@@ -335,15 +340,22 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		case c.jetStream:
 			// logs later depending on settings
 		case c.jsAck:
-			log.Printf("Subscribing on %s with acknowledgement of JetStream messages %s", c.subject, ignoredSubjInfo)
+			log.Printf("Subscribing on %s with acknowledgement of JetStream messages %s", c.firstSubject(), ignoredSubjInfo)
 		default:
-			log.Printf("Subscribing on %s %s", c.subject, ignoredSubjInfo)
+			log.Printf("Subscribing on %s %s", strings.Join(c.subjects, ", "), ignoredSubjInfo)
 		}
 	}
 
 	switch {
 	case c.reportSubjects:
-		sub, err = nc.Subscribe(c.subject, handler)
+		for _, subj := range c.subjects {
+			sub, err := nc.Subscribe(subj, handler)
+			if err != nil {
+				return err
+			}
+			subs = append(subs, sub)
+		}
+
 		startSubjectReporting(ctx, &subjMu, subjectReportMap, subjectBytesReportMap, c.reportSubjectsCount)
 
 	case c.jetStream:
@@ -378,9 +390,9 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			}
 		}
 
-		subMsg := c.subject
+		subMsg := c.firstSubject()
 		if c.stream != "" {
-			if c.subject == "" {
+			if len(c.subjects) == 0 {
 				str, err := js.StreamInfo(c.stream)
 				if err != nil {
 					return err
@@ -422,17 +434,36 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 
 		if bindDurable {
-			sub, err = js.Subscribe("", handler, nats.Bind(c.stream, c.durable))
+			sub, err := js.Subscribe("", handler, nats.Bind(c.stream, c.durable))
+			if err != nil {
+				return err
+			}
+			subs = append(subs, sub)
 		} else {
 			c.jsAck = false
-			sub, err = js.Subscribe(c.subject, handler, opts...)
+			sub, err := js.Subscribe(c.firstSubject(), handler, opts...)
+			if err != nil {
+				return err
+			}
+			subs = append(subs, sub)
 		}
 
 	case c.queue != "":
-		sub, err = nc.QueueSubscribe(c.subject, c.queue, handler)
+		sub, err := nc.QueueSubscribe(c.firstSubject(), c.queue, handler)
+		if err != nil {
+			return err
+		}
+		subs = append(subs, sub)
 
 	default:
-		sub, err = nc.Subscribe(c.subject, handler)
+		for _, subj := range c.subjects {
+			sub, err := nc.Subscribe(subj, handler)
+			if err != nil {
+				return err
+			}
+			subs = append(subs, sub)
+		}
+
 	}
 	if err != nil {
 		return err
@@ -448,6 +479,14 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	<-ctx.Done()
 
 	return nil
+}
+
+func (c *subCmd) firstSubject() string {
+	if len(c.subjects) == 0 {
+		return ""
+	}
+
+	return c.subjects[0]
 }
 
 func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint) {
