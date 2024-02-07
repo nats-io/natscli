@@ -17,7 +17,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -25,47 +27,57 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/natscli/columns"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
 )
 
 type authAccountCommand struct {
 	accountName          string
-	operatorName         string
-	expiry               time.Duration
+	advertise            bool
+	advertiseIsSet       bool
 	bearerAllowed        bool
-	maxSubs              int64
-	maxConns             int64
-	maxPayloadString     string
-	maxPayload           int64
-	maxLeafnodes         int64
-	maxImports           int64
-	maxExports           int64
-	jetStream            bool
-	defaults             bool
-	maxAckPending        int64
-	storeMaxString       string
-	storeMax             int64
-	storeMaxStreamString string
-	storeMaxStream       int64
-	memMaxString         string
-	memMax               int64
-	memMaxStreamString   string
-	memMaxStream         int64
-	streamSizeRequired   bool
-	maxStreams           int64
-	maxConsumers         int64
-	listNames            bool
-	force                bool
-	skRole               string
-	locale               string
 	connTypes            []string
+	defaults             bool
+	description          string
+	descriptionIsSet     bool
+	expiry               time.Duration
+	exportName           string
+	force                bool
+	isService            bool
+	jetStream            bool
+	listNames            bool
+	locale               string
+	maxAckPending        int64
+	maxConns             int64
+	maxConsumers         int64
+	maxExports           int64
+	maxImports           int64
+	maxLeafnodes         int64
+	maxPayload           int64
+	maxPayloadString     string
+	maxStreams           int64
+	maxSubs              int64
+	memMax               int64
+	memMaxStream         int64
+	memMaxStreamString   string
+	memMaxString         string
+	operatorName         string
+	output               string
 	pubAllow             []string
 	pubDeny              []string
+	showJWT              bool
+	skRole               string
+	storeMax             int64
+	storeMaxStream       int64
+	storeMaxStreamString string
+	storeMaxString       string
+	streamSizeRequired   bool
 	subAllow             []string
 	subDeny              []string
-	showJWT              bool
-	output               string
+	subject              string
+	tokenPosition        uint
+	tokenRequired        bool
+	tokenRequiredIsSet   bool
+	url                  *url.URL
 }
 
 func configureAuthAccountCommand(auth commandHost) {
@@ -108,28 +120,70 @@ func configureAuthAccountCommand(auth commandHost) {
 	info.Arg("name", "Account to view").StringVar(&c.accountName)
 	info.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 
-	edit := acct.Command("edit", "Edit account settings").Alias("update").Action(c.editAction)
+	edit := acct.Command("edit", "Edit Account settings").Alias("update").Action(c.editAction)
 	edit.Arg("name", "Unique name for this Account").StringVar(&c.accountName)
 	edit.Flag("operator", "Operator to add the account to").StringVar(&c.operatorName)
 	addCreateFlags(edit, false)
 
-	ls := acct.Command("ls", "List accounts").Action(c.lsAction)
+	ls := acct.Command("ls", "List Accounts").Action(c.lsAction)
 	ls.Arg("operator", "Operator to act on").StringVar(&c.operatorName)
 	ls.Flag("names", "Show just the Account names").UnNegatableBoolVar(&c.listNames)
 
-	rm := acct.Command("rm", "Removes an account").Action(c.rmAction)
+	rm := acct.Command("rm", "Removes an Account").Action(c.rmAction)
 	rm.Arg("name", "Account to view").StringVar(&c.accountName)
-	rm.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+	rm.Flag("operator", "Operator hosting the Account").StringVar(&c.operatorName)
 	rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	push := acct.Command("push", "Push the account to the NATS Resolver").Action(c.pushAction)
+	push := acct.Command("push", "Push the Account to the NATS Resolver").Action(c.pushAction)
 	push.Arg("name", "Account to act on").StringVar(&c.accountName)
 	push.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	push.Flag("show", "Show the Account JWT before pushing").UnNegatableBoolVar(&c.showJWT)
 
-	query := acct.Command("query", "Pull the account from the NATS Resolver and view it").Alias("pull").Action(c.queryAction)
+	query := acct.Command("query", "Pull the Account from the NATS Resolver and view it").Alias("pull").Action(c.queryAction)
 	query.Arg("name", "Account to act on").Required().StringVar(&c.accountName)
 	query.Arg("output", "Saves the JWT to a file").StringVar(&c.output)
+
+	// imports := acct.Command("imports", "Manage account Imports").Alias("i").Alias("imp").Alias("import")
+	// imports.Command("ls", "List Imports").Alias("list").Action(c.importLsAction)
+
+	exports := acct.Command("exports", "Manage account Exports").Alias("e").Alias("exp").Alias("export")
+
+	expAdd := exports.Command("add", "Adds an Export").Alias("new").Alias("a").Alias("n").Action(c.exportAddAction)
+	expAdd.Arg("name", "A unique name for the Export").Required().StringVar(&c.exportName)
+	expAdd.Arg("subject", "The Subject to export").Required().StringVar(&c.subject)
+	expAdd.Arg("account", "Account to act on").StringVar(&c.accountName)
+	expAdd.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+	expAdd.Flag("activation", "Requires an activation token").UnNegatableBoolVar(&c.tokenRequired)
+	expAdd.Flag("description", "Friendly description").StringVar(&c.description)
+	expAdd.Flag("url", "Sets a URL for further information").URLVar(&c.url)
+	expAdd.Flag("token-position", "The position to use for the Account name").UintVar(&c.tokenPosition)
+	expAdd.Flag("advertise", "Advertise the Export").UnNegatableBoolVar(&c.advertise)
+	expAdd.Flag("service", "Sets the Export to be a Service rather than a Stream").UnNegatableBoolVar(&c.isService)
+
+	expInfo := exports.Command("info", "Show information for an Export").Alias("i").Alias("show").Alias("view").Action(c.exportInfoAction)
+	expInfo.Arg("subject", "Export to view by subject").StringVar(&c.subject)
+	expInfo.Arg("account", "Account to act on").StringVar(&c.accountName)
+	expInfo.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+
+	expEdit := exports.Command("edit", "Edits an Export").Alias("update").Action(c.exportEditAction)
+	expEdit.Arg("subject", "The Subject to export").Required().StringVar(&c.subject)
+	expEdit.Arg("account", "Account to act on").StringVar(&c.accountName)
+	expEdit.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+	expEdit.Flag("activation", "Requires an activation token").IsSetByUser(&c.tokenRequiredIsSet).BoolVar(&c.tokenRequired)
+	expEdit.Flag("description", "Friendly description").IsSetByUser(&c.descriptionIsSet).StringVar(&c.description)
+	expEdit.Flag("url", "Sets a URL for further information").URLVar(&c.url)
+	expEdit.Flag("token-position", "The position to use for the Account name").UintVar(&c.tokenPosition)
+	expEdit.Flag("advertise", "Advertise the Export").IsSetByUser(&c.advertiseIsSet).BoolVar(&c.advertise)
+
+	expLs := exports.Command("ls", "List Exports").Alias("list").Action(c.exportLsAction)
+	expLs.Arg("account", "Account to act on").StringVar(&c.accountName)
+	expLs.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
+
+	expRm := exports.Command("rm", "Removes an Export").Action(c.exportRmAction)
+	expRm.Arg("subject", "Export to remove by subject").StringVar(&c.subject)
+	expRm.Arg("account", "Account to act on").StringVar(&c.accountName)
+	expRm.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+	expRm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	sk := acct.Command("keys", "Manage Scoped Signing Keys").Alias("sk").Alias("s")
 
@@ -147,12 +201,12 @@ func configureAuthAccountCommand(auth commandHost) {
 	skadd.Flag("sub-allow", "Sets subjects where subscribing is allowed").StringsVar(&c.subAllow)
 	skadd.Flag("sub-deny", "Sets subjects where subscribing is allowed").StringsVar(&c.subDeny)
 
-	skInfo := sk.Command("info", "Show information for a Scoped Signing Key").Action(c.skInfoAction)
+	skInfo := sk.Command("info", "Show information for a Scoped Signing Key").Alias("i").Alias("show").Alias("view").Action(c.skInfoAction)
 	skInfo.Arg("name", "Account to view").StringVar(&c.accountName)
 	skInfo.Arg("key", "The role or key to view").StringVar(&c.skRole)
 	skInfo.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
-	skls := sk.Command("list", "List Scoped Signing Keys").Alias("ls").Action(c.skListAction)
+	skls := sk.Command("ls", "List Scoped Signing Keys").Alias("list").Action(c.skListAction)
 	skls.Arg("name", "Account to act on").StringVar(&c.accountName)
 	skls.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
@@ -161,6 +215,308 @@ func configureAuthAccountCommand(auth commandHost) {
 	skrm.Flag("key", "The key to remove").StringVar(&c.skRole)
 	skrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
+}
+
+func (c *authAccountCommand) findExport(account ab.Account, subject string) ab.Export {
+	for _, exp := range account.Exports().Streams().List() {
+		if exp.Subject() == subject {
+			return exp
+		}
+	}
+	for _, exp := range account.Exports().Services().List() {
+		if exp.Subject() == subject {
+			return exp
+		}
+	}
+
+	return nil
+}
+
+func (c *authAccountCommand) exportBySubject(acct ab.Account) []ab.Export {
+	var ret []ab.Export
+
+	for _, svc := range acct.Exports().Streams().List() {
+		ret = append(ret, svc)
+	}
+	for _, svc := range acct.Exports().Services().List() {
+		ret = append(ret, svc)
+	}
+
+	sort.Slice(ret, func(i, j int) bool {
+		return ret[i].Subject() < ret[j].Subject()
+	})
+
+	return ret
+}
+
+func (c *authAccountCommand) exportSubjects(export ab.Exports) []string {
+	var known []string
+	for _, exp := range export.Services().List() {
+		known = append(known, exp.Subject())
+	}
+	for _, exp := range export.Streams().List() {
+		known = append(known, exp.Subject())
+	}
+
+	sort.Strings(known)
+
+	return known
+}
+
+func (c *authAccountCommand) fShowExport(w io.Writer, exp ab.Export) error {
+	out, err := c.showExport(exp)
+	if err != nil {
+		return err
+	}
+
+	_, err = fmt.Fprintln(w, out)
+	return err
+}
+
+func (c *authAccountCommand) showExport(exp ab.Export) (string, error) {
+	cols := newColumns("Export info for %s exporting %s", exp.Name(), exp.Subject())
+
+	cols.AddSectionTitle("Configuration")
+	cols.AddRow("Name", exp.Name())
+	cols.AddRowIfNotEmpty("Description", exp.Description())
+	cols.AddRowIfNotEmpty("Info", exp.InfoURL())
+	cols.AddRow("Subject", exp.Subject())
+	cols.AddRow("Activation Required", exp.TokenRequired())
+	cols.AddRow("Account Token Position", exp.AccountTokenPosition())
+	cols.AddRow("Advertised", exp.IsAdvertised())
+
+	cols.AddSectionTitle("Revocations")
+
+	if len(exp.Revocations().List()) > 0 {
+		for _, rev := range exp.Revocations().List() {
+			cols.AddRow(rev.At().Format(time.RFC3339), rev.PublicKey())
+		}
+	} else {
+		cols.Println()
+		cols.Println("No revocations found")
+	}
+
+	return cols.Render()
+}
+
+func (c *authAccountCommand) exportRmAction(_ *fisk.ParseContext) error {
+	auth, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	exp := c.findExport(acct, c.subject)
+	if exp == nil {
+		return fmt.Errorf("subject %q is not exported", c.subject)
+	}
+
+	if !c.force {
+		ok, err := askConfirmation(fmt.Sprintf("Really remove the %s Export", exp.Subject()), false)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			return nil
+		}
+	}
+
+	switch exp.(type) {
+	case ab.StreamExport:
+		_, err = acct.Exports().Streams().Delete(c.subject)
+		fmt.Printf("Removing Stream Export for subject %q\n", c.subject)
+	case ab.ServiceExport:
+		_, err = acct.Exports().Services().Delete(c.subject)
+		fmt.Printf("Removing Service Export for subject %q\n", c.subject)
+	}
+	if err != nil {
+		return err
+	}
+
+	return auth.Commit()
+}
+
+func (c *authAccountCommand) exportInfoAction(_ *fisk.ParseContext) error {
+	_, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	if c.subject == "" {
+		known := c.exportSubjects(acct.Exports())
+
+		if len(known) == 0 {
+			return fmt.Errorf("no exports defined")
+		}
+
+		err = askOne(&survey.Select{
+			Message:  "Select an Export",
+			Options:  known,
+			PageSize: selectPageSize(len(known)),
+		}, &c.subject)
+		if err != nil {
+			return err
+		}
+	}
+
+	if c.subject == "" {
+		return fmt.Errorf("subject is required")
+	}
+
+	exp := c.findExport(acct, c.subject)
+	if exp == nil {
+		return fmt.Errorf("unknown export")
+	}
+
+	return c.fShowExport(os.Stdout, exp)
+}
+
+func (c *authAccountCommand) exportEditAction(_ *fisk.ParseContext) error {
+	auth, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	exp := c.findExport(acct, c.subject)
+	if exp == nil {
+		return fmt.Errorf("export for subject %q not found", c.subject)
+	}
+
+	if c.tokenRequiredIsSet {
+		err = exp.SetTokenRequired(c.tokenRequired)
+		if err != nil {
+			return err
+		}
+	}
+
+	if c.url != nil {
+		err = exp.SetInfoURL(c.url.String())
+		if err != nil {
+			return err
+		}
+	}
+
+	if c.descriptionIsSet {
+		err = exp.SetDescription(c.description)
+		if err != nil {
+			return err
+		}
+	}
+
+	if c.tokenPosition > 0 {
+		err = exp.SetAccountTokenPosition(c.tokenPosition)
+		if err != nil {
+			return err
+		}
+	}
+
+	if c.advertiseIsSet {
+		err = exp.SetAdvertised(c.advertise)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = auth.Commit()
+	if err != nil {
+		return err
+	}
+
+	return c.fShowExport(os.Stdout, exp)
+}
+
+func (c *authAccountCommand) exportAddAction(_ *fisk.ParseContext) error {
+	auth, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	var exp ab.Export
+
+	if c.isService {
+		exp, err = ab.NewServiceExport(c.exportName, c.subject)
+		if err != nil {
+			return err
+		}
+	} else {
+		exp, err = ab.NewStreamExport(c.exportName, c.subject)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = exp.SetAccountTokenPosition(c.tokenPosition)
+	if err != nil {
+		return err
+	}
+	err = exp.SetAdvertised(c.advertise)
+	if err != nil {
+		return err
+	}
+	err = exp.SetDescription(c.description)
+	if err != nil {
+		return err
+	}
+	if c.url != nil {
+		err = exp.SetInfoURL(c.url.String())
+		if err != nil {
+			return err
+		}
+	}
+	err = exp.SetTokenRequired(c.tokenRequired)
+	if err != nil {
+		return err
+	}
+
+	if c.isService {
+		err = acct.Exports().Services().AddWithConfig(exp.(ab.ServiceExport))
+		if err != nil {
+			return err
+		}
+	} else {
+		err = acct.Exports().Streams().AddWithConfig(exp.(ab.StreamExport))
+		if err != nil {
+			return err
+		}
+	}
+
+	err = auth.Commit()
+	if err != nil {
+		return err
+	}
+
+	return c.fShowExport(os.Stdout, exp)
+}
+
+func (c *authAccountCommand) exportLsAction(_ *fisk.ParseContext) error {
+	_, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	services := acct.Exports().Services().List()
+	streams := acct.Exports().Streams().List()
+
+	if len(services) == 0 && len(streams) == 0 {
+		fmt.Println("No Exports defined")
+		return nil
+	}
+
+	exports := c.exportBySubject(acct)
+
+	tbl := newTableWriter("Exports for account %s", acct.Name())
+	tbl.AddHeaders("Name", "Kind", "Subject", "Activation Required", "Advertised", "Token Position", "Revocations")
+	for _, e := range exports {
+		switch exp := e.(type) {
+		case ab.StreamExport:
+			tbl.AddRow(exp.Name(), "Stream", exp.Subject(), exp.TokenRequired(), exp.IsAdvertised(), exp.AccountTokenPosition(), f(len(exp.Revocations().List())))
+		case ab.ServiceExport:
+			tbl.AddRow(exp.Name(), "Service", exp.Subject(), exp.TokenRequired(), exp.IsAdvertised(), exp.AccountTokenPosition(), f(len(exp.Revocations().List())))
+		}
+	}
+	fmt.Println(tbl.Render())
+
+	return nil
 }
 
 func (c *authAccountCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator, ab.Account, error) {
@@ -788,6 +1144,8 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 	js := limits.JetStream()
 	serviceExports := len(acct.Exports().Services().List())
 	streamExports := len(acct.Exports().Streams().List())
+	serviceImports := len(acct.Imports().Services().List())
+	streamImports := len(acct.Imports().Streams().List())
 
 	cols := newColumns("Account %s (%s)", acct.Name(), acct.Subject())
 
@@ -804,6 +1162,8 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 	cols.AddRow("Revocations", len(acct.Revocations().List()))
 	cols.AddRow("Service Exports", serviceExports)
 	cols.AddRow("Stream Exports", streamExports)
+	cols.AddRow("Service Imports", serviceImports)
+	cols.AddRow("Stream Imports", streamImports)
 
 	cols.AddSectionTitle("Limits")
 	cols.AddRow("Bearer Tokens Allowed", !limits.DisallowBearerTokens())
@@ -816,51 +1176,6 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 	cols.AddRowUnlimited("Leafnodes", limits.MaxLeafNodeConnections(), -1)
 	cols.AddRowUnlimited("Imports", limits.MaxImports(), -1)
 	cols.AddRowUnlimited("Exports", limits.MaxExports(), -1)
-
-	if serviceExports > 0 || streamExports > 0 {
-		renderExport := func(cols *columns.Writer, export ab.Export) {
-			revocations := len(export.Revocations().List())
-			cols.AddRowIfNotEmpty("Name", export.Name())
-			cols.AddRowIfNotEmpty("Description", export.Description())
-			cols.AddRowIfNotEmpty("Information", export.InfoURL())
-			cols.AddRowIf("Account Token Position", export.AccountTokenPosition(), export.AccountTokenPosition() > 0)
-			cols.AddRowIf("Token Required", export.TokenRequired(), export.TokenRequired())
-			cols.AddRowIf("Revocation", f(revocations), revocations > 0)
-		}
-
-		cols.AddSectionTitle("Exports")
-		cols.Indent(2)
-		if serviceExports > 0 {
-			cols.AddSectionTitle("Service Exports")
-			for _, export := range acct.Exports().Services().List() {
-				cols.AddSectionTitle(export.Subject())
-				cols.Indent(4)
-
-				renderExport(cols, export)
-				if export.Tracing() != nil {
-					if export.Tracing().SamplingRate > 0 {
-						cols.AddRow("Tracing", fmt.Sprintf("%s sampling %d%%", export.Tracing().Subject, export.Tracing().SamplingRate))
-					} else {
-						cols.AddRow("Tracing", export.Tracing().Subject)
-					}
-				}
-				cols.Indent(2)
-			}
-		}
-
-		if streamExports > 0 {
-			cols.AddSectionTitle("Stream Exports")
-			for _, export := range acct.Exports().Streams().List() {
-				cols.AddSectionTitle(export.Subject())
-				cols.Indent(4)
-
-				renderExport(cols, export)
-				cols.Indent(2)
-			}
-		}
-
-		cols.Indent(0)
-	}
 
 	if js.IsJetStreamEnabled() {
 		cols.Indent(2)
