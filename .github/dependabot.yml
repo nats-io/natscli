@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # version updates: disabled
+  # security updates: enabled
+  # https://docs.github.com/en/code-security/dependabot/dependabot-security-updates/configuring-dependabot-security-updates#overriding-the-default-behavior-with-a-configuration-file
+  # ./go
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
