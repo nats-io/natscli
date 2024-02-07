@@ -16,7 +16,6 @@ package main
 import (
 	"log"
 	"os"
-	"runtime"
 	"runtime/debug"
 
 	"github.com/choria-io/fisk"
@@ -57,11 +56,6 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	ncli.Flag("tlskey", "TLS private key").Envar("NATS_KEY").PlaceHolder("FILE").ExistingFileVar(&opts.TlsKey)
 	ncli.Flag("tlsca", "TLS certificate authority chain").Envar("NATS_CA").PlaceHolder("FILE").ExistingFileVar(&opts.TlsCA)
 	ncli.Flag("tlsfirst", "Perform TLS handshake before expecting the server greeting").BoolVar(&opts.TlsFirst)
-	if runtime.GOOS == "windows" {
-		ncli.Flag("certstore", "Uses a Windows Certificate Store for TLS (user, machine)").PlaceHolder("TYPE").EnumVar(&opts.WinCertStoreType, "user", "windowscurrentuser", "machine", "windowslocalmachine")
-		ncli.Flag("certstore-match", "Which certificate to use in the store").PlaceHolder("QUERY").StringVar(&opts.WinCertStoreMatch)
-		ncli.Flag("certstore-match-by", "Configures the way certificates are searched for (subject, issuer)").PlaceHolder("MATCH").Default("subject").EnumVar(&opts.WinCertStoreMatchBy, "subject", "issuer")
-	}
 	ncli.Flag("timeout", "Time to wait on responses from NATS").Default("5s").Envar("NATS_TIMEOUT").PlaceHolder("DURATION").DurationVar(&opts.Timeout)
 	ncli.Flag("socks-proxy", "SOCKS5 proxy for connecting to NATS server").Envar("NATS_SOCKS_PROXY").PlaceHolder("PROXY").StringVar(&opts.SocksProxy)
 	ncli.Flag("js-api-prefix", "Subject prefix for access to JetStream API").PlaceHolder("PREFIX").StringVar(&opts.JsApiPrefix)
