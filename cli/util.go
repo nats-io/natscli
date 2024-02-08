@@ -1081,7 +1081,7 @@ func compactStrings(source []string) []string {
 	return result
 }
 
-func newTableWriter(title string) *tbl {
+func newTableWriter(format string, a ...any) *tbl {
 	tbl := &tbl{
 		writer: table.NewWriter(),
 	}
@@ -1101,8 +1101,8 @@ func newTableWriter(title string) *tbl {
 	tbl.writer.Style().Format.Header = text.FormatDefault
 	tbl.writer.Style().Format.Footer = text.FormatDefault
 
-	if title != "" {
-		tbl.writer.SetTitle(title)
+	if format != "" {
+		tbl.writer.SetTitle(fmt.Sprintf(format, a...))
 	}
 
 	return tbl
