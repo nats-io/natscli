@@ -1515,7 +1515,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 
 func (c *consumerCmd) subscribeConsumer(consumer *jsm.Consumer) (err error) {
 	if !c.raw {
-		fmt.Printf("Subscribing to topic %s auto acknowlegement: %v\n\n", consumer.DeliverySubject(), c.ack)
+		fmt.Printf("Subscribing to topic %s auto acknowledgment: %v\n\n", consumer.DeliverySubject(), c.ack)
 		fmt.Println("Consumer Info:")
 		fmt.Printf("  Ack Policy: %s\n", consumer.AckPolicy().String())
 		if consumer.AckPolicy() != api.AckNone {
