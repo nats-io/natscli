@@ -50,6 +50,7 @@ type objCommand struct {
 	description string
 	replicas    uint
 	ttl         time.Duration
+	compression bool
 }
 
 func configureObjectCommand(app commandHost) {
@@ -78,6 +79,7 @@ NOTE: This is an experimental feature.
 	add.Flag("tags", "Place the store on servers that has specific tags").StringsVar(&c.placementTags)
 	add.Flag("cluster", "Place the store on a specific cluster").StringVar(&c.placementCluster)
 	add.Flag("metadata", "Adds metadata to the bucvket").PlaceHolder("META").StringMapVar(&c.metadata)
+	add.Flag("compress", "Compress the bucket data").BoolVar(&c.compression)
 
 	add.PreAction(c.parseLimitStrings)
 
@@ -635,6 +637,7 @@ func (c *objCommand) addAction(_ *fisk.ParseContext) error {
 		Placement:   placement,
 		MaxBytes:    c.maxBucketSize,
 		Metadata:    c.metadata,
+		Compression: c.compression,
 	})
 	if err != nil {
 		return err
