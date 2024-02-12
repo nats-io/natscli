@@ -236,7 +236,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 
 		// flow control
-		if len(m.Data) == 0 && m.Header.Get("Status") == "100" {
+		if c.jetStream && len(m.Data) == 0 && m.Header.Get("Status") == "100" {
 			if m.Reply != "" {
 				m.Respond(nil)
 				log.Printf("Responding to Flow Control message")
