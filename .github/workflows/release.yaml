@@ -1,36 +1,27 @@
-name: NATS CLI Testing
-on: [push, pull_request]
-
+name: Release
+on:
+  push:
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+
 jobs:
-  test:
-    strategy:
-      matrix:
-        go: [ "1.20", "1.21" ]
-
-    env:
-      GOPATH: /home/runner/work/natscli
-
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{matrix.go}}
+          go-version-file: go.mod
 
       - name: Install deps
         shell: bash --noprofile --norc -x -eo pipefail {0}
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@latest
           go install github.com/client9/misspell/cmd/misspell@latest
-
-      - name: Build
-        shell: bash --noprofile --norc -x -eo pipefail {0}
-        run: |
-          cd nats
-          go build
 
       - name: Lint
         shell: bash --noprofile --norc -x -eo pipefail {0}
@@ -42,7 +33,7 @@ jobs:
           find . -type f -name "*.go" | xargs misspell -error -locale US
           staticcheck -f stylish $GO_LIST
 
-      - name: Run tests
+      - name: Test
         shell: bash --noprofile --norc -x -eo pipefail {0}
         run: |
           set -e
@@ -50,4 +41,11 @@ jobs:
           go test -v --failfast -p=1 ./...
           cd ../cli
           go test -v --failfast -p=1 ./...
-          set +e
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
