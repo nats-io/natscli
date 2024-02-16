@@ -38,6 +38,10 @@ jobs:
         run: |
           set -e
           cd nats
+
+          # Required, tests execute built binary
+          go build
+
           go test -v --failfast -p=1 ./...
           cd ../cli
           go test -v --failfast -p=1 ./...
