@@ -90,6 +90,7 @@ type consumerCmd struct {
 	fcSet               bool
 	metadataIsSet       bool
 	metadata            map[string]string
+	pauseUntil          string
 
 	dryRun bool
 	mgr    *jsm.Manager
@@ -144,29 +145,14 @@ func configureConsumerCommand(app commandHost) {
 		}
 		f.Flag("replicas", "Sets a custom replica count rather than inherit from the stream").IntVar(&c.replicas)
 		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
-
+		if !edit {
+			f.Flag("pause", fmt.Sprintf("Pause the consumer for a duration after start or until a specific timestamp (eg %s)", time.Now().Format(time.DateTime))).StringVar(&c.pauseUntil)
+		}
 	}
 
 	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
 	addCheat("consumer", cons)
 	cons.Flag("all", "Operate on all streams including system ones").Short('a').UnNegatableBoolVar(&c.showAll)
-
-	consLs := cons.Command("ls", "List known Consumers").Alias("list").Action(c.lsAction)
-	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
-	consLs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
-	consLs.Flag("names", "Show just the consumer names").Short('n').UnNegatableBoolVar(&c.listNames)
-	consLs.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
-
-	conReport := cons.Command("report", "Reports on Consumer statistics").Action(c.reportAction)
-	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
-	conReport.Flag("raw", "Show un-formatted numbers").Short('r').UnNegatableBoolVar(&c.raw)
-	conReport.Flag("leaders", "Show details about the leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
-
-	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
-	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
-	consInfo.Arg("consumer", "Consumer name").StringVar(&c.consumer)
-	consInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
-	consInfo.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	consAdd := cons.Command("add", "Creates a new Consumer").Alias("create").Alias("new").Action(c.createAction)
 	consAdd.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -184,6 +170,18 @@ func configureConsumerCommand(app commandHost) {
 	edit.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 	edit.Flag("dry-run", "Only shows differences, do not edit the stream").UnNegatableBoolVar(&c.dryRun)
 	addCreateFlags(edit, true)
+
+	consLs := cons.Command("ls", "List known Consumers").Alias("list").Action(c.lsAction)
+	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
+	consLs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	consLs.Flag("names", "Show just the consumer names").Short('n').UnNegatableBoolVar(&c.listNames)
+	consLs.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
+
+	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
+	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
+	consInfo.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	consInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	consInfo.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
 	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -212,6 +210,22 @@ func configureConsumerCommand(app commandHost) {
 	consSub.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consSub.Flag("raw", "Show only the message").Short('r').UnNegatableBoolVar(&c.raw)
 	consSub.Flag("deliver-group", "Deliver group of the consumer").StringVar(&c.deliveryGroup)
+
+	conPause := cons.Command("pause", "Pause a consumer until a later time").Action(c.pauseAction)
+	conPause.Arg("stream", "Stream name").StringVar(&c.stream)
+	conPause.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	conPause.Arg("until", fmt.Sprintf("Pause until a specific time (eg %s)", time.Now().UTC().Format(time.DateTime))).PlaceHolder("TIME").StringVar(&c.pauseUntil)
+	conPause.Flag("force", "Force pause without prompting").Short('f').UnNegatableBoolVar(&c.force)
+
+	conResume := cons.Command("resume", "Resume a paused consumer").Action(c.resumeAction)
+	conResume.Arg("stream", "Stream name").StringVar(&c.stream)
+	conResume.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	conResume.Flag("force", "Force resume without prompting").Short('f').UnNegatableBoolVar(&c.force)
+
+	conReport := cons.Command("report", "Reports on Consumer statistics").Action(c.reportAction)
+	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
+	conReport.Flag("raw", "Show un-formatted numbers").Short('r').UnNegatableBoolVar(&c.raw)
+	conReport.Flag("leaders", "Show details about the leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
 
 	conCluster := cons.Command("cluster", "Manages a clustered Consumer").Alias("c")
 	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
@@ -623,6 +637,11 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	cols.AddRowIf("Backoff", c.renderBackoff(config.BackOff), len(config.BackOff) > 0)
 	cols.AddRowIf("Replicas", config.Replicas, config.Replicas > 0)
 	cols.AddRowIf("Memory Storage", true, config.MemoryStorage)
+	if state.Paused {
+		cols.AddRowf("Paused Until Deadline", "%s (%s remaining)", f(config.PauseUntil), state.PauseRemaining.Round(time.Second))
+	} else {
+		cols.AddRowIf("Paused Until Deadline", fmt.Sprintf("%s (passed)", f(config.PauseUntil)), !config.PauseUntil.IsZero())
+	}
 
 	if len(config.Metadata) > 0 {
 		cols.AddSectionTitle("Metadata")
@@ -695,6 +714,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		} else {
 			cols.AddRow("Active Interest", "No interest")
 		}
+	}
+	if state.Paused {
+		cols.AddRowf("Paused Until", "%s (%s remaining)", f(state.TimeStamp.Add(state.PauseRemaining)), state.PauseRemaining.Round(time.Second))
 	}
 
 	cols.Frender(os.Stdout)
@@ -1266,7 +1288,105 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 		cfg.Metadata = c.metadata
 	}
 
+	if c.pauseUntil != "" {
+		cfg.PauseUntil, err = c.parsePauseUntil(c.pauseUntil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return cfg, nil
+}
+
+func (c *consumerCmd) parsePauseUntil(until string) (time.Time, error) {
+	if until == "" {
+		return time.Time{}, fmt.Errorf("time not given")
+	}
+
+	var ts time.Time
+	var err error
+
+	ts, err = time.Parse(time.DateTime, until)
+	if err != nil {
+		dur, err := parseDurationString(until)
+		if err != nil {
+			return ts, fmt.Errorf("could not parse the pause time as either timestamp or duration")
+		}
+		ts = time.Now().Add(dur)
+	}
+
+	return ts, nil
+}
+
+func (c *consumerCmd) resumeAction(_ *fisk.ParseContext) error {
+	c.connectAndSetup(true, true)
+
+	state, err := c.selectedConsumer.LatestState()
+	if err != nil {
+		return err
+	}
+	if !state.Paused {
+		return fmt.Errorf("consumer is not paused")
+	}
+
+	if !c.force {
+		ok, err := askConfirmation(fmt.Sprintf("Really resume Consumer %s > %s", c.stream, c.consumer), false)
+		fisk.FatalIfError(err, "could not obtain confirmation")
+
+		if !ok {
+			return nil
+		}
+	}
+
+	err = c.selectedConsumer.Resume()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Consumer %s > %s was resumed while previously paused until %s\n", c.stream, c.consumer, f(state.TimeStamp.Add(state.PauseRemaining)))
+	return nil
+}
+
+func (c *consumerCmd) pauseAction(_ *fisk.ParseContext) error {
+	c.connectAndSetup(true, true)
+
+	if c.pauseUntil == "" {
+		dflt := time.Now().Add(time.Hour).Format(time.DateTime)
+		err := askOne(&survey.Input{
+			Message: "Pause until (time or duration)",
+			Default: dflt,
+			Help:    fmt.Sprintf("Sets the time in either a duration like 1h30m or a timestamp like '%s'", dflt),
+		}, &c.pauseUntil, survey.WithValidator(survey.Required))
+		if err != nil {
+			return err
+		}
+	}
+
+	ts, err := c.parsePauseUntil(c.pauseUntil)
+	if err != nil {
+		return err
+	}
+
+	if !c.force {
+		ok, err := askConfirmation(fmt.Sprintf("Really pause Consumer %s > %s until %s", c.stream, c.consumer, f(ts)), false)
+		fisk.FatalIfError(err, "could not obtain confirmation")
+
+		if !ok {
+			return nil
+		}
+	}
+
+	resp, err := c.selectedConsumer.Pause(ts)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Paused {
+		return fmt.Errorf("consumer failed to pause, perhaps a time in the past was given")
+	}
+
+	fmt.Printf("Paused %s > %s until %s (%s)\n", c.selectedConsumer.StreamName(), c.selectedConsumer.Name(), f(resp.PauseUntil), resp.PauseRemaining.Round(time.Second))
+	return nil
 }
 
 func (c *consumerCmd) askBackoffPolicy() error {
