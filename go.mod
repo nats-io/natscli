@@ -8,7 +8,7 @@ require (
 	github.com/choria-io/fisk v0.6.2
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.6.1
-	github.com/expr-lang/expr v1.16.0
+	github.com/expr-lang/expr v1.16.1
 	github.com/fatih/color v1.16.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.6.0
@@ -19,10 +19,10 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.17.6
 	github.com/mattn/go-isatty v0.0.20
-	github.com/nats-io/jsm.go v0.1.1-0.20240208101040-8a115db14d6c
-	github.com/nats-io/jwt/v2 v2.5.3
-	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240207201315-f703123c4b88
-	github.com/nats-io/nats.go v1.32.1-0.20240208125829-1c24aa7e50c2
+	github.com/nats-io/jsm.go v0.1.1-0.20240219122351-c1d05e68494f
+	github.com/nats-io/jwt/v2 v2.5.4
+	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240217230419-4b3317b980ba
+	github.com/nats-io/nats.go v1.33.1
 	github.com/nats-io/nkeys v0.4.7
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.18.0
