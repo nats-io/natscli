@@ -371,6 +371,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 
 	switch {
 	case c.isFiltered():
+	case expectedClusterSize == 0:
 	case len(jszResponses) > 0 && cluster == nil:
 		fmt.Println()
 		fmt.Printf("WARNING: No cluster meta leader found. The cluster expects %d nodes but only %d responded. JetStream operation requires at least %d up nodes.", expectedClusterSize, len(jszResponses), expectedClusterSize/2+1)
