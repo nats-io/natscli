@@ -57,6 +57,7 @@ brews:
     repository:
       owner: nats-io
       name: homebrew-nats-tools
+      token: "{{ .Env.GITHUB_APP_TOKEN }}"
     url_template: "https://github.com/nats-io/natscli/releases/download/{{ .Tag }}/nats-{{.Version}}-{{ .Os }}-{{ .Arch }}{{if .Arm}}{{.Arm}}{{end}}.zip"
     homepage: "https://github.com/nats-io/nats"
     description: "NATS utility"
