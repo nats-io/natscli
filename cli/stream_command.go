@@ -941,9 +941,17 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 
 	var progress *uiprogress.Bar
 	var bps uint64
+	var prevMsg time.Time
 
 	cb := func(p jsm.RestoreProgress) {
 		bps = p.BytesPerSecond()
+
+		if opts.Trace && (p.ChunksSent()%100 == 0 || time.Since(prevMsg) > 500*time.Millisecond) {
+			fmt.Printf("Sent %v chunk %v / %v at %v / s\n", fiBytes(uint64(p.ChunkSize())), p.ChunksSent(), p.ChunksToSend(), fiBytes(p.BytesPerSecond()))
+			return
+		}
+
+		prevMsg = time.Now()
 
 		if progress == nil {
 			progress = uiprogress.AddBar(p.ChunksToSend()).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
@@ -955,13 +963,16 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 		progress.Set(int(p.ChunksSent()))
 	}
 
-	var opts []jsm.SnapshotOption
+	var ropts []jsm.SnapshotOption
 
 	if c.showProgress {
-		uiprogress.Start()
-		opts = append(opts, jsm.RestoreNotify(cb))
+		if !opts.Trace {
+			uiprogress.Start()
+		}
+
+		ropts = append(ropts, jsm.RestoreNotify(cb))
 	} else {
-		opts = append(opts, jsm.SnapshotDebug())
+		ropts = append(ropts, jsm.SnapshotDebug())
 	}
 
 	if c.inputFile != "" {
@@ -991,11 +1002,11 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 		cfg.Replicas = int(c.replicas)
 	}
 
-	opts = append(opts, jsm.RestoreConfiguration(*cfg))
+	ropts = append(ropts, jsm.RestoreConfiguration(*cfg))
 
 	fmt.Printf("Starting restore of Stream %q from file %q\n\n", bm.Config.Name, c.backupDirectory)
 
-	fp, _, err := mgr.RestoreSnapshotFromDirectory(ctx, bm.Config.Name, c.backupDirectory, opts...)
+	fp, _, err := mgr.RestoreSnapshotFromDirectory(ctx, bm.Config.Name, c.backupDirectory, ropts...)
 	fisk.FatalIfError(err, "restore failed")
 	if c.showProgress {
 		progress.Set(int(fp.ChunksSent()))
@@ -1023,11 +1034,17 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 	var progress *uiprogress.Progress
 	expected := 1
 	timedOut := false
+	var prevMsg time.Time
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	timeout := time.AfterFunc(5*time.Second, func() {
+	idleTimeout := 5 * time.Second
+	if opts.Timeout > idleTimeout {
+		idleTimeout = opts.Timeout
+	}
+
+	timeout := time.AfterFunc(idleTimeout, func() {
 		cancel()
 		timedOut = true
 	})
@@ -1058,12 +1075,20 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 			first = false
 		}
 
-		if p.ChunksReceived() != received {
-			timeout.Reset(5 * time.Second)
-			received = p.ChunksReceived()
+		bps = p.BytesPerSecond()
+
+		if opts.Trace {
+			if first {
+				fmt.Printf("Received chunk %s\n", f(p.ChunksReceived()))
+			} else {
+				fmt.Printf("Received chunk %s with time delta %s\n", f(p.ChunksReceived()), time.Since(prevMsg))
+			}
 		}
 
-		bps = p.BytesPerSecond()
+		if p.ChunksReceived() != received {
+			timeout.Reset(idleTimeout)
+			received = p.ChunksReceived()
+		}
 
 		if showProgress {
 			bar.Set(int(p.BytesReceived()))
@@ -1080,12 +1105,19 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 			}
 			pmu.Unlock()
 		}
+
+		prevMsg = time.Now()
 	}
 
-	var opts []jsm.SnapshotOption
+	var sopts []jsm.SnapshotOption
 
 	if consumers {
-		opts = append(opts, jsm.SnapshotConsumers())
+		sopts = append(sopts, jsm.SnapshotConsumers())
+	}
+
+	if opts.Trace {
+		sopts = append(sopts, jsm.SnapshotDebug())
+		showProgress = false
 	}
 
 	if showProgress {
@@ -1093,13 +1125,13 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 		progress.Start()
 	}
 
-	opts = append(opts, jsm.SnapshotNotify(cb))
+	sopts = append(sopts, jsm.SnapshotNotify(cb))
 
 	if check {
-		opts = append(opts, jsm.SnapshotHealthCheck())
+		sopts = append(sopts, jsm.SnapshotHealthCheck())
 	}
 
-	fp, err := stream.SnapshotToDirectory(ctx, target, opts...)
+	fp, err := stream.SnapshotToDirectory(ctx, target, sopts...)
 	if err != nil {
 		return err
 	}
