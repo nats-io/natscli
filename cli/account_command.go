@@ -139,7 +139,7 @@ func (c *actCmd) backupAction(_ *fisk.ParseContext) error {
 	var warns []error
 
 	for _, s := range streams {
-		err = backupStream(s, false, c.snapShotConsumers, c.healthCheck, filepath.Join(c.backupDirectory, s.Name()))
+		err = backupStream(s, false, c.snapShotConsumers, c.healthCheck, filepath.Join(c.backupDirectory, s.Name()), 128*1024)
 		if errors.Is(err, jsm.ErrMemoryStreamNotSupported) {
 			fmt.Printf("Backup of %s failed: %v\n", s.Name(), err)
 			warns = append(warns, fmt.Errorf("%s: %w", s.Name(), err))
