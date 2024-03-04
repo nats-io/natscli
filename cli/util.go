@@ -99,7 +99,11 @@ func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool
 			return "", nil, err
 		}
 
-		return c, nil, nil
+		con, err := mgr.LoadConsumer(stream, c)
+		if err != nil {
+			return "", nil, err
+		}
+		return con.Name(), con, err
 	}
 }
 
