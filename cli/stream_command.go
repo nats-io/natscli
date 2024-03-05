@@ -1648,6 +1648,8 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		if c.subjectTransformDest != "" {
 			subjectTransformConfig.Destination = c.subjectTransformDest
 		}
+
+		cfg.SubjectTransform = &subjectTransformConfig
 	}
 
 	return cfg, nil
