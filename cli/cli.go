@@ -224,7 +224,7 @@ func ConfigureInApp(app *fisk.Application, cliOpts *Options, prepare bool, disab
 }
 
 func preAction(_ *fisk.ParseContext) (err error) {
-	loadContext()
+	loadContext(true)
 	return nil
 }
 

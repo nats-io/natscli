@@ -428,7 +428,7 @@ func newNatsConnUnlocked(servers string, copts ...nats.Option) (*nats.Conn, erro
 	}
 
 	if opts.Config == nil {
-		err := loadContext()
+		err := loadContext(false)
 		if err != nil {
 			return nil, err
 		}
@@ -500,7 +500,7 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 	var err error
 
 	if opts.Config == nil {
-		err = loadContext()
+		err = loadContext(false)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -741,7 +741,7 @@ func parseStringsToMsgHeader(hdrs []string, seq int, msg *nats.Msg) error {
 	return nil
 }
 
-func loadContext() error {
+func loadContext(softFail bool) error {
 	ctxOpts := []natscontext.Option{
 		natscontext.WithServerURL(opts.Servers),
 		natscontext.WithCreds(opts.Creds),
@@ -778,6 +778,10 @@ func loadContext() error {
 		opts.Config, err = natscontext.NewFromFile(opts.CfgCtx, ctxOpts...)
 	} else {
 		opts.Config, err = natscontext.New(opts.CfgCtx, !SkipContexts, ctxOpts...)
+	}
+
+	if err != nil && softFail {
+		opts.Config, err = natscontext.New(opts.CfgCtx, false, ctxOpts...)
 	}
 
 	return err
