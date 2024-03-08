@@ -9,7 +9,7 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/natscli/columns"
+	"github.com/mprimi/natscli/columns"
 )
 
 type srvAccountCommand struct {
