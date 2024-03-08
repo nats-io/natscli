@@ -15,6 +15,7 @@ const (
 	serverTagLabel  TagLabel = "server"
 	clusterTagLabel TagLabel = "cluster"
 	accountTagLabel TagLabel = "account"
+	streamTagLabel  TagLabel = "stream"
 	typeTagLabel    TagLabel = "artifact_type"
 )
 
@@ -61,6 +62,7 @@ func createFilenameFromTags(tags []*Tag) (string, error) {
 		accountTagLabel: nil,
 		clusterTagLabel: nil,
 		serverTagLabel:  nil,
+		streamTagLabel:  nil,
 		typeTagLabel:    nil,
 	}
 
@@ -72,6 +74,7 @@ func createFilenameFromTags(tags []*Tag) (string, error) {
 		{accountTagLabel, "account_%s"},
 		{clusterTagLabel, "cluster_%s"},
 		{serverTagLabel, "server_%s"},
+		{streamTagLabel, "stream_%s"},
 		{typeTagLabel, "%s"},
 	}
 
@@ -182,5 +185,12 @@ func TagAccount(accountName string) *Tag {
 	return &Tag{
 		Name:  accountTagLabel,
 		Value: accountName,
+	}
+}
+
+func TagStream(streamName string) *Tag {
+	return &Tag{
+		Name:  streamTagLabel,
+		Value: streamName,
 	}
 }
