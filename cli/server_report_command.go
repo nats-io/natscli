@@ -32,20 +32,21 @@ import (
 type SrvReportCmd struct {
 	json bool
 
-	filterExpression string
-	account          string
-	user             string
-	waitFor          int
-	sort             string
-	topk             int
-	reverse          bool
-	compact          bool
-	subject          string
-	server           string
-	cluster          string
-	tags             []string
-	stateFilter      string
-	filterReason     string
+	filterExpression        string
+	account                 string
+	user                    string
+	waitFor                 int
+	sort                    string
+	topk                    int
+	reverse                 bool
+	compact                 bool
+	subject                 string
+	server                  string
+	cluster                 string
+	tags                    []string
+	stateFilter             string
+	filterReason            string
+	skipDiscoverClusterSize bool
 }
 
 type srvReportAccountInfo struct {
@@ -750,7 +751,7 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 	var err error
 	env := map[string]any{}
 
-	if c.waitFor == 0 {
+	if !c.skipDiscoverClusterSize && c.waitFor == 0 {
 		c.waitFor, err = currentActiveServers(nc)
 		if err != nil {
 			return nil, err

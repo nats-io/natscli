@@ -208,10 +208,11 @@ func (c *actCmd) restoreAction(kp *fisk.ParseContext) error {
 
 func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
 	cmd := SrvReportCmd{
-		topk:    c.topk,
-		sort:    c.sort,
-		subject: c.subject,
-		reverse: c.reverse,
+		topk:                    c.topk,
+		sort:                    c.sort,
+		subject:                 c.subject,
+		reverse:                 c.reverse,
+		skipDiscoverClusterSize: true,
 	}
 
 	return cmd.reportConnections(pc)
