@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
@@ -316,9 +315,14 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 	return nil
 }
 
-func (c *objCommand) showObjectInfo(nfo *nats.ObjectInfo) {
+func (c *objCommand) showObjectInfo(nfo *nats.ObjectInfo) error {
 	digest := strings.Split(nfo.Digest, "=")
-	digestBytes, _ := base64.URLEncoding.DecodeString(digest[1])
+
+	digestBytes, err := nats.DecodeObjectDigest(nfo.Digest)
+
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("Object information for %s > %s\n\n", nfo.Bucket, nfo.Name)
 	if nfo.Description != "" {
@@ -345,6 +349,8 @@ func (c *objCommand) showObjectInfo(nfo *nats.ObjectInfo) {
 			}
 		}
 	}
+
+	return nil
 }
 
 func (c *objCommand) listBuckets() error {
