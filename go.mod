@@ -25,6 +25,7 @@ require (
 	github.com/nats-io/nats.go v1.33.1
 	github.com/nats-io/nkeys v0.4.7
 	github.com/nats-io/nuid v1.0.1
+	github.com/piotrpio/nats-sys-client v0.0.0-20240301212947-fd59fc61a828
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common v0.46.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
@@ -46,6 +47,7 @@ require (
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
+	github.com/nats-io/jwt v1.2.2 // indirect
 	github.com/nats-io/nsc/v2 v2.8.6-0.20231220104935-3f89317df670 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
