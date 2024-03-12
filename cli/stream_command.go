@@ -1725,9 +1725,7 @@ func (c *streamCmd) editAction(pc *fisk.ParseContext) error {
 		fmt.Printf("Stream %s was updated\n\n", c.stream)
 	}
 
-	c.showStream(sourceStream)
-
-	return nil
+	return c.showStream(sourceStream)
 }
 
 func (c *streamCmd) cpAction(pc *fisk.ParseContext) error {
@@ -1850,6 +1848,8 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	} else {
 		cols.AddRow("Maximum Consumers", cfg.MaxConsumers)
 	}
+	cols.AddRowIf("Consumer Inactive Threshold", cfg.ConsumerLimits.InactiveThreshold, cfg.ConsumerLimits.InactiveThreshold > 0)
+	cols.AddRowIf("Consumer Max Ack Pending", cfg.ConsumerLimits.MaxAckPending, cfg.ConsumerLimits.MaxAckPending > 0)
 
 	if len(cfg.Metadata) > 0 {
 		cols.AddSectionTitle("Metadata")
