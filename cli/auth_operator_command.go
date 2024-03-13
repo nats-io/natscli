@@ -394,7 +394,12 @@ func (c *authOperatorCommand) addAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	return c.fShowOperator(os.Stdout, auth.Operators().Get(c.operatorName))
+	operator, err = auth.Operators().Get(c.operatorName)
+	if err != nil {
+		return err
+	}
+
+	return c.fShowOperator(os.Stdout, operator)
 }
 
 func (c *authOperatorCommand) showOperator(operator ab.Operator) (string, error) {
@@ -405,11 +410,14 @@ func (c *authOperatorCommand) showOperator(operator ab.Operator) (string, error)
 	cols.AddRowIf("Service URL(s)", operator.OperatorServiceURLs(), len(operator.OperatorServiceURLs()) > 0)
 	cols.AddRowIfNotEmpty("Account Server", operator.AccountServerURL())
 	cols.AddRow("Accounts", len(operator.Accounts().List()))
-	if operator.SystemAccount() != nil {
-		cols.AddRowf("System Account", "%s (%s)", operator.SystemAccount().Name(), operator.SystemAccount().Subject())
+
+	sa, err := operator.SystemAccount()
+	if err == nil {
+		cols.AddRowf("System Account", "%s (%s)", sa.Name(), sa.Subject())
 	} else {
 		cols.AddRow("System Account", "not set")
 	}
+
 	if len(operator.SigningKeys().List()) > 0 {
 		list := []string{}
 		list = append(list, operator.SigningKeys().List()...)

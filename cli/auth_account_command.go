@@ -15,6 +15,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -710,12 +711,13 @@ func (c *authAccountCommand) skInfoAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	var ok bool
-	sk := acct.ScopedSigningKeys().GetScopeByRole(c.skRole)
-	if sk == nil {
-		sk, ok = acct.ScopedSigningKeys().GetScope(c.skRole)
-		if !ok {
+	sk, err := acct.ScopedSigningKeys().GetScopeByRole(c.skRole)
+	if sk == nil || errors.Is(err, ab.ErrNotFound) {
+		sk, err = acct.ScopedSigningKeys().GetScope(c.skRole)
+		if errors.Is(err, ab.ErrNotFound) {
 			return fmt.Errorf("no role or scope found matching %q", c.skRole)
+		} else if err != nil {
+			return err
 		}
 	}
 
@@ -857,8 +859,8 @@ func (c *authAccountCommand) skListAction(_ *fisk.ParseContext) error {
 		table = newTableWriter("Roles")
 		table.AddHeaders("Name", "Key")
 		for _, r := range acct.ScopedSigningKeys().ListRoles() {
-			role := acct.ScopedSigningKeys().GetScopeByRole(r)
-			if role == nil {
+			role, err := acct.ScopedSigningKeys().GetScopeByRole(r)
+			if role == nil || err != nil {
 				continue
 			}
 
@@ -953,7 +955,8 @@ func (c *authAccountCommand) lsAction(_ *fisk.ParseContext) error {
 	for _, acct := range list {
 		system := ""
 		js := ""
-		if acct.Subject() == operator.SystemAccount().Subject() {
+		sa, err := operator.SystemAccount()
+		if err == nil && acct.Subject() == sa.Subject() {
 			system = "true"
 		}
 		if acct.Limits().JetStream().IsJetStreamEnabled() {
@@ -1154,7 +1157,12 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 	cols.AddRow("Issuer", acct.Issuer())
 	if operator != nil {
 		cols.AddRow("Account", operator.Name())
-		cols.AddRow("System Account", operator.SystemAccount().Subject() == acct.Subject())
+		sa, err := operator.SystemAccount()
+		if err == nil {
+			cols.AddRow("System Account", sa.Subject() == acct.Subject())
+		} else {
+			cols.AddRow("System Account", false)
+		}
 	}
 	cols.AddRow("JetStream", js.IsJetStreamEnabled())
 	cols.AddRowIf("Expiry", time.Unix(acct.Expiry(), 0), acct.Expiry() > 0)

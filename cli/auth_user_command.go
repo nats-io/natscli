@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -122,7 +123,7 @@ func (c *authUserCommand) editAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	user := acct.Users().Get(c.userName)
+	user, _ := acct.Users().Get(c.userName)
 	if user == nil {
 		return fmt.Errorf("user not found")
 	}
@@ -157,7 +158,7 @@ func (c *authUserCommand) credAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	user := acct.Users().Get(c.userName)
+	user, _ := acct.Users().Get(c.userName)
 	if user == nil {
 		return fmt.Errorf("user not found")
 	}
@@ -196,10 +197,13 @@ func (c *authUserCommand) rmAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	user := acct.Users().Get(c.userName)
-	if user == nil {
+	user, err := acct.Users().Get(c.userName)
+	if errors.Is(err, ab.ErrNotFound) {
 		return fmt.Errorf("user does not exist")
+	} else if err != nil {
+		return err
 	}
+
 	if c.revoke {
 		err = acct.Revocations().Add(user.Subject(), time.Now())
 		if err != nil {
@@ -245,10 +249,12 @@ func (c *authUserCommand) lsAction(_ *fisk.ParseContext) error {
 	for _, user := range users {
 		limits := ab.UserLimits(user)
 		if user.IsScoped() {
-			scope, found := acct.ScopedSigningKeys().GetScope(user.Issuer())
-			if !found {
+			scope, err := acct.ScopedSigningKeys().GetScope(user.Issuer())
+			if errors.Is(err, ab.ErrNotFound) {
 				table.AddRow(user.Name(), user.Subject(), user.IsScoped(), "", "", "")
 				continue
+			} else if err != nil {
+				return err
 			}
 			limits = scope
 		}
@@ -313,12 +319,12 @@ func (c *authUserCommand) infoAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	user := acct.Users().Get(c.userName)
-	if user == nil {
+	user, err := acct.Users().Get(c.userName)
+	if user == nil || err != nil {
 		return fmt.Errorf("user %s not found", c.userName)
 	}
 
-	return c.fShowUser(os.Stdout, acct.Users().Get(c.userName), acct)
+	return c.fShowUser(os.Stdout, user, acct)
 }
 
 func (c *authUserCommand) addAction(_ *fisk.ParseContext) error {
@@ -331,11 +337,14 @@ func (c *authUserCommand) addAction(_ *fisk.ParseContext) error {
 		c.signingKey = acct.Subject()
 	}
 
-	if acct.Users().Get(c.userName) != nil {
+	user, err := acct.Users().Get(c.userName)
+	if user != nil || errors.Is(err, ab.ErrNotFound) {
 		return fmt.Errorf("user %s already exist", c.userName)
+	} else if err != nil {
+		return err
 	}
 
-	user, err := acct.Users().Add(c.userName, c.signingKey)
+	user, err = acct.Users().Add(c.userName, c.signingKey)
 	if err != nil {
 		return err
 	}
@@ -373,7 +382,12 @@ func (c *authUserCommand) addAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	return c.fShowUser(os.Stdout, acct.Users().Get(c.userName), acct)
+	user, err = acct.Users().Get(c.userName)
+	if user == nil || err != nil {
+		return fmt.Errorf("user not found")
+	}
+
+	return c.fShowUser(os.Stdout, user, acct)
 }
 
 func (c *authUserCommand) updateUser(user ab.User) error {
@@ -425,8 +439,8 @@ func (c *authUserCommand) showUser(user ab.User, acct ab.Account) (string, error
 	limits := ab.UserLimits(user)
 
 	if user.IsScoped() {
-		scope, found := acct.ScopedSigningKeys().GetScope(user.Issuer())
-		if !found {
+		scope, err := acct.ScopedSigningKeys().GetScope(user.Issuer())
+		if err != nil {
 			return "", fmt.Errorf("could not find signing scope %s", user.Issuer())
 		}
 		limits = scope
