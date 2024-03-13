@@ -185,6 +185,7 @@ tls_first: {{ .TLSHandshakeFirst | t }}
 windows_cert_store: {{ .WindowsCertStore | t }}
 windows_cert_match: {{ .WindowsCertStoreMatch | t }}
 windows_cert_match_by: {{ .WindowsCertStoreMatchBy | t }}
+windows_ca_certs_match: {{ .WinCertCaStoreMatch | t }}
 
 # Retrieves connection information from 'nsc'
 #
@@ -474,6 +475,7 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 		cols.AddRow("Certificate Store", cfg.WindowsCertStore())
 		cols.AddRow("Certificate Store Match", cfg.WindowsCertStoreMatch())
 		cols.AddRow("Certificate Store Match By", cfg.WindowsCertStoreMatchBy())
+		cols.AddRow("Certificate Store CA Match", cfg.WindowsCaCertsMatch())
 	}
 	cols.AddRowIf("CA", fmt.Sprintf("%s (%s)", cfg.CA(), checkFile(cfg.CA())), cfg.CA() != "")
 	cols.AddRowIf("TLS First", cfg.TLSHandshakeFirst(), cfg.TLSHandshakeFirst())
@@ -553,6 +555,7 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 		natscontext.WithWindowsCertStore(opts.WinCertStoreType),
 		natscontext.WithWindowsCertStoreMatch(opts.WinCertStoreMatch),
 		natscontext.WithWindowsCertStoreMatchBy(opts.WinCertStoreMatchBy),
+		natscontext.WithWindowsCaCertsMatch(opts.WinCertCaStoreMatch...),
 		natscontext.WithDescription(c.description),
 		natscontext.WithNscUrl(c.nsc),
 		natscontext.WithSocksProxy(opts.SocksProxy),
