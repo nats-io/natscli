@@ -530,5 +530,10 @@ func (c *SrvRequestCmd) subs(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) doReq(kind string, req any, nc *nats.Conn) ([][]byte, error) {
+	if c.waitFor == 0 {
+		wait, _ := currentActiveServers(nc)
+		c.waitFor = uint32(wait)
+	}
+
 	return doReq(req, fmt.Sprintf("$SYS.REQ.SERVER.PING.%s", kind), int(c.waitFor), nc)
 }
