@@ -126,6 +126,8 @@ type Options struct {
 	WinCertStoreMatchBy string
 	// WinCertStoreMatch is the query to match with
 	WinCertStoreMatch string
+	// WinCertCaStoreMatch is the queries for CAs to use
+	WinCertCaStoreMatch []string
 }
 
 // SkipContexts used during tests

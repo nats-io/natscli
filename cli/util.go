@@ -752,6 +752,7 @@ func loadContext(softFail bool) error {
 		natscontext.WithWindowsCertStore(opts.WinCertStoreType),
 		natscontext.WithWindowsCertStoreMatch(opts.WinCertStoreMatch),
 		natscontext.WithWindowsCertStoreMatchBy(opts.WinCertStoreMatchBy),
+		natscontext.WithWindowsCaCertsMatch(opts.WinCertCaStoreMatch...),
 		natscontext.WithSocksProxy(opts.SocksProxy),
 		natscontext.WithJSEventPrefix(opts.JsEventPrefix),
 		natscontext.WithJSAPIPrefix(opts.JsApiPrefix),
