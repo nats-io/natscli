@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -101,9 +102,11 @@ func selectOperatorAccount(operatorName string, accountName string, pick bool) (
 		}
 	}
 
-	acct := operator.Accounts().Get(accountName)
-	if operator == nil {
+	acct, err := operator.Accounts().Get(accountName)
+	if operator == nil || errors.Is(err, ab.ErrNotFound) {
 		return nil, nil, nil, fmt.Errorf("unknown Account: %v", accountName)
+	} else if err != nil {
+		return nil, nil, nil, err
 	}
 
 	return auth, operator, acct, nil
@@ -144,9 +147,11 @@ func selectOperator(operatorName string, pick bool) (*ab.AuthImpl, ab.Operator, 
 		}
 	}
 
-	op := auth.Operators().Get(operatorName)
-	if op == nil {
+	op, err := auth.Operators().Get(operatorName)
+	if op == nil || errors.Is(err, ab.ErrNotFound) {
 		return nil, nil, fmt.Errorf("unknown operator: %v", operatorName)
+	} else if err != nil {
+		return nil, nil, err
 	}
 
 	return auth, op, nil
