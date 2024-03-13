@@ -315,33 +315,28 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 }
 
 func (c *objCommand) showObjectInfo(nfo *nats.ObjectInfo) {
-	digest := strings.Split(nfo.Digest, "=")
+	digest := strings.SplitN(nfo.Digest, "=", 2)
 	digestBytes, _ := base64.URLEncoding.DecodeString(digest[1])
 
-	fmt.Printf("Object information for %s > %s\n\n", nfo.Bucket, nfo.Name)
+	cols := newColumns(fmt.Sprintf("Object information for %s > %s", nfo.Bucket, nfo.Name))
+	defer cols.Frender(os.Stdout)
+
 	if nfo.Description != "" {
-		fmt.Printf("      Description: %s\n", nfo.Description)
+		cols.AddRowIfNotEmpty("Description", nfo.Description)
 	}
-	fmt.Printf("               Size: %s\n", humanize.IBytes(nfo.Size))
-	fmt.Printf("  Modification Time: %s\n", nfo.ModTime.Format(time.RFC822Z))
-	fmt.Printf("             Chunks: %s\n", f(nfo.Chunks))
-	fmt.Printf("             Digest: %s %x\n", digest[0], digestBytes)
-	if nfo.Deleted {
-		fmt.Printf("            Deleted: %v\n", nfo.Deleted)
-	}
+	cols.AddRow("Size", fiBytes(nfo.Size))
+	cols.AddRow("Modification Time", nfo.ModTime)
+	cols.AddRow("Chunks", nfo.Chunks)
+	cols.AddRowf("Digest", "%s %x", digest[0], digestBytes)
+	cols.AddRowIf("Deleted", nfo.Deleted, nfo.Deleted)
 	if len(nfo.Headers) > 0 {
-		fmt.Printf("            Headers: ")
-		first := true
+		var vals []string
 		for k, v := range nfo.Headers {
 			for _, i := range v {
-				if first {
-					fmt.Printf("%s: %s\n", k, i)
-					first = false
-				} else {
-					fmt.Printf("                     %s: %s\n", k, i)
-				}
+				vals = append(vals, fmt.Sprintf("%s: %s", k, i))
 			}
 		}
+		cols.AddStringsAsValue("Headers", vals)
 	}
 }
 
