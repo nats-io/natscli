@@ -76,7 +76,7 @@ func (w *Writer) Add(artifact any, tags ...*Tag) error {
 	// Ensure file is unique
 	_, exists := w.manifestMap[name]
 	if exists {
-		return fmt.Errorf("artifact with identical tags is already present")
+		return fmt.Errorf("artifact %s with identical tags is already present", name)
 	}
 
 	// Open a zip writer
