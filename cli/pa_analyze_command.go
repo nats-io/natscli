@@ -136,3 +136,93 @@ func checkClusterMemoryUsage(r *archive.Reader) error {
 
 	return nil
 }
+
+func checkStreamConsistency(r *archive.Reader) error {
+	type streamConsistencyData struct {
+		stream      string
+		serverId    string
+		numMessages uint64
+		bytes       uint64
+		leader      string
+		replicas    []*server.PeerInfo
+	}
+
+	var streamsConsistent = true
+
+	for _, accountTag := range r.ListAccountTags() {
+		for _, streamTag := range r.ListStreamTags() {
+			for _, clusterTag := range r.ListClusterTags() {
+				streams := make(map[string]streamConsistencyData)
+				for _, serverTag := range r.ListServerTags() {
+					streamDetail := server.StreamDetail{}
+					if err := r.Load(&streamDetail, &accountTag, &serverTag, &streamTag, &clusterTag); err != nil {
+						if errors.Is(err, archive.ErrNoMatches) {
+							continue
+						}
+						return err
+					}
+					streams[serverTag.Value] = streamConsistencyData{
+						stream:      streamDetail.Name,
+						serverId:    serverTag.Value,
+						numMessages: streamDetail.State.Msgs,
+						bytes:       streamDetail.State.Bytes,
+						leader:      streamDetail.Cluster.Leader,
+						replicas:    streamDetail.Cluster.Replicas,
+					}
+				}
+
+				var (
+					bytes  uint64
+					leader string
+				)
+
+				// check if all replicas are current
+				for _, stream := range streams {
+					for _, replica := range stream.replicas {
+						if !replica.Current {
+							fmt.Printf("🔔 Warning: replica %v is not current for stream %v\n", replica.Name, stream.stream)
+							streamsConsistent = false
+						}
+					}
+				}
+
+				// check if all streams have the same bytes
+				// TODO: add tolerances
+				for _, stream := range streams {
+					if bytes == 0 {
+						bytes = stream.bytes
+					}
+					if bytes != stream.bytes {
+						fmt.Printf("🔔 Warning: stream: %v has different bytes across servers\n", stream.stream)
+						for _, stream := range streams {
+							fmt.Printf("server: %v, bytes: %v\n", stream.serverId, stream.bytes)
+						}
+						streamsConsistent = false
+						break
+					}
+				}
+				// check if leader is consistent
+				for _, stream := range streams {
+					if leader == "" {
+						leader = stream.leader
+					}
+					if leader != stream.leader {
+						fmt.Printf("🔔 Warning: stream: %v has different leaders across servers\n", stream.stream)
+						for _, stream := range streams {
+							fmt.Printf("server: %v, leader: %v\n", stream.serverId, stream.leader)
+						}
+						streamsConsistent = false
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if streamsConsistent {
+		fmt.Println("✅ All streams are consistent across all replicas")
+	} else {
+		fmt.Println("❌ Warning: Streams are not consistent across all replicas")
+	}
+	return nil
+}
