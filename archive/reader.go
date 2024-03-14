@@ -16,6 +16,7 @@ type Reader struct {
 	accountTags   []Tag
 	clusterTags   []Tag
 	serverTags    []Tag
+	streamTags    []Tag
 }
 
 func (r *Reader) rawFilesCount() int {
@@ -57,6 +58,11 @@ func (r *Reader) Get(name string, v any) error {
 		return fmt.Errorf("failed to decode: %w", err)
 	}
 	return nil
+}
+
+// ListStreamTags returns a list of unique stream tags attached to files in the archive.
+func (r *Reader) ListStreamTags() []Tag {
+	return r.streamTags
 }
 
 // ListServerTags returns a list of unique server tags attached to files in the archive.
@@ -208,5 +214,6 @@ func NewReader(archivePath string) (*Reader, error) {
 		accountTags:   getUniqueTags(accountTagLabel),
 		clusterTags:   getUniqueTags(clusterTagLabel),
 		serverTags:    getUniqueTags(serverTagLabel),
+		streamTags:    getUniqueTags(streamTagLabel),
 	}, nil
 }
