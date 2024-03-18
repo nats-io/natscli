@@ -20,7 +20,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -79,6 +78,14 @@ type authAccountCommand struct {
 	tokenRequired        bool
 	tokenRequiredIsSet   bool
 	url                  *url.URL
+	importName           string
+	localSubject         string
+	activationToken      string
+	share                bool
+	shareIsSet           bool
+	allowTrace           bool
+	allowTraceIsSet      bool
+	importAccount        string
 }
 
 func configureAuthAccountCommand(auth commandHost) {
@@ -87,7 +94,8 @@ func configureAuthAccountCommand(auth commandHost) {
 	// TODO:
 	//   - rm is written but builder doesnt remove from disk https://github.com/synadia-io/jwt-auth-builder.go/issues/22
 	//	 - edit should diff and prompt
-	//   - imports/exports
+	//   - imports/exports when asking for account nkey should detect account name and look it up
+	//	 - when rendering account pubkeys like in import/export info get the account name and show
 
 	acct := auth.Command("account", "Manage NATS Accounts").Alias("a").Alias("acct")
 
@@ -144,8 +152,42 @@ func configureAuthAccountCommand(auth commandHost) {
 	query.Arg("name", "Account to act on").Required().StringVar(&c.accountName)
 	query.Arg("output", "Saves the JWT to a file").StringVar(&c.output)
 
-	// imports := acct.Command("imports", "Manage account Imports").Alias("i").Alias("imp").Alias("import")
-	// imports.Command("ls", "List Imports").Alias("list").Action(c.importLsAction)
+	imports := acct.Command("imports", "Manage account Imports").Alias("i").Alias("imp").Alias("import")
+
+	impAdd := imports.Command("add", "Adds an Import").Alias("new").Alias("a").Alias("n").Action(c.importAddAction)
+	impAdd.Arg("name", "A unique name for the import").Required().StringVar(&c.importName)
+	impAdd.Arg("subject", "The Subject to import").Required().StringVar(&c.subject)
+	impAdd.Arg("source", "The account public key to import from").Required().StringVar(&c.importAccount)
+	impAdd.Arg("account", "Account to act on").StringVar(&c.accountName)
+	impAdd.Flag("local", "The local Subject to use for the import").StringVar(&c.localSubject)
+	impAdd.Flag("token", "Activation token to use for the import").StringVar(&c.activationToken)
+	impAdd.Flag("share", "Shares connection information with the exporter").UnNegatableBoolVar(&c.share)
+	impAdd.Flag("traceable", "Enable tracing messages across Stream imports").UnNegatableBoolVar(&c.allowTrace)
+	impAdd.Flag("service", "Sets the import to be a Service rather than a Stream").UnNegatableBoolVar(&c.isService)
+	impAdd.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+
+	impInfo := imports.Command("info", "Show information for an Import").Alias("i").Alias("show").Alias("view").Action(c.importInfoAction)
+	impInfo.Arg("subject", "Export to view by subject").StringVar(&c.subject)
+	impInfo.Arg("account", "Account to act on").StringVar(&c.accountName)
+	impInfo.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+
+	impEdit := imports.Command("edit", "Edits an Import").Alias("update").Action(c.importEditAction)
+	impEdit.Arg("subject", "The Local import Subject to edit").Required().StringVar(&c.subject)
+	impEdit.Arg("account", "Account to act on").StringVar(&c.accountName)
+	impEdit.Flag("local", "The local Subject to use for the import").StringVar(&c.localSubject)
+	impEdit.Flag("share", "Shares connection information with the exporter").IsSetByUser(&c.shareIsSet).UnNegatableBoolVar(&c.share)
+	impEdit.Flag("traceable", "Enable tracing messages across Stream imports").IsSetByUser(&c.allowTraceIsSet).UnNegatableBoolVar(&c.allowTrace)
+	impEdit.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+
+	impLs := imports.Command("ls", "List Imports").Alias("list").Action(c.importLsAction)
+	impLs.Arg("account", "Account to act on").StringVar(&c.accountName)
+	impLs.Arg("operator", "Operator to act on").StringVar(&c.operatorName)
+
+	impRm := imports.Command("rm", "Removes an Import").Action(c.importRmAction)
+	impRm.Arg("subject", "Import to remove by local subject").Required().StringVar(&c.subject)
+	impRm.Arg("account", "Account to act on").StringVar(&c.accountName)
+	impRm.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+	impRm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	exports := acct.Command("exports", "Manage account Exports").Alias("e").Alias("exp").Alias("export")
 
@@ -167,7 +209,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	expInfo.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 
 	expEdit := exports.Command("edit", "Edits an Export").Alias("update").Action(c.exportEditAction)
-	expEdit.Arg("subject", "The Subject to export").Required().StringVar(&c.subject)
+	expEdit.Arg("subject", "The Export Subject to edit").Required().StringVar(&c.subject)
 	expEdit.Arg("account", "Account to act on").StringVar(&c.accountName)
 	expEdit.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 	expEdit.Flag("activation", "Requires an activation token").IsSetByUser(&c.tokenRequiredIsSet).BoolVar(&c.tokenRequired)
@@ -181,7 +223,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	expLs.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	expRm := exports.Command("rm", "Removes an Export").Action(c.exportRmAction)
-	expRm.Arg("subject", "Export to remove by subject").StringVar(&c.subject)
+	expRm.Arg("subject", "Export to remove by subject").Required().StringVar(&c.subject)
 	expRm.Arg("account", "Account to act on").StringVar(&c.accountName)
 	expRm.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 	expRm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
@@ -216,308 +258,6 @@ func configureAuthAccountCommand(auth commandHost) {
 	skrm.Flag("key", "The key to remove").StringVar(&c.skRole)
 	skrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
-}
-
-func (c *authAccountCommand) findExport(account ab.Account, subject string) ab.Export {
-	for _, exp := range account.Exports().Streams().List() {
-		if exp.Subject() == subject {
-			return exp
-		}
-	}
-	for _, exp := range account.Exports().Services().List() {
-		if exp.Subject() == subject {
-			return exp
-		}
-	}
-
-	return nil
-}
-
-func (c *authAccountCommand) exportBySubject(acct ab.Account) []ab.Export {
-	var ret []ab.Export
-
-	for _, svc := range acct.Exports().Streams().List() {
-		ret = append(ret, svc)
-	}
-	for _, svc := range acct.Exports().Services().List() {
-		ret = append(ret, svc)
-	}
-
-	sort.Slice(ret, func(i, j int) bool {
-		return ret[i].Subject() < ret[j].Subject()
-	})
-
-	return ret
-}
-
-func (c *authAccountCommand) exportSubjects(export ab.Exports) []string {
-	var known []string
-	for _, exp := range export.Services().List() {
-		known = append(known, exp.Subject())
-	}
-	for _, exp := range export.Streams().List() {
-		known = append(known, exp.Subject())
-	}
-
-	sort.Strings(known)
-
-	return known
-}
-
-func (c *authAccountCommand) fShowExport(w io.Writer, exp ab.Export) error {
-	out, err := c.showExport(exp)
-	if err != nil {
-		return err
-	}
-
-	_, err = fmt.Fprintln(w, out)
-	return err
-}
-
-func (c *authAccountCommand) showExport(exp ab.Export) (string, error) {
-	cols := newColumns("Export info for %s exporting %s", exp.Name(), exp.Subject())
-
-	cols.AddSectionTitle("Configuration")
-	cols.AddRow("Name", exp.Name())
-	cols.AddRowIfNotEmpty("Description", exp.Description())
-	cols.AddRowIfNotEmpty("Info", exp.InfoURL())
-	cols.AddRow("Subject", exp.Subject())
-	cols.AddRow("Activation Required", exp.TokenRequired())
-	cols.AddRow("Account Token Position", exp.AccountTokenPosition())
-	cols.AddRow("Advertised", exp.IsAdvertised())
-
-	cols.AddSectionTitle("Revocations")
-
-	if len(exp.Revocations().List()) > 0 {
-		for _, rev := range exp.Revocations().List() {
-			cols.AddRow(rev.At().Format(time.RFC3339), rev.PublicKey())
-		}
-	} else {
-		cols.Println()
-		cols.Println("No revocations found")
-	}
-
-	return cols.Render()
-}
-
-func (c *authAccountCommand) exportRmAction(_ *fisk.ParseContext) error {
-	auth, _, acct, err := c.selectAccount(true)
-	if err != nil {
-		return err
-	}
-
-	exp := c.findExport(acct, c.subject)
-	if exp == nil {
-		return fmt.Errorf("subject %q is not exported", c.subject)
-	}
-
-	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Really remove the %s Export", exp.Subject()), false)
-		if err != nil {
-			return err
-		}
-
-		if !ok {
-			return nil
-		}
-	}
-
-	switch exp.(type) {
-	case ab.StreamExport:
-		_, err = acct.Exports().Streams().Delete(c.subject)
-		fmt.Printf("Removing Stream Export for subject %q\n", c.subject)
-	case ab.ServiceExport:
-		_, err = acct.Exports().Services().Delete(c.subject)
-		fmt.Printf("Removing Service Export for subject %q\n", c.subject)
-	}
-	if err != nil {
-		return err
-	}
-
-	return auth.Commit()
-}
-
-func (c *authAccountCommand) exportInfoAction(_ *fisk.ParseContext) error {
-	_, _, acct, err := c.selectAccount(true)
-	if err != nil {
-		return err
-	}
-
-	if c.subject == "" {
-		known := c.exportSubjects(acct.Exports())
-
-		if len(known) == 0 {
-			return fmt.Errorf("no exports defined")
-		}
-
-		err = askOne(&survey.Select{
-			Message:  "Select an Export",
-			Options:  known,
-			PageSize: selectPageSize(len(known)),
-		}, &c.subject)
-		if err != nil {
-			return err
-		}
-	}
-
-	if c.subject == "" {
-		return fmt.Errorf("subject is required")
-	}
-
-	exp := c.findExport(acct, c.subject)
-	if exp == nil {
-		return fmt.Errorf("unknown export")
-	}
-
-	return c.fShowExport(os.Stdout, exp)
-}
-
-func (c *authAccountCommand) exportEditAction(_ *fisk.ParseContext) error {
-	auth, _, acct, err := c.selectAccount(true)
-	if err != nil {
-		return err
-	}
-
-	exp := c.findExport(acct, c.subject)
-	if exp == nil {
-		return fmt.Errorf("export for subject %q not found", c.subject)
-	}
-
-	if c.tokenRequiredIsSet {
-		err = exp.SetTokenRequired(c.tokenRequired)
-		if err != nil {
-			return err
-		}
-	}
-
-	if c.url != nil {
-		err = exp.SetInfoURL(c.url.String())
-		if err != nil {
-			return err
-		}
-	}
-
-	if c.descriptionIsSet {
-		err = exp.SetDescription(c.description)
-		if err != nil {
-			return err
-		}
-	}
-
-	if c.tokenPosition > 0 {
-		err = exp.SetAccountTokenPosition(c.tokenPosition)
-		if err != nil {
-			return err
-		}
-	}
-
-	if c.advertiseIsSet {
-		err = exp.SetAdvertised(c.advertise)
-		if err != nil {
-			return err
-		}
-	}
-
-	err = auth.Commit()
-	if err != nil {
-		return err
-	}
-
-	return c.fShowExport(os.Stdout, exp)
-}
-
-func (c *authAccountCommand) exportAddAction(_ *fisk.ParseContext) error {
-	auth, _, acct, err := c.selectAccount(true)
-	if err != nil {
-		return err
-	}
-
-	var exp ab.Export
-
-	if c.isService {
-		exp, err = ab.NewServiceExport(c.exportName, c.subject)
-		if err != nil {
-			return err
-		}
-	} else {
-		exp, err = ab.NewStreamExport(c.exportName, c.subject)
-		if err != nil {
-			return err
-		}
-	}
-
-	err = exp.SetAccountTokenPosition(c.tokenPosition)
-	if err != nil {
-		return err
-	}
-	err = exp.SetAdvertised(c.advertise)
-	if err != nil {
-		return err
-	}
-	err = exp.SetDescription(c.description)
-	if err != nil {
-		return err
-	}
-	if c.url != nil {
-		err = exp.SetInfoURL(c.url.String())
-		if err != nil {
-			return err
-		}
-	}
-	err = exp.SetTokenRequired(c.tokenRequired)
-	if err != nil {
-		return err
-	}
-
-	if c.isService {
-		err = acct.Exports().Services().AddWithConfig(exp.(ab.ServiceExport))
-		if err != nil {
-			return err
-		}
-	} else {
-		err = acct.Exports().Streams().AddWithConfig(exp.(ab.StreamExport))
-		if err != nil {
-			return err
-		}
-	}
-
-	err = auth.Commit()
-	if err != nil {
-		return err
-	}
-
-	return c.fShowExport(os.Stdout, exp)
-}
-
-func (c *authAccountCommand) exportLsAction(_ *fisk.ParseContext) error {
-	_, _, acct, err := c.selectAccount(true)
-	if err != nil {
-		return err
-	}
-
-	services := acct.Exports().Services().List()
-	streams := acct.Exports().Streams().List()
-
-	if len(services) == 0 && len(streams) == 0 {
-		fmt.Println("No Exports defined")
-		return nil
-	}
-
-	exports := c.exportBySubject(acct)
-
-	tbl := newTableWriter("Exports for account %s", acct.Name())
-	tbl.AddHeaders("Name", "Kind", "Subject", "Activation Required", "Advertised", "Token Position", "Revocations")
-	for _, e := range exports {
-		switch exp := e.(type) {
-		case ab.StreamExport:
-			tbl.AddRow(exp.Name(), "Stream", exp.Subject(), exp.TokenRequired(), exp.IsAdvertised(), exp.AccountTokenPosition(), f(len(exp.Revocations().List())))
-		case ab.ServiceExport:
-			tbl.AddRow(exp.Name(), "Service", exp.Subject(), exp.TokenRequired(), exp.IsAdvertised(), exp.AccountTokenPosition(), f(len(exp.Revocations().List())))
-		}
-	}
-	fmt.Println(tbl.Render())
-
-	return nil
 }
 
 func (c *authAccountCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator, ab.Account, error) {
