@@ -8,7 +8,89 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 )
+
+func (c *authAccountCommand) importKvAction(_ *fisk.ParseContext) error {
+	auth, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	services := [][2]string{
+		{"$JS.API.STREAM.INFO.KV_%s", "STREAM.INFO.KV_%s"},
+		{"$JS.API.DIRECT.GET.KV_%s.$KV.%s.>", "DIRECT.GET.KV_%s.$KV.%s.>"},
+		{"$JS.API.CONSUMER.CREATE.KV_%s.>", "CONSUMER.CREATE.KV_%s.>"},
+		{"$KV.%s.>", "$KV.%s.>"},
+	}
+	streams := [][2]string{
+		{"_INBOX.KV_%s.>", ""},
+	}
+
+	for _, subs := range services {
+		subj := strings.ReplaceAll(subs[0], "%s", c.bucketName)
+		target := subj
+		if subs[1] != "" {
+			target = fmt.Sprintf("%s.%s", c.prefix, strings.ReplaceAll(subs[1], "%s", c.bucketName))
+		}
+
+		fmt.Printf("Importing Service Subject: %s\n", target)
+
+		imp, err := ab.NewServiceImport(fmt.Sprintf("KV_%s", c.bucketName), c.importAccount, subj)
+		if err != nil {
+			return err
+		}
+		err = imp.SetLocalSubject(target)
+		if err != nil {
+			return err
+		}
+
+		if c.activationToken != "" {
+			err = imp.SetToken(c.activationToken)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = acct.Imports().Services().AddWithConfig(imp)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, subs := range streams {
+		subj := strings.ReplaceAll(subs[0], "%s", c.bucketName)
+		target := subj
+		if subs[1] != "" {
+			target = fmt.Sprintf("%s.%s", c.prefix, strings.ReplaceAll(subs[1], "%s", c.bucketName))
+		}
+
+		fmt.Printf("Importing Stream Subject: %s\n", target)
+
+		imp, err := ab.NewStreamImport(fmt.Sprintf("KV_%s", c.bucketName), c.importAccount, subj)
+		if err != nil {
+			return err
+		}
+		err = imp.SetLocalSubject(target)
+		if err != nil {
+			return err
+		}
+
+		if c.activationToken != "" {
+			err = imp.SetToken(c.activationToken)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = acct.Imports().Streams().AddWithConfig(imp)
+		if err != nil {
+			return err
+		}
+	}
+
+	return auth.Commit()
+}
 
 func (c *authAccountCommand) importAddAction(_ *fisk.ParseContext) error {
 	auth, _, acct, err := c.selectAccount(true)
@@ -20,7 +102,7 @@ func (c *authAccountCommand) importAddAction(_ *fisk.ParseContext) error {
 	if c.isService {
 		imp, err = ab.NewServiceImport(c.importName, acct.Subject(), c.subject)
 	} else {
-		imp, err = ab.NewStreamImport(c.importAccount, acct.Subject(), c.subject)
+		imp, err = ab.NewStreamImport(c.importName, acct.Subject(), c.subject)
 	}
 	if err != nil {
 		return fmt.Errorf("could not add import: %v", err)
@@ -235,7 +317,7 @@ func (c *authAccountCommand) importRmAction(_ *fisk.ParseContext) error {
 	}
 
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Really remove the %s Import", imp.LocalSubject()), false)
+		ok, err := askConfirmation(fmt.Sprintf("Really remove the %s import", imp.LocalSubject()), false)
 		if err != nil {
 			return err
 		}
@@ -247,11 +329,11 @@ func (c *authAccountCommand) importRmAction(_ *fisk.ParseContext) error {
 
 	switch imp.(type) {
 	case ab.StreamImport:
-		_, err = acct.Imports().Streams().Delete(c.subject)
-		fmt.Printf("Removing Stream Import for local Subject %q imported from Account %q\n", imp.LocalSubject(), imp.Account())
+		_, err = acct.Imports().Streams().Delete(imp.Subject())
+		fmt.Printf("Removing stream Import for local Subject %q imported from Account %q\n", imp.LocalSubject(), imp.Account())
 	case ab.ServiceImport:
-		_, err = acct.Imports().Services().Delete(c.subject)
-		fmt.Printf("Removing Service Import for local subject %q imported from Account %q\n", imp.LocalSubject(), imp.Account())
+		_, err = acct.Imports().Services().Delete(imp.Subject())
+		fmt.Printf("Removing service Import for local subject %q imported from Account %q\n", imp.LocalSubject(), imp.Account())
 	}
 	if err != nil {
 		return err

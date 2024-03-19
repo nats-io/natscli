@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -31,61 +32,74 @@ import (
 )
 
 type authAccountCommand struct {
-	accountName          string
-	advertise            bool
-	advertiseIsSet       bool
-	bearerAllowed        bool
-	connTypes            []string
-	defaults             bool
-	description          string
-	descriptionIsSet     bool
-	expiry               time.Duration
-	exportName           string
-	force                bool
-	isService            bool
-	jetStream            bool
-	listNames            bool
-	locale               string
-	maxAckPending        int64
-	maxConns             int64
-	maxConsumers         int64
-	maxExports           int64
-	maxImports           int64
-	maxLeafnodes         int64
-	maxPayload           int64
-	maxPayloadString     string
-	maxStreams           int64
-	maxSubs              int64
-	memMax               int64
-	memMaxStream         int64
-	memMaxStreamString   string
-	memMaxString         string
-	operatorName         string
-	output               string
-	pubAllow             []string
-	pubDeny              []string
-	showJWT              bool
-	skRole               string
-	storeMax             int64
-	storeMaxStream       int64
-	storeMaxStreamString string
-	storeMaxString       string
-	streamSizeRequired   bool
-	subAllow             []string
-	subDeny              []string
-	subject              string
-	tokenPosition        uint
-	tokenRequired        bool
-	tokenRequiredIsSet   bool
-	url                  *url.URL
-	importName           string
-	localSubject         string
-	activationToken      string
-	share                bool
-	shareIsSet           bool
-	allowTrace           bool
-	allowTraceIsSet      bool
-	importAccount        string
+	accountName             string
+	advertise               bool
+	advertiseIsSet          bool
+	bearerAllowed           bool
+	bearerAllowedIsSet      bool
+	connTypes               []string
+	defaults                bool
+	description             string
+	descriptionIsSet        bool
+	expiry                  time.Duration
+	exportName              string
+	force                   bool
+	isService               bool
+	jetStream               bool
+	jetStreamIsSet          bool
+	listNames               bool
+	locale                  string
+	maxAckPending           int64
+	maxAckPendingIsSet      bool
+	maxConns                int64
+	maxConnsIsSet           bool
+	maxConsumers            int64
+	maxConsumersIsSet       bool
+	maxExports              int64
+	maxExportsIsSet         bool
+	maxImports              int64
+	maxImportsIsSet         bool
+	maxLeafnodes            int64
+	maxLeafNodesIsSet       bool
+	maxPayload              int64
+	maxPayloadString        string
+	maxStreams              int64
+	maxStreamsIsSet         bool
+	maxSubs                 int64
+	maxSubIsSet             bool
+	memMax                  int64
+	memMaxStream            int64
+	memMaxStreamString      string
+	memMaxString            string
+	operatorName            string
+	output                  string
+	pubAllow                []string
+	pubDeny                 []string
+	showJWT                 bool
+	skRole                  string
+	storeMax                int64
+	storeMaxStream          int64
+	storeMaxStreamString    string
+	storeMaxString          string
+	streamSizeRequired      bool
+	streamSizeRequiredIsSet bool
+	subAllow                []string
+	subDeny                 []string
+	subject                 string
+	tokenPosition           uint
+	tokenRequired           bool
+	tokenRequiredIsSet      bool
+	url                     *url.URL
+	importName              string
+	localSubject            string
+	activationToken         string
+	share                   bool
+	shareIsSet              bool
+	allowTrace              bool
+	allowTraceIsSet         bool
+	importAccount           string
+	bucketName              string
+	prefix                  string
 }
 
 func configureAuthAccountCommand(auth commandHost) {
@@ -101,22 +115,22 @@ func configureAuthAccountCommand(auth commandHost) {
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Flag("expiry", "How long this account should be valid for as a duration").PlaceHolder("DURATION").DurationVar(&c.expiry)
-		f.Flag("bearer", "Allows bearer tokens").Default("false").BoolVar(&c.bearerAllowed)
-		f.Flag("subscriptions", "Maximum allowed subscriptions").Default("-1").Int64Var(&c.maxSubs)
-		f.Flag("connections", "Maximum allowed connections").Default("-1").Int64Var(&c.maxConns)
-		f.Flag("payload", "Maximum allowed payload").PlaceHolder("BYTES").StringVar(&c.maxPayloadString)
-		f.Flag("leafnodes", "Maximum allowed Leafnode connections").Default("-1").Int64Var(&c.maxLeafnodes)
-		f.Flag("imports", "Maximum allowed imports").Default("-1").Int64Var(&c.maxImports)
-		f.Flag("exports", "Maximum allowed exports").Default("-1").Int64Var(&c.maxExports)
-		f.Flag("jetstream", "Enables JetStream").Default("false").UnNegatableBoolVar(&c.jetStream)
-		f.Flag("js-streams", "Sets the maximum Streams the account can have").Default("-1").Int64Var(&c.maxStreams)
-		f.Flag("js-consumers", "Sets the maximum Consumers the account can have").Default("-1").Int64Var(&c.maxConsumers)
+		f.Flag("bearer", "Allows bearer tokens").Default("false").IsSetByUser(&c.bearerAllowedIsSet).BoolVar(&c.bearerAllowed)
+		f.Flag("subscriptions", "Maximum allowed subscriptions").Default("-1").IsSetByUser(&c.maxSubIsSet).Int64Var(&c.maxSubs)
+		f.Flag("connections", "Maximum allowed connections").Default("-1").IsSetByUser(&c.maxConnsIsSet).Int64Var(&c.maxConns)
+		f.Flag("payload", "Maximum allowed payload").PlaceHolder("BYTES").Default("-1").StringVar(&c.maxPayloadString)
+		f.Flag("leafnodes", "Maximum allowed Leafnode connections").Default("-1").IsSetByUser(&c.maxLeafNodesIsSet).Int64Var(&c.maxLeafnodes)
+		f.Flag("imports", "Maximum allowed imports").Default("-1").IsSetByUser(&c.maxImportsIsSet).Int64Var(&c.maxImports)
+		f.Flag("exports", "Maximum allowed exports").Default("-1").IsSetByUser(&c.maxExportsIsSet).Int64Var(&c.maxExports)
+		f.Flag("jetstream", "Enables JetStream").Default("false").IsSetByUser(&c.jetStreamIsSet).BoolVar(&c.jetStream)
+		f.Flag("js-streams", "Sets the maximum Streams the account can have").Default("-1").IsSetByUser(&c.maxStreamsIsSet).Int64Var(&c.maxStreams)
+		f.Flag("js-consumers", "Sets the maximum Consumers the account can have").Default("-1").IsSetByUser(&c.maxConsumersIsSet).Int64Var(&c.maxConsumers)
 		f.Flag("js-disk", "Sets a Disk Storage quota").PlaceHolder("BYTES").StringVar(&c.storeMaxString)
 		f.Flag("js-disk-stream", "Sets the maximum size a Disk Storage stream may be").PlaceHolder("BYTES").Default("-1").StringVar(&c.storeMaxStreamString)
 		f.Flag("js-memory", "Sets a Memory Storage quota").PlaceHolder("BYTES").StringVar(&c.memMaxString)
 		f.Flag("js-memory-stream", "Sets the maximum size a Memory Storage stream may be").PlaceHolder("BYTES").Default("-1").StringVar(&c.memMaxStreamString)
-		f.Flag("js-max-pending", "Default Max Ack Pending for Tier 0 limits").PlaceHolder("MESSAGES").Int64Var(&c.maxAckPending)
-		f.Flag("js-stream-size-required", "Requires Streams to have a maximum size declared").UnNegatableBoolVar(&c.streamSizeRequired)
+		f.Flag("js-max-pending", "Default Max Ack Pending for Tier 0 limits").PlaceHolder("MESSAGES").IsSetByUser(&c.maxAckPendingIsSet).Int64Var(&c.maxAckPending)
+		f.Flag("js-stream-size-required", "Requires Streams to have a maximum size declared").IsSetByUser(&c.streamSizeRequiredIsSet).UnNegatableBoolVar(&c.streamSizeRequired)
 	}
 
 	add := acct.Command("add", "Adds a new Account").Action(c.addAction)
@@ -189,6 +203,13 @@ func configureAuthAccountCommand(auth commandHost) {
 	impRm.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 	impRm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
+	impKv := imports.Command("kv", "Imports a KV bucket").Action(c.importKvAction)
+	impKv.Arg("bucket", "The bucket to export").Required().StringVar(&c.bucketName)
+	impKv.Arg("prefix", "The prefix to mount the bucket on").Required().StringVar(&c.prefix)
+	impKv.Arg("source", "The account public key to import from").Required().StringVar(&c.importAccount)
+	impKv.Flag("token", "Activation token to use for the import").StringVar(&c.activationToken)
+	impKv.Flag("activation", "Requires an activation token").UnNegatableBoolVar(&c.tokenRequired)
+
 	exports := acct.Command("exports", "Manage account Exports").Alias("e").Alias("exp").Alias("export")
 
 	expAdd := exports.Command("add", "Adds an Export").Alias("new").Alias("a").Alias("n").Action(c.exportAddAction)
@@ -227,6 +248,10 @@ func configureAuthAccountCommand(auth commandHost) {
 	expRm.Arg("account", "Account to act on").StringVar(&c.accountName)
 	expRm.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 	expRm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
+
+	expKv := exports.Command("kv", "Exports a KV bucket").Action(c.exportKvAction)
+	expKv.Arg("bucket", "The bucket to export").Required().StringVar(&c.bucketName)
+	expKv.Flag("activation", "Requires an activation token").UnNegatableBoolVar(&c.tokenRequired)
 
 	sk := acct.Command("keys", "Manage Scoped Signing Keys").Alias("sk").Alias("s")
 
@@ -622,9 +647,72 @@ func (c *authAccountCommand) editAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	// TODO: need to think if we should support disabling jetstream here, possibly by turning
-	// --jetstream into a bool and adding an isSet variable, then we could disable it
-	err = c.updateAccount(acct, c.jetStream || acct.Limits().JetStream().IsJetStreamEnabled())
+	jsEnabled := acct.Limits().JetStream().IsJetStreamEnabled()
+	limits := acct.Limits().(operatorLimitsManager).OperatorLimits()
+	// copy existing settings into the flag settings so parsing treats those as defaults unless users set values
+	if c.maxPayloadString == "" {
+		c.maxPayloadString = strconv.Itoa(int(limits.Payload))
+	}
+	if !c.maxConnsIsSet {
+		c.maxConns = limits.Conn
+	}
+	if !c.maxSubIsSet {
+		c.maxSubs = limits.Subs
+	}
+	if !c.maxLeafNodesIsSet {
+		c.maxLeafnodes = limits.LeafNodeConn
+	}
+	if !c.maxExportsIsSet {
+		c.maxExports = limits.Exports
+	}
+	if !c.maxImportsIsSet {
+		c.maxImports = limits.Imports
+	}
+	if !c.bearerAllowedIsSet {
+		c.bearerAllowed = !limits.DisallowBearer
+	}
+
+	if jsEnabled {
+		if !c.jetStreamIsSet {
+			c.jetStream = true
+		}
+
+		jsl := limits.JetStreamLimits
+		if c.storeMaxString == "" {
+			c.storeMaxString = strconv.Itoa(int(jsl.DiskStorage))
+			log.Printf("set storeMaxString to %s\n", c.storeMaxStreamString)
+		}
+		if c.memMaxString == "" {
+			c.memMaxString = strconv.Itoa(int(jsl.MemoryStorage))
+			log.Printf("set memMaxString to %s\n", c.memMaxString)
+		}
+		if c.memMaxStreamString == "" {
+			c.memMaxStreamString = strconv.Itoa(int(jsl.MemoryMaxStreamBytes))
+		}
+		if c.storeMaxStreamString == "" {
+			c.storeMaxStreamString = strconv.Itoa(int(jsl.DiskMaxStreamBytes))
+		}
+		if !c.maxConsumersIsSet {
+			c.maxConsumers = jsl.Consumer
+		}
+		if !c.maxStreamsIsSet {
+			c.maxStreams = jsl.Streams
+		}
+		if !c.streamSizeRequiredIsSet {
+			c.streamSizeRequired = jsl.MaxBytesRequired
+		}
+		if !c.maxAckPendingIsSet {
+			c.maxAckPending = jsl.MaxAckPending
+		}
+	}
+
+	err = c.parseStringOptions()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("jsIsSet: %t enabled: %t\n", c.jetStreamIsSet, jsEnabled)
+	err = c.updateAccount(acct, c.jetStreamIsSet || jsEnabled)
 	if err != nil {
 		return err
 	}
@@ -728,7 +816,6 @@ func (c *authAccountCommand) updateAccount(acct ab.Account, js bool) error {
 	limits.Exports = c.maxExports
 	limits.Imports = c.maxImports
 	limits.DisallowBearer = !c.bearerAllowed
-
 	if js {
 		if c.storeMaxStream > 0 {
 			limits.JetStreamLimits.DiskMaxStreamBytes = c.storeMaxStream
@@ -753,6 +840,60 @@ func (c *authAccountCommand) updateAccount(acct ab.Account, js bool) error {
 		err = acct.SetExpiry(time.Now().Add(c.expiry).Unix())
 		if err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *authAccountCommand) parseStringOptions() error {
+	var err error
+
+	if c.maxPayloadString != "" {
+		c.maxPayload, err = parseStringAsBytes(c.maxPayloadString)
+		if err != nil {
+			return err
+		}
+	}
+
+	if c.jetStream {
+		if c.storeMaxString == "" {
+			c.storeMax, err = askOneBytes("Maximum JetStream Disk Storage", "1GB", "Maximum amount of disk this account may use, set using --js-disk", "JetStream requires maximum Disk usage set")
+			if err != nil {
+				return err
+			}
+		}
+		if c.memMaxString == "" {
+			c.memMax, err = askOneBytes("Maximum JetStream Memory Storage", "1GB", "Maximum amount of memory this account may use, set using --js-memory", "JetStream requires maximum Memory usage set")
+			if err != nil {
+				return err
+			}
+		}
+
+		if c.storeMaxString != "" {
+			c.storeMax, err = parseStringAsBytes(c.storeMaxString)
+			if err != nil {
+				return err
+			}
+		}
+		if c.memMaxString != "" {
+			c.memMax, err = parseStringAsBytes(c.memMaxString)
+			if err != nil {
+				return err
+			}
+		}
+
+		if c.memMaxStreamString != "-1" {
+			c.memMaxStream, err = parseStringAsBytes(c.memMaxStreamString)
+			if err != nil {
+				return err
+			}
+		}
+		if c.storeMaxStreamString != "-1" {
+			c.storeMaxStream, err = parseStringAsBytes(c.storeMaxStreamString)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -810,52 +951,9 @@ func (c *authAccountCommand) addAction(_ *fisk.ParseContext) error {
 		fmt.Println()
 	}
 
-	if c.maxPayloadString != "" {
-		c.maxPayload, err = parseStringAsBytes(c.maxPayloadString)
-		if err != nil {
-			return err
-		}
-	}
-
-	if c.jetStream {
-		if c.storeMaxString == "" {
-			c.storeMax, err = askOneBytes("Maximum JetStream Disk Storage", "1GB", "Maximum amount of disk this account may use, set using --js-disk", "JetStream requires maximum Disk usage set")
-			if err != nil {
-				return err
-			}
-		}
-		if c.memMaxString == "" {
-			c.memMax, err = askOneBytes("Maximum JetStream Memory Storage", "1GB", "Maximum amount of memory this account may use, set using --js-memory", "JetStream requires maximum Memory usage set")
-			if err != nil {
-				return err
-			}
-		}
-
-		if c.storeMaxString != "" {
-			c.storeMax, err = parseStringAsBytes(c.storeMaxString)
-			if err != nil {
-				return err
-			}
-		}
-		if c.memMaxString != "" {
-			c.memMax, err = parseStringAsBytes(c.memMaxString)
-			if err != nil {
-				return err
-			}
-		}
-
-		if c.memMaxStreamString != "-1" {
-			c.memMaxStream, err = parseStringAsBytes(c.memMaxStreamString)
-			if err != nil {
-				return err
-			}
-		}
-		if c.storeMaxStreamString != "-1" {
-			c.storeMaxStream, err = parseStringAsBytes(c.storeMaxStreamString)
-			if err != nil {
-				return err
-			}
-		}
+	err = c.parseStringOptions()
+	if err != nil {
+		return err
 	}
 
 	err = c.updateAccount(acct, c.jetStream)
