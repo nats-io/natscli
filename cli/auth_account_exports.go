@@ -8,8 +8,75 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 	"time"
 )
+
+func (c *authAccountCommand) exportKvAction(_ *fisk.ParseContext) error {
+	auth, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	services := []string{
+		"$JS.API.STREAM.INFO.KV_%s",
+		"$JS.API.DIRECT.GET.KV_%s.$KV.%s.>",
+		"$JS.API.CONSUMER.CREATE.KV_%s.>",
+		"$KV.%s.>",
+	}
+
+	streams := []string{
+		"_INBOX.KV_%s.>",
+	}
+
+	for _, s := range services {
+		subj := strings.ReplaceAll(s, "%s", c.bucketName)
+		fmt.Printf("Exporting Service Subject: %s\n", subj)
+
+		exp, err := ab.NewServiceExport(fmt.Sprintf("KV_%s", c.bucketName), subj)
+		if err != nil {
+			return err
+		}
+
+		exp.SetDescription(fmt.Sprintf("Export for KV Bucket %s", c.bucketName))
+		if c.tokenRequired {
+			err = exp.SetTokenRequired(true)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = acct.Exports().Services().AddWithConfig(exp)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, s := range streams {
+		subj := strings.ReplaceAll(s, "%s", c.bucketName)
+		fmt.Printf("Exporting Stream Subject: %s\n", subj)
+
+		exp, err := ab.NewStreamExport(fmt.Sprintf("KV_%s", c.bucketName), subj)
+		if err != nil {
+			return err
+		}
+
+		exp.SetDescription(fmt.Sprintf("Export for KV Bucket %s", c.bucketName))
+		if c.tokenRequired {
+			err = exp.SetTokenRequired(true)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = acct.Exports().Streams().AddWithConfig(exp)
+		if err != nil {
+			return err
+		}
+	}
+
+	return auth.Commit()
+}
 
 func (c *authAccountCommand) findExport(account ab.Account, subject string) ab.Export {
 	for _, exp := range account.Exports().Streams().List() {

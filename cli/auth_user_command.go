@@ -59,7 +59,7 @@ func configureAuthUserCommand(auth commandHost) {
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Flag("locale", "Sets the locale for the user connection").StringVar(&c.userLocale)
 		f.Flag("bearer", "Enables the use of bearer tokens").BoolVar(&c.bearerAllowed)
-		f.Flag("payload", "Maximum payload size to allow").IsSetByUser(&c.maxPayloadIsSet).Default("-1").Int64Var(&c.maxPayload)
+		f.Flag("payload", "Maximum payload size to allow").IsSetByUser(&c.maxPayloadIsSet).Default("1048576").Int64Var(&c.maxPayload)
 		f.Flag("subscriptions", "Maximum subscription count to allow").IsSetByUser(&c.maxSubsIsSet).Default("-1").Int64Var(&c.maxSubs)
 		f.Flag("pub-allow", "Allow publishing to a subject").StringsVar(&c.pubAllow)
 		f.Flag("pub-deny", "Deny publishing to a subject").StringsVar(&c.pubDeny)
@@ -101,7 +101,7 @@ func configureAuthUserCommand(auth commandHost) {
 	rm.Flag("revoke", "Also revokes the user before deleting it").UnNegatableBoolVar(&c.revoke)
 	rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	cred := user.Command("credential", "Creates a credential file for a user").Alias("cred").Action(c.credAction)
+	cred := user.Command("credential", "Creates a credential file for a user").Alias("cred").Alias("creds").Action(c.credAction)
 	cred.Arg("file", "The file to create").Required().StringVar(&c.credFile)
 	cred.Arg("name", "Unique name for this User").StringVar(&c.userName)
 	cred.Flag("expire", "Duration till expiry").DurationVar(&c.expire)
@@ -338,9 +338,11 @@ func (c *authUserCommand) addAction(_ *fisk.ParseContext) error {
 	}
 
 	user, err := acct.Users().Get(c.userName)
-	if user != nil || errors.Is(err, ab.ErrNotFound) {
+	switch {
+	case user != nil:
 		return fmt.Errorf("user %s already exist", c.userName)
-	} else if err != nil {
+	case errors.Is(err, ab.ErrNotFound):
+	case err != nil:
 		return err
 	}
 
