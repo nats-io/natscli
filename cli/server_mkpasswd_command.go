@@ -80,7 +80,7 @@ func (c *SrvPasswdCmd) askPassword() (string, error) {
 		return "", fmt.Errorf("could not read password: %w", err)
 	}
 	fmt.Println()
-	err = askOne(&survey.Password{Message: "Reenter password", Help: "Enter the same password again"}, &bp2)
+	err = askOne(&survey.Password{Message: "Re-enter password", Help: "Enter the same password again"}, &bp2)
 	if err != nil {
 		return "", fmt.Errorf("could not read password: %w", err)
 	}
@@ -88,7 +88,7 @@ func (c *SrvPasswdCmd) askPassword() (string, error) {
 	fmt.Println()
 
 	if bp1 != bp2 {
-		return "", fmt.Errorf("passwords do not match (%s != %s)", bp1, bp2)
+		return "", fmt.Errorf("entered and re-entered passwords do not match")
 	}
 
 	return bp1, nil
