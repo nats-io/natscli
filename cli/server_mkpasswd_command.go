@@ -88,7 +88,7 @@ func (c *SrvPasswdCmd) askPassword() (string, error) {
 	fmt.Println()
 
 	if bp1 != bp2 {
-		return "", fmt.Errorf("entered and re-entered passwords do not match")
+		return "", fmt.Errorf("Entered and re-entered passwords do not match")
 	}
 
 	return bp1, nil
