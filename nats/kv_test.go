@@ -64,19 +64,29 @@ func TestCLIKVCreate(t *testing.T) {
 	defer srv.Shutdown()
 
 	store := createTestBucket(t, nc, nil)
+	kvCreateCmd := fmt.Sprintf("--server='%s' kv create %s", srv.ClientURL(), store.Bucket())
 
 	for _, test := range []struct {
 		name  string
 		key   string
 		value string
+		stdin bool
 	}{
-		{"simple", "X", "VAL"},
-		{"empty", "Y", ""},
+		{"simple", "X", "VAL", false},
+		{"empty", "Y", "", false},
+		{"stdin", "Z", "VAL", true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			out := runNatsCli(t, fmt.Sprintf("--server='%s' kv create %s %s %s", srv.ClientURL(), store.Bucket(), test.key, test.value))
-			if strings.TrimSpace(string(out)) != test.value {
-				t.Fatalf("create failed: %s", string(out))
+			if test.stdin {
+				out := runNatsCliWithInput(t, test.value, fmt.Sprintf("%s %s", kvCreateCmd, test.key))
+				if strings.TrimSpace(string(out)) != "" {
+					t.Fatalf("put failed: %s", string(out))
+				}
+			} else {
+				out := runNatsCli(t, fmt.Sprintf("%s %s %s", kvCreateCmd, test.key, test.value))
+				if strings.TrimSpace(string(out)) != test.value {
+					t.Fatalf("put failed: %s", string(out))
+				}
 			}
 
 			val, err := store.Get(test.key)
@@ -95,19 +105,29 @@ func TestCLIKVPut(t *testing.T) {
 	defer srv.Shutdown()
 
 	store := createTestBucket(t, nc, nil)
+	kvPutCmd := fmt.Sprintf("--server='%s' kv put %s", srv.ClientURL(), store.Bucket())
 
 	for _, test := range []struct {
 		name  string
 		key   string
 		value string
+		stdin bool
 	}{
-		{"simple", "X", "VAL"},
-		{"empty", "Y", ""},
+		{"simple", "X", "VAL", false},
+		{"empty", "Y", "", false},
+		{"stdin", "Z", "VAL", true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			out := runNatsCli(t, fmt.Sprintf("--server='%s' kv put %s %s %s", srv.ClientURL(), store.Bucket(), test.key, test.value))
-			if strings.TrimSpace(string(out)) != test.value {
-				t.Fatalf("put failed: %s", string(out))
+			if test.stdin {
+				out := runNatsCliWithInput(t, test.value, fmt.Sprintf("%s %s", kvPutCmd, test.key))
+				if strings.TrimSpace(string(out)) != "" {
+					t.Fatalf("put failed: %s", string(out))
+				}
+			} else {
+				out := runNatsCli(t, fmt.Sprintf("%s %s %s", kvPutCmd, test.key, test.value))
+				if strings.TrimSpace(string(out)) != test.value {
+					t.Fatalf("put failed: %s", string(out))
+				}
 			}
 
 			val, err := store.Get(test.key)
@@ -126,21 +146,31 @@ func TestCLIKVUpdate(t *testing.T) {
 	defer srv.Shutdown()
 
 	store := createTestBucket(t, nc, nil)
+	kvUpdateCmd := fmt.Sprintf("--server='%s' kv update %s", srv.ClientURL(), store.Bucket())
 
 	for _, test := range []struct {
 		name  string
 		key   string
 		value string
+		stdin bool
 	}{
-		{"simple", "X", "VAL"},
-		{"empty", "Y", ""},
+		{"simple", "X", "VAL", false},
+		{"empty", "Y", "", false},
+		{"stdin", "Z", "VAL", true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			rev := mustPut(t, store, test.key, "OLD")
 
-			out := runNatsCli(t, fmt.Sprintf("--server='%s' kv update %s %s '%s' %d", srv.ClientURL(), store.Bucket(), test.key, test.value, rev))
-			if strings.TrimSpace(string(out)) != test.value {
-				t.Fatalf("update failed: %s", string(out))
+			if test.stdin {
+				out := runNatsCliWithInput(t, test.value, fmt.Sprintf("%s %s '' %d", kvUpdateCmd, test.key, rev))
+				if strings.TrimSpace(string(out)) != "" {
+					t.Fatalf("put failed: %s", string(out))
+				}
+			} else {
+				out := runNatsCli(t, fmt.Sprintf("%s %s '%s' %d", kvUpdateCmd, test.key, test.value, rev))
+				if strings.TrimSpace(string(out)) != test.value {
+					t.Fatalf("put failed: %s", string(out))
+				}
 			}
 
 			val, err := store.Get(test.key)
