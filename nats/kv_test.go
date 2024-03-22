@@ -59,23 +59,101 @@ func TestCLIKVGet(t *testing.T) {
 	}
 }
 
+func TestCLIKVCreate(t *testing.T) {
+	srv, nc, _ := setupJStreamTest(t)
+	defer srv.Shutdown()
+
+	store := createTestBucket(t, nc, nil)
+
+	for _, test := range []struct {
+		name  string
+		key   string
+		value string
+	}{
+		{"simple", "X", "VAL"},
+		{"empty", "Y", ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			out := runNatsCli(t, fmt.Sprintf("--server='%s' kv create %s %s %s", srv.ClientURL(), store.Bucket(), test.key, test.value))
+			if strings.TrimSpace(string(out)) != test.value {
+				t.Fatalf("create failed: %s", string(out))
+			}
+
+			val, err := store.Get(test.key)
+			if err != nil {
+				t.Fatalf("get failed: %s", err)
+			}
+			if !bytes.Equal(val.Value(), []byte(test.value)) {
+				t.Fatalf("invalid value saved: %s", val.Value())
+			}
+		})
+	}
+}
+
 func TestCLIKVPut(t *testing.T) {
 	srv, nc, _ := setupJStreamTest(t)
 	defer srv.Shutdown()
 
 	store := createTestBucket(t, nc, nil)
 
-	out := runNatsCli(t, fmt.Sprintf("--server='%s' kv put T X VAL", srv.ClientURL()))
-	if strings.TrimSpace(string(out)) != "VAL" {
-		t.Fatalf("put failed: %s", string(out))
-	}
+	for _, test := range []struct {
+		name  string
+		key   string
+		value string
+	}{
+		{"simple", "X", "VAL"},
+		{"empty", "Y", ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			out := runNatsCli(t, fmt.Sprintf("--server='%s' kv put %s %s %s", srv.ClientURL(), store.Bucket(), test.key, test.value))
+			if strings.TrimSpace(string(out)) != test.value {
+				t.Fatalf("put failed: %s", string(out))
+			}
 
-	val, err := store.Get("X")
-	if err != nil {
-		t.Fatalf("get failed: %s", err)
+			val, err := store.Get(test.key)
+			if err != nil {
+				t.Fatalf("get failed: %s", err)
+			}
+			if !bytes.Equal(val.Value(), []byte(test.value)) {
+				t.Fatalf("invalid value saved: %s", val.Value())
+			}
+		})
 	}
-	if !bytes.Equal(val.Value(), []byte("VAL")) {
-		t.Fatalf("invalid value saved: %s", val.Value())
+}
+
+func TestCLIKVUpdate(t *testing.T) {
+	srv, nc, _ := setupJStreamTest(t)
+	defer srv.Shutdown()
+
+	store := createTestBucket(t, nc, nil)
+
+	for _, test := range []struct {
+		name  string
+		key   string
+		value string
+	}{
+		{"simple", "X", "VAL"},
+		{"empty", "Y", ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rev := mustPut(t, store, test.key, "OLD")
+
+			out := runNatsCli(t, fmt.Sprintf("--server='%s' kv update %s %s '%s' %d", srv.ClientURL(), store.Bucket(), test.key, test.value, rev))
+			if strings.TrimSpace(string(out)) != test.value {
+				t.Fatalf("update failed: %s", string(out))
+			}
+
+			val, err := store.Get(test.key)
+			if err != nil {
+				t.Fatalf("get failed: %s", err)
+			}
+			if rev == val.Revision() {
+				t.Fatalf("invalid revision: %d", val.Revision())
+			}
+			if !bytes.Equal(val.Value(), []byte(test.value)) {
+				t.Fatalf("invalid value saved: %s", val.Value())
+			}
+		})
 	}
 }
 

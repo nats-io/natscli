@@ -589,11 +589,16 @@ func (c *kvCommand) updateAction(_ *fisk.ParseContext) error {
 }
 
 func (c *kvCommand) valOrReadVal() ([]byte, error) {
-	if c.val != "" {
+	if c.val != "" || c.isNotPipe() {
 		return []byte(c.val), nil
 	}
 
 	return io.ReadAll(os.Stdin)
+}
+
+func (c *kvCommand) isNotPipe() bool {
+	stat, err := os.Stdin.Stat()
+	return err != nil || (stat.Mode()&os.ModeNamedPipe) == 0
 }
 
 func (c *kvCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.KeyValue, error) {
