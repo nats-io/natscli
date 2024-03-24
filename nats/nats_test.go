@@ -54,6 +54,11 @@ func checkErr(t *testing.T, err error, format string, a ...any) {
 
 func runNatsCli(t *testing.T, args ...string) (output []byte) {
 	t.Helper()
+	return runNatsCliWithInput(t, "", args...)
+}
+
+func runNatsCliWithInput(t *testing.T, input string, args ...string) (output []byte) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -65,6 +70,9 @@ func runNatsCli(t *testing.T, args ...string) (output []byte) {
 	}
 
 	execution := exec.CommandContext(ctx, "bash", "-c", cmd)
+	if input != "" {
+		execution.Stdin = strings.NewReader(input)
+	}
 	out, err := execution.CombinedOutput()
 	if err != nil {
 		t.Fatalf("nats utility failed: %v\n%v", err, string(out))

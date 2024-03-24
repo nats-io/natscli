@@ -30,6 +30,7 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/columns"
+	"golang.org/x/term"
 )
 
 type kvCommand struct {
@@ -589,7 +590,7 @@ func (c *kvCommand) updateAction(_ *fisk.ParseContext) error {
 }
 
 func (c *kvCommand) valOrReadVal() ([]byte, error) {
-	if c.val != "" {
+	if c.val != "" || term.IsTerminal(int(os.Stdin.Fd())) {
 		return []byte(c.val), nil
 	}
 
