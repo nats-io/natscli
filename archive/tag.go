@@ -41,6 +41,7 @@ const (
 const rootPrefix = "capture/"
 const separator = "__"
 const captureLogName = rootPrefix + "capture.log"
+const metadataName = rootPrefix + "capture_info.json"
 
 // Special tag that result in a special file path
 var specialFilesTagMap = map[Tag]string{

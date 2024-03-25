@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"reflect"
+	"time"
 
 	"github.com/choria-io/fisk"
 	"github.com/mprimi/natscli/archive"
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 )
 
 type PaGatherCmd struct {
@@ -189,6 +192,11 @@ func (c *PaGatherCmd) gather(_ *fisk.ParseContext) error {
 		}
 		fmt.Printf("📁 Archive created at: %s\n", c.archiveFilePath)
 	}()
+
+	err = c.captureMetadata(aw, nc)
+	if err != nil {
+		return fmt.Errorf("failed to save capture metadata: %w", err)
+	}
 
 	// Server ID -> ServerInfo map
 	var serverInfoMap = make(map[string]*server.ServerInfo)
@@ -522,6 +530,39 @@ func (c *PaGatherCmd) gather(_ *fisk.ParseContext) error {
 	}
 
 	return nil
+}
+
+type gatherMetadata struct {
+	Timestamp              time.Time `json:"capture_timestamp"`
+	ConnectedServerName    string    `json:"connected_server_name"`
+	ConnectedServerVersion string    `json:"connected_server_version"`
+	ConnectURL             string    `json:"connect_url"`
+	UserName               string    `json:"user_name"`
+	CLIVersion             string    `json:"cli_version"`
+}
+
+// captureMetadata captures some runtime metadata and saves it into a special file in the output archive
+// This is useful to know who/when/where ran the gather command.
+func (c *PaGatherCmd) captureMetadata(aw *archive.Writer, nc *nats.Conn) error {
+
+	username := "?"
+	currentUser, err := user.Current()
+	if err != nil {
+		c.logWarning("Failed to capture username: %s", err)
+	} else {
+		username = fmt.Sprintf("%s (%s)", currentUser.Username, currentUser.Name)
+	}
+
+	metadata := &gatherMetadata{
+		Timestamp:              time.Now(),
+		ConnectedServerName:    nc.ConnectedServerName(),
+		ConnectedServerVersion: nc.ConnectedServerVersion(),
+		ConnectURL:             nc.ConnectedUrl(),
+		UserName:               username,
+		CLIVersion:             Version,
+	}
+
+	return aw.AddCaptureMetadata(metadata)
 }
 
 // logProgress prints updates to the gathering process. It can be turned off to make capture less verbose.

@@ -170,6 +170,9 @@ func NewReader(archivePath string) (*Reader, error) {
 		} else if fileName == captureLogName {
 			// Capture log is not present in manifest
 			continue
+		} else if fileName == metadataName {
+			// Metadata file is not present in manifest
+			continue
 		}
 		if _, present := manifestMap[fileName]; !present {
 			fmt.Printf("Warning: archive file %s is not present in manifest\n", fileName)

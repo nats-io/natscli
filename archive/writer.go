@@ -109,6 +109,14 @@ func (w *Writer) AddCaptureLog(reader *bytes.Reader) error {
 	return w.AddArtifact(captureLogName, reader)
 }
 
+func (w *Writer) AddCaptureMetadata(metadata any) error {
+	encoded, err := json.MarshalIndent(metadata, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to encode metadata: %w", err)
+	}
+	return w.AddArtifact(metadataName, bytes.NewReader(encoded))
+}
+
 func NewWriter(archivePath string) (*Writer, error) {
 
 	fileWriter, err := os.Create(archivePath)
