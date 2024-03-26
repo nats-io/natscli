@@ -12,11 +12,12 @@ type Tag struct {
 }
 
 const (
-	serverTagLabel  TagLabel = "server"
-	clusterTagLabel TagLabel = "cluster"
-	accountTagLabel TagLabel = "account"
-	streamTagLabel  TagLabel = "stream"
-	typeTagLabel    TagLabel = "artifact_type"
+	serverTagLabel      TagLabel = "server"
+	clusterTagLabel     TagLabel = "cluster"
+	accountTagLabel     TagLabel = "account"
+	streamTagLabel      TagLabel = "stream"
+	typeTagLabel        TagLabel = "artifact_type"
+	profileNameTagLabel TagLabel = "profile_name"
 )
 
 const (
@@ -31,6 +32,7 @@ const (
 	accountzArtifactType      string = "accounts"
 	streamDetailsArtifactType string = "stream_details"
 	manifestArtifactType      string = "manifest"
+	profileArtifactType       string = "profile"
 )
 
 const (
@@ -50,11 +52,12 @@ var specialFilesTagMap = map[Tag]string{
 
 // Special tags that get composed and combined in the filename
 var dimensionTagsNames = map[TagLabel]interface{}{
-	accountTagLabel: nil,
-	clusterTagLabel: nil,
-	serverTagLabel:  nil,
-	streamTagLabel:  nil,
-	typeTagLabel:    nil,
+	accountTagLabel:     nil,
+	clusterTagLabel:     nil,
+	serverTagLabel:      nil,
+	streamTagLabel:      nil,
+	typeTagLabel:        nil,
+	profileNameTagLabel: nil,
 }
 
 func createFilenameFromTags(tags []*Tag) (string, error) {
@@ -101,7 +104,7 @@ func createFilenameFromTags(tags []*Tag) (string, error) {
 	if len(otherTags) > 0 {
 		// TODO for the moment, the gather command is the only user, and it is not custom tags.
 		// If we ever open the archiving API beyond, we may need to address this.
-		panic(fmt.Sprintf("Unhandled tags: %v", otherTags))
+		panic(fmt.Sprintf("Unhandled tags: %+v", otherTags))
 	}
 
 	accountTag, hasAccountTag := dimensionTagsMap[accountTagLabel], dimensionTagsMap[accountTagLabel] != nil
@@ -109,14 +112,20 @@ func createFilenameFromTags(tags []*Tag) (string, error) {
 	serverTag, hasServerTag := dimensionTagsMap[serverTagLabel], dimensionTagsMap[serverTagLabel] != nil
 	streamTag, hasStreamTag := dimensionTagsMap[streamTagLabel], dimensionTagsMap[streamTagLabel] != nil
 	typeTag, hasTypeTag := dimensionTagsMap[typeTagLabel], dimensionTagsMap[typeTagLabel] != nil
+	profileNameTag, hasProfileNameTag := dimensionTagsMap[profileNameTagLabel], dimensionTagsMap[profileNameTagLabel] != nil
 
 	var name string
 
+	// All artifacts must have a type and a source server
 	if !hasTypeTag {
 		return "", fmt.Errorf("missing required tag for artifact type")
 	} else if !hasServerTag {
 		return "", fmt.Errorf("missing required tag for source server")
-	} else if hasStreamTag {
+	}
+
+	fileExtension := ".json"
+
+	if hasStreamTag {
 		// Stream artifact must have account and cluster tag
 		if !hasClusterTag || !hasAccountTag {
 			return "", fmt.Errorf("stream artifact is missing cluster or account tags")
@@ -135,15 +144,26 @@ func createFilenameFromTags(tags []*Tag) (string, error) {
 		if hasClusterTag {
 			clusterName = clusterTag.Value
 		}
-		name = fmt.Sprintf("clusters/%s/server_%s__%s", clusterName, serverTag.Value, typeTag.Value)
+
+		// Handle certain types differently
+		switch typeTag.Value {
+		case profileArtifactType:
+			if !hasProfileNameTag {
+				return "", fmt.Errorf("profile artifact is missing profile name")
+			}
+			fileExtension = ".prof"
+			name = fmt.Sprintf("clusters/%s/profiles/server_%s__profile_%s", clusterName, serverTag.Value, profileNameTag.Value)
+
+		default:
+			name = fmt.Sprintf("clusters/%s/server_%s__%s", clusterName, serverTag.Value, typeTag.Value)
+		}
 
 	} else {
 		// TODO may add more cases later, for now bomb if none of the above applies
 		panic(fmt.Sprintf("Unhandled tags combination: %+v", dimensionTagsMap))
 	}
 
-	//TODO could set suffix based on type. For now, everything JSON.
-	name = rootPrefix + name + ".json"
+	name = rootPrefix + name + fileExtension
 
 	return name, nil
 }
@@ -229,5 +249,16 @@ func TagStream(streamName string) *Tag {
 	return &Tag{
 		Name:  streamTagLabel,
 		Value: streamName,
+	}
+}
+
+func TagServerProfile() *Tag {
+	return TagArtifactType(profileArtifactType)
+}
+
+func TagProfileName(profileType string) *Tag {
+	return &Tag{
+		Name:  profileNameTagLabel,
+		Value: profileType,
 	}
 }

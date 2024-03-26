@@ -25,6 +25,18 @@ func Test_CreateFilenameFromTags(t *testing.T) {
 			false,
 		},
 		{
+			"server profile",
+			[]*Tag{TagCluster("C1"), TagServer("S1"), TagServerProfile(), TagProfileName("foo")},
+			"capture/clusters/C1/profiles/server_S1__profile_foo.prof",
+			false,
+		},
+		{
+			"server profile with missing name",
+			[]*Tag{TagCluster("C1"), TagServer("S1"), TagServerProfile()},
+			"",
+			true,
+		},
+		{
 			"cluster info",
 			[]*Tag{TagCluster("C1"), TagServer("S1"), TagArtifactType("cluster_info")},
 			"capture/clusters/C1/server_S1__cluster_info.json",
