@@ -46,6 +46,6 @@ pkg
 # bin
 dist
 natscli
-nats/nats
-nats/main
+nats-pa/nats-pa
+nats-pa/main
 ABTaskFile

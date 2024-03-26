@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/choria-io/fisk"
-	"github.com/nats-io/natscli/plugins"
+	"github.com/mprimi/natscli/plugins"
 )
 
 type pluginsCmd struct {

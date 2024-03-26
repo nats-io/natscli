@@ -29,7 +29,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/natscli/columns"
+	"github.com/mprimi/natscli/columns"
 	"golang.org/x/term"
 )
 

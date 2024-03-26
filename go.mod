@@ -1,4 +1,4 @@
-module github.com/nats-io/natscli
+module github.com/mprimi/natscli
 
 go 1.21
 
