@@ -69,6 +69,21 @@ func (w *Writer) AddArtifact(name string, content *bytes.Reader) error {
 // in the reader
 func (w *Writer) Add(artifact any, tags ...*Tag) error {
 
+	// Encode the artifact as (pretty-formatted) JSON
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	encoder.SetIndent("", "  ")
+	err := encoder.Encode(artifact)
+	if err != nil {
+		return fmt.Errorf("failed to encode: %w", err)
+	}
+
+	return w.AddObject(bytes.NewReader(buf.Bytes()), tags...)
+}
+
+// AddObject adds the given artifact bytes as-is
+func (w *Writer) AddObject(reader *bytes.Reader, tags ...*Tag) error {
+
 	if w.zipWriter == nil {
 		return fmt.Errorf("attempting to write into a closed writer")
 	}
@@ -91,12 +106,9 @@ func (w *Writer) Add(artifact any, tags ...*Tag) error {
 		return fmt.Errorf("failed to create file in archive: %w", err)
 	}
 
-	// Encode the artifact as (pretty-formatted) JSON
-	encoder := json.NewEncoder(f)
-	encoder.SetIndent("", "  ")
-	err = encoder.Encode(artifact)
+	_, err = io.Copy(f, reader)
 	if err != nil {
-		return fmt.Errorf("failed to encode: %w", err)
+		return fmt.Errorf("failed to copy content: %w", err)
 	}
 
 	// Add file and its tags to the manifest
