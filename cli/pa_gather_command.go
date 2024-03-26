@@ -24,6 +24,7 @@ type PaGatherCmd struct {
 	noPrintProgress    bool
 	noServerEndpoints  bool
 	noAccountEndpoints bool
+	serverProfiles     bool
 	captureLogWriter   io.Writer
 }
 
@@ -34,6 +35,15 @@ type CustomServerAPIResponse struct {
 	Server *server.ServerInfo `json:"server"`
 	Data   json.RawMessage    `json:"data,omitempty"`
 	Error  *server.ApiError   `json:"error,omitempty"`
+}
+
+var profileTypes = []string{
+	"goroutine",
+	"heap",
+	"allocs",
+	//"threadcreate",
+	//"block",
+	//"mutex",
 }
 
 type endpointCaptureConfig struct {
@@ -127,6 +137,7 @@ func configurePaGatherCommand(srv *fisk.CmdClause) {
 	gather.Flag("no-account-endpoints", "skip capturing of account endpoints").UnNegatableBoolVar(&c.noAccountEndpoints)
 	gather.Flag("no-streams", "skip capturing of stream details").UnNegatableBoolVar(&c.noStreamInfo)
 	gather.Flag("no-consumers", "skip capturing of stream consumer details").UnNegatableBoolVar(&c.noConsumerInfo)
+	gather.Flag("profiles", "capture profiles for each servers").UnNegatableBoolVar(&c.serverProfiles)
 	gather.Flag("no-progress", "silence log messages detailing progress during gathering").UnNegatableBoolVar(&c.noPrintProgress)
 }
 
@@ -142,7 +153,9 @@ Overview of gathering strategy:
 
  3. Foreach known server
     ··Foreach server endpoint
-    ··Request $SYS.REQ.SERVER.<Server ID>.<Endpoint>, save the response
+    ····Request $SYS.REQ.SERVER.<Server ID>.<Endpoint>, save the response
+    ··Foreach profile type
+    ····Request $SYS.REQ.SERVER.<Profile>.PROFILEZ and save the response
 
  4. Foreach known account
     ··Foreach server endpoint
@@ -345,6 +358,81 @@ func (c *PaGatherCmd) gather(_ *fisk.ParseContext) error {
 			}
 		}
 		c.logProgress("ℹ️ Captured %d endpoint responses from %d servers", capturedCount, len(serverInfoMap))
+	}
+
+	if !c.serverProfiles {
+		c.logProgress("Skipping server profiles gathering")
+	} else {
+		// For each known server, query for a set of profiles
+		c.logProgress("⏳ Querying %d profiles endpoints on %d known servers...", len(profileTypes), len(serverInfoMap))
+		capturedCount := 0
+		for serverId, serverInfo := range serverInfoMap {
+			serverName := serverInfo.Name
+			for _, profileType := range profileTypes {
+
+				subject := fmt.Sprintf("$SYS.REQ.SERVER.%s.PROFILEZ", serverId)
+				payload := server.ProfilezOptions{
+					Name:  profileType,
+					Debug: 0,
+				}
+
+				responses, err := doReq(payload, subject, 1, nc)
+				if err != nil {
+					c.logWarning("Failed to request profile %s from server %s: %s", profileType, serverName, err)
+					continue
+				}
+
+				if len(responses) != 1 {
+					c.logWarning("Unexpected number of responses for PROFILEZ from server %s: %d", serverName, len(responses))
+					continue
+				}
+
+				responseBytes := responses[0]
+
+				var apiResponse struct {
+					Server *server.ServerInfo     `json:"server"`
+					Data   *server.ProfilezStatus `json:"data,omitempty"`
+					Error  *server.ApiError       `json:"error,omitempty"`
+				}
+				if err = json.Unmarshal(responseBytes, &apiResponse); err != nil {
+					c.logWarning("Failed to deserialize PROFILEZ response from server %s: %s", serverName, err)
+					continue
+				}
+				if apiResponse.Error != nil {
+					c.logWarning("Failed to retrieve profile %s from server %s: %s", profileType, serverName, apiResponse.Error.Description)
+					continue
+				}
+
+				profileStatus := apiResponse.Data
+				if profileStatus.Error != "" {
+					c.logWarning("Failed to retrieve profile %s from server %s: %s", profileType, serverName, profileStatus.Error)
+					continue
+				}
+
+				tags := []*archive.Tag{
+					archive.TagServer(serverName), // Source server
+					archive.TagServerProfile(),
+					archive.TagProfileName(profileType),
+				}
+
+				if serverInfo.Cluster != "" {
+					tags = append(tags, archive.TagCluster(serverInfo.Cluster))
+				} else {
+					tags = append(tags, archive.TagNoCluster())
+				}
+
+				profileDataBytes := apiResponse.Data.Profile
+
+				err = aw.AddObject(bytes.NewReader(profileDataBytes), tags...)
+				if err != nil {
+					return fmt.Errorf("failed to add profile %s from to archive: %w", profileType, err)
+				}
+
+				capturedCount += 1
+
+			}
+		}
+		c.logProgress("ℹ️ Captured %d server profiles from %d servers", capturedCount, len(serverInfoMap))
 	}
 
 	if c.noAccountEndpoints {
