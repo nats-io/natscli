@@ -97,7 +97,7 @@ func TestSealOpen(t *testing.T) {
 		t.FailNow()
 	}
 
-	// Setup fisk for Seal Test
+	// Setup fisk for Open Test
 	c = &authNKCommand{}
 	c.counterpartKey = p1_pub
 	c.dataFile = filepath.Join(os.TempDir(), "message.enc")
