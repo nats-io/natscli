@@ -66,7 +66,7 @@ func configureAuthNkeyCommand(auth commandHost) {
 	nkSeal.Arg("key", "NKey to sign with").Required().ExistingFileVar(&c.keyFile)
 	nkSeal.Arg("receipent", "Public XKey of receipient").Required().StringVar(&c.counterpartKey)
 	nkSeal.Flag("output", "Write the encrypted data to a file").StringVar(&c.outFile)
-	nkSeal.Flag("b64", "Write base64 encoded data to stdout").Default("false").UnNegatableBoolVar(&c.b64out)
+	nkSeal.Flag("b64", "Write base64 encoded data [Default]").Default("true").BoolVar(&c.b64out)
 
 	nkOpen := nk.Command("open", "Decrypts file").Alias("decrypt").Alias("dec").Action(c.openAction)
 	nkOpen.Arg("file", "File to decrypt").Required().ExistingFileVar(&c.dataFile)
@@ -300,9 +300,10 @@ func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
 			return err
 		}
 		if c.b64out {
-			fmt.Println(base64.StdEncoding.EncodeToString(encryptedData))
-			return nil
-		} else if c.outFile != "" {
+			encryptedData = []byte(base64.StdEncoding.EncodeToString(encryptedData))
+		}
+
+		if c.outFile != "" {
 			f, err := os.Create(c.outFile)
 			if err != nil {
 				return err
