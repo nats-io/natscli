@@ -2097,13 +2097,13 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	if info.State.FirstTime.Equal(time.Unix(0, 0)) || info.State.FirstTime.IsZero() {
 		cols.AddRow("First Sequence", info.State.FirstSeq)
 	} else {
-		cols.AddRowf("First Sequence", "%s @ %s UTC", f(info.State.FirstSeq), f(info.State.FirstTime))
+		cols.AddRowf("First Sequence", "%s @ %s", f(info.State.FirstSeq), f(info.State.FirstTime))
 	}
 
 	if info.State.LastTime.Equal(time.Unix(0, 0)) || info.State.LastTime.IsZero() {
 		cols.AddRow("Last Sequence", info.State.LastSeq)
 	} else {
-		cols.AddRowf("Last Sequence", "%s @ %s UTC", f(info.State.LastSeq), f(info.State.LastTime))
+		cols.AddRowf("Last Sequence", "%s @ %s", f(info.State.LastSeq), f(info.State.LastTime))
 	}
 
 	if len(info.State.Deleted) > 0 { // backwards compat with older servers
