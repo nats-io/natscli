@@ -878,12 +878,15 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 							v = strings.ReplaceAll(v, "\f", "\u240A")
 						}
 
+						if k == "Nats-Subject" || k == "Nats-Stream" || k == "Nats-Sequence" || k == "Nats-Time-Stamp" || k == "Nats-Num-Pending" || k == "Nats-Last-Sequence" || k == "Nats-UpTo-Sequnce" {
+							continue
+						}
+
 						fmt.Printf("  %s: %s\n", k, v)
 					}
 				}
 			}
 
-			fmt.Println()
 			outPutMSGBody(msg.Data, c.vwTranslate, msg.Subject, meta.Stream())
 		}
 
