@@ -24,6 +24,7 @@ import (
 )
 
 func TestSealOpen(t *testing.T) {
+	tDir := t.TempDir()
 	// Create two pairs of xkeys
 	ef := rand.Reader
 	p1, err := nkeys.CreateCurveKeysWithRand(ef)
@@ -40,40 +41,40 @@ func TestSealOpen(t *testing.T) {
 	p2_seed, _ := p2.Seed()
 
 	// Setup all the test files
-	p1_key, err := os.Create(filepath.Join(os.TempDir(), "p1_seed"))
+	p1_key, err := os.Create(filepath.Join(tDir, "p1_seed"))
 	if err != nil {
 		t.Error("Failed to create test key file")
 		t.FailNow()
 	}
 	defer p1_key.Close()
-	defer os.RemoveAll(filepath.Join(os.TempDir(), "p1_seed"))
-	err = os.WriteFile(filepath.Join(os.TempDir(), "p1_seed"), p1_seed, 0644)
+	defer os.RemoveAll(filepath.Join(tDir, "p1_seed"))
+	err = os.WriteFile(filepath.Join(tDir, "p1_seed"), p1_seed, 0644)
 	if err != nil {
 		t.Error("Failed to write test key to file")
 		t.FailNow()
 	}
 
-	p2_key, err := os.Create(filepath.Join(os.TempDir(), "p2_seed"))
+	p2_key, err := os.Create(filepath.Join(tDir, "p2_seed"))
 	if err != nil {
 		t.Error("Failed to create test key file")
 		t.FailNow()
 	}
 	defer p2_key.Close()
-	defer os.RemoveAll(filepath.Join(os.TempDir(), "p2_seed"))
-	err = os.WriteFile(filepath.Join(os.TempDir(), "p2_seed"), p2_seed, 0644)
+	defer os.RemoveAll(filepath.Join(tDir, "p2_seed"))
+	err = os.WriteFile(filepath.Join(tDir, "p2_seed"), p2_seed, 0644)
 	if err != nil {
 		t.Error("Failed to write test key to file")
 		t.FailNow()
 	}
 
-	message, err := os.Create(filepath.Join(os.TempDir(), "message.txt"))
+	message, err := os.Create(filepath.Join(tDir, "message.txt"))
 	if err != nil {
 		t.Error("Failed to create test key file")
 		t.FailNow()
 	}
 	defer message.Close()
-	defer os.RemoveAll(filepath.Join(os.TempDir(), "message.txt"))
-	err = os.WriteFile(filepath.Join(os.TempDir(), "message.txt"), []byte("test"), 0644)
+	defer os.RemoveAll(filepath.Join(tDir, "message.txt"))
+	err = os.WriteFile(filepath.Join(tDir, "message.txt"), []byte("test"), 0644)
 	if err != nil {
 		t.Error("Failed to write test key to file")
 		t.FailNow()
@@ -85,23 +86,24 @@ func TestSealOpen(t *testing.T) {
 
 	// Setup fisk for Seal Test
 	c := &authNKCommand{}
-	c.b64out = false
+	c.useB64 = true
 	c.counterpartKey = p2_pub
-	c.dataFile = filepath.Join(os.TempDir(), "message.txt")
-	c.outFile = filepath.Join(os.TempDir(), "message.enc")
-	c.keyFile = filepath.Join(os.TempDir(), "p1_seed")
+	c.dataFile = filepath.Join(tDir, "message.txt")
+	c.outFile = filepath.Join(tDir, "message.enc")
+	c.keyFile = filepath.Join(tDir, "p1_seed")
 
 	err = c.sealAction(nil)
 	if err != nil {
-		t.Error("Failed to seal message")
+		t.Error("Failed to seal message: " + err.Error())
 		t.FailNow()
 	}
 
 	// Setup fisk for Open Test
 	c = &authNKCommand{}
 	c.counterpartKey = p1_pub
-	c.dataFile = filepath.Join(os.TempDir(), "message.enc")
-	c.keyFile = filepath.Join(os.TempDir(), "p2_seed")
+	c.useB64 = true
+	c.dataFile = filepath.Join(tDir, "message.enc")
+	c.keyFile = filepath.Join(tDir, "p2_seed")
 
 	// Redirect stdout to capture decrypted output
 	stdout := os.Stdout
@@ -110,7 +112,7 @@ func TestSealOpen(t *testing.T) {
 
 	err = c.openAction(nil)
 	if err != nil {
-		t.Error("Failed to open message")
+		t.Error("Failed to unseal message: " + err.Error())
 		t.FailNow()
 	}
 

@@ -35,7 +35,7 @@ type authNKCommand struct {
 	dataFile       string
 	signFile       string
 	counterpartKey string
-	b64out         bool
+	useB64         bool
 }
 
 func configureAuthNkeyCommand(auth commandHost) {
@@ -66,13 +66,14 @@ func configureAuthNkeyCommand(auth commandHost) {
 	nkSeal.Arg("key", "NKey to sign with").Required().ExistingFileVar(&c.keyFile)
 	nkSeal.Arg("receipent", "Public XKey of receipient").Required().StringVar(&c.counterpartKey)
 	nkSeal.Flag("output", "Write the encrypted data to a file").StringVar(&c.outFile)
-	nkSeal.Flag("b64", "Write base64 encoded data [Default]").Default("true").BoolVar(&c.b64out)
+	nkSeal.Flag("b64", "Write base64 encoded data [Default]").Default("true").BoolVar(&c.useB64)
 
-	nkOpen := nk.Command("open", "Decrypts file").Alias("decrypt").Alias("dec").Action(c.openAction)
+	nkOpen := nk.Command("unseal", "Decrypts file").Alias("open").Alias("decrypt").Alias("dec").Action(c.openAction)
 	nkOpen.Arg("file", "File to decrypt").Required().ExistingFileVar(&c.dataFile)
 	nkOpen.Arg("key", "XKey to decrypt with").Required().ExistingFileVar(&c.keyFile)
 	nkOpen.Arg("sender", "Public XKey of sender").Required().StringVar(&c.counterpartKey)
 	nkOpen.Flag("output", "Write the decrypted data to a file").StringVar(&c.outFile)
+	nkOpen.Flag("b64", "Read data in as base64 encoded").Default("false").BoolVar(&c.useB64)
 }
 
 func (c *authNKCommand) showAction(_ *fisk.ParseContext) error {
@@ -299,7 +300,7 @@ func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
 		if err != nil {
 			return err
 		}
-		if c.b64out {
+		if c.useB64 {
 			encryptedData = []byte(base64.StdEncoding.EncodeToString(encryptedData))
 		}
 
@@ -342,6 +343,14 @@ func (c *authNKCommand) openAction(_ *fisk.ParseContext) error {
 	content, err := os.ReadFile(c.dataFile)
 	if err != nil {
 		return err
+	}
+
+	if c.useB64 {
+		var err error
+		content, err = base64.StdEncoding.DecodeString(string(content))
+		if err != nil {
+			return err
+		}
 	}
 
 	if nkeys.IsValidPublicCurveKey(c.counterpartKey) {
