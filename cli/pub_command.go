@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/choria-io/fisk"
-	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/nats.go"
 	terminal "golang.org/x/term"
 )
@@ -120,8 +119,8 @@ func (c *pubCmd) prepareMsg(body []byte, seq int) (*nats.Msg, error) {
 	return msg, parseStringsToMsgHeader(c.hdrs, seq, msg)
 }
 
-func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
-	logOutput := !c.raw && progress == nil
+func (c *pubCmd) doReq(nc *nats.Conn) error {
+	logOutput := !c.raw
 
 	for i := 1; i <= c.cnt; i++ {
 		if logOutput {
@@ -150,9 +149,9 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			return err
 		}
 
-		if progress != nil {
-			progress.Incr()
-		}
+		// if progress != nil {
+		// 	progress.Incr()
+		// }
 
 		// loop through the reply count.
 		start := time.Now()
@@ -249,22 +248,22 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 		c.body = string(body)
 	}
 
-	var progress *uiprogress.Bar
-	if c.cnt > 20 && !c.raw {
-		progressFormat := fmt.Sprintf("%%%dd / %%d", len(fmt.Sprintf("%d", c.cnt)))
-		progress = uiprogress.AddBar(c.cnt).PrependFunc(func(b *uiprogress.Bar) string {
-			return fmt.Sprintf(progressFormat, b.Current(), c.cnt)
-		}).AppendElapsed()
-		progress.Width = progressWidth()
-
-		fmt.Println()
-		uiprogress.Start()
-		uiprogress.RefreshInterval = 100 * time.Millisecond
-		defer func() { uiprogress.Stop(); fmt.Println() }()
-	}
+	// var progress *uiprogress.Bar
+	// if c.cnt > 20 && !c.raw {
+	// 	progressFormat := fmt.Sprintf("%%%dd / %%d", len(fmt.Sprintf("%d", c.cnt)))
+	// 	progress = uiprogress.AddBar(c.cnt).PrependFunc(func(b *uiprogress.Bar) string {
+	// 		return fmt.Sprintf(progressFormat, b.Current(), c.cnt)
+	// 	}).AppendElapsed()
+	// 	progress.Width = progressWidth()
+	//
+	// 	fmt.Println()
+	// 	uiprogress.Start()
+	// 	uiprogress.RefreshInterval = 100 * time.Millisecond
+	// 	defer func() { uiprogress.Stop(); fmt.Println() }()
+	// }
 
 	if c.req || c.replyCount >= 1 {
-		return c.doReq(nc, progress)
+		return c.doReq(nc)
 	}
 
 	for i := 1; i <= c.cnt; i++ {
@@ -293,11 +292,11 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 			time.Sleep(c.sleep)
 		}
 
-		if progress == nil {
-			log.Printf("Published %d bytes to %q\n", len(body), c.subject)
-		} else {
-			progress.Incr()
-		}
+		// if progress == nil {
+		// 	log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+		// } else {
+		// 	progress.Incr()
+		// }
 	}
 
 	return nil

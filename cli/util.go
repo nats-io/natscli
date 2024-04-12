@@ -39,14 +39,13 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
-	"github.com/gosuri/uiprogress"
+	// "github.com/gosuri/uiprogress"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
-	"github.com/klauspost/compress/s2"
+	// "github.com/klauspost/compress/s2"
 	"github.com/mattn/go-isatty"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
@@ -89,15 +88,6 @@ func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool
 		return "", nil, fmt.Errorf("no Consumers are defined for Stream %s", stream)
 	default:
 		c := ""
-
-		err = askOne(&survey.Select{
-			Message:  "Select a Consumer",
-			Options:  consumers,
-			PageSize: selectPageSize(len(consumers)),
-		}, &c)
-		if err != nil {
-			return "", nil, err
-		}
 
 		return c, nil, nil
 	}
@@ -146,26 +136,26 @@ func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string
 	default:
 		s := ""
 
-		err = askOne(&survey.Select{
-			Message:  "Select a Stream",
-			Options:  matched,
-			PageSize: selectPageSize(len(matched)),
-		}, &s)
-		if err != nil {
-			return "", nil, err
-		}
+		// err = askOne(&survey.Select{
+		// 	Message:  "Select a Stream",
+		// 	Options:  matched,
+		// 	PageSize: selectPageSize(len(matched)),
+		// }, &s)
+		// if err != nil {
+		// 	return "", nil, err
+		// }
 
 		return s, nil, nil
 	}
 }
 
-func askOne(p survey.Prompt, response any, opts ...survey.AskOpt) error {
-	if !isTerminal() {
-		return fmt.Errorf("cannot prompt for user input without a terminal")
-	}
-
-	return survey.AskOne(p, response, append(surveyColors(), opts...)...)
-}
+// func askOne(p survey.Prompt, response any, opts ...survey.AskOpt) error {
+// 	if !isTerminal() {
+// 		return fmt.Errorf("cannot prompt for user input without a terminal")
+// 	}
+//
+// 	return survey.AskOne(p, response, append(surveyColors(), opts...)...)
+// }
 
 func toJSON(d any) (string, error) {
 	j, err := json.MarshalIndent(d, "", "  ")
@@ -249,12 +239,12 @@ func askConfirmation(prompt string, dflt bool) (bool, error) {
 
 	ans := dflt
 
-	err := askOne(&survey.Confirm{
-		Message: prompt,
-		Default: dflt,
-	}, &ans)
+	// err := askOne(&survey.Confirm{
+	// 	Message: prompt,
+	// 	Default: dflt,
+	// }, &ans)
 
-	return ans, err
+	return ans, nil
 }
 
 func askOneBytes(prompt string, dflt string, help string, required string) (int64, error) {
@@ -264,14 +254,14 @@ func askOneBytes(prompt string, dflt string, help string, required string) (int6
 
 	for {
 		val := ""
-		err := askOne(&survey.Input{
-			Message: prompt,
-			Default: dflt,
-			Help:    help,
-		}, &val, survey.WithValidator(survey.Required))
-		if err != nil {
-			return 0, err
-		}
+		// err := askOne(&survey.Input{
+		// 	Message: prompt,
+		// 	Default: dflt,
+		// 	Help:    help,
+		// }, &val, survey.WithValidator(survey.Required))
+		// if err != nil {
+		// 	return 0, err
+		// }
 
 		if val == "-1" {
 			val = "0"
@@ -297,14 +287,14 @@ func askOneInt(prompt string, dflt string, help string) (int64, error) {
 	}
 
 	val := ""
-	err := askOne(&survey.Input{
-		Message: prompt,
-		Default: dflt,
-		Help:    help,
-	}, &val, survey.WithValidator(survey.Required))
-	if err != nil {
-		return 0, err
-	}
+	// err := askOne(&survey.Input{
+	// 	Message: prompt,
+	// 	Default: dflt,
+	// 	Help:    help,
+	// }, &val, survey.WithValidator(survey.Required))
+	// if err != nil {
+	// 	return 0, err
+	// }
 
 	i, err := strconv.Atoi(val)
 	if err != nil {
@@ -436,7 +426,13 @@ func newNatsConnUnlocked(servers string, copts ...nats.Option) (*nats.Conn, erro
 
 	var err error
 
-	opts.Conn, err = nats.Connect(servers, copts...)
+	// replace ws:// and wss:// with tcp so NATS client doesn't try and handle the handshake itself
+	tcpServers := strings.ReplaceAll(servers, "ws://", "tcp://")
+	tcpServers = strings.ReplaceAll(tcpServers, "wss://", "tls://")
+
+	copts = append(copts, nats.SetCustomDialer(&wasmDialer{}))
+
+	opts.Conn, err = nats.Connect(tcpServers, copts...)
 
 	return opts.Conn, err
 }
@@ -898,15 +894,15 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 
 		data := m.Data
 		compressed := false
-		if m.Header.Get("Content-Encoding") == "snappy" {
-			compressed = true
-			ud, err := io.ReadAll(s2.NewReader(bytes.NewBuffer(data)))
-			if err != nil {
-				errs <- err
-				return
-			}
-			data = ud
-		}
+		// if m.Header.Get("Content-Encoding") == "snappy" {
+		// 	compressed = true
+		// 	ud, err := io.ReadAll(s2.NewReader(bytes.NewBuffer(data)))
+		// 	if err != nil {
+		// 		errs <- err
+		// 		return
+		// 	}
+		// 	data = ud
+		// }
 
 		if opts.Trace {
 			if compressed {
@@ -1126,24 +1122,24 @@ func base64IfNotPrintable(val []byte) string {
 }
 
 // io.Reader / io.Writer that updates progress bar
-type progressRW struct {
-	r io.Reader
-	w io.Writer
-	p *uiprogress.Bar
-}
-
-func (pr *progressRW) Read(p []byte) (n int, err error) {
-	n, err = pr.r.Read(p)
-	pr.p.Set(pr.p.Current() + n)
-
-	return n, err
-}
-
-func (pr *progressRW) Write(p []byte) (n int, err error) {
-	n, err = pr.w.Write(p)
-	pr.p.Set(pr.p.Current() + n)
-	return n, err
-}
+// type progressRW struct {
+// 	r io.Reader
+// 	w io.Writer
+// 	p *uiprogress.Bar
+// }
+//
+// func (pr *progressRW) Read(p []byte) (n int, err error) {
+// 	n, err = pr.r.Read(p)
+// 	pr.p.Set(pr.p.Current() + n)
+//
+// 	return n, err
+// }
+//
+// func (pr *progressRW) Write(p []byte) (n int, err error) {
+// 	n, err = pr.w.Write(p)
+// 	pr.p.Set(pr.p.Current() + n)
+// 	return n, err
+// }
 
 var bytesUnitSplitter = regexp.MustCompile(`^(\d+)(\w+)`)
 var errInvalidByteString = errors.New("bytes must end in K, KB, M, MB, G, GB, T or TB")
@@ -1250,46 +1246,46 @@ func serverMinVersion(version string, major, minor, patch int) bool {
 	return true
 }
 
-func surveyColors() []survey.AskOpt {
-	return []survey.AskOpt{
-		survey.WithIcons(func(icons *survey.IconSet) {
-			if opts.Config == nil {
-				icons.Question.Format = "white"
-				icons.SelectFocus.Format = "white"
-				return
-			}
-
-			switch opts.Config.ColorScheme() {
-			case "yellow":
-				icons.Question.Format = "yellow+hb"
-				icons.SelectFocus.Format = "yellow+hb"
-			case "blue":
-				icons.Question.Format = "blue+hb"
-				icons.SelectFocus.Format = "blue+hb"
-			case "green":
-				icons.Question.Format = "green+hb"
-				icons.SelectFocus.Format = "green+hb"
-			case "cyan":
-				icons.Question.Format = "cyan+hb"
-				icons.SelectFocus.Format = "cyan+hb"
-			case "magenta":
-				icons.Question.Format = "magenta+hb"
-				icons.SelectFocus.Format = "magenta+hb"
-			case "red":
-				icons.Question.Format = "red+hb"
-				icons.SelectFocus.Format = "red+hb"
-			default:
-				icons.Question.Format = "white"
-				icons.SelectFocus.Format = "white"
-			}
-
-			if opts.Config != nil && opts.Config.Name != "" {
-				icons.Question.Text = fmt.Sprintf("[%s] ?", opts.Config.Name)
-				icons.Help.Text = ""
-			}
-		}),
-	}
-}
+// func surveyColors() []survey.AskOpt {
+// 	return []survey.AskOpt{
+// 		survey.WithIcons(func(icons *survey.IconSet) {
+// 			if opts.Config == nil {
+// 				icons.Question.Format = "white"
+// 				icons.SelectFocus.Format = "white"
+// 				return
+// 			}
+//
+// 			switch opts.Config.ColorScheme() {
+// 			case "yellow":
+// 				icons.Question.Format = "yellow+hb"
+// 				icons.SelectFocus.Format = "yellow+hb"
+// 			case "blue":
+// 				icons.Question.Format = "blue+hb"
+// 				icons.SelectFocus.Format = "blue+hb"
+// 			case "green":
+// 				icons.Question.Format = "green+hb"
+// 				icons.SelectFocus.Format = "green+hb"
+// 			case "cyan":
+// 				icons.Question.Format = "cyan+hb"
+// 				icons.SelectFocus.Format = "cyan+hb"
+// 			case "magenta":
+// 				icons.Question.Format = "magenta+hb"
+// 				icons.SelectFocus.Format = "magenta+hb"
+// 			case "red":
+// 				icons.Question.Format = "red+hb"
+// 				icons.SelectFocus.Format = "red+hb"
+// 			default:
+// 				icons.Question.Format = "white"
+// 				icons.SelectFocus.Format = "white"
+// 			}
+//
+// 			if opts.Config != nil && opts.Config.Name != "" {
+// 				icons.Question.Text = fmt.Sprintf("[%s] ?", opts.Config.Name)
+// 				icons.Help.Text = ""
+// 			}
+// 		}),
+// 	}
+// }
 
 func outPutMSGBodyCompact(data []byte, filter string, subject string, stream string) (string, error) {
 	if len(data) == 0 {
