@@ -23,7 +23,7 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
-func TestSealOpen(t *testing.T) {
+func TestSealUnseal(t *testing.T) {
 	tDir := t.TempDir()
 	// Create two pairs of xkeys
 	ef := rand.Reader
@@ -110,7 +110,7 @@ func TestSealOpen(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err = c.openAction(nil)
+	err = c.unsealAction(nil)
 	if err != nil {
 		t.Error("Failed to unseal message: " + err.Error())
 		t.FailNow()

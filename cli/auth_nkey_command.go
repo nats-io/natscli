@@ -68,7 +68,7 @@ func configureAuthNkeyCommand(auth commandHost) {
 	nkSeal.Flag("output", "Write the encrypted data to a file").StringVar(&c.outFile)
 	nkSeal.Flag("b64", "Write base64 encoded data [Default]").Default("true").BoolVar(&c.useB64)
 
-	nkOpen := nk.Command("unseal", "Decrypts file").Alias("open").Alias("decrypt").Alias("dec").Action(c.openAction)
+	nkOpen := nk.Command("unseal", "Decrypts file").Alias("open").Alias("decrypt").Alias("dec").Action(c.unsealAction)
 	nkOpen.Arg("file", "File to decrypt").Required().ExistingFileVar(&c.dataFile)
 	nkOpen.Arg("key", "XKey to decrypt with").Required().ExistingFileVar(&c.keyFile)
 	nkOpen.Arg("sender", "Public XKey of sender").Required().StringVar(&c.counterpartKey)
@@ -272,17 +272,15 @@ func (c *authNKCommand) verifyAction(_ *fisk.ParseContext) error {
 
 	return nil
 }
-func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
-	var err error
-	var kp nkeys.KeyPair
 
+func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
 	keyData, err := c.readKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}
 
 	// try it as public, then as seed
-	kp, err = nkeys.FromPublicKey(string(keyData))
+	kp, err := nkeys.FromPublicKey(string(keyData))
 	if errors.Is(err, nkeys.ErrInvalidPublicKey) {
 		kp, err = nkeys.FromSeed(keyData)
 	}
@@ -295,44 +293,44 @@ func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if nkeys.IsValidPublicCurveKey(c.counterpartKey) {
-		encryptedData, err := kp.Seal(content, c.counterpartKey)
-		if err != nil {
-			return err
-		}
-		if c.useB64 {
-			encryptedData = []byte(base64.StdEncoding.EncodeToString(encryptedData))
-		}
-
-		if c.outFile != "" {
-			f, err := os.Create(c.outFile)
-			if err != nil {
-				return err
-			}
-			_, err = f.Write(encryptedData)
-			if err != nil {
-				return err
-			}
-			return nil
-		} else {
-			fmt.Println(string(encryptedData))
-			return nil
-		}
+	if !nkeys.IsValidPublicCurveKey(c.counterpartKey) {
+		return errors.New("invalid public key provided")
 	}
 
-	return errors.New("failed to seal message")
-}
-func (c *authNKCommand) openAction(_ *fisk.ParseContext) error {
-	var err error
-	var kp nkeys.KeyPair
+	encryptedData, err := kp.Seal(content, c.counterpartKey)
+	if err != nil {
+		return err
+	}
 
+	if c.useB64 {
+		encryptedData = []byte(base64.StdEncoding.EncodeToString(encryptedData))
+	}
+
+	if c.outFile == "" {
+		fmt.Println(string(encryptedData))
+		return nil
+	}
+
+	f, err := os.Create(c.outFile)
+	if err != nil {
+		return err
+	}
+
+	_, err = f.Write(encryptedData)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+func (c *authNKCommand) unsealAction(_ *fisk.ParseContext) error {
 	keyData, err := c.readKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}
 
 	// try it as public, then as seed
-	kp, err = nkeys.FromPublicKey(string(keyData))
+	kp, err := nkeys.FromPublicKey(string(keyData))
 	if errors.Is(err, nkeys.ErrInvalidPublicKey) {
 		kp, err = nkeys.FromSeed(keyData)
 	}
@@ -353,25 +351,29 @@ func (c *authNKCommand) openAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	if nkeys.IsValidPublicCurveKey(c.counterpartKey) {
-		decryptedData, err := kp.Open(content, c.counterpartKey)
-		if err != nil {
-			return err
-		}
-		if c.outFile != "" {
-			f, err := os.Create(c.outFile)
-			if err != nil {
-				return err
-			}
-			_, err = f.Write(decryptedData)
-			if err != nil {
-				return err
-			}
-			return nil
-		} else {
-			fmt.Println(string(decryptedData))
-			return nil
-		}
+	if !nkeys.IsValidPublicCurveKey(c.counterpartKey) {
+		return errors.New("invalid public key provided")
 	}
-	return errors.New("failed to open message")
+
+	decryptedData, err := kp.Open(content, c.counterpartKey)
+	if err != nil {
+		return err
+	}
+
+	if c.outFile == "" {
+		fmt.Println(string(decryptedData))
+		return nil
+	}
+
+	f, err := os.Create(c.outFile)
+	if err != nil {
+		return err
+	}
+
+	_, err = f.Write(decryptedData)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
