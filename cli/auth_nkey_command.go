@@ -61,19 +61,19 @@ func configureAuthNkeyCommand(auth commandHost) {
 	nkVerify.Arg("signature", "File containing the signature").Required().ExistingFileVar(&c.signFile)
 	nkVerify.Arg("key", "The key to use for verification").Required().ExistingFileVar(&c.keyFile)
 
-	nkSeal := nk.Command("seal", "Encrypts file").Alias("encrypt").Alias("enc").Action(c.sealAction)
-	nkSeal.Arg("file", "File to sign").Required().ExistingFileVar(&c.dataFile)
-	nkSeal.Arg("key", "NKey to sign with").Required().ExistingFileVar(&c.keyFile)
-	nkSeal.Arg("receipent", "Public XKey of receipient").Required().StringVar(&c.counterpartKey)
+	nkSeal := nk.Command("seal", "Encrypts a file using NKeys").Alias("encrypt").Alias("enc").Action(c.sealAction)
+	nkSeal.Arg("file", "File to encrypt").Required().ExistingFileVar(&c.dataFile)
+	nkSeal.Arg("key", "NKey to encrypt with").Required().ExistingFileVar(&c.keyFile)
+	nkSeal.Arg("recipient", "Public XKey of recipient").Required().StringVar(&c.counterpartKey)
 	nkSeal.Flag("output", "Write the encrypted data to a file").StringVar(&c.outFile)
-	nkSeal.Flag("b64", "Write base64 encoded data [Default]").Default("true").BoolVar(&c.useB64)
+	nkSeal.Flag("b64", "Write base64 encoded data").Default("true").BoolVar(&c.useB64)
 
-	nkOpen := nk.Command("unseal", "Decrypts file").Alias("open").Alias("decrypt").Alias("dec").Action(c.unsealAction)
+	nkOpen := nk.Command("unseal", "Decrypts a file using NKeys").Alias("open").Alias("decrypt").Alias("dec").Action(c.unsealAction)
 	nkOpen.Arg("file", "File to decrypt").Required().ExistingFileVar(&c.dataFile)
-	nkOpen.Arg("key", "XKey to decrypt with").Required().ExistingFileVar(&c.keyFile)
+	nkOpen.Arg("key", "NKey to decrypt with").Required().ExistingFileVar(&c.keyFile)
 	nkOpen.Arg("sender", "Public XKey of sender").Required().StringVar(&c.counterpartKey)
 	nkOpen.Flag("output", "Write the decrypted data to a file").StringVar(&c.outFile)
-	nkOpen.Flag("b64", "Read data in as base64 encoded").Default("false").BoolVar(&c.useB64)
+	nkOpen.Flag("b64", "Read data in as base64 encoded").Default("true").BoolVar(&c.useB64)
 }
 
 func (c *authNKCommand) showAction(_ *fisk.ParseContext) error {
@@ -323,6 +323,7 @@ func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
 
 	return nil
 }
+
 func (c *authNKCommand) unsealAction(_ *fisk.ParseContext) error {
 	keyData, err := c.readKeyFile(c.keyFile)
 	if err != nil {
