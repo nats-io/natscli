@@ -126,6 +126,9 @@ type Options struct {
 	WinCertStoreMatchBy string
 	// WinCertStoreMatch is the query to match with
 	WinCertStoreMatch string
+
+	// TODO: Consider using a preconfigured connection for this, that way we won't have to change the CLI much
+	InProcessServer nats.InProcessConnProvider
 }
 
 // SkipContexts used during tests
