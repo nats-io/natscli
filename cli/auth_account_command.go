@@ -994,7 +994,7 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 	cols.AddRow("Name", acct.Name())
 	cols.AddRow("Issuer", acct.Issuer())
 	if operator != nil {
-		cols.AddRow("Account", operator.Name())
+		cols.AddRow("Operator", operator.Name())
 		sa, err := operator.SystemAccount()
 		if err == nil {
 			cols.AddRow("System Account", sa.Subject() == acct.Subject())
