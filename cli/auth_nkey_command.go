@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -77,7 +76,7 @@ func configureAuthNkeyCommand(auth commandHost) {
 }
 
 func (c *authNKCommand) showAction(_ *fisk.ParseContext) error {
-	seed, err := c.readKeyFile(c.keyFile)
+	seed, err := readKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}
@@ -176,37 +175,8 @@ func (c *authNKCommand) preForType(keyType string) (nkeys.PrefixByte, error) {
 	}
 }
 
-func (c *authNKCommand) readKeyFile(filename string) ([]byte, error) {
-	var key []byte
-	contents, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer c.wipeSlice(contents)
-
-	lines := bytes.Split(contents, []byte("\n"))
-	for _, line := range lines {
-		if nkeys.IsValidEncoding(line) {
-			key = make([]byte, len(line))
-			copy(key, line)
-			return key, nil
-		}
-	}
-	if key == nil {
-		return nil, fmt.Errorf("could not find a valid key in %s", filename)
-	}
-
-	return key, nil
-}
-
-func (c *authNKCommand) wipeSlice(buf []byte) {
-	for i := range buf {
-		buf[i] = 'x'
-	}
-}
-
 func (c *authNKCommand) signAction(_ *fisk.ParseContext) error {
-	seed, err := c.readKeyFile(c.keyFile)
+	seed, err := readKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}
@@ -235,7 +205,7 @@ func (c *authNKCommand) verifyAction(_ *fisk.ParseContext) error {
 	var err error
 	var kp nkeys.KeyPair
 
-	keyData, err := c.readKeyFile(c.keyFile)
+	keyData, err := readKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}
@@ -274,7 +244,7 @@ func (c *authNKCommand) verifyAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
-	keyData, err := c.readKeyFile(c.keyFile)
+	keyData, err := readKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}
@@ -325,7 +295,7 @@ func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authNKCommand) unsealAction(_ *fisk.ParseContext) error {
-	keyData, err := c.readKeyFile(c.keyFile)
+	keyData, err := readKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}

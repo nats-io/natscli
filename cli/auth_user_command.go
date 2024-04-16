@@ -90,7 +90,7 @@ func configureAuthUserCommand(auth commandHost) {
 	addCreateFlags(edit, true)
 
 	ls := user.Command("ls", "List users").Action(c.lsAction)
-	ls.Arg("operator", "Operator holding the Account").StringVar(&c.operatorName)
+	ls.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
 	ls.Flag("account", "Account to query").StringVar(&c.accountName)
 	ls.Flag("names", "Show just the Account names").UnNegatableBoolVar(&c.listNames)
 
