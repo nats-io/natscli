@@ -111,7 +111,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	//   - imports/exports when asking for account nkey should detect account name and look it up
 	//	 - when rendering account pubkeys like in import/export info get the account name and show
 
-	acct := auth.Command("account", "Manage NATS Accounts").Alias("a").Alias("acct")
+	acct := auth.Command("account", "Manage NATS Accounts").Alias("a").Alias("acct").Alias("act")
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Flag("expiry", "How long this account should be valid for as a duration").PlaceHolder("DURATION").DurationVar(&c.expiry)
