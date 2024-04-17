@@ -431,7 +431,6 @@ func newNatsConnUnlocked(servers string, copts ...nats.Option) (*nats.Conn, erro
 	tcpServers = strings.ReplaceAll(tcpServers, "wss://", "tls://")
 
 	if opts.InProcessServer != nil {
-		fmt.Println("Using in-process NATS server")
 		copts = append(copts, nats.InProcessServer(opts.InProcessServer))
 	} else {
 		copts = append(copts, nats.SetCustomDialer(&wasmDialer{}))
