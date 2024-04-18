@@ -137,8 +137,8 @@ func configureConsumerCommand(app commandHost) {
 		f.Flag("sample", "Percentage of requests to sample for monitoring purposes").Default("-1").IntVar(&c.samplePct)
 		f.Flag("target", "Push based delivery target subject").PlaceHolder("SUBJECT").StringVar(&c.delivery)
 		f.Flag("wait", "Acknowledgment waiting time").Default("-1s").DurationVar(&c.ackWait)
+		f.Flag("inactive-threshold", "How long to allow an ephemeral consumer to be idle before removing it").PlaceHolder("THRESHOLD").DurationVar(&c.inactiveThreshold)
 		if !edit {
-			f.Flag("inactive-threshold", "How long to allow an ephemeral consumer to be idle before removing it").PlaceHolder("THRESHOLD").DurationVar(&c.inactiveThreshold)
 			f.Flag("memory", "Force the consumer state to be stored in memory rather than inherit from the stream").UnNegatableBoolVar(&c.memory)
 		}
 		f.Flag("replicas", "Sets a custom replica count rather than inherit from the stream").IntVar(&c.replicas)
@@ -324,6 +324,10 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 
 		if c.description != "" {
 			ncfg.Description = c.description
+		}
+
+		if c.inactiveThreshold != 0 {
+			ncfg.InactiveThreshold = c.inactiveThreshold
 		}
 
 		if c.maxDeliver != 0 {
