@@ -54,7 +54,7 @@ func (c *authAccountCommand) importKvAction(_ *fisk.ParseContext) error {
 
 		err = acct.Imports().Services().AddWithConfig(imp)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not add import: %v", err)
 		}
 	}
 
@@ -89,7 +89,12 @@ func (c *authAccountCommand) importKvAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	return auth.Commit()
+	err = auth.Commit()
+	if err != nil {
+		return fmt.Errorf("could not commit auth account: %v", err)
+	}
+
+	return nil
 }
 
 func (c *authAccountCommand) importAddAction(_ *fisk.ParseContext) error {
