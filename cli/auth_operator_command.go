@@ -14,7 +14,11 @@
 package cli
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/nats-io/nkeys"
 	"io"
 	"net/url"
 	"os"
@@ -38,6 +42,7 @@ type authOperatorCommand struct {
 	keyFiles             []string
 	pubKey               string
 	outputFile           string
+	encKey               string
 }
 
 func configureAuthOperatorCommand(auth commandHost) {
@@ -70,6 +75,16 @@ func configureAuthOperatorCommand(auth commandHost) {
 	gen.Arg("name", "Operator to act on").StringVar(&c.operatorName)
 	gen.Flag("output", "Write resolver to a file").PlaceHolder("FILE").Short('o').StringVar(&c.outputFile)
 	gen.Flag("force", "Overwrite existing files without prompting").Short('f').UnNegatableBoolVar(&c.force)
+
+	backup := op.Command("backup", "Creates a backup of an operator").Action(c.backupAction)
+	backup.Arg("name", "Operator to act on").Required().StringVar(&c.operatorName)
+	backup.Arg("output", "File to write backup to").Required().StringVar(&c.outputFile)
+	backup.Flag("key", "Curve or X25519 NKey to encrypt with").StringVar(&c.encKey)
+
+	restore := op.Command("restore", "Restores an operator from a backup").Action(c.restoreAction)
+	restore.Arg("name", "Operator to act on").Required().StringVar(&c.operatorName)
+	restore.Arg("input", "File to read backup from").Required().StringVar(&c.outputFile)
+	restore.Flag("key", "Curve or X25519 NKey to decrypt with").StringVar(&c.encKey)
 
 	sk := op.Command("keys", "Manage Operator Signing Keys").Alias("sk").Alias("s")
 
@@ -198,8 +213,6 @@ func (c *authOperatorCommand) generateAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	os.Remove(c.outputFile)
-
 	return os.WriteFile(c.outputFile, out, 0600)
 }
 
@@ -287,6 +300,120 @@ func (c *authOperatorCommand) editAction(_ *fisk.ParseContext) error {
 	}
 
 	return c.fShowOperator(os.Stdout, operator)
+}
+func (c *authOperatorCommand) restoreAction(_ *fisk.ParseContext) error {
+	auth, err := getAuthBuilder()
+	if err != nil {
+		return err
+	}
+
+	if isAuthItemKnown(auth.Operators().List(), c.operatorName) {
+		return fmt.Errorf("operator %s already exist", c.operatorName)
+	}
+
+	j, err := os.ReadFile(c.outputFile)
+	if err != nil {
+		return err
+	}
+
+	if c.encKey != "" {
+		keyData, err := readKeyFile(c.encKey)
+		if err != nil {
+			return err
+		}
+
+		kp, err := nkeys.FromSeed(keyData)
+		if err != nil {
+			return err
+		}
+		pk, err := kp.PublicKey()
+		if err != nil {
+			return err
+		}
+
+		if !nkeys.IsValidPublicCurveKey(pk) {
+			return errors.New("invalid public key provided")
+		}
+
+		j, err = base64.StdEncoding.DecodeString(string(j))
+		if err != nil {
+			return err
+		}
+
+		j, err = kp.Open(j, pk)
+		if err != nil {
+			return fmt.Errorf("open failed: %w", err)
+		}
+	}
+
+	op, err := auth.Operators().Add(c.operatorName)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(j, op)
+	if err != nil {
+		return fmt.Errorf("unmarshal failed: %w", err)
+	}
+
+	err = auth.Commit()
+	if err != nil {
+		return err
+	}
+
+	return c.fShowOperator(os.Stdout, op)
+}
+
+func (c *authOperatorCommand) backupAction(_ *fisk.ParseContext) error {
+	_, op, err := c.selectOperator(true)
+	if err != nil {
+		return err
+	}
+
+	j, err := json.MarshalIndent(op, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if c.encKey != "" {
+		keyData, err := readKeyFile(c.encKey)
+		if err != nil {
+			return err
+		}
+
+		kp, err := nkeys.FromSeed(keyData)
+		if err != nil {
+			return err
+		}
+		pk, err := kp.PublicKey()
+		if err != nil {
+			return err
+		}
+
+		if !nkeys.IsValidPublicCurveKey(pk) {
+			return errors.New("invalid public key provided")
+		}
+
+		j, err = kp.Seal(j, pk)
+		if err != nil {
+			return err
+		}
+
+		j = []byte(base64.StdEncoding.EncodeToString(j))
+	}
+
+	err = os.WriteFile(c.outputFile, j, 0600)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Wrote backup for %s to %s\n", op.Name(), c.outputFile)
+	if c.encKey == "" {
+		fmt.Println()
+		fmt.Println("WARNING: The output file is unencrypted and contains secrets,")
+		fmt.Println("consider encrypting it with 'nats auth nkey seal'")
+	}
+
+	return nil
 }
 
 func (c *authOperatorCommand) infoAction(_ *fisk.ParseContext) error {

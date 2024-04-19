@@ -59,7 +59,7 @@ func configureAuthUserCommand(auth commandHost) {
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Flag("locale", "Sets the locale for the user connection").StringVar(&c.userLocale)
 		f.Flag("bearer", "Enables the use of bearer tokens").BoolVar(&c.bearerAllowed)
-		f.Flag("payload", "Maximum payload size to allow").IsSetByUser(&c.maxPayloadIsSet).Default("-1").Int64Var(&c.maxPayload)
+		f.Flag("payload", "Maximum payload size to allow").IsSetByUser(&c.maxPayloadIsSet).Default("1048576").Int64Var(&c.maxPayload)
 		f.Flag("subscriptions", "Maximum subscription count to allow").IsSetByUser(&c.maxSubsIsSet).Default("-1").Int64Var(&c.maxSubs)
 		f.Flag("pub-allow", "Allow publishing to a subject").StringsVar(&c.pubAllow)
 		f.Flag("pub-deny", "Deny publishing to a subject").StringsVar(&c.pubDeny)
@@ -70,9 +70,9 @@ func configureAuthUserCommand(auth commandHost) {
 
 	add := user.Command("add", "Adds a new User").Action(c.addAction)
 	add.Arg("name", "Unique name for this User").Required().StringVar(&c.userName)
+	add.Arg("account", "Account to add the user to").StringVar(&c.accountName)
 	add.Flag("key", "The public key to use when signing the user").StringVar(&c.signingKey)
 	add.Flag("operator", "Operator to add the user to").StringVar(&c.operatorName)
-	add.Flag("account", "Account to add the user to").StringVar(&c.accountName)
 	addCreateFlags(add, false)
 	add.Flag("force", "Overwrite existing files").Short('f').UnNegatableBoolVar(&c.force)
 	add.Flag("credential", "Writes credentials to a file").StringVar(&c.credFile)
@@ -80,33 +80,33 @@ func configureAuthUserCommand(auth commandHost) {
 
 	info := user.Command("info", "Show User information").Alias("i").Alias("show").Alias("view").Action(c.infoAction)
 	info.Arg("name", "Unique name for this User").StringVar(&c.userName)
+	info.Arg("account", "Account to query").StringVar(&c.accountName)
 	info.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
-	info.Flag("account", "Account to query").StringVar(&c.accountName)
 
 	edit := user.Command("edit", "Edits User settings").Alias("update").Action(c.editAction)
 	edit.Arg("name", "Unique name for this User").StringVar(&c.userName)
+	edit.Arg("account", "Account to query").StringVar(&c.accountName)
 	edit.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
-	edit.Flag("account", "Account to query").StringVar(&c.accountName)
 	addCreateFlags(edit, true)
 
 	ls := user.Command("ls", "List users").Action(c.lsAction)
-	ls.Arg("operator", "Operator holding the Account").StringVar(&c.operatorName)
-	ls.Flag("account", "Account to query").StringVar(&c.accountName)
+	ls.Arg("account", "Account to query").StringVar(&c.accountName)
+	ls.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
 	ls.Flag("names", "Show just the Account names").UnNegatableBoolVar(&c.listNames)
 
 	rm := user.Command("rm", "Removes an user").Action(c.rmAction)
 	rm.Arg("name", "Unique name for this User").StringVar(&c.userName)
+	rm.Arg("account", "Account to query").StringVar(&c.accountName)
 	rm.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
-	rm.Flag("account", "Account to query").StringVar(&c.accountName)
 	rm.Flag("revoke", "Also revokes the user before deleting it").UnNegatableBoolVar(&c.revoke)
 	rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	cred := user.Command("credential", "Creates a credential file for a user").Alias("cred").Action(c.credAction)
+	cred := user.Command("credential", "Creates a credential file for a user").Alias("cred").Alias("creds").Action(c.credAction)
 	cred.Arg("file", "The file to create").Required().StringVar(&c.credFile)
 	cred.Arg("name", "Unique name for this User").StringVar(&c.userName)
+	cred.Arg("account", "Account to query").StringVar(&c.accountName)
 	cred.Flag("expire", "Duration till expiry").DurationVar(&c.expire)
 	cred.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
-	cred.Flag("account", "Account to query").StringVar(&c.accountName)
 	cred.Flag("force", "Overwrite existing files").Short('f').UnNegatableBoolVar(&c.force)
 }
 
@@ -333,14 +333,24 @@ func (c *authUserCommand) addAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	if c.signingKey != "" {
+		sk, err := selectSigningKey(acct, c.signingKey)
+		if err != nil {
+			return err
+		}
+		c.signingKey = sk.Key()
+	}
+
 	if c.signingKey == "" {
 		c.signingKey = acct.Subject()
 	}
 
 	user, err := acct.Users().Get(c.userName)
-	if user != nil || errors.Is(err, ab.ErrNotFound) {
+	switch {
+	case user != nil:
 		return fmt.Errorf("user %s already exist", c.userName)
-	} else if err != nil {
+	case errors.Is(err, ab.ErrNotFound):
+	case err != nil:
 		return err
 	}
 

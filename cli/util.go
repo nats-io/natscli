@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/nats-io/nkeys"
 	"io"
 	"math"
 	"math/rand"
@@ -535,7 +536,6 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 		jsopts = append(jsopts, jsm.WithTrace())
 	}
 
-	opts.Conn.NewRespInbox()
 	opts.Mgr, err = jsm.New(opts.Conn, jsopts...)
 	if err != nil {
 		return nil, nil, err
@@ -1553,4 +1553,30 @@ func mapKeys[M ~map[K]V, K comparable, V any](m M) []K {
 	}
 
 	return r
+}
+
+func readKeyFile(filename string) ([]byte, error) {
+	var key []byte
+	contents, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer wipeSlice(contents)
+
+	lines := bytes.Split(contents, []byte("\n"))
+	for _, line := range lines {
+		if nkeys.IsValidEncoding(line) {
+			key = make([]byte, len(line))
+			copy(key, line)
+			return key, nil
+		}
+	}
+
+	return nil, fmt.Errorf("could not find a valid key in %s", filename)
+}
+
+func wipeSlice(buf []byte) {
+	for i := range buf {
+		buf[i] = 'x'
+	}
 }
