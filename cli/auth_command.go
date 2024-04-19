@@ -32,7 +32,6 @@ func configureAuthCommand(app commandHost) {
 
 	// todo:
 	//	- lookup user by name/key in import commands
-	//  - lookup account by name in account query
 	//  - store role name, currently its the pub key not name
 	//  - diffs on edit now that we support json, still probably wont work since really we need the jwt contents diffed but we might parse the jwt and see?
 	//  - consider a way to select the operator/account that's default
@@ -118,6 +117,51 @@ func selectOperatorAccount(operatorName string, accountName string, pick bool) (
 	}
 
 	return auth, operator, acct, nil
+}
+
+func selectAccount(op ab.Operator, choice string) (ab.Account, error) {
+	accts := op.Accounts().List()
+	if len(accts) == 0 {
+		return nil, fmt.Errorf("no accounts found")
+	}
+
+	sort.SliceStable(accts, func(i, j int) bool {
+		return accts[i].Name() < accts[j].Name()
+	})
+
+	var subjects []string
+
+	if choice != "" {
+		// look on name
+		acct, _ := op.Accounts().Get(choice)
+		if acct != nil {
+			return acct, nil
+		}
+
+		// look on subject
+		for _, acct := range accts {
+			subjects = append(subjects, acct.Subject())
+			if acct.Subject() == choice {
+				return acct, nil
+			}
+		}
+	}
+
+	// not found now make lists
+	answ := 0
+
+	err := survey.AskOne(&survey.Select{
+		Message: "Select an Account",
+		Options: subjects,
+		Description: func(value string, index int) string {
+			return accts[index].Name()
+		},
+	}, &answ)
+	if err != nil {
+		return nil, err
+	}
+
+	return accts[answ], nil
 }
 
 func selectSigningKey(acct ab.Account, choice string) (ab.ScopeLimits, error) {
