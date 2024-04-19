@@ -1612,7 +1612,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 			ack = api.AckNak
 		}
 		if opts.Trace {
-			log.Printf(">>> %s: %s", msg.Reply, string(api.AckNak))
+			log.Printf(">>> %s: %s", msg.Reply, string(ack))
 		}
 
 		err = msg.Respond(ack)
