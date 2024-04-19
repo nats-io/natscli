@@ -158,6 +158,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	query := acct.Command("query", "Pull the Account from the NATS Resolver and view it").Alias("pull").Action(c.queryAction)
 	query.Arg("name", "Account to act on").Required().StringVar(&c.accountName)
 	query.Arg("output", "Saves the JWT to a file").StringVar(&c.output)
+	query.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	imports := acct.Command("imports", "Manage account Imports").Alias("i").Alias("imp").Alias("import")
 
@@ -308,8 +309,18 @@ func (c *authAccountCommand) queryAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	_, oper, err := selectOperator(c.operatorName, true)
+	if err != nil {
+		return err
+	}
+
+	acct, err := selectAccount(oper, c.accountName)
+	if err != nil {
+		return err
+	}
+
 	var token string
-	err = doReqAsync(nil, fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", c.accountName), 1, nc, func(b []byte) {
+	err = doReqAsync(nil, fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", acct.Subject()), 1, nc, func(b []byte) {
 		token = string(b)
 	})
 	if err != nil {
@@ -327,7 +338,7 @@ func (c *authAccountCommand) queryAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	acct, err := ab.NewAccountFromJWT(token)
+	acct, err = ab.NewAccountFromJWT(token)
 	if err != nil {
 		return err
 	}
