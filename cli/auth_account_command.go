@@ -15,7 +15,6 @@ package cli
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -105,12 +104,6 @@ type authAccountCommand struct {
 func configureAuthAccountCommand(auth commandHost) {
 	c := &authAccountCommand{}
 
-	// TODO:
-	//   - rm is written but builder doesnt remove from disk https://github.com/synadia-io/jwt-auth-builder.go/issues/22
-	//	 - edit should diff and prompt
-	//   - imports/exports when asking for account nkey should detect account name and look it up
-	//	 - when rendering account pubkeys like in import/export info get the account name and show
-
 	acct := auth.Command("account", "Manage NATS Accounts").Alias("a").Alias("acct").Alias("act")
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
@@ -172,7 +165,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	impAdd.Arg("name", "A unique name for the import").Required().StringVar(&c.importName)
 	impAdd.Arg("subject", "The Subject to import").Required().StringVar(&c.subject)
 	impAdd.Arg("source", "The account public key to import from").Required().StringVar(&c.importAccount)
-	impAdd.Arg("account", "Account to act on").StringVar(&c.accountName)
+	impAdd.Arg("account", "Account to import info").StringVar(&c.accountName)
 	impAdd.Flag("local", "The local Subject to use for the import").StringVar(&c.localSubject)
 	impAdd.Flag("token", "Activation token to use for the import").StringVar(&c.activationToken)
 	impAdd.Flag("share", "Shares connection information with the exporter").UnNegatableBoolVar(&c.share)
@@ -203,7 +196,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	impRm.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 	impRm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	impKv := imports.Command("kv", "Imports a KV bucket").Action(c.importKvAction)
+	impKv := imports.Command("kv", "Imports a KV bucket").Hidden().Action(c.importKvAction)
 	impKv.Arg("bucket", "The bucket to export").Required().StringVar(&c.bucketName)
 	impKv.Arg("prefix", "The prefix to mount the bucket on").Required().StringVar(&c.prefix)
 	impKv.Arg("source", "The account public key to import from").Required().StringVar(&c.importAccount)
@@ -249,7 +242,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	expRm.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 	expRm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	expKv := exports.Command("kv", "Exports a KV bucket").Action(c.exportKvAction)
+	expKv := exports.Command("kv", "Exports a KV bucket").Hidden().Action(c.exportKvAction)
 	expKv.Arg("bucket", "The bucket to export").Required().StringVar(&c.bucketName)
 	expKv.Flag("activation", "Requires an activation token").UnNegatableBoolVar(&c.tokenRequired)
 
@@ -259,6 +252,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	skadd.Arg("name", "Account to act on").StringVar(&c.accountName)
 	skadd.Arg("role", "The role to add a key for").StringVar(&c.skRole)
 	skadd.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
+	skadd.Flag("description", "Description for the signing key").StringVar(&c.description)
 	skadd.Flag("subscriptions", "Maximum allowed subscriptions").Default("-1").Int64Var(&c.maxSubs)
 	skadd.Flag("payload", "Maximum allowed payload").PlaceHolder("BYTES").StringVar(&c.maxPayloadString)
 	skadd.Flag("bearer", "Allows bearer tokens").Default("false").BoolVar(&c.bearerAllowed)
@@ -421,23 +415,18 @@ func (c *authAccountCommand) pushAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authAccountCommand) skRmAction(_ *fisk.ParseContext) error {
-	_, _, acct, err := c.selectAccount(true)
+	auth, _, acct, err := c.selectAccount(true)
 	if err != nil {
 		return err
 	}
 
-	if c.skRole == "" {
-		err := askOne(&survey.Input{
-			Message: "Scoped Signing Key",
-			Help:    "The key to remove",
-		}, &c.skRole, survey.WithValidator(survey.Required))
-		if err != nil {
-			return err
-		}
+	sk, err := selectSigningKey(acct, c.skRole)
+	if err != nil {
+		return err
 	}
 
 	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Really remove the Scoped Signing Key %s", c.skRole), false)
+		ok, err := askConfirmation(fmt.Sprintf("Really remove the Scoped Signing Key %s with role %s", sk.Key(), sk.Role()), false)
 		if err != nil {
 			return err
 		}
@@ -447,16 +436,21 @@ func (c *authAccountCommand) skRmAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	ok, err := acct.ScopedSigningKeys().Delete(c.skRole)
+	ok, err := acct.ScopedSigningKeys().Delete(sk.Key())
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("key %q not found", sk.Key())
+	}
+
+	err = auth.Commit()
 	if err != nil {
 		return err
 	}
 
-	if !ok {
-		return fmt.Errorf("key %q not found", c.skRole)
-	}
+	fmt.Printf("key %q removed\n", sk.Key())
 
-	fmt.Printf("key %q removed\n", c.skRole)
 	return nil
 }
 
@@ -466,24 +460,9 @@ func (c *authAccountCommand) skInfoAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if c.skRole == "" {
-		err := askOne(&survey.Input{
-			Message: "Role or Key",
-			Help:    "The key to view by role or key name",
-		}, &c.skRole, survey.WithValidator(survey.Required))
-		if err != nil {
-			return err
-		}
-	}
-
-	sk, err := acct.ScopedSigningKeys().GetScopeByRole(c.skRole)
-	if sk == nil || errors.Is(err, ab.ErrNotFound) {
-		sk, err = acct.ScopedSigningKeys().GetScope(c.skRole)
-		if errors.Is(err, ab.ErrNotFound) {
-			return fmt.Errorf("no role or scope found matching %q", c.skRole)
-		} else if err != nil {
-			return err
-		}
+	sk, err := selectSigningKey(acct, c.skRole)
+	if err != nil {
+		return err
 	}
 
 	out, err := c.showSk(sk)
@@ -521,6 +500,13 @@ func (c *authAccountCommand) skAddAction(_ *fisk.ParseContext) error {
 	scope, err := acct.ScopedSigningKeys().AddScope(c.skRole)
 	if err != nil {
 		return err
+	}
+
+	if c.description != "" {
+		err = scope.SetDescription(c.description)
+		if err != nil {
+			return err
+		}
 	}
 
 	limits := scope.(userLimitsManager).UserPermissionLimits()
@@ -565,6 +551,7 @@ func (c *authAccountCommand) showSk(limits ab.ScopeLimits) (string, error) {
 
 	cols.AddSectionTitle("Config")
 
+	cols.AddRowIfNotEmpty("Description", limits.Description())
 	cols.AddRow("Key", limits.Key())
 	cols.AddRow("Role", limits.Role())
 
@@ -607,31 +594,17 @@ func (c *authAccountCommand) skListAction(_ *fisk.ParseContext) error {
 
 	if len(acct.ScopedSigningKeys().List()) > 0 {
 		table = newTableWriter("Scoped Signing Keys")
-		table.AddHeaders("Name", "Role", "Key", "Pub Perms", "Sub Perms")
+		table.AddHeaders("Role", "Key", "Description", "Max Subscriptions", "Pub Perms", "Sub Perms")
 		for _, sk := range acct.ScopedSigningKeys().List() {
 			scope, _ := acct.ScopedSigningKeys().GetScope(sk)
 
 			pubs := len(scope.PubPermissions().Allow()) + len(scope.PubPermissions().Deny())
 			subs := len(scope.SubPermissions().Allow()) + len(scope.SubPermissions().Deny())
 
-			table.AddRow(sk, scope.Role(), scope.Key(), scope.MaxSubscriptions(), pubs, subs)
+			table.AddRow(scope.Role(), scope.Key(), scope.Description(), scope.MaxSubscriptions(), pubs, subs)
 		}
 		fmt.Println(table.Render())
 		fmt.Println()
-	}
-
-	if len(acct.ScopedSigningKeys().ListRoles()) > 0 {
-		table = newTableWriter("Roles")
-		table.AddHeaders("Name", "Key")
-		for _, r := range acct.ScopedSigningKeys().ListRoles() {
-			role, err := acct.ScopedSigningKeys().GetScopeByRole(r)
-			if role == nil || err != nil {
-				continue
-			}
-
-			table.AddRow(role.Role(), role.Key())
-		}
-		fmt.Println(table.Render())
 	}
 
 	if table == nil {

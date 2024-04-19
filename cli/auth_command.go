@@ -30,6 +30,14 @@ import (
 func configureAuthCommand(app commandHost) {
 	auth := app.Command("auth", "NATS Decentralized Authentication")
 
+	// todo:
+	//	- lookup user by name/key in import commands
+	//  - lookup account by name in account query
+	//  - store role name, currently its the pub key not name
+	//  - diffs on edit now that we support json, still probably wont work since really we need the jwt contents diffed but we might parse the jwt and see?
+	//  - consider a way to select the operator/account that's default
+	//  - add a doc that walks through setting up a cluster
+
 	auth.HelpLong("WARNING: This is experimental and subject to massive change, do not use yet")
 
 	configureAuthOperatorCommand(auth)
@@ -103,13 +111,76 @@ func selectOperatorAccount(operatorName string, accountName string, pick bool) (
 	}
 
 	acct, err := operator.Accounts().Get(accountName)
-	if operator == nil || errors.Is(err, ab.ErrNotFound) {
+	if acct == nil || errors.Is(err, ab.ErrNotFound) {
 		return nil, nil, nil, fmt.Errorf("unknown Account: %v", accountName)
 	} else if err != nil {
 		return nil, nil, nil, err
 	}
 
 	return auth, operator, acct, nil
+}
+
+func selectSigningKey(acct ab.Account, choice string) (ab.ScopeLimits, error) {
+	if choice != "" {
+		// choice is a role and we have just one key for that role
+		scopes, _ := acct.ScopedSigningKeys().GetScopeByRole(choice)
+		if len(scopes) == 1 {
+			return scopes[0], nil
+		}
+
+		// its a public key so we try that
+		scope, _ := acct.ScopedSigningKeys().GetScope(choice)
+		if scope != nil {
+			return scope, nil
+		}
+	}
+
+	sks := acct.ScopedSigningKeys().List()
+	if len(sks) == 0 {
+		return nil, fmt.Errorf("no signing keys found")
+	}
+
+	type k struct {
+		scope       ab.ScopeLimits
+		description string
+	}
+	var choices []k
+
+	for _, sk := range sks {
+		scope, _ := acct.ScopedSigningKeys().GetScope(sk)
+
+		// if they gave us a key and we have it just use that
+		if scope.Key() == choice {
+			return scope, nil
+		}
+
+		var description string
+		if scope.Description() == "" {
+			description = scope.Role()
+		} else {
+			description = fmt.Sprintf("%s %s", scope.Role(), scope.Description())
+		}
+
+		choices = append(choices, k{
+			scope:       scope,
+			description: description,
+		})
+	}
+
+	answ := 0
+
+	err := survey.AskOne(&survey.Select{
+		Message: "Select Signing Key",
+		Options: sks,
+		Description: func(value string, index int) string {
+			return choices[index].description
+		},
+	}, &answ)
+	if err != nil {
+		return nil, err
+	}
+
+	return choices[answ].scope, nil
 }
 
 func selectOperator(operatorName string, pick bool) (*ab.AuthImpl, ab.Operator, error) {
