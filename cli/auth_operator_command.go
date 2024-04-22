@@ -18,11 +18,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/nats-io/nkeys"
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
+
+	"github.com/nats-io/nkeys"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -71,6 +73,9 @@ func configureAuthOperatorCommand(auth commandHost) {
 	imp.Arg("token", "The JWT file containing the account to import").Required().PlaceHolder("JWT").ExistingFileVar(&c.tokenFile)
 	imp.Arg("key", "List of keys to import").PlaceHolder("FILE").ExistingFilesVar(&c.keyFiles)
 
+	sel := op.Command("select", "Selects the default operator").Action(c.selectAction)
+	sel.Arg("name", "Operator to select").StringVar(&c.operatorName)
+
 	gen := op.Command("generate", "Generates a memory resolver configuration").Alias("gen").Action(c.generateAction)
 	gen.Arg("name", "Operator to act on").StringVar(&c.operatorName)
 	gen.Flag("output", "Write resolver to a file").PlaceHolder("FILE").Short('o').StringVar(&c.outputFile)
@@ -100,8 +105,31 @@ func configureAuthOperatorCommand(auth commandHost) {
 	skrm.Flag("force", "Remove without prompting").Short('f').UnNegatableBoolVar(&c.force)
 }
 
+func (c *authOperatorCommand) selectAction(_ *fisk.ParseContext) error {
+	parent, err := configDir()
+	if err != nil {
+		return err
+	}
+
+	cfile := filepath.Join(parent, "operator.txt")
+
+	_, oper, err := selectOperator(c.operatorName, true, false)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(cfile, []byte(oper.Name()), 0700)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Selected operator %q as default\n", oper.Name())
+
+	return nil
+}
+
 func (c *authOperatorCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operator, error) {
-	auth, oper, err := selectOperator(c.operatorName, pick)
+	auth, oper, err := selectOperator(c.operatorName, pick, true)
 	if err != nil {
 		return nil, nil, err
 	}

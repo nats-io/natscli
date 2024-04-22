@@ -16,6 +16,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -84,7 +85,7 @@ func isAuthItemKnown[list listWithNames](items []list, name string) bool {
 }
 
 func selectOperatorAccount(operatorName string, accountName string, pick bool) (*ab.AuthImpl, ab.Operator, ab.Account, error) {
-	auth, operator, err := selectOperator(operatorName, pick)
+	auth, operator, err := selectOperator(operatorName, pick, true)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -227,18 +228,35 @@ func selectSigningKey(acct ab.Account, choice string) (ab.ScopeLimits, error) {
 	return choices[answ].scope, nil
 }
 
-func selectOperator(operatorName string, pick bool) (*ab.AuthImpl, ab.Operator, error) {
+func selectOperator(operatorName string, pick bool, useSelected bool) (*ab.AuthImpl, ab.Operator, error) {
 	auth, err := getAuthBuilder()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if operatorName == "" || !isAuthItemKnown(auth.Operators().List(), operatorName) {
+	operators := auth.Operators().List()
+
+	// if we have the selected operator file we put that as the name if no name were given
+	if operatorName == "" && useSelected {
+		parent, err := configDir()
+		if err != nil {
+			return nil, nil, err
+		}
+		cfile := filepath.Join(parent, "operator.txt")
+		if fileExists(cfile) {
+			nb, err := os.ReadFile(cfile)
+			if err != nil {
+				return nil, nil, err
+			}
+			operatorName = string(nb)
+		}
+	}
+
+	if operatorName == "" || !isAuthItemKnown(operators, operatorName) {
 		if !pick {
 			return nil, nil, fmt.Errorf("unknown operator: %v", operatorName)
 		}
 
-		operators := auth.Operators().List()
 		if len(operators) == 1 {
 			return auth, operators[0], nil
 		}
