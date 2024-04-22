@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/nats-io/nkeys"
 	"io"
 	"math"
 	"math/rand"
@@ -39,6 +38,8 @@ import (
 	"text/template"
 	"time"
 	"unicode"
+
+	"github.com/nats-io/nkeys"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -1497,6 +1498,21 @@ func nscStore() (string, error) {
 	return dir, nil
 }
 
+func configDir() (string, error) {
+	parent, err := parentDir()
+	if err != nil {
+		return "", err
+	}
+
+	dir := filepath.Join(parent, "nats", "cli")
+	err = os.MkdirAll(dir, 0700)
+	if err != nil {
+		return "", err
+	}
+
+	return dir, nil
+}
+
 func xdgShareHome() (string, error) {
 	parent := os.Getenv("XDG_DATA_HOME")
 	if parent != "" {
@@ -1513,6 +1529,24 @@ func xdgShareHome() (string, error) {
 	}
 
 	return filepath.Join(u.HomeDir, ".local", "share"), nil
+}
+
+func parentDir() (string, error) {
+	parent := os.Getenv("XDG_CONFIG_HOME")
+	if parent != "" {
+		return parent, nil
+	}
+
+	u, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+
+	if u.HomeDir == "" {
+		return "", fmt.Errorf("cannot determine home directory")
+	}
+
+	return filepath.Join(u.HomeDir, parent, ".config"), nil
 }
 
 func currentActiveServers(nc *nats.Conn) (int, error) {

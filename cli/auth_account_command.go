@@ -293,7 +293,7 @@ func (c *authAccountCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator
 }
 
 func (c *authAccountCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operator, error) {
-	auth, oper, err := selectOperator(c.operatorName, pick)
+	auth, oper, err := selectOperator(c.operatorName, pick, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -309,7 +309,7 @@ func (c *authAccountCommand) queryAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	_, oper, err := selectOperator(c.operatorName, true)
+	_, oper, err := selectOperator(c.operatorName, true, true)
 	if err != nil {
 		return err
 	}
