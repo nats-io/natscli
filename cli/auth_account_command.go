@@ -165,8 +165,8 @@ func configureAuthAccountCommand(auth commandHost) {
 	impAdd := imports.Command("add", "Adds an Import").Alias("new").Alias("a").Alias("n").Action(c.importAddAction)
 	impAdd.Arg("name", "A unique name for the import").Required().StringVar(&c.importName)
 	impAdd.Arg("subject", "The Subject to import").Required().StringVar(&c.subject)
-	impAdd.Arg("source", "The account public key to import from").Required().StringVar(&c.importAccount)
-	impAdd.Arg("account", "Account to import info").StringVar(&c.accountName)
+	impAdd.Arg("account", "Account to import into").StringVar(&c.accountName)
+	impAdd.Flag("source", "The account public key to import from").StringVar(&c.importAccount)
 	impAdd.Flag("local", "The local Subject to use for the import").StringVar(&c.localSubject)
 	impAdd.Flag("token", "Activation token to use for the import").StringVar(&c.activationToken)
 	impAdd.Flag("share", "Shares connection information with the exporter").UnNegatableBoolVar(&c.share)
@@ -314,7 +314,7 @@ func (c *authAccountCommand) queryAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	acct, err := selectAccount(oper, c.accountName)
+	acct, err := selectAccount(oper, c.accountName, "")
 	if err != nil {
 		return err
 	}

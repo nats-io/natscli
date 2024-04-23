@@ -64,7 +64,7 @@ func configureServiceCommand(app commandHost) {
 
 	echo := mc.Command("serve", "Runs a demo Service").Action(c.serveAction)
 	echo.Arg("name", "A name for the service to run on").Required().StringVar(&c.name)
-	echo.Flag("header", "Headers to add to responses").Short('H').StringMapVar(&c.hdrs)
+	echo.Flag("header", "Headers to add to responses using K:V format").Short('H').StringMapVar(&c.hdrs)
 }
 
 func init() {

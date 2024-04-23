@@ -98,9 +98,14 @@ func (c *authAccountCommand) importKvAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authAccountCommand) importAddAction(_ *fisk.ParseContext) error {
-	auth, _, acct, err := c.selectAccount(true)
+	auth, op, acct, err := c.selectAccount(true)
 	if err != nil {
 		return err
+	}
+
+	src, err := selectAccount(op, c.importAccount, "Select the Source account")
+	if err != nil {
+		return fmt.Errorf("could not select source account: %v", err)
 	}
 
 	var imp ab.Import
@@ -113,7 +118,7 @@ func (c *authAccountCommand) importAddAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("could not add import: %v", err)
 	}
 
-	err = imp.SetAccount(c.importAccount)
+	err = imp.SetAccount(src.Subject())
 	if err != nil {
 		return err
 	}
@@ -160,11 +165,11 @@ func (c *authAccountCommand) importAddAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("commit failed: %v", err)
 	}
 
-	return c.fShowImport(os.Stdout, imp)
+	return c.fShowImport(os.Stdout, imp, op)
 }
 
 func (c *authAccountCommand) importLsAction(_ *fisk.ParseContext) error {
-	_, _, acct, err := c.selectAccount(true)
+	_, op, acct, err := c.selectAccount(true)
 	if err != nil {
 		return err
 	}
@@ -177,7 +182,7 @@ func (c *authAccountCommand) importLsAction(_ *fisk.ParseContext) error {
 	imports := c.importsBySubject(acct)
 
 	tbl := newTableWriter("Imports for account %s", acct.Name())
-	tbl.AddHeaders("Name", "Kind", "Local Subject", "Remote Subject", "Allows Tracing", "Sharing Connection Info")
+	tbl.AddHeaders("Name", "Kind", "Source", "Local Subject", "Remote Subject", "Allows Tracing", "Sharing Connection Info")
 
 	for _, i := range imports {
 		ls := i.Subject()
@@ -185,11 +190,17 @@ func (c *authAccountCommand) importLsAction(_ *fisk.ParseContext) error {
 			ls = i.LocalSubject()
 		}
 
+		src := i.Account()
+		srcAccount, err := op.Accounts().Get(i.Account())
+		if err == nil && srcAccount != nil {
+			src = srcAccount.Name()
+		}
+
 		switch imp := i.(type) {
 		case ab.StreamImport:
-			tbl.AddRow(imp.Name(), "Stream", ls, imp.Subject(), imp.AllowTracing(), imp.IsShareConnectionInfo())
+			tbl.AddRow(imp.Name(), "Stream", src, ls, imp.Subject(), imp.AllowTracing(), imp.IsShareConnectionInfo())
 		case ab.ServiceImport:
-			tbl.AddRow(imp.Name(), "Service", ls, imp.Subject(), "", imp.IsShareConnectionInfo())
+			tbl.AddRow(imp.Name(), "Service", src, ls, imp.Subject(), "", imp.IsShareConnectionInfo())
 		}
 	}
 
@@ -231,7 +242,7 @@ func (c *authAccountCommand) importsBySubject(acct ab.Account) []ab.Import {
 }
 
 func (c *authAccountCommand) importInfoAction(_ *fisk.ParseContext) error {
-	_, _, acct, err := c.selectAccount(true)
+	_, op, acct, err := c.selectAccount(true)
 	if err != nil {
 		return err
 	}
@@ -262,11 +273,11 @@ func (c *authAccountCommand) importInfoAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("unknown import")
 	}
 
-	return c.fShowImport(os.Stdout, imp)
+	return c.fShowImport(os.Stdout, imp, op)
 }
 
 func (c *authAccountCommand) importEditAction(_ *fisk.ParseContext) error {
-	auth, _, acct, err := c.selectAccount(true)
+	auth, op, acct, err := c.selectAccount(true)
 	if err != nil {
 		return err
 	}
@@ -307,7 +318,7 @@ func (c *authAccountCommand) importEditAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	return c.fShowImport(os.Stdout, imp)
+	return c.fShowImport(os.Stdout, imp, op)
 }
 
 func (c *authAccountCommand) importRmAction(_ *fisk.ParseContext) error {
@@ -361,8 +372,8 @@ func (c *authAccountCommand) importSubjects(imports ab.Imports) []string {
 	return known
 }
 
-func (c *authAccountCommand) fShowImport(w io.Writer, exp ab.Import) error {
-	out, err := c.showImport(exp)
+func (c *authAccountCommand) fShowImport(w io.Writer, exp ab.Import, op ab.Operator) error {
+	out, err := c.showImport(exp, op)
 	if err != nil {
 		return err
 	}
@@ -371,13 +382,18 @@ func (c *authAccountCommand) fShowImport(w io.Writer, exp ab.Import) error {
 	return err
 }
 
-func (c *authAccountCommand) showImport(imp ab.Import) (string, error) {
-	cols := newColumns("Import info for %s importing %s", imp.Name(), imp.LocalSubject())
+func (c *authAccountCommand) showImport(imp ab.Import, op ab.Operator) (string, error) {
+	cols := newColumns("Import info for import %q importing %q", imp.Name(), imp.LocalSubject())
 
+	src := imp.Account()
+	srcAcct, err := op.Accounts().Get(imp.Account())
+	if err == nil && srcAcct != nil {
+		src = fmt.Sprintf("%s (%s)", srcAcct.Name(), srcAcct.Subject())
+	}
 	cols.AddSectionTitle("Configuration")
 	cols.AddRow("Name", imp.Name())
+	cols.AddRow("From Account", src)
 	cols.AddRow("Local Subject", imp.LocalSubject())
-	cols.AddRow("Account", imp.Account())
 	cols.AddRow("Remote Subject", imp.Subject())
 	cols.AddRow("Sharing Connection Info", imp.IsShareConnectionInfo())
 

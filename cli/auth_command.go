@@ -16,7 +16,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -34,9 +33,8 @@ func configureAuthCommand(app commandHost) {
 	// todo:
 	//	- lookup user by name/key in import commands
 	//  - store role name, currently its the pub key not name
-	//  - diffs on edit now that we support json, still probably wont work since really we need the jwt contents diffed but we might parse the jwt and see?
-	//  - consider a way to select the operator/account that's default
-	//  - add a doc that walks through setting up a cluster
+	//  - Support generating full server configs not just memory ones
+	//  - Resolve nsc://../../.. cred paths in the jwt library and use that
 
 	auth.HelpLong("WARNING: This is experimental and subject to massive change, do not use yet")
 
@@ -120,7 +118,7 @@ func selectOperatorAccount(operatorName string, accountName string, pick bool) (
 	return auth, operator, acct, nil
 }
 
-func selectAccount(op ab.Operator, choice string) (ab.Account, error) {
+func selectAccount(op ab.Operator, choice string, prompt string) (ab.Account, error) {
 	accts := op.Accounts().List()
 	if len(accts) == 0 {
 		return nil, fmt.Errorf("no accounts found")
@@ -129,8 +127,6 @@ func selectAccount(op ab.Operator, choice string) (ab.Account, error) {
 	sort.SliceStable(accts, func(i, j int) bool {
 		return accts[i].Name() < accts[j].Name()
 	})
-
-	var subjects []string
 
 	if choice != "" {
 		// look on name
@@ -141,18 +137,26 @@ func selectAccount(op ab.Operator, choice string) (ab.Account, error) {
 
 		// look on subject
 		for _, acct := range accts {
-			subjects = append(subjects, acct.Subject())
 			if acct.Subject() == choice {
 				return acct, nil
 			}
 		}
 	}
 
+	var subjects []string
+	for _, acct := range accts {
+		subjects = append(subjects, acct.Subject())
+	}
+
 	// not found now make lists
 	answ := 0
 
+	if prompt == "" {
+		prompt = "Select an Account"
+	}
+
 	err := survey.AskOne(&survey.Select{
-		Message: "Select an Account",
+		Message: prompt,
 		Options: subjects,
 		Description: func(value string, index int) string {
 			return accts[index].Name()
@@ -238,17 +242,9 @@ func selectOperator(operatorName string, pick bool, useSelected bool) (*ab.AuthI
 
 	// if we have the selected operator file we put that as the name if no name were given
 	if operatorName == "" && useSelected {
-		parent, err := configDir()
-		if err != nil {
-			return nil, nil, err
-		}
-		cfile := filepath.Join(parent, "operator.txt")
-		if fileExists(cfile) {
-			nb, err := os.ReadFile(cfile)
-			if err != nil {
-				return nil, nil, err
-			}
-			operatorName = string(nb)
+		cfg, err := loadConfig()
+		if err == nil {
+			operatorName = cfg.SelectedOperator
 		}
 	}
 

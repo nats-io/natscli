@@ -37,7 +37,7 @@ type commandHost interface {
 	Command(name string, help string) *fisk.CmdClause
 }
 
-// Logger provides a plugable logger implementation
+// Logger provides a pluggable logger implementation
 type Logger interface {
 	Printf(format string, a ...any)
 	Fatalf(format string, a ...any)

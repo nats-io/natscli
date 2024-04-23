@@ -85,7 +85,7 @@ Available template functions are:
 	act.Flag("command", "Runs a command and responds with the output if exit code was 0").StringVar(&c.command)
 	act.Flag("queue", "Queue group name").Default("NATS-RPLY-22").Short('q').StringVar(&c.queue)
 	act.Flag("sleep", "Inject a random sleep delay between replies up to this duration max").PlaceHolder("MAX").DurationVar(&c.sleep)
-	act.Flag("header", "Adds headers to the message").Short('H').StringsVar(&c.hdrs)
+	act.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
 	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
 }
 

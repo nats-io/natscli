@@ -88,6 +88,7 @@ func configureAuthUserCommand(auth commandHost) {
 	edit.Arg("account", "Account to query").StringVar(&c.accountName)
 	edit.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
 	addCreateFlags(edit, true)
+	edit.Flag("credential", "Writes credentials to a file").StringVar(&c.credFile)
 
 	ls := user.Command("ls", "List users").Action(c.lsAction)
 	ls.Arg("account", "Account to query").StringVar(&c.accountName)
@@ -103,7 +104,7 @@ func configureAuthUserCommand(auth commandHost) {
 
 	cred := user.Command("credential", "Creates a credential file for a user").Alias("cred").Alias("creds").Action(c.credAction)
 	cred.Arg("file", "The file to create").Required().StringVar(&c.credFile)
-	cred.Arg("name", "Unique name for this User").StringVar(&c.userName)
+	cred.Arg("name", "User to generate a credential for").StringVar(&c.userName)
 	cred.Arg("account", "Account to query").StringVar(&c.accountName)
 	cred.Flag("expire", "Duration till expiry").DurationVar(&c.expire)
 	cred.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
@@ -136,6 +137,13 @@ func (c *authUserCommand) editAction(_ *fisk.ParseContext) error {
 	err = auth.Commit()
 	if err != nil {
 		return err
+	}
+
+	if c.credFile != "" {
+		err = c.writeCred(user, c.credFile, true)
+		if err != nil {
+			return err
+		}
 	}
 
 	return c.fShowUser(os.Stdout, user, acct)
@@ -414,15 +422,27 @@ func (c *authUserCommand) updateUser(user ab.User) error {
 
 	// TODO: should allow adding/removing not just setting
 	if len(c.pubAllow) > 0 {
+		if len(c.pubAllow) == 1 && c.pubAllow[0] == "" {
+			c.pubAllow = []string{}
+		}
 		limits.Pub.Allow = c.pubAllow
 	}
 	if len(c.pubDeny) > 0 {
+		if len(c.pubDeny) == 1 && c.pubDeny[0] == "" {
+			c.pubDeny = []string{}
+		}
 		limits.Pub.Deny = c.pubDeny
 	}
 	if len(c.subAllow) > 0 {
+		if len(c.subAllow) == 1 && c.subAllow[0] == "" {
+			c.subAllow = []string{}
+		}
 		limits.Sub.Allow = c.subAllow
 	}
 	if len(c.subDeny) > 0 {
+		if len(c.subDeny) == 1 && c.subDeny[0] == "" {
+			c.subDeny = []string{}
+		}
 		limits.Sub.Deny = c.subDeny
 	}
 
