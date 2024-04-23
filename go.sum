@@ -82,8 +82,8 @@ github.com/nats-io/jsm.go v0.1.1-0.20240416131620-2690708e8318 h1:/4HpJHXPVCWx7X
 github.com/nats-io/jsm.go v0.1.1-0.20240416131620-2690708e8318/go.mod h1:vKE1JC6JHbV9vcLYHxvfQzZV6CcUwUtLSzrB7kyL/J0=
 github.com/nats-io/jwt/v2 v2.5.6 h1:Cp618+z4q042sWqHiSoIHFT08OZtAskui0hTmRfmGGQ=
 github.com/nats-io/jwt/v2 v2.5.6/go.mod h1:ZdWS1nZa6WMZfFwwgpEaqBV8EPGVgOTDHN/wTbz0Y5A=
-github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240417165404-d8e888e0f9be h1:xsKn+f5LJP6+V2FtDV571orMblw9eXGo4TH1no2GETA=
-github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240417165404-d8e888e0f9be/go.mod h1:l8WLBEGlFdj5st6Nm707j+NBZ2b2TzodsaRKjzRAIDQ=
+github.com/nats-io/nats-server/v2 v2.11.0-preview.2 h1:tT/UeBbFzHRzwy77T/+/Rbw58XP9F3CY3VmtcDltZ68=
+github.com/nats-io/nats-server/v2 v2.11.0-preview.2/go.mod h1:ILDVzrTqMco4rQMOgEZimBjJHb1oZDlz1J+qhJtZlRM=
 github.com/nats-io/nats.go v1.34.1 h1:syWey5xaNHZgicYBemv0nohUPPmaLteiBEUT6Q5+F/4=
 github.com/nats-io/nats.go v1.34.1/go.mod h1:Ubdu4Nh9exXdSz0RVWRFBbRfrbSxOYd26oF0wkWclB8=
 github.com/nats-io/nkeys v0.4.7 h1:RwNJbbIdYCoClSDNY7QVKZlyb/wfT6ugvFCiKy6vDvI=
@@ -103,8 +103,6 @@ github.com/prometheus/client_model v0.6.1 h1:ZKSh/rekM+n3CeS952MLRAdFwIKqeY8b62p
 github.com/prometheus/client_model v0.6.1/go.mod h1:OrxVMOVHjw3lKMa8+x6HeMGkHMQyHDk9E3jmP2AmGiY=
 github.com/prometheus/common v0.53.0 h1:U2pL9w9nmJwJDa4qqLQ3ZaePJ6ZTwt7cMD3AG3+aLCE=
 github.com/prometheus/common v0.53.0/go.mod h1:BrxBKv3FWBIGXw89Mg1AeBq7FSyRzXWI3l3e7W3RN5U=
-github.com/prometheus/procfs v0.13.0 h1:GqzLlQyfsPbaEHaQkO7tbDlriv/4o5Hudv6OXHGKX7o=
-github.com/prometheus/procfs v0.13.0/go.mod h1:cd4PFCR54QLnGKPaKGA6l+cfuNXtht43ZKY6tow0Y1g=
 github.com/prometheus/procfs v0.14.0 h1:Lw4VdGGoKEZilJsayHf0B+9YgLGREba2C6xr+Fdfq6s=
 github.com/prometheus/procfs v0.14.0/go.mod h1:XL+Iwz8k8ZabyZfMFHPiilCniixqQarAy5Mu67pHlNQ=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
@@ -119,8 +117,6 @@ github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240418184848-899e649f656f h1:r2qU6C6bPswqJXlcSDrXH72NPTUQ2lfHo4g9J004SNc=
-github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240418184848-899e649f656f/go.mod h1:z+ZENSUrwJFMZstPcEfPAXXVKRibe0iqx0ACG5ikYBg=
 github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240423085918-567b5f89c654 h1:UTJ3gAbQmRHCW9rqCCx7G2SJKdSA1HyeYmCeHm5Y/5s=
 github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240423085918-567b5f89c654/go.mod h1:z+ZENSUrwJFMZstPcEfPAXXVKRibe0iqx0ACG5ikYBg=
 github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f h1:SGznmvCovewbaSgBsHgdThtWsLj5aCLX/3ZXMLd1UD0=

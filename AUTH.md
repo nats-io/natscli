@@ -215,7 +215,19 @@ And we confirm the limits are applied by subscribing to an invalid subject:
 10:36:36 Unexpected NATS error from server nats://127.0.0.1:4222: nats: Permissions Violation for Publish to "other"
 ```
 
-## Sharing NATS Core Streams
+## Imports and Exports
+
+For the examples below we'll add an account and some users with their credentials:
+
+```
+# nats auth acct add OTHER --defaults
+# nats auth user add test MyAccount --credential myaccount.cred --defaults
+# nats auth user add test OTHER --credential other.cred --defaults
+```
+
+This creates the `OTHER` account and adds credentials files `myaccount.cred` and `other.cred`.
+
+### Sharing NATS Core Streams
 
 Note: A `Stream` in this context describes a one directional flow of nats-core messages, not a Stream stored in JetStream.
 
@@ -239,10 +251,9 @@ Revocations:
  No revocations found
 ```
 
-The other side needs to import it, lets create a new account and import it:
+The other side needs to import it:
 
 ```
-# nats auth acct add OTHER --defaults
 # nats auth a import add "MyAccount abc" "a.b.c.>" OTHER
 ? Select the Source account ADNJMEHSIAQAE3X5EKGABVVOFX3GECHZKG6M4DK72ZDHEPQ5YW4CA3OF
 Import info for MyAccount abc importing a.b.c.>
@@ -262,13 +273,6 @@ We have to push these accounts to the servers now since we changed the account J
 ```
 # nats auth account push MyAccount --context system
 # nats auth account push OTHER --context system
-```
-
-To test it we need a credentials:
-
-```
-# nats auth user add test MyAccount --credential myaccount.cred --defaults
-# nats auth user add test OTHER --credential other.cred --defaults 
 ```
 
 In one terminal we can publish messages using the `MyAccount` user:

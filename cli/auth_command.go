@@ -35,6 +35,7 @@ func configureAuthCommand(app commandHost) {
 	//  - store role name, currently its the pub key not name
 	//  - Support generating full server configs not just memory ones
 	//  - Resolve nsc://../../.. cred paths in the jwt library and use that
+	//  - Improve maintaining pub/sub permissions for a user, perhaps allow interactive edits of yaml?
 
 	auth.HelpLong("WARNING: This is experimental and subject to massive change, do not use yet")
 
