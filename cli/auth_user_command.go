@@ -68,7 +68,7 @@ func configureAuthUserCommand(auth commandHost) {
 		f.Flag("data", "Maximum message data size to allow").Default("-1").Int64Var(&c.maxData)
 	}
 
-	add := user.Command("add", "Adds a new User").Action(c.addAction)
+	add := user.Command("add", "Adds a new User").Alias("create").Alias("new").Action(c.addAction)
 	add.Arg("name", "Unique name for this User").Required().StringVar(&c.userName)
 	add.Arg("account", "Account to add the user to").StringVar(&c.accountName)
 	add.Flag("key", "The public key to use when signing the user").StringVar(&c.signingKey)

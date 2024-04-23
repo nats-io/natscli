@@ -1,0 +1,168 @@
+# Install https://choria-io.github.io/appbuilder/ and run `abt` to use this file
+
+name: dev
+description: Development tools
+
+commands:
+  - name: test
+    type: parent
+    aliases: [t]
+    description: Perform various tests
+    commands:
+      - name: unit
+        type: exec
+        dir: "{{ AppDir }}"
+        description: Run unit tests
+        aliases: [u]
+        script: |
+          set -e
+                    
+          go test ./...
+
+      - name: lint
+        type: exec
+        dir: "{{ AppDir }}"
+        flags:
+          - name: vet
+            description: Perform go vet
+            bool: true
+            default: true
+          - name: staticcheck
+            description: Perform staticcheck
+            bool: true
+            default: true
+          - name: spell
+            description: Perform spell check
+            bool: true
+            default: true
+          - name: update
+            description: Updates lint dependencies
+            bool: true
+        script: |
+          set -e
+          
+          . "{{ BashHelperPath }}"
+          
+          {{ if .Flags.update }}
+            ab_say Updating linting tools
+            go install github.com/client9/misspell/cmd/misspell@latest
+            go install honnef.co/go/tools/cmd/staticcheck@latest
+          {{ else }}
+            echo ">>> Run with --update to install required commands"
+            echo
+          {{ end }}
+          
+          ab_say Formatting source files
+          go fmt ./...
+          
+          ab_say Tidying go mod
+          go mod tidy
+
+          {{ if .Flags.spell }}          
+          ab_say Checking spelling
+          find . -type f -name "*.go" | xargs misspell -error -locale US -i flavour
+          {{ end }}
+          
+          {{ if .Flags.vet }}
+          ab_say Performing go vet
+          go vet ./...
+          {{ end }}
+          
+          {{ if .Flags.staticcheck }}
+          ab_say Running staticcheck
+          staticcheck ./...
+          {{ end }}
+
+  - name: dependencies
+    type: parent
+    description: Manage dependencies
+    aliases: [ d ]
+    commands:
+      - name: update
+        description: Update dependencies
+        type: exec
+        aliases: [ up ]
+        dir: "{{ AppDir }}"
+        flags:
+          - name: verbose
+            description: Log verbosely
+            short: v
+            bool: true
+          - name: proxy
+            description: Enable using go proxy
+            bool: true
+            default: "true"
+        script: |
+          . "{{ BashHelperPath }}"
+
+          ab_announce Updating all dependencies
+          echo
+
+          {{ if eq .Flags.proxy false }}
+          export GOPROXY=direct
+          ab_say Disabling go mod proxy
+          {{ end }}
+
+          go get -u -n -a -t {{- if .Flags.verbose }} -d -x {{ end }} ./...
+
+          ab_say Running go mod tidy
+
+          go mod tidy
+
+  - name: report
+    type: parent
+    description: Report on downloads
+    commands:
+    - name: releases
+      type: exec
+      description: Report releases and their release_id for us in downloads report
+      flags:
+        - name: org
+          description: The organization to fetch for
+          default: nats-io
+        - name: repo
+          description: The repository to fetch for
+          default: natscli
+      command: curl -s https://api.github.com/repos/{{.Flags.org}}/{{.Flags.repo}}/releases
+      transform:
+        report:
+          name: Releases Report
+          header: |+1
+                                              Release List
+            ------------------------------------------------------------------------------------
+          body: |
+            Name: @<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Tag: @<<<<<<<<<< ID: @##########
+            row.name, row.tag_name, row.id
+
+    - name: downloads
+      type: exec
+      flags:
+        - name: release
+          description: The release id to report for
+          default: latest
+        - name: org
+          description: The organization to fetch for
+          default: nats-io
+        - name: repo
+          description: The repository to fetch for
+          default: natscli
+      description: Reports on downloads for a certain release id
+      command: curl -s https://api.github.com/repos/{{.Flags.org}}/{{.Flags.repo}}/releases/{{.Flags.release}}
+      transform:
+        pipeline:
+          - report:
+              name: Asset Report
+              initial_query: assets
+              header: |+
+                @|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+                data.name
+                ----------------------------------------------------------------------------------
+
+              body: |
+                Name: @<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Size: @B###### Downloads: @####
+                row.name, row.size,              row.download_count
+              footer: |+2
+              
+                                                                            =======================
+                                                                            Total Downloads: @#####
+                report.summary.download_count

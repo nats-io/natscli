@@ -126,7 +126,7 @@ func configureAuthAccountCommand(auth commandHost) {
 		f.Flag("js-stream-size-required", "Requires Streams to have a maximum size declared").IsSetByUser(&c.streamSizeRequiredIsSet).UnNegatableBoolVar(&c.streamSizeRequired)
 	}
 
-	add := acct.Command("add", "Adds a new Account").Action(c.addAction)
+	add := acct.Command("add", "Adds a new Account").Alias("create").Alias("new").Action(c.addAction)
 	add.Arg("name", "Unique name for this Account").StringVar(&c.accountName)
 	add.Flag("operator", "Operator to add the account to").StringVar(&c.operatorName)
 	addCreateFlags(add, false)
