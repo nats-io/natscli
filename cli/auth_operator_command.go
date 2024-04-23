@@ -21,7 +21,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/nats-io/nkeys"
@@ -106,19 +105,17 @@ func configureAuthOperatorCommand(auth commandHost) {
 }
 
 func (c *authOperatorCommand) selectAction(_ *fisk.ParseContext) error {
-	parent, err := configDir()
-	if err != nil {
-		return err
-	}
-
-	cfile := filepath.Join(parent, "operator.txt")
-
 	_, oper, err := selectOperator(c.operatorName, true, false)
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(cfile, []byte(oper.Name()), 0700)
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+	cfg.SelectedOperator = oper.Name()
+	err = saveConfig(cfg)
 	if err != nil {
 		return err
 	}

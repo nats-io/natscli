@@ -88,7 +88,7 @@ NOTE: This is an experimental feature.
 	put.Arg("file", "The file to put").ExistingFileVar(&c.file)
 	put.Flag("name", "Override the name supplied to the object store").StringVar(&c.overrideName)
 	put.Flag("description", "Sets an optional description for the object").StringVar(&c.description)
-	put.Flag("header", "Adds headers to the object").Short('H').StringsVar(&c.hdrs)
+	put.Flag("header", "Adds headers to the object using K:V format").Short('H').StringsVar(&c.hdrs)
 	put.Flag("progress", "Disable progress bars").Default("true").BoolVar(&c.progress)
 	put.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 

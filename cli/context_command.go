@@ -80,7 +80,7 @@ func configureCtxCommand(app commandHost) {
 
 	context.Command("unselect", "Ensures that no context is the default context").Action(c.unselectCommand)
 
-	info := context.Command("info", "Display information on the current or named context").Alias("show").Action(c.showCommand)
+	info := context.Command("info", "Display information on the current or named context").Alias("show").Alias("v").Alias("view").Action(c.showCommand)
 	info.Arg("name", "The context name to show").StringVar(&c.name)
 	info.Flag("json", "Show the context in JSON format").Short('j').UnNegatableBoolVar(&c.json)
 	info.Flag("connect", "Attempts to connect to NATS using the context while validating").UnNegatableBoolVar(&c.activate)
@@ -185,7 +185,7 @@ tls_first: {{ .TLSHandshakeFirst | t }}
 windows_cert_store: {{ .WindowsCertStore | t }}
 windows_cert_match: {{ .WindowsCertStoreMatch | t }}
 windows_cert_match_by: {{ .WindowsCertStoreMatchBy | t }}
-windows_ca_certs_match: {{ .WinCertCaStoreMatch | t }}
+windows_ca_certs_match: {{ .WindowsCaCertsMatch | t }}
 
 # Retrieves connection information from 'nsc'
 #

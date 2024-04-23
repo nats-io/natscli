@@ -69,7 +69,7 @@ func configureTraceCommand(app commandHost) {
 	trace.Arg("payload", "The message body to send").BytesVar(&c.payload)
 	trace.Flag("deliver", "Deliver the message to the final destination").UnNegatableBoolVar(&c.deliver)
 	trace.Flag("timestamp", "Show event timestamps").Short('T').UnNegatableBoolVar(&c.showTs)
-	trace.Flag("header", "Adds headers to the trace message").Short('H').StringMapVar(&c.header)
+	trace.Flag("header", "Adds headers to the trace message using K:V format").Short('H').StringMapVar(&c.header)
 }
 
 func init() {
