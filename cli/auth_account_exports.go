@@ -40,12 +40,6 @@ func (c *authAccountCommand) exportKvAction(_ *fisk.ParseContext) error {
 		}
 
 		exp.SetDescription(fmt.Sprintf("Export for KV Bucket %s", c.bucketName))
-		if c.tokenRequired {
-			err = exp.SetTokenRequired(true)
-			if err != nil {
-				return err
-			}
-		}
 
 		err = acct.Exports().Services().AddWithConfig(exp)
 		if err != nil {
@@ -63,12 +57,6 @@ func (c *authAccountCommand) exportKvAction(_ *fisk.ParseContext) error {
 		}
 
 		exp.SetDescription(fmt.Sprintf("Export for KV Bucket %s", c.bucketName))
-		if c.tokenRequired {
-			err = exp.SetTokenRequired(true)
-			if err != nil {
-				return err
-			}
-		}
 
 		err = acct.Exports().Streams().AddWithConfig(exp)
 		if err != nil {
@@ -251,13 +239,6 @@ func (c *authAccountCommand) exportEditAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("export for subject %q not found", c.subject)
 	}
 
-	if c.tokenRequiredIsSet {
-		err = exp.SetTokenRequired(c.tokenRequired)
-		if err != nil {
-			return err
-		}
-	}
-
 	if c.url != nil {
 		err = exp.SetInfoURL(c.url.String())
 		if err != nil {
@@ -329,11 +310,6 @@ func (c *authAccountCommand) exportAddAction(_ *fisk.ParseContext) error {
 			return err
 		}
 	}
-	err = exp.SetTokenRequired(c.tokenRequired)
-	if err != nil {
-		return err
-	}
-
 	if c.isService {
 		err = acct.Exports().Services().AddWithConfig(exp.(ab.ServiceExport))
 	} else {

@@ -46,13 +46,6 @@ func (c *authAccountCommand) importKvAction(_ *fisk.ParseContext) error {
 			return err
 		}
 
-		if c.activationToken != "" {
-			err = imp.SetToken(c.activationToken)
-			if err != nil {
-				return err
-			}
-		}
-
 		err = acct.Imports().Services().AddWithConfig(imp)
 		if err != nil {
 			return fmt.Errorf("could not add import: %v", err)
@@ -75,13 +68,6 @@ func (c *authAccountCommand) importKvAction(_ *fisk.ParseContext) error {
 		err = imp.SetLocalSubject(target)
 		if err != nil {
 			return err
-		}
-
-		if c.activationToken != "" {
-			err = imp.SetToken(c.activationToken)
-			if err != nil {
-				return err
-			}
 		}
 
 		err = acct.Imports().Streams().AddWithConfig(imp)
@@ -131,13 +117,6 @@ func (c *authAccountCommand) importAddAction(_ *fisk.ParseContext) error {
 	}
 	if err != nil {
 		return err
-	}
-
-	if c.activationToken != "" {
-		err = imp.SetToken(c.activationToken)
-		if err != nil {
-			return err
-		}
 	}
 
 	err = imp.SetShareConnectionInfo(c.share)
