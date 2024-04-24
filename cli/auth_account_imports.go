@@ -2,13 +2,14 @@ package cli
 
 import (
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/choria-io/fisk"
-	ab "github.com/synadia-io/jwt-auth-builder.go"
 	"io"
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/choria-io/fisk"
+	ab "github.com/synadia-io/jwt-auth-builder.go"
 )
 
 func (c *authAccountCommand) importKvAction(_ *fisk.ParseContext) error {
@@ -385,6 +386,8 @@ func (c *authAccountCommand) fShowImport(w io.Writer, exp ab.Import, op ab.Opera
 func (c *authAccountCommand) showImport(imp ab.Import, op ab.Operator) (string, error) {
 	cols := newColumns("Import info for import %q importing %q", imp.Name(), imp.LocalSubject())
 
+	_, isStream := imp.(ab.StreamImport)
+
 	src := imp.Account()
 	srcAcct, err := op.Accounts().Get(imp.Account())
 	if err == nil && srcAcct != nil {
@@ -394,6 +397,11 @@ func (c *authAccountCommand) showImport(imp ab.Import, op ab.Operator) (string, 
 	cols.AddRow("Name", imp.Name())
 	cols.AddRow("From Account", src)
 	cols.AddRow("Local Subject", imp.LocalSubject())
+	if isStream {
+		cols.AddRow("Kind", "Stream")
+	} else {
+		cols.AddRow("Kind", "Service")
+	}
 	cols.AddRow("Remote Subject", imp.Subject())
 	cols.AddRow("Sharing Connection Info", imp.IsShareConnectionInfo())
 
