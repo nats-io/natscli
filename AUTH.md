@@ -122,8 +122,6 @@ $ nats-server --config nats-server.conf
 [31] 2024/04/23 09:49:20.430708 [INF]   Expires : Never
 ```
 
-TODO: update to use `nsc://MyOperator/SYSTEM/admin` once supported
-
 The dynamic account - `MyAccount` in this case - needs to be sent to the NATS Server `SYSTEM` account before you can use it.
 To do this we need a `SYSTEM` account user and credential.
 
@@ -289,4 +287,65 @@ And in another terminal we can receive them on the `OTHER` account user:
 [#1] Received on "a.b.c.d"
 14
 ...
+```
+
+### Sharing NATS Core Services
+
+To share data cross accounts the origin account has to export it, the example will be a weather service:
+
+```
+# nats auth account export add weather.v1 'weather.v1.>' --service
+? Select an Account MyAccount
+Export info for weather.v1 exporting weather.v1.>
+
+Configuration:
+
+                    Name: weather.v1
+                 Subject: weather.v1.>
+     Activation Required: false
+  Account Token Position: 0
+              Advertised: false
+
+Revocations:
+
+ No revocations found
+```
+
+The other account needs to import it, we import the `weather.v1.>` subjects to `weather.>` in the `OTHER` account:
+
+```
+# nats auth account import add weather 'weather.v1.>' --local 'weather.>' --service
+? Select an Account OTHER
+? Select the Source account ADNJMEHSIAQAE3X5EKGABVVOFX3GECHZKG6M4DK72ZDHEPQ5YW4CA3OF
+Import info for import "weather" importing "weather.>"
+
+Configuration:
+
+                     Name: weather
+             From Account: MyAccount (ADNJMEHSIAQAE3X5EKGABVVOFX3GECHZKG6M4DK72ZDHEPQ5YW4CA3OF)
+            Local Subject: weather.>
+           Remote Subject: weather.v1.>
+  Sharing Connection Info: false
+```
+
+We have to push the accounts since we edited the JWTs:
+
+```
+# nats auth account push MyAccount --context system
+# nats auth account push OTHER --context system
+```
+
+To test it we set up a weather service in the `MyAccount`, note we listen on `weather.v1.>`:
+
+```
+# nats reply 'weather.v1.>' --command "curl -s wttr.in/{{2}}?format=3" --creds myaccount.cred 
+```
+
+On the importing account we access the service via `weather.>`:
+
+```
+# nats req weather.malta '' --creds other.cred
+08:53:45 Sending request on "weather.malta"
+08:53:45 Received with rtt 228.858489ms
+malta: ⛅️  +17°C
 ```

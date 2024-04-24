@@ -2,14 +2,15 @@ package cli
 
 import (
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/choria-io/fisk"
-	ab "github.com/synadia-io/jwt-auth-builder.go"
 	"io"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/choria-io/fisk"
+	ab "github.com/synadia-io/jwt-auth-builder.go"
 )
 
 func (c *authAccountCommand) exportKvAction(_ *fisk.ParseContext) error {
@@ -135,11 +136,18 @@ func (c *authAccountCommand) fShowExport(w io.Writer, exp ab.Export) error {
 }
 
 func (c *authAccountCommand) showExport(exp ab.Export) (string, error) {
+	_, isService := exp.(ab.ServiceExport)
+
 	cols := newColumns("Export info for %s exporting %s", exp.Name(), exp.Subject())
 
 	cols.AddSectionTitle("Configuration")
 	cols.AddRow("Name", exp.Name())
 	cols.AddRowIfNotEmpty("Description", exp.Description())
+	if isService {
+		cols.AddRow("Kind", "Service")
+	} else {
+		cols.AddRow("Kind", "Stream")
+	}
 	cols.AddRowIfNotEmpty("Info", exp.InfoURL())
 	cols.AddRow("Subject", exp.Subject())
 	cols.AddRow("Activation Required", exp.TokenRequired())
