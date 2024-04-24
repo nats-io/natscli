@@ -86,12 +86,9 @@ type authAccountCommand struct {
 	subDeny                 []string
 	subject                 string
 	tokenPosition           uint
-	tokenRequired           bool
-	tokenRequiredIsSet      bool
 	url                     *url.URL
 	importName              string
 	localSubject            string
-	activationToken         string
 	share                   bool
 	shareIsSet              bool
 	allowTrace              bool
@@ -168,7 +165,6 @@ func configureAuthAccountCommand(auth commandHost) {
 	impAdd.Arg("account", "Account to import into").StringVar(&c.accountName)
 	impAdd.Flag("source", "The account public key to import from").StringVar(&c.importAccount)
 	impAdd.Flag("local", "The local Subject to use for the import").StringVar(&c.localSubject)
-	impAdd.Flag("token", "Activation token to use for the import").StringVar(&c.activationToken)
 	impAdd.Flag("share", "Shares connection information with the exporter").UnNegatableBoolVar(&c.share)
 	impAdd.Flag("traceable", "Enable tracing messages across Stream imports").UnNegatableBoolVar(&c.allowTrace)
 	impAdd.Flag("service", "Sets the import to be a Service rather than a Stream").UnNegatableBoolVar(&c.isService)
@@ -201,8 +197,6 @@ func configureAuthAccountCommand(auth commandHost) {
 	impKv.Arg("bucket", "The bucket to export").Required().StringVar(&c.bucketName)
 	impKv.Arg("prefix", "The prefix to mount the bucket on").Required().StringVar(&c.prefix)
 	impKv.Arg("source", "The account public key to import from").Required().StringVar(&c.importAccount)
-	impKv.Flag("token", "Activation token to use for the import").StringVar(&c.activationToken)
-	impKv.Flag("activation", "Requires an activation token").UnNegatableBoolVar(&c.tokenRequired)
 
 	exports := acct.Command("exports", "Manage account Exports").Alias("e").Alias("exp").Alias("export")
 
@@ -211,7 +205,6 @@ func configureAuthAccountCommand(auth commandHost) {
 	expAdd.Arg("subject", "The Subject to export").Required().StringVar(&c.subject)
 	expAdd.Arg("account", "Account to act on").StringVar(&c.accountName)
 	expAdd.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
-	expAdd.Flag("activation", "Requires an activation token").UnNegatableBoolVar(&c.tokenRequired)
 	expAdd.Flag("description", "Friendly description").StringVar(&c.description)
 	expAdd.Flag("url", "Sets a URL for further information").URLVar(&c.url)
 	expAdd.Flag("token-position", "The position to use for the Account name").UintVar(&c.tokenPosition)
@@ -227,7 +220,6 @@ func configureAuthAccountCommand(auth commandHost) {
 	expEdit.Arg("subject", "The Export Subject to edit").Required().StringVar(&c.subject)
 	expEdit.Arg("account", "Account to act on").StringVar(&c.accountName)
 	expEdit.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
-	expEdit.Flag("activation", "Requires an activation token").IsSetByUser(&c.tokenRequiredIsSet).BoolVar(&c.tokenRequired)
 	expEdit.Flag("description", "Friendly description").IsSetByUser(&c.descriptionIsSet).StringVar(&c.description)
 	expEdit.Flag("url", "Sets a URL for further information").URLVar(&c.url)
 	expEdit.Flag("token-position", "The position to use for the Account name").UintVar(&c.tokenPosition)
@@ -245,7 +237,6 @@ func configureAuthAccountCommand(auth commandHost) {
 
 	expKv := exports.Command("kv", "Exports a KV bucket").Hidden().Action(c.exportKvAction)
 	expKv.Arg("bucket", "The bucket to export").Required().StringVar(&c.bucketName)
-	expKv.Flag("activation", "Requires an activation token").UnNegatableBoolVar(&c.tokenRequired)
 
 	sk := acct.Command("keys", "Manage Scoped Signing Keys").Alias("sk").Alias("s")
 
