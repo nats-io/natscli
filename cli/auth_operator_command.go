@@ -14,14 +14,19 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/choria-io/appbuilder/forms"
+	"github.com/ghodss/yaml"
+	au "github.com/nats-io/natscli/internal/auth"
 	"io"
 	"net/url"
 	"os"
 	"sort"
+	"text/template"
 
 	"github.com/nats-io/nkeys"
 
@@ -44,6 +49,7 @@ type authOperatorCommand struct {
 	pubKey               string
 	outputFile           string
 	encKey               string
+	jetstream            bool
 }
 
 func configureAuthOperatorCommand(auth commandHost) {
@@ -75,10 +81,10 @@ func configureAuthOperatorCommand(auth commandHost) {
 	sel := op.Command("select", "Selects the default operator").Action(c.selectAction)
 	sel.Arg("name", "Operator to select").StringVar(&c.operatorName)
 
-	gen := op.Command("generate", "Generates a memory resolver configuration").Alias("gen").Action(c.generateAction)
-	gen.Arg("name", "Operator to act on").StringVar(&c.operatorName)
-	gen.Flag("output", "Write resolver to a file").PlaceHolder("FILE").Short('o').StringVar(&c.outputFile)
-	gen.Flag("force", "Overwrite existing files without prompting").Short('f').UnNegatableBoolVar(&c.force)
+	scaffold := op.Command("generate", "Guided creation of a Operator managed NATS Server").Alias("scaffold").Alias("gen").Action(c.generateAction)
+	scaffold.Arg("name", "Operator to act on").StringVar(&c.operatorName)
+	scaffold.Flag("output", "Location to store the configuration").Short('O').StringVar(&c.outputFile)
+	scaffold.Flag("jetstream", "Enables JetStream").BoolVar(&c.jetstream)
 
 	backup := op.Command("backup", "Creates a backup of an operator").Action(c.backupAction)
 	backup.Arg("name", "Operator to act on").Required().StringVar(&c.operatorName)
@@ -102,6 +108,58 @@ func configureAuthOperatorCommand(auth commandHost) {
 	skrm.Arg("name", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Arg("key", "The public key to remove").StringVar(&c.pubKey)
 	skrm.Flag("force", "Remove without prompting").Short('f').UnNegatableBoolVar(&c.force)
+}
+
+func (c *authOperatorCommand) generateAction(_ *fisk.ParseContext) error {
+	_, oper, err := selectOperator(c.operatorName, true, false)
+	if err != nil {
+		return err
+	}
+
+	var f forms.Form
+	err = yaml.Unmarshal(au.ResolverForm, &f)
+	if err != nil {
+		return err
+	}
+
+	res, err := forms.ProcessForm(f, map[string]any{
+		"jetstream": c.jetstream,
+		"operator":  oper,
+	})
+	if err != nil {
+		return err
+	}
+
+	t, err := template.New("nats-server.conf").Parse(au.ResolverTemplate)
+	if err != nil {
+		return err
+	}
+
+	res["operator"] = oper
+	res["system"], _ = oper.Accounts().Get("SYSTEM")
+
+	buff := bytes.NewBuffer([]byte{})
+	err = t.Execute(buff, res)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println()
+
+	if c.outputFile == "" {
+		fmt.Println("Generated Server Config")
+		fmt.Println()
+		fmt.Println(buff.String())
+		return nil
+	}
+
+	err = os.WriteFile(c.outputFile, buff.Bytes(), 0644)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Generated server configuration written to %s\n", c.outputFile)
+
+	return nil
 }
 
 func (c *authOperatorCommand) selectAction(_ *fisk.ParseContext) error {
@@ -210,37 +268,6 @@ func (c *authOperatorCommand) skListAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *authOperatorCommand) generateAction(_ *fisk.ParseContext) error {
-	_, operator, err := c.selectOperator(true)
-	if err != nil {
-		return err
-	}
-
-	out, err := operator.MemResolver()
-	if err != nil {
-		return err
-	}
-
-	if c.outputFile == "" {
-		fmt.Println(string(out))
-
-		return nil
-	}
-
-	if !c.force && fileExists(c.outputFile) {
-		ok, err := askConfirmation(fmt.Sprintf("Overwrite %s", c.outputFile), false)
-		if err != nil {
-			return err
-		}
-
-		if !ok {
-			return fmt.Errorf("%s exists", c.outputFile)
-		}
-	}
-
-	return os.WriteFile(c.outputFile, out, 0600)
-}
-
 func (c *authOperatorCommand) importAction(_ *fisk.ParseContext) error {
 	auth, err := getAuthBuilder()
 	if err != nil {
@@ -332,7 +359,7 @@ func (c *authOperatorCommand) restoreAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if isAuthItemKnown(auth.Operators().List(), c.operatorName) {
+	if au.IsAuthItemKnown(auth.Operators().List(), c.operatorName) {
 		return fmt.Errorf("operator %s already exist", c.operatorName)
 	}
 
@@ -495,7 +522,7 @@ func (c *authOperatorCommand) addAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if isAuthItemKnown(auth.Operators().List(), c.operatorName) {
+	if au.IsAuthItemKnown(auth.Operators().List(), c.operatorName) {
 		return fmt.Errorf("operator %s already exist", c.operatorName)
 	}
 

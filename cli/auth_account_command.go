@@ -16,6 +16,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	au "github.com/nats-io/natscli/internal/auth"
 	"io"
 	"net/url"
 	"os"
@@ -305,7 +306,7 @@ func (c *authAccountCommand) queryAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	acct, err := selectAccount(oper, c.accountName, "")
+	acct, err := au.SelectAccount(oper, c.accountName, "")
 	if err != nil {
 		return err
 	}
@@ -422,7 +423,7 @@ func (c *authAccountCommand) skRmAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	sk, err := selectSigningKey(acct, c.skRole)
+	sk, err := au.SelectSigningKey(acct, c.skRole)
 	if err != nil {
 		return err
 	}
@@ -462,7 +463,7 @@ func (c *authAccountCommand) skInfoAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	sk, err := selectSigningKey(acct, c.skRole)
+	sk, err := au.SelectSigningKey(acct, c.skRole)
 	if err != nil {
 		return err
 	}
@@ -511,7 +512,7 @@ func (c *authAccountCommand) skAddAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	limits := scope.(userLimitsManager).UserPermissionLimits()
+	limits := scope.(au.UserLimitsManager).UserPermissionLimits()
 	limits.Subs = c.maxSubs
 	limits.Payload = c.maxPayload
 	limits.BearerToken = c.bearerAllowed
@@ -524,7 +525,7 @@ func (c *authAccountCommand) skAddAction(_ *fisk.ParseContext) error {
 		limits.AllowedConnectionTypes = c.connectionTypes()
 	}
 
-	err = scope.(userLimitsManager).SetUserPermissionLimits(limits)
+	err = scope.(au.UserLimitsManager).SetUserPermissionLimits(limits)
 	if err != nil {
 		return err
 	}
@@ -623,7 +624,7 @@ func (c *authAccountCommand) editAction(_ *fisk.ParseContext) error {
 	}
 
 	jsEnabled := acct.Limits().JetStream().IsJetStreamEnabled()
-	limits := acct.Limits().(operatorLimitsManager).OperatorLimits()
+	limits := acct.Limits().(au.OperatorLimitsManager).OperatorLimits()
 	// copy existing settings into the flag settings so parsing treats those as defaults unless users set values
 	if c.maxPayloadString == "" {
 		c.maxPayloadString = strconv.Itoa(int(limits.Payload))
@@ -783,7 +784,7 @@ func (c *authAccountCommand) infoAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authAccountCommand) updateAccount(acct ab.Account, js bool) error {
-	limits := acct.Limits().(operatorLimitsManager).OperatorLimits()
+	limits := acct.Limits().(au.OperatorLimitsManager).OperatorLimits()
 	limits.Conn = c.maxConns
 	limits.Subs = c.maxSubs
 	limits.Payload = c.maxPayload
@@ -806,7 +807,7 @@ func (c *authAccountCommand) updateAccount(acct ab.Account, js bool) error {
 		limits.JetStreamLimits.MaxAckPending = c.maxAckPending
 	}
 
-	err := acct.Limits().(operatorLimitsManager).SetOperatorLimits(limits)
+	err := acct.Limits().(au.OperatorLimitsManager).SetOperatorLimits(limits)
 	if err != nil {
 		return err
 	}
@@ -891,7 +892,7 @@ func (c *authAccountCommand) addAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	if isAuthItemKnown(operator.Accounts().List(), c.accountName) {
+	if au.IsAuthItemKnown(operator.Accounts().List(), c.accountName) {
 		return fmt.Errorf("account %s already exist", c.accountName)
 	}
 

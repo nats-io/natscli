@@ -16,6 +16,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	au "github.com/nats-io/natscli/internal/auth"
 	"io"
 	"os"
 	"sort"
@@ -342,7 +343,7 @@ func (c *authUserCommand) addAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.signingKey != "" {
-		sk, err := selectSigningKey(acct, c.signingKey)
+		sk, err := au.SelectSigningKey(acct, c.signingKey)
 		if err != nil {
 			return err
 		}
