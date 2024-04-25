@@ -1,0 +1,39 @@
+# Generated NATS Server configuration operated by operator {{ .operator.Name }}
+
+# Unique name for the server
+server_name: {{ .server_name }}
+
+# The address and port clients must connect to
+listen: {{ .address}}:{{ .port }}
+
+# HTTP requests can be made to this port for monitoring purpose
+monitor_port: {{ .monitor_port }}
+
+# The JWT token of the operator running the server ({{ .operator.Name }})
+operator: {{ .operator.JWT }}
+
+# The JWT token of the system account managing the server ({{ .system.Name }})
+system_account: {{ .system.JWT }}
+
+resolver_preload {
+    // Account: {{ .system.Name }}
+    {{ .system.Subject }}: {{ .system.JWT }}
+}
+
+{{ if .jetstream }}
+jetstream {
+    store_dir: {{ .jetstream.store_dir }}
+    max_mem: {{ .jetstream.max_mem }}
+    max_file: {{ .jetstream.max_file }}
+}
+{{ end }}
+
+# Configures the Full NATS Resolver
+resolver {
+   type: full
+   dir: {{ .resolver.dir }}
+   allow_delete: {{ .resolver.allow_delete }}
+   interval: 2m
+   limit: {{ .resolver.limit }}
+}
+

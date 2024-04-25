@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	au "github.com/nats-io/natscli/internal/auth"
 	"io"
 	"os"
 	"sort"
@@ -90,7 +91,7 @@ func (c *authAccountCommand) importAddAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	src, err := selectAccount(op, c.importAccount, "Select the Source account")
+	src, err := au.SelectAccount(op, c.importAccount, "Select the Source account")
 	if err != nil {
 		return fmt.Errorf("could not select source account: %v", err)
 	}

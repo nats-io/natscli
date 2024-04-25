@@ -237,10 +237,6 @@ func selectPageSize(count int) int {
 	return ps
 }
 
-func isTerminal() bool {
-	return terminal.IsTerminal(int(os.Stdin.Fd())) && terminal.IsTerminal(int(os.Stdout.Fd()))
-}
-
 func sinceRefOrNow(ref time.Time, ts time.Time) time.Duration {
 	if ref.IsZero() {
 		return time.Since(ts)
@@ -1613,4 +1609,8 @@ func wipeSlice(buf []byte) {
 	for i := range buf {
 		buf[i] = 'x'
 	}
+}
+
+func isTerminal() bool {
+	return terminal.IsTerminal(int(os.Stdin.Fd())) && terminal.IsTerminal(int(os.Stdout.Fd()))
 }
