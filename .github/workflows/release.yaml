@@ -40,6 +40,9 @@ jobs:
         shell: bash --noprofile --norc -x -eo pipefail {0}
         run: |
           set -e
+          cd nats
+          go build
+          cd ..
           go test -v --failfast -p=1 ./...
 
       - name: Create GitHub App Token
