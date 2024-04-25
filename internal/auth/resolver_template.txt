@@ -13,7 +13,7 @@ monitor_port: {{ .monitor_port }}
 operator: {{ .operator.JWT }}
 
 # The JWT token of the system account managing the server ({{ .system.Name }})
-system_account: {{ .system.JWT }}
+system_account: {{ .system.Subject }}
 
 resolver_preload {
     // Account: {{ .system.Name }}
@@ -33,7 +33,7 @@ resolver {
    type: full
    dir: {{ .resolver.dir }}
    allow_delete: {{ .resolver.allow_delete }}
-   interval: 2m
+   interval: "2m"
    limit: {{ .resolver.limit }}
 }
 
