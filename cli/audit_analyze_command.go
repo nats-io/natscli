@@ -22,6 +22,7 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/archive"
+	"github.com/nats-io/natscli/audit"
 )
 
 type auditAnalyzeCmd struct {
@@ -143,6 +144,16 @@ func (cmd *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 			fmt.Printf("Failed to close archive reader: %s\n", err)
 		}
 	}()
+
+	// What command might look like using the new package:
+
+	for _, check := range audit.GetDefaultChecks() {
+		outcome, err := check.Run(ar)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s - %s\n%s\n\n", check.Name, outcome, check.Description)
+	}
 
 	// Prepare table of check and their outcome
 	type checkSummary struct {
