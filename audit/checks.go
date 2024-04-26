@@ -22,7 +22,7 @@ const (
 	Skipped        Outcome = iota
 )
 
-func (o Outcome) string() string {
+func (o Outcome) String() string {
 	switch o {
 	case Fail:
 		return "FAIL"
