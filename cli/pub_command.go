@@ -293,7 +293,7 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 		}
 
 		// if progress == nil {
-		// 	log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+		log.Printf("Published %d bytes to %q\n", len(body), c.subject)
 		// } else {
 		// 	progress.Incr()
 		// }
