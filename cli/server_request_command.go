@@ -128,6 +128,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	jsz.Flag("all", "Include accounts, streams, consumers and configuration").UnNegatableBoolVar(&c.includeAll)
 
 	healthz := req.Command("jetstream-health", "Request JetStream health status").Alias("healthz").Action(c.healthz)
+	healthz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	healthz.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
 	healthz.Flag("server-only", "Restricts the health check to the JetStream server only, do not check streams and consumers").Short('S').BoolVar(&c.jsServerOnly)
 	healthz.Flag("account", "Check only a specific Account").StringVar(&c.account)
