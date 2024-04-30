@@ -15,6 +15,7 @@ achieve the same outcome.
 ## Limitations
 
  * We only support the `full` resolver type for pushing accounts
+ * We do not support import/export activations only account token positions
 
 ## Storage
 
@@ -348,4 +349,96 @@ On the importing account we access the service via `weather.>`:
 08:53:45 Sending request on "weather.malta"
 08:53:45 Received with rtt 228.858489ms
 malta: ⛅️  +17°C
+```
+
+## Account token authentication for imports and exports
+
+`nats auth` supports securing Exports by forcing account tokens in subjects.  Let's create a weather export that will
+require the account ID in imports:
+
+```
+$ nats auth account export add weatherAPI 'weather.*.>' MyAccount --token-position 2 --service
+Export info for weatherAPI exporting weather.*.>
+
+Configuration:
+
+                    Name: weatherAPI
+                    Kind: Service
+                 Subject: weather.*.>
+     Activation Required: false
+  Account Token Position: 2
+              Advertised: false
+
+Revocations:
+
+ No revocations found
+ 
+$ nats auth account push USERS  --creds admin.cred
+```
+
+Now we create an account and import the service:
+
+```
+$ nats auth account add CLIENT --defaults
+Account CLIENT (ABAFX7CGEL5Z63ZYSR6VZX67VBXCK5BFXAGKLRTE4KEDDLX6BSTYM3ET)
+
+Configuration:
+
+                   Name: CLIENT
+                 Issuer: OCBIIO6GFBV4C3O66WNYOALWLQKEW3RNLXYRDFXLISNLNUK6BIYA6HGP
+               Operator: DEMO
+         System Account: false
+              JetStream: false
+                  Users: 1
+            Revocations: 0
+        Service Exports: 0
+         Stream Exports: 0
+        Service Imports: 0
+         Stream Imports: 1
+
+Limits:
+
+  Bearer Tokens Allowed: false
+          Subscriptions: unlimited
+            Connections: unlimited
+        Maximum Payload: unlimited
+              Leafnodes: unlimited
+                Imports: unlimited
+                Exports: unlimited
+```
+
+Note the account ID here is `ABAFX7CGEL5Z63ZYSR6VZX67VBXCK5BFXAGKLRTE4KEDDLX6BSTYM3ET`, this means when importing the
+service we must add this token in the subject:
+
+```
+$ nats auth account import add weatherAPI 'weather.ABAFX7CGEL5Z63ZYSR6VZX67VBXCK5BFXAGKLRTE4KEDDLX6BSTYM3ET.>' --local 'weather.>' CLIENT --service
+$ nats auth user add user --credential client.cred CLIENT --defaults
+$ nats auth account push CLIENT --creds admin.cred
+
+? Select the Source account ACJFET46AFRLXBHFTHRTCB3NQR2KZAWUH66HXUYVEUU4I2425SQBZKOU
+Import info for import "weatherAPI" importing "weather.>"
+
+Configuration:
+
+                     Name: weatherAPI
+             From Account: MyAccount (ADNJMEHSIAQAE3X5EKGABVVOFX3GECHZKG6M4DK72ZDHEPQ5YW4CA3OF)
+            Local Subject: weather.>
+                     Kind: Service
+           Remote Subject: weather.ABAFX7CGEL5Z63ZYSR6VZX67VBXCK5BFXAGKLRTE4KEDDLX6BSTYM3ET.>
+  Sharing Connection Info: false
+```
+
+We can now run the weather service in the one account:
+
+```
+$ nats reply 'weather.*.>' --command "curl -s wttr.in/{{3}}?format=3" --creds myaccount.cred
+```
+
+And in another we can access the service:
+
+```
+$ nats req weather.lon '' --creds client.cred
+12:26:18 Sending request on "weather.lon"
+12:26:19 Received with rtt 686.31243ms
+3: ⛅️  +13°C
 ```
