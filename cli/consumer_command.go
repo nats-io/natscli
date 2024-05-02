@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"io"
 	"math"
 	"math/rand"
@@ -519,7 +520,7 @@ func (c *consumerCmd) lsAction(pc *fisk.ParseContext) error {
 	fisk.FatalIfError(err, "could not load Consumers")
 
 	if c.json {
-		err = printJSON(consumers)
+		err = iu.PrintJSON(consumers)
 		fisk.FatalIfError(err, "could not display Consumers")
 		return nil
 	}
@@ -583,7 +584,7 @@ func (c *consumerCmd) renderBackoff(bo []time.Duration) string {
 
 func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo) {
 	if c.json {
-		printJSON(state)
+		iu.PrintJSON(state)
 		return
 	}
 
@@ -806,7 +807,7 @@ func (c *consumerCmd) setStartPolicy(cfg *api.ConsumerConfig, policy string) {
 		cfg.DeliverPolicy = api.DeliverByStartSequence
 		cfg.OptStartSeq = uint64(seq)
 	} else {
-		d, err := parseDurationString(policy)
+		d, err := fisk.ParseDuration(policy)
 		fisk.FatalIfError(err, "could not parse starting delta")
 		t := time.Now().UTC().Add(-d)
 		cfg.DeliverPolicy = api.DeliverByStartTime
@@ -876,7 +877,7 @@ func (c *consumerCmd) cpAction(pc *fisk.ParseContext) (err error) {
 	}
 
 	if c.idleHeartbeat != "" && c.idleHeartbeat != "-1" {
-		hb, err := parseDurationString(c.idleHeartbeat)
+		hb, err := fisk.ParseDuration(c.idleHeartbeat)
 		fisk.FatalIfError(err, "Invalid heartbeat duration")
 		cfg.Heartbeat = hb
 	}
@@ -1200,7 +1201,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 		if c.idleHeartbeat == "-1" {
 			cfg.Heartbeat = 0
 		} else if c.idleHeartbeat != "" {
-			cfg.Heartbeat, err = parseDurationString(c.idleHeartbeat)
+			cfg.Heartbeat, err = fisk.ParseDuration(c.idleHeartbeat)
 			fisk.FatalIfError(err, "invalid heartbeat duration")
 		} else {
 			idle := "0s"
@@ -1210,7 +1211,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 				Default: "0s",
 			}, &idle)
 			fisk.FatalIfError(err, "could not ask for idle heartbeat")
-			cfg.Heartbeat, err = parseDurationString(idle)
+			cfg.Heartbeat, err = fisk.ParseDuration(idle)
 			fisk.FatalIfError(err, "invalid heartbeat duration")
 		}
 	}
@@ -1312,7 +1313,7 @@ func (c *consumerCmd) parsePauseUntil(until string) (time.Time, error) {
 
 	ts, err = time.Parse(time.DateTime, until)
 	if err != nil {
-		dur, err := parseDurationString(until)
+		dur, err := fisk.ParseDuration(until)
 		if err != nil {
 			return ts, fmt.Errorf("could not parse the pause time as either timestamp or duration")
 		}
@@ -1423,7 +1424,7 @@ func (c *consumerCmd) askBackoffPolicy() error {
 		if err != nil {
 			return err
 		}
-		c.backoffMin, err = parseDurationString(d)
+		c.backoffMin, err = fisk.ParseDuration(d)
 		if err != nil {
 			return err
 		}
@@ -1436,7 +1437,7 @@ func (c *consumerCmd) askBackoffPolicy() error {
 		if err != nil {
 			return err
 		}
-		c.backoffMax, err = parseDurationString(d)
+		c.backoffMax, err = fisk.ParseDuration(d)
 		if err != nil {
 			return err
 		}
@@ -1868,7 +1869,7 @@ func (c *consumerCmd) renderMissing(out io.Writer, missing []string) {
 		fmt.Fprintln(out)
 		sort.Strings(missing)
 		table := newTableWriter("Inaccessible Consumers")
-		sliceGroups(missing, 4, func(names []string) {
+		iu.SliceGroups(missing, 4, func(names []string) {
 			table.AddRow(toany(names)...)
 		})
 		fmt.Fprint(out, table.Render())

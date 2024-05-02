@@ -564,7 +564,7 @@ func (c *authAccountCommand) showSk(limits ab.ScopeLimits) (string, error) {
 	cols.AddRow("Key", limits.Key())
 	cols.AddRow("Role", limits.Role())
 
-	err := renderUserLimits(limits, cols)
+	err := au.RenderUserLimits(limits, cols)
 	if err != nil {
 		return "", err
 	}

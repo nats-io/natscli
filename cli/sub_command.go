@@ -419,7 +419,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			opts = append(opts, nats.DeliverNew())
 		case c.deliverSince != "":
 			var d time.Duration
-			d, err = parseDurationString(c.deliverSince)
+			d, err = fisk.ParseDuration(c.deliverSince)
 			if err != nil {
 				return err
 			}

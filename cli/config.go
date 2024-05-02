@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"path/filepath"
 )
@@ -12,7 +13,7 @@ type config struct {
 }
 
 func loadConfig() (*config, error) {
-	parent, err := configDir()
+	parent, err := iu.ConfigDir()
 	if err != nil {
 		return nil, fmt.Errorf("could not determine configuration directory: %w", err)
 	}
@@ -37,7 +38,7 @@ func loadConfig() (*config, error) {
 }
 
 func saveConfig(cfg *config) error {
-	parent, err := configDir()
+	parent, err := iu.ConfigDir()
 	if err != nil {
 		return err
 	}

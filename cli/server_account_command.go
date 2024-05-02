@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"strings"
 	"time"
@@ -121,7 +122,7 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 	nfo := account.Account
 
 	if c.json {
-		printJSON(nfo)
+		iu.PrintJSON(nfo)
 		return nil
 	}
 

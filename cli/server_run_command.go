@@ -16,6 +16,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"net"
 	"net/url"
 	"os"
@@ -250,7 +251,7 @@ func (c *SrvRunCmd) prepareConfig() error {
 	c.config.ServicePasswordCrypt = string(b)
 
 	if c.config.JetStream {
-		parent, err := xdgShareHome()
+		parent, err := iu.XdgShareHome()
 		if err != nil {
 			return err
 		}

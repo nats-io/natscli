@@ -21,15 +21,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"io"
 	"math"
 	"math/rand"
 	"net/textproto"
 	"os"
 	"os/exec"
-	"os/user"
-	"path/filepath"
-	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -38,8 +36,6 @@ import (
 	"text/template"
 	"time"
 	"unicode"
-
-	"github.com/nats-io/nkeys"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -77,7 +73,7 @@ func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool
 		return "", nil, fmt.Errorf("unknown consumer %q > %q", stream, consumer)
 	}
 
-	if !isTerminal() {
+	if !iu.IsTerminal() {
 		return "", nil, fmt.Errorf("cannot pick a Consumer without a terminal and no Consumer name supplied")
 	}
 
@@ -138,7 +134,7 @@ func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string
 		return stream, nil, nil
 	}
 
-	if !isTerminal() {
+	if !iu.IsTerminal() {
 		return "", nil, fmt.Errorf("cannot pick a Stream without a terminal and no Stream name supplied")
 	}
 
@@ -166,39 +162,11 @@ func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string
 }
 
 func askOne(p survey.Prompt, response any, opts ...survey.AskOpt) error {
-	if !isTerminal() {
+	if !iu.IsTerminal() {
 		return fmt.Errorf("cannot prompt for user input without a terminal")
 	}
 
 	return survey.AskOne(p, response, append(surveyColors(), opts...)...)
-}
-
-func toJSON(d any) (string, error) {
-	j, err := json.MarshalIndent(d, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	return string(j), nil
-}
-
-func printJSON(d any) error {
-	j, err := json.MarshalIndent(d, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(j))
-
-	return nil
-}
-func parseDurationString(dstr string) (dur time.Duration, err error) {
-	dstr = strings.TrimSpace(dstr)
-	if len(dstr) == 0 {
-		return 0, nil
-	}
-
-	return fisk.ParseDuration(dstr)
 }
 
 // calculates progress bar width for uiprogress:
@@ -245,7 +213,7 @@ func sinceRefOrNow(ref time.Time, ts time.Time) time.Duration {
 }
 
 func askConfirmation(prompt string, dflt bool) (bool, error) {
-	if !isTerminal() {
+	if !iu.IsTerminal() {
 		return false, fmt.Errorf("cannot ask for confirmation without a terminal")
 	}
 
@@ -260,7 +228,7 @@ func askConfirmation(prompt string, dflt bool) (bool, error) {
 }
 
 func askOneBytes(prompt string, dflt string, help string, required string) (int64, error) {
-	if !isTerminal() {
+	if !iu.IsTerminal() {
 		return 0, fmt.Errorf("cannot ask for confirmation without a terminal")
 	}
 
@@ -294,7 +262,7 @@ func askOneBytes(prompt string, dflt string, help string, required string) (int6
 }
 
 func askOneInt(prompt string, dflt string, help string) (int64, error) {
-	if !isTerminal() {
+	if !iu.IsTerminal() {
 		return 0, fmt.Errorf("cannot ask for confirmation without a terminal")
 	}
 
@@ -1199,32 +1167,6 @@ func parseStringAsBytes(s string) (int64, error) {
 	return num, nil
 }
 
-func sliceGroups(input []string, size int, fn func(group []string)) {
-	// how many to add
-	padding := size - (len(input) % size)
-
-	if padding != size {
-		p := []string{}
-
-		for i := 0; i <= padding; i++ {
-			p = append(p, "")
-		}
-
-		input = append(input, p...)
-	}
-
-	// how many chunks we're making
-	count := len(input) / size
-
-	for i := 0; i < count; i++ {
-		chunk := []string{}
-		for s := 0; s < size; s++ {
-			chunk = append(chunk, input[i+s*count])
-		}
-		fn(chunk)
-	}
-}
-
 var semVerRe = regexp.MustCompile(`\Av?([0-9]+)\.?([0-9]+)?\.?([0-9]+)?`)
 
 func versionComponents(version string) (major, minor, patch int, err error) {
@@ -1365,41 +1307,6 @@ func filterDataThroughCmd(data []byte, filter, subject, stream string) ([]byte, 
 	return runner.CombinedOutput()
 }
 
-// given a non pointer instance of a type with a lot of omitempty json tags will return a new instance without those
-//
-// does not handle nested values
-func structWithoutOmitEmpty(s any) any {
-	st := reflect.TypeOf(s)
-
-	// It's a pointer struct, convert to the value that it points to.
-	if st.Kind() == reflect.Ptr {
-		st = st.Elem()
-	}
-
-	fs := []reflect.StructField{}
-	for i := 0; i < st.NumField(); i++ {
-		field := st.Field(i)
-		field.Tag = reflect.StructTag(strings.ReplaceAll(string(field.Tag), ",omitempty", ""))
-		fs = append(fs, field)
-	}
-
-	st2 := reflect.StructOf(fs)
-	v := reflect.ValueOf(s)
-
-	j, err := json.Marshal(v.Convert(st2).Interface())
-	if err != nil {
-		panic(err)
-	}
-
-	var res any
-	err = json.Unmarshal(j, &res)
-	if err != nil {
-		panic(err)
-	}
-
-	return res
-}
-
 // copied from choria-io/appbuilder
 func barGraph(w io.Writer, data map[string]float64, caption string, width int, bytes bool) error {
 	longest := 0
@@ -1479,72 +1386,6 @@ func barGraph(w io.Writer, data map[string]float64, caption string, width int, b
 	return nil
 }
 
-func nscStore() (string, error) {
-	parent, err := xdgShareHome()
-	if err != nil {
-		return "", err
-	}
-
-	dir := filepath.Join(parent, "nats", "nsc")
-	err = os.MkdirAll(dir, 0700)
-	if err != nil {
-		return "", err
-	}
-
-	return dir, nil
-}
-
-func configDir() (string, error) {
-	parent, err := parentDir()
-	if err != nil {
-		return "", err
-	}
-
-	dir := filepath.Join(parent, "nats", "cli")
-	err = os.MkdirAll(dir, 0700)
-	if err != nil {
-		return "", err
-	}
-
-	return dir, nil
-}
-
-func xdgShareHome() (string, error) {
-	parent := os.Getenv("XDG_DATA_HOME")
-	if parent != "" {
-		return parent, nil
-	}
-
-	u, err := user.Current()
-	if err != nil {
-		return "", err
-	}
-
-	if u.HomeDir == "" {
-		return "", fmt.Errorf("cannot determine home directory")
-	}
-
-	return filepath.Join(u.HomeDir, ".local", "share"), nil
-}
-
-func parentDir() (string, error) {
-	parent := os.Getenv("XDG_CONFIG_HOME")
-	if parent != "" {
-		return parent, nil
-	}
-
-	u, err := user.Current()
-	if err != nil {
-		return "", err
-	}
-
-	if u.HomeDir == "" {
-		return "", fmt.Errorf("cannot determine home directory")
-	}
-
-	return filepath.Join(u.HomeDir, parent, ".config"), nil
-}
-
 func currentActiveServers(nc *nats.Conn) (int, error) {
 	var expect int
 
@@ -1583,34 +1424,4 @@ func mapKeys[M ~map[K]V, K comparable, V any](m M) []K {
 	}
 
 	return r
-}
-
-func readKeyFile(filename string) ([]byte, error) {
-	var key []byte
-	contents, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer wipeSlice(contents)
-
-	lines := bytes.Split(contents, []byte("\n"))
-	for _, line := range lines {
-		if nkeys.IsValidEncoding(line) {
-			key = make([]byte, len(line))
-			copy(key, line)
-			return key, nil
-		}
-	}
-
-	return nil, fmt.Errorf("could not find a valid key in %s", filename)
-}
-
-func wipeSlice(buf []byte) {
-	for i := range buf {
-		buf[i] = 'x'
-	}
-}
-
-func isTerminal() bool {
-	return terminal.IsTerminal(int(os.Stdin.Fd())) && terminal.IsTerminal(int(os.Stdout.Fd()))
 }

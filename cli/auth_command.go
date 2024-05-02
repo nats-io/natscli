@@ -16,13 +16,9 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"github.com/synadia-io/jwt-auth-builder.go/providers/nsc"
-	"path/filepath"
-	"strings"
-
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/nats-io/natscli/columns"
 	au "github.com/nats-io/natscli/internal/auth"
+	iu "github.com/nats-io/natscli/internal/util"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
 )
 
@@ -45,17 +41,8 @@ func init() {
 	registerCommand("auth", 0, configureAuthCommand)
 }
 
-func getAuthBuilder() (*ab.AuthImpl, error) {
-	storeDir, err := nscStore()
-	if err != nil {
-		return nil, err
-	}
-
-	return ab.NewAuth(nsc.NewNscProvider(filepath.Join(storeDir, "stores"), filepath.Join(storeDir, "keys")))
-}
-
 func selectOperator(operatorName string, pick bool, useSelected bool) (*ab.AuthImpl, ab.Operator, error) {
-	auth, err := getAuthBuilder()
+	auth, err := au.GetAuthBuilder()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -79,7 +66,7 @@ func selectOperator(operatorName string, pick bool, useSelected bool) (*ab.AuthI
 			return auth, operators[0], nil
 		}
 
-		if !isTerminal() {
+		if !iu.IsTerminal() {
 			return nil, nil, fmt.Errorf("cannot pick an Operator without a terminal and no operator name supplied")
 		}
 
@@ -119,7 +106,7 @@ func selectOperatorAccount(operatorName string, accountName string, pick bool) (
 			return nil, nil, nil, fmt.Errorf("unknown Account: %v", accountName)
 		}
 
-		if !isTerminal() {
+		if !iu.IsTerminal() {
 			return nil, nil, nil, fmt.Errorf("cannot pick an Account without a terminal and no Account name supplied")
 		}
 
@@ -142,57 +129,4 @@ func selectOperatorAccount(operatorName string, accountName string, pick bool) (
 	}
 
 	return auth, operator, acct, nil
-}
-
-func renderUserLimits(limits ab.UserLimits, cols *columns.Writer) error {
-	cols.AddRowIfNotEmpty("Locale", limits.Locale())
-	cols.AddRow("Bearer Token", limits.BearerToken())
-
-	cols.AddSectionTitle("Limits")
-
-	cols.AddRowUnlimited("Max Payload", limits.MaxPayload(), -1)
-	cols.AddRowUnlimited("Max Data", limits.MaxData(), -1)
-	cols.AddRowUnlimited("Max Subscriptions", limits.MaxSubscriptions(), -1)
-	cols.AddRowIfNotEmpty("Connection Types", strings.Join(limits.ConnectionTypes().Types(), ", "))
-	cols.AddRowIfNotEmpty("Connection Sources", strings.Join(limits.ConnectionSources().Sources(), ", "))
-
-	ctimes := limits.ConnectionTimes().List()
-	if len(ctimes) > 0 {
-		ranges := []string{}
-		for _, tr := range ctimes {
-			ranges = append(ranges, fmt.Sprintf("%s to %s", tr.Start, tr.End))
-		}
-		cols.AddStringsAsValue("Connection Times", ranges)
-	}
-
-	cols.AddSectionTitle("Permissions")
-	cols.Indent(2)
-	cols.AddSectionTitle("Publish")
-	if len(limits.PubPermissions().Allow()) > 0 || len(limits.PubPermissions().Deny()) > 0 {
-		if len(limits.PubPermissions().Allow()) > 0 {
-			cols.AddStringsAsValue("Allow", limits.PubPermissions().Allow())
-		}
-		if len(limits.PubPermissions().Deny()) > 0 {
-			cols.AddStringsAsValue("Deny", limits.PubPermissions().Deny())
-		}
-	} else {
-		cols.Println("No permissions defined")
-	}
-
-	cols.AddSectionTitle("Subscribe")
-	if len(limits.SubPermissions().Allow()) > 0 || len(limits.SubPermissions().Deny()) > 0 {
-		if len(limits.SubPermissions().Allow()) > 0 {
-			cols.AddStringsAsValue("Allow", limits.SubPermissions().Allow())
-		}
-
-		if len(limits.SubPermissions().Deny()) > 0 {
-			cols.AddStringsAsValue("Deny", limits.SubPermissions().Deny())
-		}
-	} else {
-		cols.Println("No permissions defined")
-	}
-
-	cols.Indent(0)
-
-	return nil
 }

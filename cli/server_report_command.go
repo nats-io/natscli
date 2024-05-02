@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"sort"
 
@@ -147,7 +148,7 @@ func (c *SrvReportCmd) reportCpuOrMem(mem bool) error {
 	}
 
 	if c.json {
-		return printJSON(usage)
+		return iu.PrintJSON(usage)
 	}
 
 	width := progressWidth() / 2
@@ -451,7 +452,7 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 		}
 
 		if c.json {
-			printJSON(account)
+			iu.PrintJSON(account)
 			return nil
 		}
 
@@ -494,7 +495,7 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 	}
 
 	if c.json {
-		printJSON(accounts)
+		iu.PrintJSON(accounts)
 		return nil
 	}
 
@@ -569,7 +570,7 @@ func (c *SrvReportCmd) reportConnections(_ *fisk.ParseContext) error {
 	conns := connz.flatConnInfo()
 
 	if c.json {
-		printJSON(conns)
+		iu.PrintJSON(conns)
 		return nil
 	}
 
@@ -773,12 +774,12 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		conns := make([]*server.ConnInfo, len(co.Data.Conns))
 		copy(conns, co.Data.Conns)
 		co.Data.Conns = []*server.ConnInfo{}
-		srv := structWithoutOmitEmpty(*co.Server)
+		srv := iu.StructWithoutOmitEmpty(*co.Server)
 
 		for _, conn := range conns {
 			env["server"] = srv
 			env["Server"] = co.Server
-			env["conn"] = structWithoutOmitEmpty(*conn)
+			env["conn"] = iu.StructWithoutOmitEmpty(*conn)
 			env["Conn"] = conn
 
 			// backward compat, the `s` here is a mistake

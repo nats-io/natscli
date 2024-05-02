@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"os/exec"
 	"sort"
@@ -360,7 +361,7 @@ func (c *ctxCommand) renderListJson(current string, known []*natscontext.Context
 		return known[i].Name < known[j].Name
 	})
 
-	printJSON(known)
+	iu.PrintJSON(known)
 }
 
 func (c *ctxCommand) renderListCompletion(current string, known []*natscontext.Context) {
@@ -441,7 +442,7 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	}
 
 	if c.json {
-		printJSON(cfg)
+		iu.PrintJSON(cfg)
 		return nil
 	}
 

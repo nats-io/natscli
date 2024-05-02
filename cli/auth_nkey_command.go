@@ -18,6 +18,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"strings"
 
@@ -76,7 +77,7 @@ func configureAuthNkeyCommand(auth commandHost) {
 }
 
 func (c *authNKCommand) showAction(_ *fisk.ParseContext) error {
-	seed, err := readKeyFile(c.keyFile)
+	seed, err := iu.ReadKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}
@@ -176,7 +177,7 @@ func (c *authNKCommand) preForType(keyType string) (nkeys.PrefixByte, error) {
 }
 
 func (c *authNKCommand) signAction(_ *fisk.ParseContext) error {
-	seed, err := readKeyFile(c.keyFile)
+	seed, err := iu.ReadKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}
@@ -205,7 +206,7 @@ func (c *authNKCommand) verifyAction(_ *fisk.ParseContext) error {
 	var err error
 	var kp nkeys.KeyPair
 
-	keyData, err := readKeyFile(c.keyFile)
+	keyData, err := iu.ReadKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}
@@ -244,7 +245,7 @@ func (c *authNKCommand) verifyAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
-	keyData, err := readKeyFile(c.keyFile)
+	keyData, err := iu.ReadKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}
@@ -295,7 +296,7 @@ func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authNKCommand) unsealAction(_ *fisk.ParseContext) error {
-	keyData, err := readKeyFile(c.keyFile)
+	keyData, err := iu.ReadKeyFile(c.keyFile)
 	if err != nil {
 		return err
 	}

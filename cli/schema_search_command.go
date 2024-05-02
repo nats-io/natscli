@@ -15,6 +15,7 @@ package cli
 
 import (
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"strings"
 
 	"github.com/choria-io/fisk"
@@ -40,7 +41,7 @@ func (c *schemaSearchCmd) search(_ *fisk.ParseContext) error {
 	}
 
 	if c.json {
-		printJSON(found)
+		iu.PrintJSON(found)
 		return nil
 	}
 

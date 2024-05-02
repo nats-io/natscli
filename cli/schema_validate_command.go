@@ -16,6 +16,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"io"
 	"os"
 	"strings"
@@ -68,7 +69,7 @@ func (c *schemaValidateCmd) validate(_ *fisk.ParseContext) error {
 		if errs == nil {
 			errs = []string{}
 		}
-		printJSON(errs)
+		iu.PrintJSON(errs)
 		return nil
 	}
 

@@ -22,6 +22,7 @@ import (
 	"github.com/choria-io/appbuilder/forms"
 	"github.com/ghodss/yaml"
 	au "github.com/nats-io/natscli/internal/auth"
+	iu "github.com/nats-io/natscli/internal/util"
 	"io"
 	"net/url"
 	"os"
@@ -274,7 +275,7 @@ func (c *authOperatorCommand) skListAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authOperatorCommand) importAction(_ *fisk.ParseContext) error {
-	auth, err := getAuthBuilder()
+	auth, err := au.GetAuthBuilder()
 	if err != nil {
 		return err
 	}
@@ -364,7 +365,7 @@ func (c *authOperatorCommand) editAction(_ *fisk.ParseContext) error {
 	return c.fShowOperator(os.Stdout, operator)
 }
 func (c *authOperatorCommand) restoreAction(_ *fisk.ParseContext) error {
-	auth, err := getAuthBuilder()
+	auth, err := au.GetAuthBuilder()
 	if err != nil {
 		return err
 	}
@@ -379,7 +380,7 @@ func (c *authOperatorCommand) restoreAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.encKey != "" {
-		keyData, err := readKeyFile(c.encKey)
+		keyData, err := iu.ReadKeyFile(c.encKey)
 		if err != nil {
 			return err
 		}
@@ -438,7 +439,7 @@ func (c *authOperatorCommand) backupAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.encKey != "" {
-		keyData, err := readKeyFile(c.encKey)
+		keyData, err := iu.ReadKeyFile(c.encKey)
 		if err != nil {
 			return err
 		}
@@ -488,7 +489,7 @@ func (c *authOperatorCommand) infoAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authOperatorCommand) lsAction(_ *fisk.ParseContext) error {
-	auth, err := getAuthBuilder()
+	auth, err := au.GetAuthBuilder()
 	if err != nil {
 		return err
 	}
@@ -527,7 +528,7 @@ func (c *authOperatorCommand) addAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	auth, err := getAuthBuilder()
+	auth, err := au.GetAuthBuilder()
 	if err != nil {
 		return err
 	}
