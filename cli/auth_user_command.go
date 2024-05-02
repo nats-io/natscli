@@ -45,6 +45,8 @@ type authUserCommand struct {
 	pubDeny         []string
 	subDeny         []string
 	subAllow        []string
+	tags            []string
+	rmTags          []string
 	listNames       bool
 	force           bool
 	credFile        string
@@ -58,15 +60,19 @@ func configureAuthUserCommand(auth commandHost) {
 	user := auth.Command("user", "Manage Account Users").Alias("u").Alias("usr").Alias("users")
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
-		f.Flag("locale", "Sets the locale for the user connection").StringVar(&c.userLocale)
 		f.Flag("bearer", "Enables the use of bearer tokens").BoolVar(&c.bearerAllowed)
+		f.Flag("data", "Maximum message data size to allow").Default("-1").Int64Var(&c.maxData)
+		f.Flag("locale", "Sets the locale for the user connection").StringVar(&c.userLocale)
 		f.Flag("payload", "Maximum payload size to allow").IsSetByUser(&c.maxPayloadIsSet).Default("1048576").Int64Var(&c.maxPayload)
-		f.Flag("subscriptions", "Maximum subscription count to allow").IsSetByUser(&c.maxSubsIsSet).Default("-1").Int64Var(&c.maxSubs)
 		f.Flag("pub-allow", "Allow publishing to a subject").StringsVar(&c.pubAllow)
 		f.Flag("pub-deny", "Deny publishing to a subject").StringsVar(&c.pubDeny)
 		f.Flag("sub-allow", "Allow subscribing to a subject").StringsVar(&c.subAllow)
 		f.Flag("sub-deny", "Deny subscribing to a subject").StringsVar(&c.subDeny)
-		f.Flag("data", "Maximum message data size to allow").Default("-1").Int64Var(&c.maxData)
+		f.Flag("subscriptions", "Maximum subscription count to allow").IsSetByUser(&c.maxSubsIsSet).Default("-1").Int64Var(&c.maxSubs)
+		f.Flag("tags", "Tags to assign to this User").StringsVar(&c.tags)
+		if edit {
+			f.Flag("no-tags", "Tags to remove from this User").StringsVar(&c.rmTags)
+		}
 	}
 
 	add := user.Command("add", "Adds a new User").Alias("create").Alias("new").Action(c.addAction)
@@ -384,6 +390,11 @@ func (c *authUserCommand) addAction(_ *fisk.ParseContext) error {
 		}
 	}
 
+	err = au.UpdateTags(user.Tags(), c.tags, c.rmTags)
+	if err != nil {
+		return err
+	}
+
 	err = c.updateUser(user)
 	if err != nil {
 		return err
@@ -447,6 +458,11 @@ func (c *authUserCommand) updateUser(user ab.User) error {
 		limits.Sub.Deny = c.subDeny
 	}
 
+	err := au.UpdateTags(user.Tags(), c.tags, c.rmTags)
+	if err != nil {
+		return err
+	}
+
 	return user.(*ab.UserData).SetUserPermissionLimits(limits)
 }
 
@@ -466,9 +482,11 @@ func (c *authUserCommand) showUser(user ab.User, acct ab.Account) (string, error
 	cols.AddRow("Account", fmt.Sprintf("%s (%s)", acct.Name(), user.IssuerAccount()))
 	cols.AddRow("Issuer", user.Issuer())
 	cols.AddRow("Scoped", user.IsScoped())
+	if tags, _ := user.Tags().All(); len(tags) > 0 {
+		cols.AddStringsAsValue("Tags", tags)
+	}
 
 	limits := ab.UserLimits(user)
-
 	if user.IsScoped() {
 		scope, err := acct.ScopedSigningKeys().GetScope(user.Issuer())
 		if err != nil {

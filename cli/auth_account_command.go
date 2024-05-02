@@ -97,6 +97,8 @@ type authAccountCommand struct {
 	importAccount           string
 	bucketName              string
 	prefix                  string
+	tags                    []string
+	rmTags                  []string
 }
 
 func configureAuthAccountCommand(auth commandHost) {
@@ -105,23 +107,27 @@ func configureAuthAccountCommand(auth commandHost) {
 	acct := auth.Command("account", "Manage NATS Accounts").Alias("a").Alias("acct").Alias("act")
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
-		f.Flag("expiry", "How long this account should be valid for as a duration").PlaceHolder("DURATION").DurationVar(&c.expiry)
 		f.Flag("bearer", "Allows bearer tokens").Default("false").IsSetByUser(&c.bearerAllowedIsSet).BoolVar(&c.bearerAllowed)
-		f.Flag("subscriptions", "Maximum allowed subscriptions").Default("-1").IsSetByUser(&c.maxSubIsSet).Int64Var(&c.maxSubs)
 		f.Flag("connections", "Maximum allowed connections").Default("-1").IsSetByUser(&c.maxConnsIsSet).Int64Var(&c.maxConns)
-		f.Flag("payload", "Maximum allowed payload").PlaceHolder("BYTES").Default("-1").StringVar(&c.maxPayloadString)
-		f.Flag("leafnodes", "Maximum allowed Leafnode connections").Default("-1").IsSetByUser(&c.maxLeafNodesIsSet).Int64Var(&c.maxLeafnodes)
-		f.Flag("imports", "Maximum allowed imports").Default("-1").IsSetByUser(&c.maxImportsIsSet).Int64Var(&c.maxImports)
+		f.Flag("expiry", "How long this account should be valid for as a duration").PlaceHolder("DURATION").DurationVar(&c.expiry)
 		f.Flag("exports", "Maximum allowed exports").Default("-1").IsSetByUser(&c.maxExportsIsSet).Int64Var(&c.maxExports)
+		f.Flag("imports", "Maximum allowed imports").Default("-1").IsSetByUser(&c.maxImportsIsSet).Int64Var(&c.maxImports)
 		f.Flag("jetstream", "Enables JetStream").Default("false").IsSetByUser(&c.jetStreamIsSet).BoolVar(&c.jetStream)
-		f.Flag("js-streams", "Sets the maximum Streams the account can have").Default("-1").IsSetByUser(&c.maxStreamsIsSet).Int64Var(&c.maxStreams)
 		f.Flag("js-consumers", "Sets the maximum Consumers the account can have").Default("-1").IsSetByUser(&c.maxConsumersIsSet).Int64Var(&c.maxConsumers)
 		f.Flag("js-disk", "Sets a Disk Storage quota").PlaceHolder("BYTES").StringVar(&c.storeMaxString)
 		f.Flag("js-disk-stream", "Sets the maximum size a Disk Storage stream may be").PlaceHolder("BYTES").Default("-1").StringVar(&c.storeMaxStreamString)
+		f.Flag("js-max-pending", "Default Max Ack Pending for Tier 0 limits").PlaceHolder("MESSAGES").IsSetByUser(&c.maxAckPendingIsSet).Int64Var(&c.maxAckPending)
 		f.Flag("js-memory", "Sets a Memory Storage quota").PlaceHolder("BYTES").StringVar(&c.memMaxString)
 		f.Flag("js-memory-stream", "Sets the maximum size a Memory Storage stream may be").PlaceHolder("BYTES").Default("-1").StringVar(&c.memMaxStreamString)
-		f.Flag("js-max-pending", "Default Max Ack Pending for Tier 0 limits").PlaceHolder("MESSAGES").IsSetByUser(&c.maxAckPendingIsSet).Int64Var(&c.maxAckPending)
 		f.Flag("js-stream-size-required", "Requires Streams to have a maximum size declared").IsSetByUser(&c.streamSizeRequiredIsSet).UnNegatableBoolVar(&c.streamSizeRequired)
+		f.Flag("js-streams", "Sets the maximum Streams the account can have").Default("-1").IsSetByUser(&c.maxStreamsIsSet).Int64Var(&c.maxStreams)
+		f.Flag("leafnodes", "Maximum allowed Leafnode connections").Default("-1").IsSetByUser(&c.maxLeafNodesIsSet).Int64Var(&c.maxLeafnodes)
+		f.Flag("payload", "Maximum allowed payload").PlaceHolder("BYTES").Default("-1").StringVar(&c.maxPayloadString)
+		f.Flag("subscriptions", "Maximum allowed subscriptions").Default("-1").IsSetByUser(&c.maxSubIsSet).Int64Var(&c.maxSubs)
+		f.Flag("tags", "Tags to assign to this Account").StringsVar(&c.tags)
+		if edit {
+			f.Flag("no-tags", "Tags to remove from this Account").StringsVar(&c.rmTags)
+		}
 	}
 
 	add := acct.Command("add", "Adds a new Account").Alias("create").Alias("new").Action(c.addAction)
@@ -648,6 +654,11 @@ func (c *authAccountCommand) editAction(_ *fisk.ParseContext) error {
 		c.bearerAllowed = !limits.DisallowBearer
 	}
 
+	err = au.UpdateTags(acct.Tags(), c.tags, c.rmTags)
+	if err != nil {
+		return err
+	}
+
 	if jsEnabled {
 		if !c.jetStreamIsSet {
 			c.jetStream = true
@@ -901,6 +912,11 @@ func (c *authAccountCommand) addAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	err = au.UpdateTags(acct.Tags(), c.tags, c.rmTags)
+	if err != nil {
+		return err
+	}
+
 	if !c.defaults {
 		if c.maxConns == -1 {
 			c.maxConns, err = askOneInt("Maximum Connections", "-1", "The maximum amount of client connections allowed for this account, set using --connections")
@@ -977,6 +993,9 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 		} else {
 			cols.AddRow("System Account", false)
 		}
+	}
+	if tags, _ := acct.Tags().All(); len(tags) > 0 {
+		cols.AddStringsAsValue("Tags", tags)
 	}
 	cols.AddRow("JetStream", js.IsJetStreamEnabled())
 	cols.AddRowIf("Expiry", time.Unix(acct.Expiry(), 0), acct.Expiry() > 0)
