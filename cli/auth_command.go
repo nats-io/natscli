@@ -26,7 +26,6 @@ func configureAuthCommand(app commandHost) {
 	auth := app.Command("auth", "NATS Decentralized Authentication")
 
 	// todo:
-	//  - store role name, currently its the pub key not name
 	//  - Improve maintaining pub/sub permissions for a user, perhaps allow interactive edits of yaml?
 
 	auth.HelpLong("WARNING: This is experimental and subject to massive change, do not use yet")

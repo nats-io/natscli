@@ -176,9 +176,15 @@ func (c *SrvWatchAccountCmd) redraw() {
 		matched = accounts[:c.topCount]
 	}
 
+	clearScreen()
 	for _, account := range matched {
+		acct := account.Account
+		if account.Name != "" {
+			acct = account.Name
+		}
+
 		table.AddRow(
-			account.Account,
+			acct,
 			seen[account.Account],
 			f(account.Conns),
 			f(account.LeafNodes),
@@ -189,7 +195,6 @@ func (c *SrvWatchAccountCmd) redraw() {
 		)
 	}
 
-	clearScreen()
 	fmt.Println(table.Render())
 }
 
@@ -212,6 +217,7 @@ func (c *SrvWatchAccountCmd) accountTotal(acct string) (int, *server.AccountStat
 		servers++
 
 		total.Account = acct
+		total.Name = stat.Name
 		total.TotalConns += stat.TotalConns
 		total.Conns += stat.Conns
 		total.LeafNodes += stat.LeafNodes
