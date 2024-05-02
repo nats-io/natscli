@@ -495,7 +495,7 @@ func (c *authUserCommand) showUser(user ab.User, acct ab.Account) (string, error
 		limits = scope
 	}
 
-	err := renderUserLimits(limits, cols)
+	err := au.RenderUserLimits(limits, cols)
 	if err != nil {
 		return "", err
 	}

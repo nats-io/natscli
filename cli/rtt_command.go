@@ -16,6 +16,7 @@ package cli
 import (
 	"crypto/tls"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"net"
 	"net/url"
 	"strings"
@@ -67,7 +68,7 @@ func (c *rttCmd) rtt(_ *fisk.ParseContext) error {
 	}
 
 	if c.json {
-		printJSON(targets)
+		iu.PrintJSON(targets)
 
 		return nil
 	}

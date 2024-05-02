@@ -85,7 +85,7 @@ func (w *Writer) Frender(o io.Writer) error {
 		}
 	}
 
-	if w.isTerminal(o) {
+	if w.IsTerminal(o) {
 		color, ok := colsStyles[w.colorScheme]
 		if ok {
 			w.sep = color.Sprint(":")
@@ -342,7 +342,7 @@ func (w *Writer) Indent(width int) {
 	w.rows = append(w.rows, &columnRow{kind: kindIndent, values: []any{strings.Repeat(" ", width)}})
 }
 
-func (w *Writer) isTerminal(o io.Writer) bool {
+func (w *Writer) IsTerminal(o io.Writer) bool {
 	fh, ok := any(o).(*os.File)
 	if !ok {
 		return false
@@ -358,7 +358,7 @@ func (w *Writer) maybeAddColon(o io.Writer, v string, colorize bool) string {
 
 	c := ":"
 
-	if colorize && w.isTerminal(o) {
+	if colorize && w.IsTerminal(o) {
 		color, ok := colsStyles[w.colorScheme]
 		if ok {
 			c = color.Sprint(":")

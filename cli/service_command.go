@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"sort"
 	"strconv"
@@ -316,7 +317,7 @@ func (c *serviceCmd) statsAction(_ *fisk.ParseContext) error {
 	})
 
 	if c.showJSON {
-		printJSON(stats)
+		iu.PrintJSON(stats)
 		return nil
 	}
 
@@ -379,7 +380,7 @@ func (c *serviceCmd) infoAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.showJSON {
-		printJSON(map[string]any{
+		iu.PrintJSON(map[string]any{
 			"info":  nfo,
 			"stats": stats,
 		})
@@ -450,7 +451,7 @@ func (c *serviceCmd) listAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.showJSON {
-		printJSON(nfos)
+		iu.PrintJSON(nfos)
 		return nil
 	}
 

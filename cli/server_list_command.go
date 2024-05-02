@@ -16,6 +16,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"sort"
 	"strings"
@@ -130,7 +131,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 	}
 
 	if c.json {
-		printJSON(results)
+		iu.PrintJSON(results)
 		return nil
 	}
 

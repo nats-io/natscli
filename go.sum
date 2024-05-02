@@ -149,8 +149,6 @@ github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240423085918-567b5f89c654 h1:UTJ3gAbQmRHCW9rqCCx7G2SJKdSA1HyeYmCeHm5Y/5s=
-github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240423085918-567b5f89c654/go.mod h1:z+ZENSUrwJFMZstPcEfPAXXVKRibe0iqx0ACG5ikYBg=
 github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240501200458-e2594dc0b29f h1:Q0aiLE3DWWmTKK+hTpHhqssOIITnm6YAfQsONcp4Op4=
 github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240501200458-e2594dc0b29f/go.mod h1:z+ZENSUrwJFMZstPcEfPAXXVKRibe0iqx0ACG5ikYBg=
 github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f h1:SGznmvCovewbaSgBsHgdThtWsLj5aCLX/3ZXMLd1UD0=

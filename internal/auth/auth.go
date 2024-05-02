@@ -6,7 +6,11 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/natscli/columns"
+	iu "github.com/nats-io/natscli/internal/util"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
+	"github.com/synadia-io/jwt-auth-builder.go/providers/nsc"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -29,6 +33,30 @@ type OperatorLimitsManager interface {
 type UserLimitsManager interface {
 	UserPermissionLimits() jwt.UserPermissionLimits
 	SetUserPermissionLimits(limits jwt.UserPermissionLimits) error
+}
+
+func GetAuthBuilder() (*ab.AuthImpl, error) {
+	storeDir, err := NscStore()
+	if err != nil {
+		return nil, err
+	}
+
+	return ab.NewAuth(nsc.NewNscProvider(filepath.Join(storeDir, "stores"), filepath.Join(storeDir, "keys")))
+}
+
+func NscStore() (string, error) {
+	parent, err := iu.XdgShareHome()
+	if err != nil {
+		return "", err
+	}
+
+	dir := filepath.Join(parent, "nats", "nsc")
+	err = os.MkdirAll(dir, 0700)
+	if err != nil {
+		return "", err
+	}
+
+	return dir, nil
 }
 
 func UpdateTags(tags ab.Tags, add []string, rm []string) error {

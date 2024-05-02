@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"io"
 	"math"
 	"os"
@@ -480,7 +481,7 @@ func (c *streamCmd) detectGaps(_ *fisk.ParseContext) error {
 	}
 
 	if c.json {
-		printJSON(gaps)
+		iu.PrintJSON(gaps)
 		return nil
 	}
 
@@ -514,7 +515,7 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 	}
 
 	if c.json {
-		printJSON(subs)
+		iu.PrintJSON(subs)
 		return nil
 	}
 
@@ -578,7 +579,7 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 		return f(i)
 	}
 
-	sliceGroups(names, cols, func(g []string) {
+	iu.SliceGroups(names, cols, func(g []string) {
 		if cols == 1 {
 			table.AddRow(g[0], comma(subs[g[0]]))
 		} else if cols == 2 {
@@ -663,7 +664,7 @@ func (c *streamCmd) findAction(_ *fisk.ParseContext) (err error) {
 	out := ""
 	switch {
 	case c.json:
-		out, err = toJSON(found)
+		out, err = iu.ToJSON(found)
 	case c.listNames:
 		out = c.renderStreamsAsList(found, nil)
 	default:
@@ -796,7 +797,7 @@ func (c *streamCmd) removePeer(_ *fisk.ParseContext) error {
 }
 
 func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
-	if !isTerminal() {
+	if !iu.IsTerminal() {
 		return fmt.Errorf("interactive stream paging requires a valid terminal")
 	}
 
@@ -1535,7 +1536,7 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 	}
 
 	if c.maxAgeLimit != "" {
-		cfg.MaxAge, err = parseDurationString(c.maxAgeLimit)
+		cfg.MaxAge, err = fisk.ParseDuration(c.maxAgeLimit)
 		if err != nil {
 			return api.StreamConfig{}, fmt.Errorf("invalid maximum age limit format: %v", err)
 		}
@@ -1550,7 +1551,7 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 	}
 
 	if c.dupeWindow != "" {
-		dw, err := parseDurationString(c.dupeWindow)
+		dw, err := fisk.ParseDuration(c.dupeWindow)
 		if err != nil {
 			return api.StreamConfig{}, fmt.Errorf("invalid duplicate window: %v", err)
 		}
@@ -1974,7 +1975,7 @@ func (c *streamCmd) showStream(stream *jsm.Stream) error {
 
 func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	if c.json {
-		err := printJSON(info)
+		err := iu.PrintJSON(info)
 		fisk.FatalIfError(err, "could not display info")
 		return
 	}
@@ -2399,7 +2400,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	if c.maxAgeLimit != "-1" {
-		maxAge, err = parseDurationString(c.maxAgeLimit)
+		maxAge, err = fisk.ParseDuration(c.maxAgeLimit)
 		fisk.FatalIfError(err, "invalid maximum age limit format")
 	}
 
@@ -2433,7 +2434,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	if c.dupeWindow != "" {
-		dupeWindow, err = parseDurationString(c.dupeWindow)
+		dupeWindow, err = fisk.ParseDuration(c.dupeWindow)
 		fisk.FatalIfError(err, "invalid duplicate window format")
 	}
 
@@ -2918,7 +2919,7 @@ func (c *streamCmd) lsNames(mgr *jsm.Manager, filter *jsm.StreamNamesFilter) err
 	}
 
 	if c.json {
-		err = printJSON(names)
+		err = iu.PrintJSON(names)
 		fisk.FatalIfError(err, "could not display Streams")
 		return nil
 	}
@@ -2962,7 +2963,7 @@ func (c *streamCmd) lsAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.json {
-		err = printJSON(names)
+		err = iu.PrintJSON(names)
 		fisk.FatalIfError(err, "could not display Streams")
 		return nil
 	}
@@ -3038,7 +3039,7 @@ func (c *streamCmd) renderMissing(out io.Writer, missing []string) {
 		fmt.Fprintln(out)
 		sort.Strings(missing)
 		table := newTableWriter("Inaccessible Streams")
-		sliceGroups(missing, 4, func(names []string) {
+		iu.SliceGroups(missing, 4, func(names []string) {
 			table.AddRow(toany(names)...)
 		})
 		fmt.Fprint(out, table.Render())
@@ -3117,7 +3118,7 @@ func (c *streamCmd) getAction(_ *fisk.ParseContext) (err error) {
 	fisk.FatalIfError(err, "could not retrieve %s#%d", c.stream, c.msgID)
 
 	if c.json {
-		printJSON(item)
+		iu.PrintJSON(item)
 		return nil
 	}
 

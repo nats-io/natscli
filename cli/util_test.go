@@ -122,47 +122,6 @@ func TestSplitString(t *testing.T) {
 	}
 }
 
-func TestParseDurationString(t *testing.T) {
-	d, err := parseDurationString("")
-	checkErr(t, err, "failed to parse empty duration: %s", err)
-	if d.Nanoseconds() != 0 {
-		t.Fatalf("expected 0 ns from empty duration, got %v", d)
-	}
-
-	_, err = parseDurationString("1f")
-	if err.Error() != "invalid duration: invalid unit f" {
-		t.Fatal("expected time unit 'f' to fail but it did not")
-	}
-
-	for _, u := range []string{"d", "D"} {
-		d, err = parseDurationString("1.1" + u)
-		checkErr(t, err, "failed to parse 1.1%s duration: %s", u, err)
-		if d.Hours() != 26 {
-			t.Fatalf("expected 1 hour from 1.1%s duration, got %v", u, d)
-		}
-	}
-
-	d, err = parseDurationString("1.1M")
-	checkErr(t, err, "failed to parse 1.1M duration: %s", err)
-	if d.Hours() != 1.1*24*30 {
-		t.Fatalf("expected 30 days from 1.1M duration, got %v", d)
-	}
-
-	for _, u := range []string{"y", "Y"} {
-		d, err = parseDurationString("1.1" + u)
-		checkErr(t, err, "failed to parse 1.1%s duration: %s", u, err)
-		if d.Hours() != 1.1*24*365 {
-			t.Fatalf("expected 1.1 year from 1.1%s duration, got %v", u, d)
-		}
-	}
-
-	d, err = parseDurationString("1.1h")
-	checkErr(t, err, "failed to parse 1.1h duration: %s", err)
-	if d.Minutes() != 66 {
-		t.Fatalf("expected 1.1 hour from 1.1h duration, got %v", d)
-	}
-}
-
 func TestRandomString(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		if len(randomString(1024, 1024)) != 1024 {
