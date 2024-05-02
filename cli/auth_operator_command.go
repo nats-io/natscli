@@ -50,6 +50,8 @@ type authOperatorCommand struct {
 	outputFile           string
 	encKey               string
 	jetstream            bool
+	tags                 []string
+	rmTags               []string
 }
 
 func configureAuthOperatorCommand(auth commandHost) {
@@ -62,6 +64,7 @@ func configureAuthOperatorCommand(auth commandHost) {
 	add.Flag("service", "URLs for the Operator services").PlaceHolder("URL").URLListVar(&c.operatorService)
 	add.Flag("account-server", "URL for the account server").PlaceHolder("URL").URLVar(&c.accountServer)
 	add.Flag("signing-key", "Creates a signing key for this account").Default("true").BoolVar(&c.createSK)
+	add.Flag("tags", "Tags to assign to this Operator").StringsVar(&c.tags)
 
 	info := op.Command("info", "Show Operator information").Alias("i").Alias("show").Alias("view").Action(c.infoAction)
 	info.Arg("name", "Operator to view").StringVar(&c.operatorName)
@@ -73,6 +76,8 @@ func configureAuthOperatorCommand(auth commandHost) {
 	edit.Arg("name", "Operator to edit").StringVar(&c.operatorName)
 	edit.Flag("account-server", "URL for the Account Server").IsSetByUser(&c.accountServerIsSet).PlaceHolder("URL").URLVar(&c.accountServer)
 	edit.Flag("service", "URLs for the Operator Services").IsSetByUser(&c.operatorServiceIsSet).PlaceHolder("URL").URLListVar(&c.operatorService)
+	edit.Flag("tags", "Tags to add to this Operator").StringsVar(&c.tags)
+	edit.Flag("no-tags", "Tags to remove from the Operator").StringsVar(&c.rmTags)
 
 	imp := op.Command("import", "Imports an operator").Action(c.importAction)
 	imp.Arg("token", "The JWT file containing the account to import").Required().PlaceHolder("JWT").ExistingFileVar(&c.tokenFile)
@@ -346,6 +351,11 @@ func (c *authOperatorCommand) editAction(_ *fisk.ParseContext) error {
 		}
 	}
 
+	err = au.UpdateTags(operator.Tags(), c.tags, c.rmTags)
+	if err != nil {
+		return err
+	}
+
 	err = auth.Commit()
 	if err != nil {
 		return err
@@ -531,6 +541,11 @@ func (c *authOperatorCommand) addAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	err = au.UpdateTags(operator.Tags(), c.tags, c.rmTags)
+	if err != nil {
+		return err
+	}
+
 	if c.operatorService != nil {
 		list := []string{}
 		for _, s := range c.operatorService {
@@ -586,6 +601,9 @@ func (c *authOperatorCommand) showOperator(operator ab.Operator) (string, error)
 	cols.AddSectionTitle("Configuration")
 	cols.AddRow("Name", operator.Name())
 	cols.AddRow("Subject", operator.Subject())
+	if tags, _ := operator.Tags().All(); len(tags) > 0 {
+		cols.AddStringsAsValue("Tags", tags)
+	}
 	cols.AddRowIf("Service URL(s)", operator.OperatorServiceURLs(), len(operator.OperatorServiceURLs()) > 0)
 	cols.AddRowIfNotEmpty("Account Server", operator.AccountServerURL())
 	cols.AddRow("Accounts", len(operator.Accounts().List()))

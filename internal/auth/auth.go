@@ -31,6 +31,25 @@ type UserLimitsManager interface {
 	SetUserPermissionLimits(limits jwt.UserPermissionLimits) error
 }
 
+func UpdateTags(tags ab.Tags, add []string, rm []string) error {
+	if len(add) > 0 {
+		err := tags.Add(add...)
+		if err != nil {
+			return err
+		}
+	}
+	if len(rm) > 0 {
+		for _, tag := range rm {
+			_, err := tags.Remove(tag)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func SortedAuthNames[list listWithNames](items []list) []string {
 	var res []string
 	for _, i := range items {
