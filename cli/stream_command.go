@@ -31,6 +31,8 @@ import (
 	"syscall"
 	"time"
 
+	iu "github.com/nats-io/natscli/internal/util"
+
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
@@ -1600,7 +1602,9 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 			subjectTransformConfig.Destination = c.subjectTransformDest
 		}
 
-		cfg.SubjectTransform = &subjectTransformConfig
+		if subjectTransformConfig.Source != "" && subjectTransformConfig.Destination != "" {
+			cfg.SubjectTransform = &subjectTransformConfig
+		}
 	}
 
 	return cfg, nil
