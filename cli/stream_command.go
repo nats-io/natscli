@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"io"
 	"math"
 	"os"
@@ -31,6 +30,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -1653,7 +1654,9 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 			subjectTransformConfig.Destination = c.subjectTransformDest
 		}
 
-		cfg.SubjectTransform = &subjectTransformConfig
+		if subjectTransformConfig.Source != "" && subjectTransformConfig.Destination != "" {
+			cfg.SubjectTransform = &subjectTransformConfig
+		}
 	}
 
 	return cfg, nil
