@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -150,7 +150,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 
 		switch c.sort {
 		case "name":
-			return rev(results[i].Server.Name < results[j].Server.Name)
+			return rev(results[i].Server.Name > results[j].Server.Name)
 		case "conns", "conn":
 			return rev(stati.Connections < statj.Connections)
 		case "subs", "sub":
@@ -164,7 +164,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 				return rev(il < jl)
 			}
 
-			return rev(results[i].Server.Name < results[j].Server.Name)
+			return rev(results[i].Server.Name > results[j].Server.Name)
 		case "gws", "gw":
 			// if gateways are the same, most typical, we sort by name
 			il := len(stati.Gateways)
@@ -174,7 +174,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 				return rev(il < jl)
 			}
 
-			return rev(results[i].Server.Name < results[j].Server.Name)
+			return rev(results[i].Server.Name > results[j].Server.Name)
 		case "mem":
 			return rev(stati.Mem < statj.Mem)
 		case "cpu":
@@ -189,7 +189,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 				return !rev(results[i].Server.Cluster < results[j].Server.Cluster)
 			}
 
-			return !rev(results[i].Server.Name < results[j].Server.Name)
+			return !rev(results[i].Server.Name > results[j].Server.Name)
 		default:
 			return rev(results[i].rtt > results[j].rtt)
 		}
