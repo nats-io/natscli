@@ -5,11 +5,9 @@ go 1.21
 toolchain go1.22.2
 
 require (
-	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/choria-io/fisk v0.6.2
 	github.com/dustin/go-humanize v1.0.1
-	github.com/emicklei/dot v1.6.1
 	github.com/expr-lang/expr v1.16.4
 	github.com/fatih/color v1.16.0
 	github.com/ghodss/yaml v1.0.0
@@ -30,13 +28,13 @@ require (
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common v0.46.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240207150459-d022830ddff4
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.22.0
 	golang.org/x/exp v0.0.0-20240205201215-2c58cdc269a3
 	golang.org/x/term v0.19.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v3 v3.0.1
+	nhooyr.io/websocket v1.8.11
 )
 
 require (
@@ -45,10 +43,7 @@ require (
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
-	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
-	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/nats-io/nsc/v2 v2.8.6-0.20231220104935-3f89317df670 // indirect
 	github.com/nsf/termbox-go v1.0.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
@@ -59,7 +54,4 @@ require (
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/protobuf v1.32.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	nhooyr.io/websocket v1.8.11 // indirect
 )
-
-replace github.com/nats-io/jsm.go => ../jsm.go
