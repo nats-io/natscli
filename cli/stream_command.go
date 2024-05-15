@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -776,7 +776,7 @@ func (c *streamCmd) removePeer(_ *fisk.ParseContext) error {
 	}
 
 	if c.peerName == "" {
-		err = askOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message: "Select a Peer",
 			Options: peerNames,
 		}, &c.peerName)
@@ -899,7 +899,7 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 
 		if last {
 			next := false
-			askOne(&survey.Confirm{Message: "Next Page?", Default: true}, &next)
+			iu.AskOne(&survey.Confirm{Message: "Next Page?", Default: true}, &next)
 			if !next {
 				return nil
 			}
@@ -953,7 +953,7 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 	cb := func(p jsm.RestoreProgress) {
 		bps = p.BytesPerSecond()
 
-		if opts.Trace && (p.ChunksSent()%100 == 0 || time.Since(prevMsg) > 500*time.Millisecond) {
+		if opts().Trace && (p.ChunksSent()%100 == 0 || time.Since(prevMsg) > 500*time.Millisecond) {
 			fmt.Printf("Sent %v chunk %v / %v at %v / s\n", fiBytes(uint64(p.ChunkSize())), p.ChunksSent(), p.ChunksToSend(), fiBytes(p.BytesPerSecond()))
 			return
 		}
@@ -973,7 +973,7 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 	var ropts []jsm.SnapshotOption
 
 	if c.showProgress {
-		if !opts.Trace {
+		if !opts().Trace {
 			uiprogress.Start()
 		}
 
@@ -1047,8 +1047,8 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 	defer cancel()
 
 	idleTimeout := 5 * time.Second
-	if opts.Timeout > idleTimeout {
-		idleTimeout = opts.Timeout
+	if opts().Timeout > idleTimeout {
+		idleTimeout = opts().Timeout
 	}
 
 	timeout := time.AfterFunc(idleTimeout, func() {
@@ -1084,7 +1084,7 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 
 		bps = p.BytesPerSecond()
 
-		if opts.Trace {
+		if opts().Trace {
 			if first {
 				fmt.Printf("Received %s chunk %s\n", fiBytes(uint64(p.ChunkSize())), f(p.ChunksReceived()))
 			} else {
@@ -1124,7 +1124,7 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 		sopts = append(sopts, jsm.SnapshotConsumers())
 	}
 
-	if opts.Trace {
+	if opts().Trace {
 		sopts = append(sopts, jsm.SnapshotDebug())
 		showProgress = false
 	}
@@ -1646,13 +1646,8 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 			subjectTransformConfig = *cfg.SubjectTransform
 		}
 
-		if c.subjectTransformSource != "" {
-			subjectTransformConfig.Source = c.subjectTransformSource
-		}
-
-		if c.subjectTransformDest != "" {
-			subjectTransformConfig.Destination = c.subjectTransformDest
-		}
+		subjectTransformConfig.Source = c.subjectTransformSource
+		subjectTransformConfig.Destination = c.subjectTransformDest
 
 		if subjectTransformConfig.Source != "" && subjectTransformConfig.Destination != "" {
 			cfg.SubjectTransform = &subjectTransformConfig
@@ -2255,7 +2250,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	if c.stream == "" {
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Stream Name",
 		}, &c.stream, survey.WithValidator(survey.Required))
 		fisk.FatalIfError(err, "invalid input")
@@ -2264,7 +2259,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	if c.mirror == "" && len(c.sources) == 0 {
 		if len(c.subjects) == 0 {
 			subjects := ""
-			err = askOne(&survey.Input{
+			err = iu.AskOne(&survey.Input{
 				Message: "Subjects",
 				Help:    "Streams consume messages from subjects, this is a space or comma separated list that can include wildcards. Settable using --subjects",
 			}, &subjects, survey.WithValidator(survey.Required))
@@ -2317,7 +2312,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	if c.storage == "" {
-		err = askOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message: "Storage",
 			Options: []string{"file", "memory"},
 			Help:    "Streams are stored on the server, this can be one of many backends and all are usable in clustering mode. Settable using --storage",
@@ -2340,7 +2335,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	if c.retentionPolicyS == "" {
-		err = askOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message: "Retention Policy",
 			Options: []string{"Limits", "Interest", "Work Queue"},
 			Help:    "Messages are retained either based on limits like size and age (Limits), as long as there are Consumers (Interest) or until any worker processed them (Work Queue)",
@@ -2350,7 +2345,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	if c.discardPolicy == "" {
-		err = askOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message: "Discard Policy",
 			Options: []string{"New", "Old"},
 			Help:    "Once the Stream reaches its limits of size or messages, the New policy will prevent further messages from being added while Old will delete old messages.",
@@ -2394,7 +2389,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	if c.maxAgeLimit == "" {
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Message TTL",
 			Default: "-1",
 			Help:    "Defines the oldest messages that can be stored in the Stream, any messages older than this period will be removed, -1 for unlimited. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --max-age",
@@ -2427,7 +2422,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		if c.acceptDefaults {
 			c.dupeWindow = defaultDW
 		} else {
-			err = askOne(&survey.Input{
+			err = iu.AskOne(&survey.Input{
 				Message: "Duplicate tracking time window",
 				Default: defaultDW,
 				Help:    "Duplicate messages are identified by the Msg-Id headers and tracked within a window of this size. Supports units (s)econds, (m)inutes, (h)ours, (y)ears, (M)onths, (d)ays. Settable using --dupe-window",
@@ -2556,7 +2551,7 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 
 		if mirror.OptStartSeq == 0 {
 			ts := ""
-			err = askOne(&survey.Input{
+			err = iu.AskOne(&survey.Input{
 				Message: "Mirror Start Time (YYYY:MM:DD HH:MM:SS)",
 				Help:    "Start replicating as a specific time stamp in UTC time",
 			}, &ts)
@@ -2580,7 +2575,7 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 			var source string
 			var destination string
 
-			err = askOne(&survey.Input{
+			err = iu.AskOne(&survey.Input{
 				Message: "Filter mirror by subject (hit enter to finish)",
 				Help:    "Only replicate data matching this subject",
 			}, &source)
@@ -2590,7 +2585,7 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 				break
 			}
 
-			err = askOne(&survey.Input{
+			err = iu.AskOne(&survey.Input{
 				Message: "Subject transform destination",
 				Help:    "Transform the subjects using this destination (hit enter for no transformation)",
 			}, &destination)
@@ -2613,14 +2608,14 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 	if ok {
 		mirror.External = &api.ExternalStream{}
 		domainName := ""
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Foreign JetStream domain name",
 			Help:    "The domain name from where to import the JetStream API",
 		}, &domainName, survey.WithValidator(survey.Required))
 		fisk.FatalIfError(err, "Could not request mirror details")
 		mirror.External.ApiPrefix = fmt.Sprintf("$JS.%s.API", domainName)
 
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Delivery prefix",
 			Help:    "Optional prefix of the delivery subject",
 		}, &mirror.External.DeliverPrefix)
@@ -2635,13 +2630,13 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 	}
 
 	mirror.External = &api.ExternalStream{}
-	err = askOne(&survey.Input{
+	err = iu.AskOne(&survey.Input{
 		Message: "Foreign account API prefix",
 		Help:    "The prefix where the foreign account JetStream API has been imported",
 	}, &mirror.External.ApiPrefix, survey.WithValidator(survey.Required))
 	fisk.FatalIfError(err, "Could not request mirror details")
 
-	err = askOne(&survey.Input{
+	err = iu.AskOne(&survey.Input{
 		Message: "Foreign account delivery prefix",
 		Help:    "The prefix where the foreign account JetStream delivery subjects has been imported",
 	}, &mirror.External.DeliverPrefix, survey.WithValidator(survey.Required))
@@ -2661,7 +2656,7 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 		cfg.OptStartSeq = uint64(a)
 
 		ts := ""
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: fmt.Sprintf("%s UTC Time Stamp (YYYY:MM:DD HH:MM:SS)", prefix),
 			Help:    "Start replicating as a specific time stamp",
 		}, &ts)
@@ -2683,7 +2678,7 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 			var source string
 			var destination string
 
-			err = askOne(&survey.Input{
+			err = iu.AskOne(&survey.Input{
 				Message: "Filter source by subject (hit enter to finish)",
 				Help:    "Only replicate data matching this subject",
 			}, &source)
@@ -2693,7 +2688,7 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 				break
 			}
 
-			err = askOne(&survey.Input{
+			err = iu.AskOne(&survey.Input{
 				Message: "Subject transform destination",
 				Help:    "Transform the subjects using this destination (hit enter for no transformation)",
 			}, &destination)
@@ -2716,14 +2711,14 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 	if ok {
 		cfg.External = &api.ExternalStream{}
 		domainName := ""
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: fmt.Sprintf("%s foreign JetStream domain name", prefix),
 			Help:    "The domain name from where to import the JetStream API",
 		}, &domainName, survey.WithValidator(survey.Required))
 		fisk.FatalIfError(err, "Could not request source details")
 		cfg.External.ApiPrefix = fmt.Sprintf("$JS.%s.API", domainName)
 
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: fmt.Sprintf("%s foreign JetStream domain delivery prefix", prefix),
 			Help:    "Optional prefix of the delivery subject",
 		}, &cfg.External.DeliverPrefix)
@@ -2738,13 +2733,13 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 	}
 
 	cfg.External = &api.ExternalStream{}
-	err = askOne(&survey.Input{
+	err = iu.AskOne(&survey.Input{
 		Message: fmt.Sprintf("%s foreign account API prefix", prefix),
 		Help:    "The prefix where the foreign account JetStream API has been imported",
 	}, &cfg.External.ApiPrefix, survey.WithValidator(survey.Required))
 	fisk.FatalIfError(err, "Could not request source details")
 
-	err = askOne(&survey.Input{
+	err = iu.AskOne(&survey.Input{
 		Message: fmt.Sprintf("%s foreign account delivery prefix", prefix),
 		Help:    "The prefix where the foreign account JetStream delivery subjects has been imported",
 	}, &cfg.External.DeliverPrefix, survey.WithValidator(survey.Required))
@@ -3054,7 +3049,7 @@ func (c *streamCmd) rmMsgAction(_ *fisk.ParseContext) (err error) {
 
 	if c.msgID == -1 {
 		id := ""
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Message Sequence to remove",
 		}, &id, survey.WithValidator(survey.Required))
 		fisk.FatalIfError(err, "invalid input")
@@ -3088,7 +3083,7 @@ func (c *streamCmd) getAction(_ *fisk.ParseContext) (err error) {
 
 	if c.msgID == -1 && c.filterSubject == "" {
 		id := ""
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Message Sequence to retrieve",
 			Default: "-1",
 		}, &id, survey.WithValidator(survey.Required))
@@ -3100,7 +3095,7 @@ func (c *streamCmd) getAction(_ *fisk.ParseContext) (err error) {
 		c.msgID = int64(idint)
 
 		if c.msgID == -1 {
-			err = askOne(&survey.Input{
+			err = iu.AskOne(&survey.Input{
 				Message: "Subject to retrieve last message for",
 			}, &c.filterSubject)
 			fisk.FatalIfError(err, "invalid subject")

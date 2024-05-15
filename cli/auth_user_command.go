@@ -16,12 +16,14 @@ package cli
 import (
 	"errors"
 	"fmt"
-	au "github.com/nats-io/natscli/internal/auth"
 	"io"
 	"os"
 	"sort"
 	"strconv"
 	"time"
+
+	au "github.com/nats-io/natscli/internal/auth"
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -157,7 +159,7 @@ func (c *authUserCommand) editAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authUserCommand) credAction(_ *fisk.ParseContext) error {
-	if !c.force && fileExists(c.credFile) {
+	if !c.force && iu.FileExists(c.credFile) {
 		return fmt.Errorf("file %s already exist", c.credFile)
 	}
 
@@ -309,10 +311,10 @@ func (c *authUserCommand) pickUser(acct ab.Account) error {
 	}
 	sort.Strings(names)
 
-	err := askOne(&survey.Select{
+	err := iu.AskOne(&survey.Select{
 		Message:  "Select a User",
 		Options:  names,
-		PageSize: selectPageSize(len(names)),
+		PageSize: iu.SelectPageSize(len(names)),
 	}, &c.userName)
 	if err != nil {
 		return err
@@ -343,7 +345,7 @@ func (c *authUserCommand) infoAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authUserCommand) addAction(_ *fisk.ParseContext) error {
-	auth, _, acct, err := selectOperatorAccount(c.operatorName, c.accountName, true)
+	auth, _, acct, err := au.SelectOperatorAccount(c.operatorName, c.accountName, true)
 	if err != nil {
 		return err
 	}
@@ -504,7 +506,7 @@ func (c *authUserCommand) showUser(user ab.User, acct ab.Account) (string, error
 }
 
 func (c *authUserCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator, ab.Account, error) {
-	auth, oper, acct, err := selectOperatorAccount(c.operatorName, c.accountName, pick)
+	auth, oper, acct, err := au.SelectOperatorAccount(c.operatorName, c.accountName, pick)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -516,7 +518,7 @@ func (c *authUserCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator, a
 }
 
 func (c *authUserCommand) writeCred(user ab.User, credFile string, force bool) error {
-	if !force && fileExists(credFile) {
+	if !force && iu.FileExists(credFile) {
 		return fmt.Errorf("file %s already exist", credFile)
 	}
 

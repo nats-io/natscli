@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,6 +15,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -38,7 +39,7 @@ func configureServerMappingCommand(srv *fisk.CmdClause) {
 
 func (c *SrvMappingCmd) mappingAction(_ *fisk.ParseContext) error {
 	if c.src == "" {
-		err := askOne(&survey.Input{
+		err := util.AskOne(&survey.Input{
 			Message: "Source subject pattern",
 			Help:    "The pattern matching source subjects",
 		}, &c.src, survey.WithValidator(survey.Required))
@@ -48,7 +49,7 @@ func (c *SrvMappingCmd) mappingAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.dest == "" {
-		err := askOne(&survey.Input{
+		err := util.AskOne(&survey.Input{
 			Message: "Destination subject pattern",
 			Help:    "The pattern matching describing the mapping to test",
 		}, &c.dest, survey.WithValidator(survey.Required))
@@ -82,7 +83,7 @@ func (c *SrvMappingCmd) mappingAction(_ *fisk.ParseContext) error {
 
 	for {
 		c.subj = ""
-		err = askOne(&survey.Input{
+		err = util.AskOne(&survey.Input{
 			Message: "Subject",
 			Help:    "Enter a subject that matching source and the mapping will be shown",
 		}, &c.subj)

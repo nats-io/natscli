@@ -1,4 +1,4 @@
-// Copyright 2022-2023 The NATS Authors
+// Copyright 2022-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -248,13 +248,13 @@ func (c *serviceCmd) pingAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("setup failed: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), opts().Timeout)
 	defer cancel()
 
 	start := time.Now()
 
 	sub, err := nc.Subscribe(nc.NewRespInbox(), func(m *nats.Msg) {
-		if opts.Trace {
+		if opts().Trace {
 			log.Printf("<<< %s", string(m.Data))
 		}
 		resp, err := c.parseMessage(m.Data, micro.PingResponseType)
@@ -271,7 +271,7 @@ func (c *serviceCmd) pingAction(_ *fisk.ParseContext) error {
 	msg := nats.NewMsg(c.makeSubj(micro.PingVerb, c.name, ""))
 	msg.Reply = sub.Subject
 	nc.PublishMsg(msg)
-	if opts.Trace {
+	if opts().Trace {
 		log.Printf(">>> %s", msg.Subject)
 	}
 	<-ctx.Done()

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -315,8 +315,8 @@ func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
 		Cluster: c.cluster,
 		Tags:    c.tags,
 	}
-	if opts.Config != nil {
-		opt.Domain = opts.Config.JSDomain()
+	if opts().Config != nil {
+		opt.Domain = opts().Config.JSDomain()
 	}
 
 	return opt

@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,6 +15,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -75,12 +76,12 @@ func (c *SrvPasswdCmd) askPassword() (string, error) {
 	bp1 := ""
 	bp2 := ""
 
-	err := askOne(&survey.Password{Message: "Enter password", Help: "Enter a password string that's minimum 22 characters long"}, &bp1)
+	err := util.AskOne(&survey.Password{Message: "Enter password", Help: "Enter a password string that's minimum 22 characters long"}, &bp1)
 	if err != nil {
 		return "", fmt.Errorf("could not read password: %w", err)
 	}
 	fmt.Println()
-	err = askOne(&survey.Password{Message: "Re-enter password", Help: "Enter the same password again"}, &bp2)
+	err = util.AskOne(&survey.Password{Message: "Re-enter password", Help: "Enter the same password again"}, &bp2)
 	if err != nil {
 		return "", fmt.Errorf("could not read password: %w", err)
 	}

@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -55,15 +55,15 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 		}
 	}
 
-	if opts.Trace {
+	if opts().Trace {
 		log.Printf(">>> %s: %s", subj, string(body))
 	}
 
-	resp, err := nc.Request(subj, body, opts.Timeout)
+	resp, err := nc.Request(subj, body, opts().Timeout)
 	if err != nil {
 		return fmt.Errorf("no results received, ensure the account used has system privileges and appropriate permissions")
 	}
-	if opts.Trace {
+	if opts().Trace {
 		log.Printf("<<< %q", resp.Data)
 	}
 

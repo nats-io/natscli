@@ -11,25 +11,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cli
+package scaffold
 
 import (
-	"github.com/dustin/go-humanize"
-	"github.com/nats-io/natscli/columns"
+	"log"
+
+	"github.com/choria-io/scaffold"
 )
 
-func newColumns(heading string, a ...any) *columns.Writer {
-	w := columns.New(heading, a...)
-	w.SetColorScheme(opts().Config.ColorScheme())
-	w.SetHeading(heading, a...)
-
-	return w
+type logger struct {
+	debug bool
 }
 
-func fiBytes(v uint64) string {
-	return humanize.IBytes(v)
+func (l logger) Debugf(format string, v ...any) {
+	if l.debug {
+		log.Printf(format, v...)
+	}
 }
 
-func f(v any) string {
-	return columns.F(v)
+func (l logger) Infof(format string, v ...any) {
+	log.Printf(format, v...)
+}
+
+func newLogger(debug bool) scaffold.Logger {
+	return &logger{
+		debug: debug,
+	}
 }

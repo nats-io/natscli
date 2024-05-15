@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -145,7 +145,7 @@ func (c *ctxCommand) copyCommand(pc *fisk.ParseContext) error {
 		return fmt.Errorf("context %q already exist", c.name)
 	}
 
-	opts.CfgCtx = c.source
+	opts().CfgCtx = c.source
 
 	return c.createCommand(pc)
 }
@@ -527,6 +527,7 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 	lname := ""
 	load := false
+	opts := opts()
 
 	switch {
 	case natscontext.IsKnown(c.name):
@@ -650,10 +651,10 @@ func (c *ctxCommand) selectCommand(pc *fisk.ParseContext) error {
 	}
 
 	if c.name == "" {
-		err := askOne(&survey.Select{
+		err := iu.AskOne(&survey.Select{
 			Message:  "Select a Context",
 			Options:  known,
-			PageSize: selectPageSize(len(known)),
+			PageSize: iu.SelectPageSize(len(known)),
 		}, &c.name)
 		if err != nil {
 			return err

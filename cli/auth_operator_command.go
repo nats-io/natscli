@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/choria-io/appbuilder/forms"
+	"github.com/choria-io/scaffold/forms"
 	"github.com/ghodss/yaml"
 	au "github.com/nats-io/natscli/internal/auth"
 	iu "github.com/nats-io/natscli/internal/util"
@@ -117,7 +117,7 @@ func configureAuthOperatorCommand(auth commandHost) {
 }
 
 func (c *authOperatorCommand) generateAction(_ *fisk.ParseContext) error {
-	_, oper, err := selectOperator(c.operatorName, true, false)
+	_, oper, err := au.SelectOperator(c.operatorName, true, false)
 	if err != nil {
 		return err
 	}
@@ -169,17 +169,17 @@ func (c *authOperatorCommand) generateAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authOperatorCommand) selectAction(_ *fisk.ParseContext) error {
-	_, oper, err := selectOperator(c.operatorName, true, false)
+	_, oper, err := au.SelectOperator(c.operatorName, true, false)
 	if err != nil {
 		return err
 	}
 
-	cfg, err := loadConfig()
+	cfg, err := iu.LoadConfig()
 	if err != nil {
 		return err
 	}
 	cfg.SelectedOperator = oper.Name()
-	err = saveConfig(cfg)
+	err = iu.SaveConfig(cfg)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (c *authOperatorCommand) selectAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authOperatorCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operator, error) {
-	auth, oper, err := selectOperator(c.operatorName, pick, true)
+	auth, oper, err := au.SelectOperator(c.operatorName, pick, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -519,7 +519,7 @@ func (c *authOperatorCommand) lsAction(_ *fisk.ParseContext) error {
 
 func (c *authOperatorCommand) addAction(_ *fisk.ParseContext) error {
 	if c.operatorName == "" {
-		err := askOne(&survey.Input{
+		err := iu.AskOne(&survey.Input{
 			Message: "Operator Name",
 			Help:    "A unique name for the Operator being added",
 		}, &c.operatorName, survey.WithValidator(survey.Required))

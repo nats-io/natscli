@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -84,7 +84,7 @@ func (c *SrvClusterCmd) balanceAction(_ *fisk.ParseContext) error {
 	}
 
 	level := connbalancer.InfoLevel
-	if opts.Trace {
+	if opts().Trace {
 		level = connbalancer.TraceLevel
 	}
 
@@ -194,16 +194,16 @@ func (c *SrvClusterCmd) metaLeaderStandDownAction(_ *fisk.ParseContext) error {
 	}
 
 	getJSI := func() (*server.JSInfo, error) {
-		if opts.Trace {
+		if opts().Trace {
 			log.Printf(">>> $SYS.REQ.SERVER.PING.JSZ: %s\n", string(jreq))
 		}
 
-		msg, err := nc.Request("$SYS.REQ.SERVER.PING.JSZ", jreq, opts.Timeout)
+		msg, err := nc.Request("$SYS.REQ.SERVER.PING.JSZ", jreq, opts().Timeout)
 		if err != nil {
 			return nil, err
 		}
 
-		if opts.Trace {
+		if opts().Trace {
 			log.Printf(">>> %s\n", string(msg.Data))
 		}
 

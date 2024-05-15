@@ -1,4 +1,4 @@
-// Copyright 2019-2022 The NATS Authors
+// Copyright 2019-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/nats-io/natscli/cli"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -27,12 +28,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/natscli/cli"
-
-	"github.com/nats-io/jsm.go"
 )
 
 var (

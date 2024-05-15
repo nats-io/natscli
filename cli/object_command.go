@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,6 +16,7 @@ package cli
 import (
 	"encoding/base64"
 	"fmt"
+	"github.com/nats-io/natscli/internal/util"
 	"io"
 	"os"
 	"path/filepath"
@@ -492,7 +493,7 @@ func (c *objCommand) putAction(_ *fisk.ParseContext) error {
 	var progress *uiprogress.Bar
 	stop := func() {}
 
-	if !opts.Trace && c.progress && stat != nil && stat.Size() > 20480 {
+	if !opts().Trace && c.progress && stat != nil && stat.Size() > 20480 {
 		hs := humanize.IBytes(uint64(stat.Size()))
 		progress = uiprogress.AddBar(int(stat.Size())).PrependFunc(func(b *uiprogress.Bar) string {
 			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
@@ -568,7 +569,7 @@ func (c *objCommand) getAction(_ *fisk.ParseContext) error {
 	pw := io.Writer(of)
 	stop := func() {}
 
-	if !opts.Trace && c.progress && nfo.Size > 20480 {
+	if !opts().Trace && c.progress && nfo.Size > 20480 {
 		hs := humanize.IBytes(nfo.Size)
 		progress = uiprogress.AddBar(int(nfo.Size)).PrependFunc(func(b *uiprogress.Bar) string {
 			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
@@ -657,10 +658,10 @@ func (c *objCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.Objec
 			return nil, nil, nil, fmt.Errorf("no Object buckets found")
 		}
 
-		err = askOne(&survey.Select{
+		err = util.AskOne(&survey.Select{
 			Message:  "Select a Bucket",
 			Options:  known,
-			PageSize: selectPageSize(len(known)),
+			PageSize: util.SelectPageSize(len(known)),
 		}, &c.bucket)
 		if err != nil {
 			return nil, nil, nil, err

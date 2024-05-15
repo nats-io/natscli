@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	au "github.com/nats-io/natscli/internal/auth"
+	"github.com/nats-io/natscli/internal/util"
 	"io"
 	"net/url"
 	"os"
@@ -279,7 +280,7 @@ func configureAuthAccountCommand(auth commandHost) {
 }
 
 func (c *authAccountCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator, ab.Account, error) {
-	auth, oper, acct, err := selectOperatorAccount(c.operatorName, c.accountName, pick)
+	auth, oper, acct, err := au.SelectOperatorAccount(c.operatorName, c.accountName, pick)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -291,7 +292,7 @@ func (c *authAccountCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator
 }
 
 func (c *authAccountCommand) selectOperator(pick bool) (*ab.AuthImpl, ab.Operator, error) {
-	auth, oper, err := selectOperator(c.operatorName, pick, true)
+	auth, oper, err := au.SelectOperator(c.operatorName, pick, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -307,7 +308,7 @@ func (c *authAccountCommand) queryAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	_, oper, err := selectOperator(c.operatorName, true, true)
+	_, oper, err := au.SelectOperator(c.operatorName, true, true)
 	if err != nil {
 		return err
 	}
@@ -490,7 +491,7 @@ func (c *authAccountCommand) skAddAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.skRole == "" {
-		err := askOne(&survey.Input{
+		err := util.AskOne(&survey.Input{
 			Message: "Role Name",
 			Help:    "The role to associate with this key",
 		}, &c.skRole, survey.WithValidator(survey.Required))
@@ -667,11 +668,9 @@ func (c *authAccountCommand) editAction(_ *fisk.ParseContext) error {
 		jsl := limits.JetStreamLimits
 		if c.storeMaxString == "" {
 			c.storeMaxString = strconv.Itoa(int(jsl.DiskStorage))
-			log.Printf("set storeMaxString to %s\n", c.storeMaxStreamString)
 		}
 		if c.memMaxString == "" {
 			c.memMaxString = strconv.Itoa(int(jsl.MemoryStorage))
-			log.Printf("set memMaxString to %s\n", c.memMaxString)
 		}
 		if c.memMaxStreamString == "" {
 			c.memMaxStreamString = strconv.Itoa(int(jsl.MemoryMaxStreamBytes))
@@ -894,7 +893,7 @@ func (c *authAccountCommand) addAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.accountName == "" {
-		err := askOne(&survey.Input{
+		err := util.AskOne(&survey.Input{
 			Message: "Account Name",
 			Help:    "A unique name for the Account being added",
 		}, &c.accountName, survey.WithValidator(survey.Required))
