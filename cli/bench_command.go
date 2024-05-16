@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -111,7 +111,7 @@ JetStream KV put and get:
 Remember to use --no-progress to measure performance more accurately
 `
 	bench := app.Command("bench", "Benchmark utility").Action(c.bench)
-	if !opts.NoCheats {
+	if !opts().NoCheats {
 		bench.CheatFile(fs, "bench", "cheats/bench.md")
 	}
 	bench.HelpLong(benchHelp)
@@ -253,7 +253,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 
 	if c.js || c.kv {
 		// create the stream for the benchmark (and purge it)
-		nc, err := nats.Connect(opts.Config.ServerURL(), natsOpts()...)
+		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
 			log.Fatalf("NATS connection failed: %v", err)
 		}
@@ -365,7 +365,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 	subCounts := bench.MsgsPerClient(c.numMsg, c.numSubs)
 
 	for i := 0; i < c.numSubs; i++ {
-		nc, err := nats.Connect(opts.Config.ServerURL(), natsOpts()...)
+		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
 			return fmt.Errorf("nats connection %d failed: %s", i, err)
 		}
@@ -389,7 +389,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 	pubCounts := bench.MsgsPerClient(c.numMsg, c.numPubs)
 	trigger := make(chan struct{})
 	for i := 0; i < c.numPubs; i++ {
-		nc, err := nats.Connect(opts.Config.ServerURL(), natsOpts()...)
+		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
 			return fmt.Errorf("nats connection %d failed: %s", i, err)
 		}

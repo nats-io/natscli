@@ -161,7 +161,7 @@ func (c *SrvRunCmd) getRandomPort() (string, error) {
 
 func (c *SrvRunCmd) validate() error {
 	if c.config.ExtendWithContext {
-		if opts.Config.ServerURL() == "" {
+		if opts().Config.ServerURL() == "" {
 			return fmt.Errorf("extending using a context requires a server url in the context")
 		}
 	}
@@ -175,9 +175,9 @@ func (c *SrvRunCmd) prepareConfig() error {
 		return err
 	}
 
-	c.config.Context = opts.Config
+	c.config.Context = opts().Config
 
-	if opts.Trace {
+	if opts().Trace {
 		c.config.Verbose = true
 	}
 

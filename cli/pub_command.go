@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -159,7 +159,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 
 		// Honor the overall timeout for the first response.  No
 		// responders will circuit break.
-		timeout := opts.Timeout
+		timeout := opts().Timeout
 
 		// loop until reply count is met, or if zero, until we
 		// timeout receiving messages.
@@ -207,7 +207,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 			if c.replyCount == 0 {
 				// if we are waiting for the general timeout then
 				// calculate remaining
-				timeout = opts.Timeout - time.Since(start)
+				timeout = opts().Timeout - time.Since(start)
 			} else {
 				// Otherwise, use the average response deltas
 				rttAg += rtt

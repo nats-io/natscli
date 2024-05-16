@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,15 +16,13 @@ package cli
 import (
 	"context"
 	"embed"
+	"github.com/nats-io/natscli/options"
 	glog "log"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/choria-io/fisk"
-	"github.com/nats-io/jsm.go"
-	"github.com/nats-io/jsm.go/natscontext"
-	"github.com/nats-io/nats.go"
 )
 
 type command struct {
@@ -47,7 +45,6 @@ type Logger interface {
 }
 
 var (
-	opts     = &Options{}
 	commands = []*command{}
 	mu       sync.Mutex
 	Version  = "development"
@@ -66,68 +63,6 @@ func registerCommand(name string, order int, c func(app commandHost)) {
 	mu.Lock()
 	commands = append(commands, &command{name, order, c})
 	mu.Unlock()
-}
-
-// Options configure the CLI
-type Options struct {
-	// Config is a nats configuration context
-	Config *natscontext.Context
-	// Servers is the list of servers to connect to
-	Servers string
-	// Creds is nats credentials to authenticate with
-	Creds string
-	// TlsCert is the TLS Public Certificate
-	TlsCert string
-	// TlsKey is the TLS Private Key
-	TlsKey string
-	// TlsCA is the certificate authority to verify the connection with
-	TlsCA string
-	// Timeout is how long to wait for operations
-	Timeout time.Duration
-	// ConnectionName is the name to use for the underlying NATS connection
-	ConnectionName string
-	// Username is the username or token to connect with
-	Username string
-	// Password is the password to connect with
-	Password string
-	// Nkey is the file holding a nkey to connect with
-	Nkey string
-	// JsApiPrefix is the JetStream API prefix
-	JsApiPrefix string
-	// JsEventPrefix is the JetStream events prefix
-	JsEventPrefix string
-	// JsDomain is the domain to connect to
-	JsDomain string
-	// CfgCtx is the context name to use
-	CfgCtx string
-	// Trace enables verbose debug logging
-	Trace bool
-	// Customer inbox Prefix
-	InboxPrefix string
-	// Conn sets a prepared connect to connect with
-	Conn *nats.Conn
-	// Mgr sets a prepared jsm Manager to use for JetStream access
-	Mgr *jsm.Manager
-	// JSc is a prepared NATS JetStream context to use for KV and Object access
-	JSc nats.JetStreamContext
-	// Disables registering of CLI cheats
-	NoCheats bool
-	// PrometheusNamespace is the namespace to use for prometheus format output in server check
-	PrometheusNamespace string
-	// SocksProxy is a SOCKS5 proxy to use for NATS connections
-	SocksProxy string
-	// ColorScheme influence table colors and more based on ValidStyles()
-	ColorScheme string
-	// TlsFirst configures the TLSHandshakeFirst behavior in nats.go
-	TlsFirst bool
-	// WinCertStoreType enables windows cert store - user or machine
-	WinCertStoreType string
-	// WinCertStoreMatchBy configures how to search for certs when using match - subject or issuer
-	WinCertStoreMatchBy string
-	// WinCertStoreMatch is the query to match with
-	WinCertStoreMatch string
-	// WinCertCaStoreMatch is the queries for CAs to use
-	WinCertCaStoreMatch []string
 }
 
 // SkipContexts used during tests
@@ -156,17 +91,17 @@ func SetContext(c context.Context) {
 	ctx = c
 }
 
-func commonConfigure(cmd commandHost, cliOpts *Options, disable ...string) error {
+func commonConfigure(cmd commandHost, cliOpts *options.Options, disable ...string) error {
 	if cliOpts != nil {
-		opts = cliOpts
+		options.DefaultOptions = cliOpts
 	} else {
-		opts = &Options{
+		options.DefaultOptions = &options.Options{
 			Timeout: 5 * time.Second,
 		}
 	}
 
-	if opts.PrometheusNamespace == "" {
-		opts.PrometheusNamespace = "nats_server_check"
+	if options.DefaultOptions.PrometheusNamespace == "" {
+		options.DefaultOptions.PrometheusNamespace = "nats_server_check"
 	}
 
 	ctx = context.Background()
@@ -197,7 +132,7 @@ func commonConfigure(cmd commandHost, cliOpts *Options, disable ...string) error
 
 // ConfigureInCommand attaches the cli commands to cmd, prepare will load the context on demand and should be true unless override nats,
 // manager and js context is given in a custom PreAction in the caller.  Disable is a list of command names to skip.
-func ConfigureInCommand(cmd *fisk.CmdClause, cliOpts *Options, prepare bool, disable ...string) (*Options, error) {
+func ConfigureInCommand(cmd *fisk.CmdClause, cliOpts *options.Options, prepare bool, disable ...string) (*options.Options, error) {
 	err := commonConfigure(cmd, cliOpts, disable...)
 	if err != nil {
 		return nil, err
@@ -207,12 +142,12 @@ func ConfigureInCommand(cmd *fisk.CmdClause, cliOpts *Options, prepare bool, dis
 		cmd.PreAction(preAction)
 	}
 
-	return opts, nil
+	return options.DefaultOptions, nil
 }
 
 // ConfigureInApp attaches the cli commands to app, prepare will load the context on demand and should be true unless override nats,
 // manager and js context is given in a custom PreAction in the caller.  Disable is a list of command names to skip.
-func ConfigureInApp(app *fisk.Application, cliOpts *Options, prepare bool, disable ...string) (*Options, error) {
+func ConfigureInApp(app *fisk.Application, cliOpts *options.Options, prepare bool, disable ...string) (*options.Options, error) {
 	err := commonConfigure(app, cliOpts, disable...)
 	if err != nil {
 		return nil, err
@@ -222,7 +157,7 @@ func ConfigureInApp(app *fisk.Application, cliOpts *Options, prepare bool, disab
 		app.PreAction(preAction)
 	}
 
-	return opts, nil
+	return options.DefaultOptions, nil
 }
 
 func preAction(_ *fisk.ParseContext) (err error) {
@@ -237,3 +172,7 @@ func (goLogger) Printf(format string, a ...any) { glog.Printf(format, a...) }
 func (goLogger) Print(a ...any)                 { glog.Print(a...) }
 func (goLogger) Println(a ...any)               { glog.Println(a...) }
 func (goLogger) Fatal(a ...any)                 { glog.Fatal(a...) }
+
+func opts() *options.Options {
+	return options.DefaultOptions
+}

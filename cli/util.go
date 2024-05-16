@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
+	"github.com/nats-io/natscli/options"
 	"io"
 	"math"
 	"math/rand"
@@ -36,6 +36,8 @@ import (
 	"text/template"
 	"time"
 	"unicode"
+
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -88,10 +90,10 @@ func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool
 	default:
 		c := ""
 
-		err = askOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message:  "Select a Consumer",
 			Options:  consumers,
-			PageSize: selectPageSize(len(consumers)),
+			PageSize: iu.SelectPageSize(len(consumers)),
 		}, &c)
 		if err != nil {
 			return "", nil, err
@@ -148,10 +150,10 @@ func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string
 	default:
 		s := ""
 
-		err = askOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message:  "Select a Stream",
 			Options:  matched,
-			PageSize: selectPageSize(len(matched)),
+			PageSize: iu.SelectPageSize(len(matched)),
 		}, &s)
 		if err != nil {
 			return "", nil, err
@@ -159,14 +161,6 @@ func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string
 
 		return s, nil, nil
 	}
-}
-
-func askOne(p survey.Prompt, response any, opts ...survey.AskOpt) error {
-	if !iu.IsTerminal() {
-		return fmt.Errorf("cannot prompt for user input without a terminal")
-	}
-
-	return survey.AskOne(p, response, append(surveyColors(), opts...)...)
 }
 
 // calculates progress bar width for uiprogress:
@@ -191,20 +185,6 @@ func progressWidth() int {
 	}
 }
 
-func selectPageSize(count int) int {
-	_, h, err := terminal.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		h = 40
-	}
-
-	ps := count
-	if ps > h-4 {
-		ps = h - 4
-	}
-
-	return ps
-}
-
 func sinceRefOrNow(ref time.Time, ts time.Time) time.Duration {
 	if ref.IsZero() {
 		return time.Since(ts)
@@ -219,7 +199,7 @@ func askConfirmation(prompt string, dflt bool) (bool, error) {
 
 	ans := dflt
 
-	err := askOne(&survey.Confirm{
+	err := iu.AskOne(&survey.Confirm{
 		Message: prompt,
 		Default: dflt,
 	}, &ans)
@@ -234,7 +214,7 @@ func askOneBytes(prompt string, dflt string, help string, required string) (int6
 
 	for {
 		val := ""
-		err := askOne(&survey.Input{
+		err := iu.AskOne(&survey.Input{
 			Message: prompt,
 			Default: dflt,
 			Help:    help,
@@ -267,7 +247,7 @@ func askOneInt(prompt string, dflt string, help string) (int64, error) {
 	}
 
 	val := ""
-	err := askOne(&survey.Input{
+	err := iu.AskOne(&survey.Input{
 		Message: prompt,
 		Default: dflt,
 		Help:    help,
@@ -314,14 +294,14 @@ func splitCLISubjects(subjects []string) []string {
 }
 
 func natsOpts() []nats.Option {
-	if opts.Config == nil {
+	if opts().Config == nil {
 		return []nats.Option{}
 	}
 
-	copts, err := opts.Config.NATSOptions()
+	copts, err := opts().Config.NATSOptions()
 	fisk.FatalIfError(err, "configuration error")
 
-	connectionName := strings.TrimSpace(opts.ConnectionName)
+	connectionName := strings.TrimSpace(opts().ConnectionName)
 	if len(connectionName) == 0 {
 		connectionName = "NATS CLI Version " + Version
 	}
@@ -330,12 +310,12 @@ func natsOpts() []nats.Option {
 		nats.Name(connectionName),
 		nats.MaxReconnects(-1),
 		nats.ConnectHandler(func(conn *nats.Conn) {
-			if opts.Trace {
+			if opts().Trace {
 				log.Printf(">>> Connected to %s", conn.ConnectedUrlRedacted())
 			}
 		}),
 		nats.DiscoveredServersHandler(func(conn *nats.Conn) {
-			if opts.Trace {
+			if opts().Trace {
 				log.Printf(">>> Discovered new servers, known servers are now %s", strings.Join(conn.Servers(), ", "))
 			}
 		}),
@@ -359,6 +339,7 @@ func natsOpts() []nats.Option {
 }
 
 func jsOpts() []nats.JSOpt {
+	opts := opts()
 	jso := []nats.JSOpt{
 		nats.Domain(opts.JsDomain),
 		nats.APIPrefix(opts.JsApiPrefix),
@@ -381,7 +362,7 @@ func jsOpts() []nats.JSOpt {
 }
 
 func addCheat(name string, cmd *fisk.CmdClause) {
-	if opts.NoCheats {
+	if opts().NoCheats {
 		return
 	}
 
@@ -389,6 +370,8 @@ func addCheat(name string, cmd *fisk.CmdClause) {
 }
 
 func newNatsConnUnlocked(servers string, copts ...nats.Option) (*nats.Conn, error) {
+	opts := options.DefaultOptions
+
 	if opts.Conn != nil {
 		return opts.Conn, nil
 	}
@@ -423,6 +406,7 @@ func prepareJSHelper() (*nats.Conn, nats.JetStreamContext, error) {
 	defer mu.Unlock()
 
 	var err error
+	opts := options.DefaultOptions
 
 	if opts.Conn == nil {
 		opts.Conn, _, err = prepareHelperUnlocked("", natsOpts()...)
@@ -455,7 +439,7 @@ func validator() *SchemaValidator {
 		return new(SchemaValidator)
 	}
 
-	if opts.Trace {
+	if opts().Trace {
 		log.Printf("!!! Disabling schema validation")
 	}
 
@@ -464,6 +448,8 @@ func validator() *SchemaValidator {
 
 func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *jsm.Manager, error) {
 	var err error
+
+	opts := options.DefaultOptions
 
 	if opts.Config == nil {
 		err = loadContext(false)
@@ -707,6 +693,8 @@ func parseStringsToMsgHeader(hdrs []string, seq int, msg *nats.Msg) error {
 }
 
 func loadContext(softFail bool) error {
+	opts := options.DefaultOptions
+
 	ctxOpts := []natscontext.Option{
 		natscontext.WithServerURL(opts.Servers),
 		natscontext.WithCreds(opts.Creds),
@@ -751,11 +739,6 @@ func loadContext(softFail bool) error {
 	}
 
 	return err
-}
-
-func fileExists(f string) bool {
-	_, err := os.Stat(f)
-	return !os.IsNotExist(err)
 }
 
 func fileAccessible(f string) (bool, error) {
@@ -840,7 +823,7 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 		}
 	}
 
-	if opts.Trace {
+	if opts().Trace {
 		log.Printf(">>> %s: %s\n", subj, string(jreq))
 	}
 
@@ -850,11 +833,11 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 		finisher *time.Timer
 	)
 
-	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
 	defer cancel()
 
 	if waitFor == 0 {
-		finisher = time.NewTimer(opts.Timeout)
+		finisher = time.NewTimer(opts().Timeout)
 		go func() {
 			select {
 			case <-finisher.C:
@@ -882,7 +865,7 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 			data = ud
 		}
 
-		if opts.Trace {
+		if opts().Trace {
 			if compressed {
 				log.Printf("<<< (%dB -> %dB) %s", len(m.Data), len(data), string(data))
 			} else {
@@ -941,7 +924,7 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 	case <-ctx.Done():
 	}
 
-	if opts.Trace {
+	if opts().Trace {
 		log.Printf("=== Received %d responses", ctr)
 	}
 
@@ -1063,8 +1046,8 @@ func newTableWriter(format string, a ...any) *tbl {
 	tbl.writer.SetStyle(styles["rounded"])
 
 	if isatty.IsTerminal(os.Stdout.Fd()) {
-		if opts.Config != nil {
-			style, ok := styles[opts.Config.ColorScheme()]
+		if opts().Config != nil {
+			style, ok := styles[opts().Config.ColorScheme()]
 			if ok {
 				tbl.writer.SetStyle(style)
 			}
@@ -1196,47 +1179,6 @@ func serverMinVersion(version string, major, minor, patch int) bool {
 		return false
 	}
 	return true
-}
-
-func surveyColors() []survey.AskOpt {
-	return []survey.AskOpt{
-		survey.WithIcons(func(icons *survey.IconSet) {
-			if opts.Config == nil {
-				icons.Question.Format = "white"
-				icons.SelectFocus.Format = "white"
-				return
-			}
-
-			switch opts.Config.ColorScheme() {
-			case "yellow":
-				icons.Question.Format = "yellow+hb"
-				icons.SelectFocus.Format = "yellow+hb"
-			case "blue":
-				icons.Question.Format = "blue+hb"
-				icons.SelectFocus.Format = "blue+hb"
-			case "green":
-				icons.Question.Format = "green+hb"
-				icons.SelectFocus.Format = "green+hb"
-			case "cyan":
-				icons.Question.Format = "cyan+hb"
-				icons.SelectFocus.Format = "cyan+hb"
-			case "magenta":
-				icons.Question.Format = "magenta+hb"
-				icons.SelectFocus.Format = "magenta+hb"
-			case "red":
-				icons.Question.Format = "red+hb"
-				icons.SelectFocus.Format = "red+hb"
-			default:
-				icons.Question.Format = "white"
-				icons.SelectFocus.Format = "white"
-			}
-
-			if opts.Config != nil && opts.Config.Name != "" {
-				icons.Question.Text = fmt.Sprintf("[%s] ?", opts.Config.Name)
-				icons.Help.Text = ""
-			}
-		}),
-	}
 }
 
 func outPutMSGBodyCompact(data []byte, filter string, subject string, stream string) (string, error) {

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -112,7 +112,7 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 
 	check := srv.Command("check", "Health check for NATS servers")
 	check.Flag("format", "Render the check in a specific format (nagios, json, prometheus, text)").Default("nagios").EnumVar(&checkRenderFormatText, "nagios", "json", "prometheus", "text")
-	check.Flag("namespace", "The prometheus namespace to use in output").Default(opts.PrometheusNamespace).StringVar(&opts.PrometheusNamespace)
+	check.Flag("namespace", "The prometheus namespace to use in output").Default(opts().PrometheusNamespace).StringVar(&opts().PrometheusNamespace)
 	check.Flag("outfile", "Save output to a file rather than STDOUT").StringVar(&checkRenderOutFile)
 	check.PreAction(c.parseRenderFormat)
 
@@ -337,7 +337,7 @@ func (c *SrvCheckCmd) checkConsumerStatus(check *monitor.Result, nfo api.Consume
 }
 
 func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: fmt.Sprintf("%s_%s", c.sourcesStream, c.consumerName), Check: "consumer", OutFile: checkRenderOutFile, NameSpace: opts.PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: fmt.Sprintf("%s_%s", c.sourcesStream, c.consumerName), Check: "consumer", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
 	_, mgr, err := prepareHelper("", natsOpts()...)
@@ -361,7 +361,7 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: c.kvBucket, Check: "kv", OutFile: checkRenderOutFile, NameSpace: opts.PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: c.kvBucket, Check: "kv", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
 	nc, _, err := prepareHelper("", natsOpts()...)
@@ -373,7 +373,7 @@ func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: c.srvName, Check: "server", OutFile: checkRenderOutFile, NameSpace: opts.PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: c.srvName, Check: "server", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
 	vz, err := c.fetchVarz()
@@ -531,7 +531,7 @@ func (c *SrvCheckCmd) fetchVarz() (*server.Varz, error) {
 }
 
 func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: "JetStream", Check: "jetstream", OutFile: checkRenderOutFile, NameSpace: opts.PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: "JetStream", Check: "jetstream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
 	_, mgr, err := prepareHelper("", natsOpts()...)
@@ -829,7 +829,7 @@ func (c *SrvCheckCmd) checkClusterInfo(check *monitor.Result, ci *server.Cluster
 }
 
 func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: c.sourcesStream, Check: "stream", OutFile: checkRenderOutFile, NameSpace: opts.PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: c.sourcesStream, Check: "stream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
 	_, mgr, err := prepareHelper("", natsOpts()...)
@@ -1016,7 +1016,7 @@ func (c *SrvCheckCmd) checkStreamMessage(mgr *jsm.Manager, check *monitor.Result
 }
 
 func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: "Stream Message", Check: "message", OutFile: checkRenderOutFile, NameSpace: opts.PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: "Stream Message", Check: "message", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
 	_, mgr, err := prepareHelper("", natsOpts()...)
@@ -1026,7 +1026,7 @@ func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: "Connection", Check: "connections", OutFile: checkRenderOutFile, NameSpace: opts.PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: "Connection", Check: "connections", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
 	connStart := time.Now()
@@ -1066,7 +1066,7 @@ func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 	err = nc.Publish(ib, msg)
 	check.CriticalIfErr(err, "could not publish to %s: %s", ib, err)
 
-	received, err := sub.NextMsg(opts.Timeout)
+	received, err := sub.NextMsg(opts().Timeout)
 	check.CriticalIfErr(err, "did not receive from %s: %s", ib, err)
 
 	reqt := time.Since(start)
@@ -1139,7 +1139,7 @@ func (c *SrvCheckCmd) checkCredential(check *monitor.Result) error {
 }
 
 func (c *SrvCheckCmd) checkCredentialAction(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: "Credential", Check: "credential", OutFile: checkRenderOutFile, NameSpace: opts.PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: "Credential", Check: "credential", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
 	return c.checkCredential(check)

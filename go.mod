@@ -5,11 +5,11 @@ go 1.21
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
-	github.com/choria-io/appbuilder v0.9.1-0.20240425141517-6cf5e1823bf5
 	github.com/choria-io/fisk v0.6.2
+	github.com/choria-io/scaffold v0.0.2-0.20240516112801-fc127c79a1df
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.6.2
-	github.com/expr-lang/expr v1.16.5
+	github.com/expr-lang/expr v1.16.7
 	github.com/fatih/color v1.16.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.6.0
@@ -31,9 +31,9 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240501200458-e2594dc0b29f
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
-	golang.org/x/crypto v0.22.0
+	golang.org/x/crypto v0.23.0
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f
-	golang.org/x/term v0.19.0
+	golang.org/x/term v0.20.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -62,9 +62,9 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	golang.org/x/net v0.24.0 // indirect
-	golang.org/x/sys v0.19.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/net v0.25.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/protobuf v1.34.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

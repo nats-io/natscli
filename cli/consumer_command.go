@@ -1,4 +1,4 @@
-// Copyright 2019 The NATS Authors
+// Copyright 2019-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -1011,7 +1011,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 
 	if c.consumer == "" && !c.ephemeral {
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Consumer name",
 			Help:    "This will be used for the name to be used when referencing this Consumer later. Settable using 'name' CLI argument",
 		}, &c.consumer, survey.WithValidator(survey.Required))
@@ -1029,7 +1029,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 
 	if !c.pull && c.delivery == "" {
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Delivery target (empty for Pull Consumers)",
 			Help:    "Consumers can be in 'push' or 'pull' mode, in 'push' mode messages are dispatched in real time to a target NATS subject, this is that subject. Leaving this blank creates a 'pull' mode Consumer. Settable using --target and --pull",
 		}, &c.delivery)
@@ -1073,7 +1073,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 
 	if cfg.DeliverSubject != "" && c.deliveryGroup == "_unset_" {
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Delivery Queue Group",
 			Help:    "When set push consumers will only deliver messages to subscriptions matching this queue group",
 		}, &c.deliveryGroup)
@@ -1085,7 +1085,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 
 	if c.startPolicy == "" {
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Start policy (all, new, last, subject, 1h, msg sequence)",
 			Help:    "This controls how the Consumer starts out, does it make all messages available, only the latest, latest per subject, ones after a certain time or time sequence. Settable using --deliver",
 			Default: "all",
@@ -1102,7 +1102,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 			dflt = "explicit"
 		}
 
-		err = askOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message: "Acknowledgment policy",
 			Options: valid,
 			Default: dflt,
@@ -1112,7 +1112,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 
 	if c.replayPolicy == "" {
-		err = askOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message: "Replay policy",
 			Options: []string{"instant", "original"},
 			Default: "instant",
@@ -1141,7 +1141,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	if cfg.DeliverSubject != "" {
 		if c.replayPolicy == "" {
 			mode := ""
-			err = askOne(&survey.Select{
+			err = iu.AskOne(&survey.Select{
 				Message: "Replay policy",
 				Options: []string{"instant", "original"},
 				Default: "instant",
@@ -1159,7 +1159,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	switch {
 	case len(c.filterSubjects) == 0 && !c.acceptDefaults:
 		sub := ""
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Filter Stream by subjects (blank for all)",
 			Default: "",
 			Help:    "Consumers can filter messages from the stream, this is a space or comma separated list that can include wildcards. Settable using --filter",
@@ -1180,7 +1180,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 
 	if c.maxDeliver == 0 && cfg.AckPolicy != api.AckNone {
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Maximum Allowed Deliveries",
 			Default: "-1",
 			Help:    "When this is -1 unlimited attempts to deliver an un acknowledged message is made, when this is >0 it will be maximum amount of times a message is delivered after which it is ignored. Settable using --max-deliver.",
@@ -1189,7 +1189,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 	}
 
 	if c.maxAckPending == -1 && cfg.AckPolicy != api.AckNone {
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Maximum Acknowledgments Pending",
 			Default: "0",
 			Help:    "The maximum number of messages without acknowledgement that can be outstanding, once this limit is reached message delivery will be suspended. Settable using --max-pending.",
@@ -1205,7 +1205,7 @@ func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerCon
 			fisk.FatalIfError(err, "invalid heartbeat duration")
 		} else {
 			idle := "0s"
-			err = askOne(&survey.Input{
+			err = iu.AskOne(&survey.Input{
 				Message: "Idle Heartbeat",
 				Help:    "When a Push consumer is idle for the given period an empty message with a Status header of 100 will be sent to the delivery subject, settable using --heartbeat",
 				Default: "0s",
@@ -1357,7 +1357,7 @@ func (c *consumerCmd) pauseAction(_ *fisk.ParseContext) error {
 
 	if c.pauseUntil == "" {
 		dflt := time.Now().Add(time.Hour).Format(time.DateTime)
-		err := askOne(&survey.Input{
+		err := iu.AskOne(&survey.Input{
 			Message: "Pause until (time or duration)",
 			Default: dflt,
 			Help:    fmt.Sprintf("Sets the time in either a duration like 1h30m or a timestamp like '%s'", dflt),
@@ -1401,7 +1401,7 @@ func (c *consumerCmd) askBackoffPolicy() error {
 	}
 
 	if ok {
-		err = askOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message: "Backoff policy",
 			Options: []string{"linear", "none"},
 			Default: "none",
@@ -1416,7 +1416,7 @@ func (c *consumerCmd) askBackoffPolicy() error {
 		}
 
 		d := ""
-		err := askOne(&survey.Input{
+		err := iu.AskOne(&survey.Input{
 			Message: "Minimum retry time",
 			Help:    "Backoff policies range from min to max",
 			Default: "1m",
@@ -1429,7 +1429,7 @@ func (c *consumerCmd) askBackoffPolicy() error {
 			return err
 		}
 
-		err = askOne(&survey.Input{
+		err = iu.AskOne(&survey.Input{
 			Message: "Maximum retry time",
 			Help:    "Backoff policies range from min to max",
 			Default: "10m",
@@ -1514,7 +1514,7 @@ func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
 }
 
 func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
-	req := &api.JSApiConsumerGetNextRequest{Batch: 1, Expires: opts.Timeout}
+	req := &api.JSApiConsumerGetNextRequest{Batch: 1, Expires: opts().Timeout}
 
 	sub, err := c.nc.SubscribeSync(c.nc.NewRespInbox())
 	fisk.FatalIfError(err, "subscribe failed")
@@ -1546,7 +1546,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 		}
 	}
 
-	msg, err := sub.NextMsg(opts.Timeout)
+	msg, err := sub.NextMsg(opts().Timeout)
 	if err != nil {
 		fatalIfNotPull()
 	}
@@ -1612,7 +1612,7 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 		if c.nak {
 			ack = api.AckNak
 		}
-		if opts.Trace {
+		if opts().Trace {
 			log.Printf(">>> %s: %s", msg.Reply, string(ack))
 		}
 

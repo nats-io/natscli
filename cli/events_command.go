@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -79,7 +79,7 @@ func (c *eventsCmd) handleNATSEvent(m *nats.Msg) {
 			return fmt.Errorf("parsing failed: %s", err)
 		}
 
-		if opts.Trace {
+		if opts().Trace {
 			log.Printf("Received %s event on subject %s", kind, m.Subject)
 		}
 
@@ -144,15 +144,15 @@ func (c *eventsCmd) eventsAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.showJsAdvisories || c.showAll {
-		c.Printf("Listening for Advisories on %s.>\n", jsm.EventSubject(api.JSAdvisoryPrefix, opts.Config.JSEventPrefix()))
-		nc.Subscribe(fmt.Sprintf("%s.>", jsm.EventSubject(api.JSAdvisoryPrefix, opts.Config.JSEventPrefix())), func(m *nats.Msg) {
+		c.Printf("Listening for Advisories on %s.>\n", jsm.EventSubject(api.JSAdvisoryPrefix, opts().Config.JSEventPrefix()))
+		nc.Subscribe(fmt.Sprintf("%s.>", jsm.EventSubject(api.JSAdvisoryPrefix, opts().Config.JSEventPrefix())), func(m *nats.Msg) {
 			c.handleNATSEvent(m)
 		})
 	}
 
 	if c.showJsMetrics || c.showAll {
-		c.Printf("Listening for Metrics on %s.>\n", jsm.EventSubject(api.JSMetricPrefix, opts.Config.JSEventPrefix()))
-		nc.Subscribe(fmt.Sprintf("%s.>", jsm.EventSubject(api.JSMetricPrefix, opts.Config.JSEventPrefix())), func(m *nats.Msg) {
+		c.Printf("Listening for Metrics on %s.>\n", jsm.EventSubject(api.JSMetricPrefix, opts().Config.JSEventPrefix()))
+		nc.Subscribe(fmt.Sprintf("%s.>", jsm.EventSubject(api.JSMetricPrefix, opts().Config.JSEventPrefix())), func(m *nats.Msg) {
 			c.handleNATSEvent(m)
 		})
 	}

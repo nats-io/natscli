@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,6 +15,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/nats-io/natscli/options"
 	"os"
 	"strconv"
 	"strings"
@@ -46,6 +47,8 @@ func assertHasPDItem(t *testing.T, check *monitor.Result, items ...string) {
 func withJetStream(t *testing.T, cb func(srv *server.Server, nc *nats.Conn, mgr *jsm.Manager)) {
 	t.Helper()
 
+	options.DefaultOptions = &options.Options{}
+
 	dir, err := os.MkdirTemp("", "")
 	checkErr(t, err, "could not create temporary js store: %v", err)
 	defer os.RemoveAll(dir)
@@ -66,7 +69,7 @@ func withJetStream(t *testing.T, cb func(srv *server.Server, nc *nats.Conn, mgr 
 		srv.WaitForShutdown()
 	}()
 
-	opts.Conn = nil
+	opts().Conn = nil
 	nc, mgr, err := prepareHelper(srv.ClientURL())
 	checkErr(t, err, "could not connect client to server @ %s: %v", srv.ClientURL(), err)
 	defer nc.Close()
@@ -236,7 +239,7 @@ func TestCheckMessage(t *testing.T) {
 			cmd := dfltCmd()
 			check := &monitor.Result{}
 
-			opts.Conn = nc
+			opts().Conn = nc
 			_, err := mgr.NewStream("TEST")
 			checkErr(t, err, "stream create failed: %v", err)
 

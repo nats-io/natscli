@@ -1,16 +1,32 @@
+// Copyright 2024 The NATS Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package util
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/nats-io/nkeys"
-	terminal "golang.org/x/term"
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/nats-io/natscli/options"
 	"os"
 	"os/user"
 	"path/filepath"
 	"reflect"
 	"strings"
+
+	"github.com/nats-io/nkeys"
+	terminal "golang.org/x/term"
 )
 
 // XdgShareHome is where to store data like nsc stored
@@ -160,7 +176,7 @@ func StructWithoutOmitEmpty(s any) any {
 		st = st.Elem()
 	}
 
-	fs := []reflect.StructField{}
+	var fs []reflect.StructField
 	for i := 0; i < st.NumField(); i++ {
 		field := st.Field(i)
 		field.Tag = reflect.StructTag(strings.ReplaceAll(string(field.Tag), ",omitempty", ""))
@@ -182,4 +198,76 @@ func StructWithoutOmitEmpty(s any) any {
 	}
 
 	return res
+}
+
+// FileExists checks if a file exist regardless of file kind
+func FileExists(f string) bool {
+	_, err := os.Stat(f)
+	return !os.IsNotExist(err)
+}
+
+// AskOne asks a single question using Prompt
+func AskOne(p survey.Prompt, response any, opts ...survey.AskOpt) error {
+	if !IsTerminal() {
+		return fmt.Errorf("cannot prompt for user input without a terminal")
+	}
+
+	return survey.AskOne(p, response, append(SurveyColors(), opts...)...)
+}
+
+// SelectPageSize is the size of selection lists influence by screen size
+func SelectPageSize(count int) int {
+	_, h, err := terminal.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		h = 40
+	}
+
+	ps := count
+	if ps > h-4 {
+		ps = h - 4
+	}
+
+	return ps
+}
+
+// SurveyColors determines colors for the survey package based on context and options set
+func SurveyColors() []survey.AskOpt {
+	return []survey.AskOpt{
+		survey.WithIcons(func(icons *survey.IconSet) {
+			if options.DefaultOptions.Config == nil {
+				icons.Question.Format = "white"
+				icons.SelectFocus.Format = "white"
+				return
+			}
+
+			switch options.DefaultOptions.Config.ColorScheme() {
+			case "yellow":
+				icons.Question.Format = "yellow+hb"
+				icons.SelectFocus.Format = "yellow+hb"
+			case "blue":
+				icons.Question.Format = "blue+hb"
+				icons.SelectFocus.Format = "blue+hb"
+			case "green":
+				icons.Question.Format = "green+hb"
+				icons.SelectFocus.Format = "green+hb"
+			case "cyan":
+				icons.Question.Format = "cyan+hb"
+				icons.SelectFocus.Format = "cyan+hb"
+			case "magenta":
+				icons.Question.Format = "magenta+hb"
+				icons.SelectFocus.Format = "magenta+hb"
+			case "red":
+				icons.Question.Format = "red+hb"
+				icons.SelectFocus.Format = "red+hb"
+			default:
+				icons.Question.Format = "white"
+				icons.SelectFocus.Format = "white"
+			}
+
+			if options.DefaultOptions.Config != nil && options.DefaultOptions.Config.Name != "" {
+				icons.Question.Text = fmt.Sprintf("[%s] ?", options.DefaultOptions.Config.Name)
+				icons.Help.Text = ""
+			}
+		}),
+	}
 }

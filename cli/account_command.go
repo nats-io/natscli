@@ -1,4 +1,4 @@
-// Copyright 2019-2023 The NATS Authors
+// Copyright 2019-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -405,12 +405,12 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 	var ui *server.UserInfo
 	if serverMinVersion(nc.ConnectedServerVersion(), 2, 10, 0) {
 		subj := "$SYS.REQ.USER.INFO"
-		if opts.Trace {
+		if opts().Trace {
 			log.Printf(">>> %s: {}\n", subj)
 		}
 		resp, err := nc.Request("$SYS.REQ.USER.INFO", nil, time.Second)
 		if err == nil {
-			if opts.Trace {
+			if opts().Trace {
 				log.Printf("<<< %s", string(resp.Data))
 			}
 			var res = struct {

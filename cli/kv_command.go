@@ -1,4 +1,4 @@
-// Copyright 2020 The NATS Authors
+// Copyright 2020-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,6 +16,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"github.com/nats-io/natscli/internal/util"
 	"io"
 	"math"
 	"os"
@@ -613,10 +614,10 @@ func (c *kvCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.KeyVal
 			return nil, nil, nil, fmt.Errorf("no KV buckets found")
 		}
 
-		err = askOne(&survey.Select{
+		err = util.AskOne(&survey.Select{
 			Message:  "Select a Bucket",
 			Options:  known,
-			PageSize: selectPageSize(len(known)),
+			PageSize: util.SelectPageSize(len(known)),
 		}, &c.bucket)
 		if err != nil {
 			return nil, nil, nil, err

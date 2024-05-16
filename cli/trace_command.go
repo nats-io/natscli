@@ -1,4 +1,4 @@
-// Copyright 2019-2023 The NATS Authors
+// Copyright 2019-2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -103,7 +103,7 @@ func (c *traceCmd) traceAction(_ *fisk.ParseContext) error {
 
 	wg := sync.WaitGroup{}
 	var traces chan *nats.Msg
-	if opts.Trace {
+	if opts().Trace {
 		traces = make(chan *nats.Msg, 10)
 		wg.Add(1)
 		go func(ctx context.Context, wg *sync.WaitGroup) {
@@ -121,7 +121,7 @@ func (c *traceCmd) traceAction(_ *fisk.ParseContext) error {
 		}(lctx, &wg)
 	}
 
-	event, err := tracing.TraceMsg(nc, msg, c.deliver, opts.Timeout, traces)
+	event, err := tracing.TraceMsg(nc, msg, c.deliver, opts().Timeout, traces)
 	if (event == nil || !errors.Is(err, nats.ErrTimeout)) && err != nil {
 		return err
 	}
