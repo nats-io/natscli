@@ -559,7 +559,7 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 		} else if c.jetStream {
 			fmt.Printf("[#%d] Received JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, info.Stream(), info.StreamSequence(), msg.Subject, info.TimeStamp().Format(time.RFC3339))
 		} else {
-			fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, info.Stream(), info.Consumer(), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
+			fmt.Printf("[#%d]%s Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, timeStamp, info.Stream(), info.Consumer(), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
 		}
 
 		if c.subjectsOnly {
@@ -572,7 +572,7 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 			if info == nil {
 				fmt.Printf("[#%d]%s Matched reply on %q\n", ctr, timeStamp, reply.Subject)
 			} else if c.jetStream {
-				fmt.Printf("[#%d]%s Matched reply JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, timeStamp, info.Stream(), info.StreamSequence(), reply.Subject, info.TimeStamp().Format(time.RFC3339))
+				fmt.Printf("[#%d] Matched reply JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, info.Stream(), info.StreamSequence(), reply.Subject, info.TimeStamp().Format(time.RFC3339))
 			} else {
 				fmt.Printf("[#%d]%s Matched reply JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, timeStamp, info.Stream(), info.Consumer(), reply.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
 			}
