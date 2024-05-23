@@ -252,7 +252,7 @@ func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvRequestCmd) profilezWrite(filename string, resp *profilezResponse) error {
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}

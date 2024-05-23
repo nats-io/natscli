@@ -428,7 +428,7 @@ func (c *benchCmd) bench(_ *fisk.ParseContext) error {
 
 	if c.csvFile != "" {
 		csv := bm.CSV()
-		err := os.WriteFile(c.csvFile, []byte(csv), 0644)
+		err := os.WriteFile(c.csvFile, []byte(csv), 0600)
 		if err != nil {
 			log.Printf("error writing file %s: %v", c.csvFile, err)
 		}

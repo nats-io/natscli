@@ -281,7 +281,7 @@ func (r *Result) GenericExit() {
 			os.Exit(1)
 		}
 
-		err = os.Chmod(f.Name(), 0644)
+		err = os.Chmod(f.Name(), 0600)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "temp file mode change failed: %s", err)
 			os.Exit(1)

@@ -17,8 +17,6 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"fmt"
-	au "github.com/nats-io/natscli/internal/auth"
-	"gopkg.in/yaml.v3"
 	"io"
 	"io/fs"
 	"net/http"
@@ -26,6 +24,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	au "github.com/nats-io/natscli/internal/auth"
+	"gopkg.in/yaml.v3"
 
 	"github.com/choria-io/scaffold"
 	"github.com/choria-io/scaffold/forms"
@@ -57,25 +58,7 @@ func FromFile(file string) (*Bundle, error) {
 		return nil, err
 	}
 
-	f, err := os.ReadFile(filepath.Join(td, "bundle.yaml"))
-	if err != nil {
-		return nil, err
-	}
-
-	var b Bundle
-	err = yaml.Unmarshal(f, &b)
-	if err != nil {
-		return nil, err
-	}
-
-	b.SourceDir = td
-
-	err = b.Validate()
-	if err != nil {
-		return nil, err
-	}
-
-	return &b, nil
+	return FromDir(td)
 }
 
 // FromUrl reads a bundle from a http(s) URL
@@ -118,6 +101,29 @@ func FromFs(f fs.File) (*Bundle, error) {
 	tf.Close()
 
 	return FromFile(tf.Name())
+}
+
+// FromDir reads the bundle from a directory
+func FromDir(dir string) (*Bundle, error) {
+	f, err := os.ReadFile(filepath.Join(dir, "bundle.yaml"))
+	if err != nil {
+		return nil, err
+	}
+
+	var b Bundle
+	err = yaml.Unmarshal(f, &b)
+	if err != nil {
+		return nil, err
+	}
+
+	b.SourceDir = dir
+
+	err = b.Validate()
+	if err != nil {
+		return nil, err
+	}
+
+	return &b, nil
 }
 
 // Run runs a bundle writing the result to dest

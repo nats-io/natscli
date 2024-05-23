@@ -95,7 +95,7 @@ func Register(name string, command string, force bool) error {
 		return err
 	}
 
-	err = os.WriteFile(pluginPath, pj, 0700)
+	err = os.WriteFile(pluginPath, pj, 0600)
 	if err != nil {
 		return err
 	}

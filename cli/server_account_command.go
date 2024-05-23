@@ -3,10 +3,11 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"strings"
 	"time"
+
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
@@ -152,7 +153,7 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 		cols.AddSectionTitle("Imports")
 
 		for _, imp := range nfo.Imports {
-			c.renderImport(cols, &imp)
+			c.renderImport(cols, imp)
 		}
 	}
 
@@ -160,7 +161,7 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 		cols.AddSectionTitle("Exports")
 
 		for _, exp := range nfo.Exports {
-			c.renderExport(cols, &exp)
+			c.renderExport(cols, exp)
 		}
 	}
 
@@ -168,7 +169,7 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 		cols.AddSectionTitle("Responses")
 
 		for _, imp := range nfo.Responses {
-			c.renderImport(cols, &imp)
+			c.renderImport(cols, imp)
 		}
 	}
 
@@ -206,7 +207,7 @@ func (c *srvAccountCommand) renderMappings(cols *columns.Writer, subj string, ma
 	cols.Println()
 }
 
-func (c *srvAccountCommand) renderExport(cols *columns.Writer, exp *server.ExtExport) {
+func (c *srvAccountCommand) renderExport(cols *columns.Writer, exp server.ExtExport) {
 	cols.AddRow("Subject", exp.Subject)
 	cols.AddRow("Type", exp.Type.String())
 	cols.AddRow("Tokens Required", exp.TokenReq)
@@ -254,7 +255,7 @@ func (c *srvAccountCommand) renderExport(cols *columns.Writer, exp *server.ExtEx
 	cols.Println()
 }
 
-func (c *srvAccountCommand) renderImport(cols *columns.Writer, imp *server.ExtImport) {
+func (c *srvAccountCommand) renderImport(cols *columns.Writer, imp server.ExtImport) {
 	local := string(imp.LocalSubject)
 	subj := string(imp.Subject)
 	if local == "" {
