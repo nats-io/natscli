@@ -59,7 +59,7 @@ type subCmd struct {
 	wait                  time.Duration
 	timeStamps            bool
 	deltaTimeStamps       bool
-	sOnly                 bool
+	subjectsOnly          bool
 }
 
 func configureSubCommand(app commandHost) {
@@ -78,7 +78,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
 	act.Flag("dump", "Dump received messages to files, 1 file per message. Specify - for null terminated STDOUT for use with xargs -0").PlaceHolder("DIRECTORY").StringVar(&c.dump)
 	act.Flag("headers-only", "Do not render any data, shows only headers").UnNegatableBoolVar(&c.headersOnly)
-	act.Flag("subjects-only", "Prints only the messages' subjects").UnNegatableBoolVar(&c.sOnly)
+	act.Flag("subjects-only", "Prints only the messages' subjects").UnNegatableBoolVar(&c.subjectsOnly)
 	act.Flag("start-sequence", "Starts at a specific Stream sequence (requires JetStream)").PlaceHolder("SEQUENCE").Uint64Var(&c.sseq)
 	act.Flag("all", "Delivers all messages found in the Stream (requires JetStream").UnNegatableBoolVar(&c.deliverAll)
 	act.Flag("new", "Delivers only future messages (requires JetStream)").UnNegatableBoolVar(&c.deliverNew)
@@ -382,7 +382,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			nats.AckNone(),
 		}
 
-		if c.headersOnly {
+		if c.headersOnly || c.subjectsOnly {
 			opts = append(opts, nats.HeadersOnly())
 		}
 
@@ -557,28 +557,32 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 				fmt.Printf("[#%d]%s Received on %q\n", ctr, timeStamp, msg.Subject)
 			}
 		} else if c.jetStream {
-			fmt.Printf("[#%d]%s Received JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, timeStamp, info.Stream(), info.StreamSequence(), msg.Subject, info.TimeStamp().Format(time.RFC3339))
+			if c.deltaTimeStamps {
+				fmt.Printf("[#%d]%s Received JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, timeStamp, info.Stream(), info.StreamSequence(), msg.Subject, info.TimeStamp().Format(time.RFC3339))
+			} else {
+				fmt.Printf("[#%d] Received JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, info.Stream(), info.StreamSequence(), msg.Subject, info.TimeStamp().Format(time.RFC3339))
+			}
 		} else {
 			fmt.Printf("[#%d]%s Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, timeStamp, info.Stream(), info.Consumer(), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
 		}
 
-		if !c.sOnly {
+		if c.subjectsOnly {
 			return
-		} else {
-			prettyPrintMsg(msg, c.headersOnly, c.translate)
+		}
 
-			if reply != nil {
-				if info == nil {
-					fmt.Printf("[#%d]%s Matched reply on %q\n", ctr, timeStamp, reply.Subject)
-				} else if c.jetStream {
-					fmt.Printf("[#%d]%s Matched reply JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, timeStamp, info.Stream(), info.StreamSequence(), reply.Subject, info.TimeStamp().Format(time.RFC3339))
-				} else {
-					fmt.Printf("[#%d]%s Matched reply JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, timeStamp, info.Stream(), info.Consumer(), reply.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
-				}
+		prettyPrintMsg(msg, c.headersOnly, c.translate)
 
-				prettyPrintMsg(reply, c.headersOnly, c.translate)
-
+		if reply != nil {
+			if info == nil {
+				fmt.Printf("[#%d]%s Matched reply on %q\n", ctr, timeStamp, reply.Subject)
+			} else if c.jetStream {
+				fmt.Printf("[#%d]%s Matched reply JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, timeStamp, info.Stream(), info.StreamSequence(), reply.Subject, info.TimeStamp().Format(time.RFC3339))
+			} else {
+				fmt.Printf("[#%d]%s Matched reply JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, timeStamp, info.Stream(), info.Consumer(), reply.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
 			}
+
+			prettyPrintMsg(reply, c.headersOnly, c.translate)
+
 		}
 	} // output format type dispatch
 }
