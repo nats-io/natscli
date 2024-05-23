@@ -19,15 +19,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/choria-io/scaffold/forms"
-	"github.com/ghodss/yaml"
-	au "github.com/nats-io/natscli/internal/auth"
-	iu "github.com/nats-io/natscli/internal/util"
 	"io"
 	"net/url"
 	"os"
 	"sort"
 	"text/template"
+
+	"github.com/choria-io/scaffold/forms"
+	"github.com/ghodss/yaml"
+	au "github.com/nats-io/natscli/internal/auth"
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/nats-io/nkeys"
 
@@ -159,7 +160,7 @@ func (c *authOperatorCommand) generateAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	err = os.WriteFile(c.outputFile, buff.Bytes(), 0644)
+	err = os.WriteFile(c.outputFile, buff.Bytes(), 0600)
 	if err != nil {
 		return err
 	}

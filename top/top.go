@@ -22,7 +22,7 @@ func SaveStatsSnapshotToFile(engine *Engine, outputFile string, outputDelimiter 
 		return nil
 	}
 
-	f, err := os.OpenFile(outputFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	f, err := os.OpenFile(outputFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to open output file '%s': %w", outputFile, err)
 	}

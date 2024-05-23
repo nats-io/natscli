@@ -15,12 +15,13 @@ package cli
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
+
 	"github.com/choria-io/fisk"
 	au "github.com/nats-io/natscli/internal/auth"
 	"github.com/nats-io/natscli/internal/scaffold"
 	iu "github.com/nats-io/natscli/internal/util"
-	"net/url"
-	"strings"
 )
 
 type serverGenerateCmd struct {
@@ -48,14 +49,20 @@ func (c *serverGenerateCmd) generateAction(_ *fisk.ParseContext) error {
 	case strings.Contains(c.source, "://"):
 		var uri *url.URL
 		uri, err = url.Parse(c.source)
+
 		if err != nil {
 			return err
 		}
+
 		if uri.Scheme == "" {
 			return fmt.Errorf("invalid URL %q", c.source)
 		}
 
 		b, err = scaffold.FromUrl(uri)
+
+	case iu.IsDirectory(c.source):
+		b, err = scaffold.FromDir(c.source)
+
 	default:
 		b, err = scaffold.FromFile(c.source)
 	}

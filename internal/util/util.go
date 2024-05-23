@@ -17,13 +17,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/nats-io/natscli/options"
 	"os"
 	"os/user"
 	"path/filepath"
 	"reflect"
 	"strings"
+
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/nats-io/natscli/options"
 
 	"github.com/nats-io/nkeys"
 	terminal "golang.org/x/term"
@@ -204,6 +205,16 @@ func StructWithoutOmitEmpty(s any) any {
 func FileExists(f string) bool {
 	_, err := os.Stat(f)
 	return !os.IsNotExist(err)
+}
+
+// IsDirectory returns true when path is a directory
+func IsDirectory(path string) bool {
+	s, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	return s.IsDir()
 }
 
 // AskOne asks a single question using Prompt

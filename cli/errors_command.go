@@ -207,7 +207,7 @@ func (c *errCmd) editAction(pc *fisk.ParseContext) error {
 		return err
 	}
 
-	err = os.WriteFile(c.file, ej, 0644)
+	err = os.WriteFile(c.file, ej, 0600)
 	if err != nil {
 		return err
 	}

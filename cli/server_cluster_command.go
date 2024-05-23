@@ -134,6 +134,7 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 	found := false
 	foundName := ""
 	foundID := ""
+	state := "offline"
 
 	srv := &jszr{}
 	err = json.Unmarshal(res[0], srv)
@@ -144,7 +145,7 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 	for _, r := range srv.Data.Meta.Replicas {
 		if r.Name == c.peer || r.Peer == c.peer {
 			if !r.Offline {
-				return fmt.Errorf("can only remove offline nodes")
+				state = "online"
 			}
 			foundID = r.Peer
 			foundName = r.Name
@@ -157,13 +158,25 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 	}
 
 	if !c.force {
-		fmt.Printf("Removing %s can not be reversed, data on this node will be inaccessible and the server name can not be used again. You should only remove nodes that will not return in future.\n\n", c.peer)
+		fmt.Println(`Removing peers is intended for peers that will not come back, generally for peers that will remain
+in the cluster removing the peer is not needed - simply do your maintenance with the peer shut down.
+
+To return a removed peer to the cluster you have to restart the entire cluster or super-cluster first.
+If the peer was online when it was removed you need to restart the removed peer last.
+
+R1 streams on this peer will migrate to other peers but data will be lost, even if the
+peer returns later.
+
+R1 consumers on this peer will lose their state and revert to starting configuring 
+which may lead to duplicate deliveries.`)
+
+		fmt.Println()
 
 		var remove bool
 		if c.peer == foundName || strings.Contains(foundName, foundID) {
-			remove, err = askConfirmation(fmt.Sprintf("Really remove peer %s", foundName), false)
+			remove, err = askConfirmation(fmt.Sprintf("Really remove %s peer %s", state, foundName), false)
 		} else {
-			remove, err = askConfirmation(fmt.Sprintf("Really remove peer %s with id %s", foundName, foundID), false)
+			remove, err = askConfirmation(fmt.Sprintf("Really remove %s peer %s with id %s", state, foundName, foundID), false)
 		}
 		fisk.FatalIfError(err, "Could not prompt for confirmation")
 		if !remove {

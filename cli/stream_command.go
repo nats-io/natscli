@@ -1321,7 +1321,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 		c.renderReplication(stats)
 
 		if c.outFile != "" {
-			os.WriteFile(c.outFile, []byte(dg.String()), 0644)
+			os.WriteFile(c.outFile, []byte(dg.String()), 0600)
 		}
 	}
 
@@ -2822,7 +2822,7 @@ func (c *streamCmd) addAction(pc *fisk.ParseContext) (err error) {
 			fisk.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
 		}
 
-		return os.WriteFile(c.outFile, j, 0644)
+		return os.WriteFile(c.outFile, j, 0600)
 	}
 
 	str, err := mgr.NewStreamFromDefault(c.stream, cfg)

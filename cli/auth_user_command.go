@@ -527,5 +527,5 @@ func (c *authUserCommand) writeCred(user ab.User, credFile string, force bool) e
 		return err
 	}
 
-	return os.WriteFile(c.credFile, cred, 0700)
+	return os.WriteFile(c.credFile, cred, 0600)
 }

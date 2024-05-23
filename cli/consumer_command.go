@@ -17,7 +17,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"io"
 	"math"
 	"math/rand"
@@ -27,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -1498,7 +1499,7 @@ func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
 			fisk.Fatalf("Validation Failed: %s", strings.Join(errs, "\n\t"))
 		}
 
-		return os.WriteFile(c.outFile, j, 0644)
+		return os.WriteFile(c.outFile, j, 0600)
 	}
 
 	c.connectAndSetup(true, false)

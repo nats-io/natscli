@@ -16,13 +16,14 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	au "github.com/nats-io/natscli/internal/auth"
-	"github.com/nats-io/natscli/internal/util"
 	"io"
 	"net/url"
 	"os"
 	"strconv"
 	"time"
+
+	au "github.com/nats-io/natscli/internal/auth"
+	"github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -331,7 +332,7 @@ func (c *authAccountCommand) queryAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.output != "" {
-		err = os.WriteFile(c.output, []byte(token), 0700)
+		err = os.WriteFile(c.output, []byte(token), 0600)
 		if err != nil {
 			return err
 		}
