@@ -41,27 +41,44 @@ type SrvCheckCmd struct {
 	reqWarning      time.Duration
 	reqCritical     time.Duration
 
-	sourcesStream       string
-	sourcesLagCritical  uint64
-	sourcesSeenCritical time.Duration
-	sourcesMinSources   int
-	sourcesMaxSources   int
-	sourcesMessagesWarn uint64
-	sourcesMessagesCrit uint64
-	subjectsWarn        int
-	subjectsCrit        int
+	sourcesStream            string
+	sourcesLagCritical       uint64
+	sourcesLagCriticalIsSet  bool
+	sourcesSeenCritical      time.Duration
+	sourcesSeenCriticalIsSet bool
+	sourcesMinSources        int
+	sourcesMinSourcesIsSet   bool
+	sourcesMaxSources        int
+	sourcesMaxSourcesIsSet   bool
+	streamMessagesWarn       uint64
+	streamMessagesWarnIsSet  bool
+	streamMessagesCrit       uint64
+	streamMessagesCritIsSet  bool
+	subjectsWarn             int
+	subjectsWarnIsSet        bool
+	subjectsCrit             int
+	subjectsCritIsSet        bool
 
-	consumerName                   string
-	consumerAckOutstandingCritical int
-	consumerWaitingCritical        int
-	consumerUnprocessedCritical    int
-	consumerLastDeliveryCritical   time.Duration
-	consumerLastAckCritical        time.Duration
-	consumerRedeliveryCritical     int
+	consumerName                        string
+	consumerAckOutstandingCritical      int
+	consumerAckOutstandingCriticalIsSet bool
+	consumerWaitingCritical             int
+	consumerWaitingCriticalIsSet        bool
+	consumerUnprocessedCritical         int
+	consumerUnprocessedCriticalIsSet    bool
+	consumerLastDeliveryCritical        time.Duration
+	consumerLastDeliveryCriticalIsSet   bool
+	consumerLastAckCritical             time.Duration
+	consumerLastAckCriticalIsSet        bool
+	consumerRedeliveryCritical          int
+	consumerRedeliveryCriticalIsSet     bool
 
-	raftExpect       int
-	raftLagCritical  uint64
-	raftSeenCritical time.Duration
+	raftExpect            int
+	raftExpectIsSet       bool
+	raftLagCritical       uint64
+	raftLagCriticalIsSet  bool
+	raftSeenCritical      time.Duration
+	raftSeenCriticalIsSet bool
 
 	jsMemWarn             int
 	jsMemCritical         int
@@ -105,6 +122,8 @@ type SrvCheckCmd struct {
 	credentialValidityWarn   time.Duration
 	credentialRequiresExpire bool
 	credential               string
+
+	useMetadata bool
 }
 
 func configureServerCheckCommand(srv *fisk.CmdClause) {
@@ -125,28 +144,40 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	conn.Flag("req-critical", "Critical threshold to allow for full round trip test").PlaceHolder("DURATION").Default("1s").DurationVar(&c.reqCritical)
 
 	stream := check.Command("stream", "Checks the health of mirrored streams, streams with sources or clustered streams").Action(c.checkStream)
+	stream.HelpLong(`These settings can be set using Stream Metadata in the following form:
+
+	io.nats.monitor.lag-critical: 200
+
+When set these settings will be used, but can be overridden using --lag-critical.`)
 	stream.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
-	stream.Flag("lag-critical", "Critical threshold to allow for lag on any source or mirror").PlaceHolder("MSGS").Uint64Var(&c.sourcesLagCritical)
-	stream.Flag("seen-critical", "Critical threshold for how long ago the source or mirror should have been seen").PlaceHolder("DURATION").DurationVar(&c.sourcesSeenCritical)
-	stream.Flag("min-sources", "Minimum number of sources to expect").PlaceHolder("SOURCES").Default("1").IntVar(&c.sourcesMinSources)
-	stream.Flag("max-sources", "Maximum number of sources to expect").PlaceHolder("SOURCES").Default("1").IntVar(&c.sourcesMaxSources)
-	stream.Flag("peer-expect", "Number of cluster replicas to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
-	stream.Flag("peer-lag-critical", "Critical threshold to allow for cluster peer lag").PlaceHolder("OPS").Uint64Var(&c.raftLagCritical)
-	stream.Flag("peer-seen-critical", "Critical threshold for how long ago a cluster peer should have been seen").PlaceHolder("DURATION").Default("10s").DurationVar(&c.raftSeenCritical)
-	stream.Flag("msgs-warn", "Warn if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesWarn)
-	stream.Flag("msgs-critical", "Critical if there are fewer than this many messages in the stream").PlaceHolder("MSGS").Uint64Var(&c.sourcesMessagesCrit)
-	stream.Flag("subjects-warn", "Critical threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsWarn)
-	stream.Flag("subjects-critical", "Warning threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IntVar(&c.subjectsCrit)
+	stream.Flag("lag-critical", "Critical threshold to allow for lag on any source or mirror").PlaceHolder("MSGS").IsSetByUser(&c.sourcesLagCriticalIsSet).Uint64Var(&c.sourcesLagCritical)
+	stream.Flag("seen-critical", "Critical threshold for how long ago the source or mirror should have been seen").PlaceHolder("DURATION").IsSetByUser(&c.sourcesSeenCriticalIsSet).DurationVar(&c.sourcesSeenCritical)
+	stream.Flag("min-sources", "Minimum number of sources to expect").PlaceHolder("SOURCES").Default("1").IsSetByUser(&c.sourcesMinSourcesIsSet).IntVar(&c.sourcesMinSources)
+	stream.Flag("max-sources", "Maximum number of sources to expect").PlaceHolder("SOURCES").Default("1").IsSetByUser(&c.sourcesMaxSourcesIsSet).IntVar(&c.sourcesMaxSources)
+	stream.Flag("peer-expect", "Number of cluster replicas to expect").Default("1").PlaceHolder("SERVERS").IsSetByUser(&c.raftExpectIsSet).IntVar(&c.raftExpect)
+	stream.Flag("peer-lag-critical", "Critical threshold to allow for cluster peer lag").PlaceHolder("OPS").IsSetByUser(&c.raftLagCriticalIsSet).Uint64Var(&c.raftLagCritical)
+	stream.Flag("peer-seen-critical", "Critical threshold for how long ago a cluster peer should have been seen").PlaceHolder("DURATION").IsSetByUser(&c.raftSeenCriticalIsSet).Default("10s").DurationVar(&c.raftSeenCritical)
+	stream.Flag("msgs-warn", "Warn if there are fewer than this many messages in the stream").PlaceHolder("MSGS").IsSetByUser(&c.streamMessagesWarnIsSet).Uint64Var(&c.streamMessagesWarn)
+	stream.Flag("msgs-critical", "Critical if there are fewer than this many messages in the stream").PlaceHolder("MSGS").IsSetByUser(&c.streamMessagesCritIsSet).Uint64Var(&c.streamMessagesCrit)
+	stream.Flag("subjects-warn", "Critical threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IsSetByUser(&c.subjectsWarnIsSet).IntVar(&c.subjectsWarn)
+	stream.Flag("subjects-critical", "Warning threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IsSetByUser(&c.subjectsCritIsSet).IntVar(&c.subjectsCrit)
+	stream.Flag("metadata", "Sets monitoring thresholds from Stream metadata").Default("true").BoolVar(&c.useMetadata)
 
 	consumer := check.Command("consumer", "Checks the health of a consumer").Action(c.checkConsumer)
+	consumer.HelpLong(`These settings can be set using Consumer Metadata in the following form:
+
+	io.nats.monitor.waiting-critical: 20
+
+When set these settings will be used, but can be overridden using --waiting-critical.`)
 	consumer.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
 	consumer.Flag("consumer", "The consumer to check").Required().StringVar(&c.consumerName)
-	consumer.Flag("outstanding-ack-critical", "Maximum number of outstanding acks to allow").Default("-1").IntVar(&c.consumerAckOutstandingCritical)
-	consumer.Flag("waiting-critical", "Maximum number of waiting pulls to allow").Default("-1").IntVar(&c.consumerWaitingCritical)
-	consumer.Flag("unprocessed-critical", "Maximum number of unprocessed messages to allow").Default("-1").IntVar(&c.consumerUnprocessedCritical)
-	consumer.Flag("last-delivery-critical", "Time to allow since the last delivery").Default("0s").DurationVar(&c.consumerLastDeliveryCritical)
-	consumer.Flag("last-ack-critical", "Time to allow since the last ack").Default("0s").DurationVar(&c.consumerLastAckCritical)
-	consumer.Flag("redelivery-critical", "Maximum number of redeliveries to allow").Default("-1").IntVar(&c.consumerRedeliveryCritical)
+	consumer.Flag("outstanding-ack-critical", "Maximum number of outstanding acks to allow").Default("-1").IsSetByUser(&c.consumerAckOutstandingCriticalIsSet).IntVar(&c.consumerAckOutstandingCritical)
+	consumer.Flag("waiting-critical", "Maximum number of waiting pulls to allow").Default("-1").IsSetByUser(&c.consumerWaitingCriticalIsSet).IntVar(&c.consumerWaitingCritical)
+	consumer.Flag("unprocessed-critical", "Maximum number of unprocessed messages to allow").Default("-1").IsSetByUser(&c.consumerUnprocessedCriticalIsSet).IntVar(&c.consumerUnprocessedCritical)
+	consumer.Flag("last-delivery-critical", "Time to allow since the last delivery").Default("0s").IsSetByUser(&c.consumerLastDeliveryCriticalIsSet).DurationVar(&c.consumerLastDeliveryCritical)
+	consumer.Flag("last-ack-critical", "Time to allow since the last ack").Default("0s").IsSetByUser(&c.consumerLastAckCriticalIsSet).DurationVar(&c.consumerLastAckCritical)
+	consumer.Flag("redelivery-critical", "Maximum number of redeliveries to allow").Default("-1").IsSetByUser(&c.consumerRedeliveryCriticalIsSet).IntVar(&c.consumerRedeliveryCritical)
+	consumer.Flag("metadata", "Sets monitoring thresholds from Consumer metadata").Default("true").BoolVar(&c.useMetadata)
 
 	msg := check.Command("message", "Checks properties of a message stored in a stream").Action(c.checkMsg)
 	msg.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
@@ -297,10 +328,10 @@ func (c *SrvCheckCmd) checkConsumerStatus(check *monitor.Result, nfo api.Consume
 	check.Pd(&monitor.PerfDataItem{Name: "pending", Value: float64(nfo.NumPending), Help: "The number of messages that have not yet been consumed", Crit: float64(c.consumerUnprocessedCritical)})
 	check.Pd(&monitor.PerfDataItem{Name: "redelivered", Value: float64(nfo.NumRedelivered), Help: "The number of messages currently being redelivered", Crit: float64(c.consumerRedeliveryCritical)})
 	if nfo.Delivered.Last != nil {
-		check.Pd(&monitor.PerfDataItem{Name: "last_delivery", Value: time.Since(*nfo.Delivered.Last).Seconds(), Unit: "s", Help: "Seconds since the last message was delivered", Crit: float64(c.consumerLastDeliveryCritical)})
+		check.Pd(&monitor.PerfDataItem{Name: "last_delivery", Value: time.Since(*nfo.Delivered.Last).Seconds(), Unit: "s", Help: "Seconds since the last message was delivered", Crit: c.consumerLastDeliveryCritical.Seconds()})
 	}
 	if nfo.AckFloor.Last != nil {
-		check.Pd(&monitor.PerfDataItem{Name: "last_ack", Value: time.Since(*nfo.AckFloor.Last).Seconds(), Unit: "s", Help: "Seconds since the last message was acknowledged", Crit: float64(c.consumerLastDeliveryCritical)})
+		check.Pd(&monitor.PerfDataItem{Name: "last_ack", Value: time.Since(*nfo.AckFloor.Last).Seconds(), Unit: "s", Help: "Seconds since the last message was acknowledged", Crit: c.consumerLastDeliveryCritical.Seconds()})
 	}
 
 	if c.consumerAckOutstandingCritical > 0 && nfo.NumAckPending >= c.consumerAckOutstandingCritical {
@@ -353,6 +384,13 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	if err != nil {
 		check.Critical("consumer state failure: %v", err)
 		return nil
+	}
+
+	if c.useMetadata {
+		err = c.optionsFromConsumerMetadata(&nfo.Config)
+		if err != nil {
+			return err
+		}
 	}
 
 	c.checkConsumerStatus(check, nfo)
@@ -828,6 +866,132 @@ func (c *SrvCheckCmd) checkClusterInfo(check *monitor.Result, ci *server.Cluster
 	return nil
 }
 
+func (c *SrvCheckCmd) optionsFromConsumerMetadata(cfg *api.ConsumerConfig) error {
+	var err error
+
+	var meta = []struct {
+		k    string
+		skip bool
+		fn   func(string) error
+	}{
+		{"io.nats.monitor.outstanding-ack-critical", c.consumerAckOutstandingCriticalIsSet, func(v string) error {
+			c.consumerAckOutstandingCritical, err = strconv.Atoi(v)
+			return err
+		}},
+		{"io.nats.monitor.waiting-critical", c.consumerWaitingCriticalIsSet, func(v string) error {
+			c.consumerWaitingCritical, err = strconv.Atoi(v)
+			return err
+		}},
+		{"io.nats.monitor.unprocessed-critical", c.consumerUnprocessedCriticalIsSet, func(v string) error {
+			c.consumerUnprocessedCritical, err = strconv.Atoi(v)
+			return err
+		}},
+		{"io.nats.monitor.last-delivery-critical", c.consumerLastDeliveryCriticalIsSet, func(v string) error {
+			c.consumerLastDeliveryCritical, err = fisk.ParseDuration(v)
+			return err
+		}},
+		{"io.nats.monitor.last-ack-critical", c.consumerLastAckCriticalIsSet, func(v string) error {
+			c.consumerLastAckCritical, err = fisk.ParseDuration(v)
+			return err
+		}},
+		{"io.nats.monitor.redelivery-critical", c.consumerRedeliveryCriticalIsSet, func(v string) error {
+			c.consumerRedeliveryCritical, err = strconv.Atoi(v)
+			return err
+		}},
+	}
+
+	for _, m := range meta {
+		if m.skip {
+			continue
+		}
+
+		if v, ok := cfg.Metadata[m.k]; ok {
+			if opts().Trace {
+				fmt.Printf(">>> Setting thresholds based on metadata: %v: %v\n", m.k, v)
+			}
+			err = m.fn(v)
+			if err != nil {
+				return fmt.Errorf("invalid metadata: %s: %s", m.k, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *SrvCheckCmd) optionsFromStreamMetadata(cfg *api.StreamConfig) error {
+	var err error
+
+	var meta = []struct {
+		k    string
+		skip bool
+		fn   func(string) error
+	}{
+		{"io.nats.monitor.lag-critical", c.sourcesLagCriticalIsSet, func(v string) error {
+			c.sourcesLagCritical, err = strconv.ParseUint(v, 10, 64)
+			return err
+		}},
+		{"io.nats.monitor.seen-critical", c.sourcesSeenCriticalIsSet, func(v string) error {
+			c.sourcesSeenCritical, err = fisk.ParseDuration(v)
+			return err
+		}},
+		{"io.nats.monitor.min-sources", c.sourcesMinSourcesIsSet, func(v string) error {
+			c.sourcesMinSources, err = strconv.Atoi(v)
+			return err
+		}},
+		{"io.nats.monitor.max-sources", c.sourcesMaxSourcesIsSet, func(v string) error {
+			c.sourcesMaxSources, err = strconv.Atoi(v)
+			return err
+		}},
+		{"io.nats.monitor.peer-expect", c.raftExpectIsSet, func(v string) error {
+			c.raftExpect, err = strconv.Atoi(v)
+			return err
+		}},
+		{"io.nats.monitor.peer-lag-critical", c.raftLagCriticalIsSet, func(v string) error {
+			c.raftLagCritical, err = strconv.ParseUint(v, 10, 64)
+			return err
+		}},
+		{"io.nats.monitor.peer-seen-critical", c.raftSeenCriticalIsSet, func(v string) error {
+			c.raftSeenCritical, err = fisk.ParseDuration(v)
+			return err
+		}},
+		{"io.nats.monitor.msgs-warn", c.streamMessagesWarnIsSet, func(v string) error {
+			c.streamMessagesWarn, err = strconv.ParseUint(v, 10, 64)
+			return err
+		}},
+		{"io.nats.monitor.msgs-critical", c.streamMessagesCritIsSet, func(v string) error {
+			c.streamMessagesCrit, err = strconv.ParseUint(v, 10, 64)
+			return err
+		}},
+		{"io.nats.monitor.subjects-warn", c.subjectsWarnIsSet, func(v string) error {
+			c.subjectsWarn, err = strconv.Atoi(v)
+			return err
+		}},
+		{"io.nats.monitor.subjects-critical", c.subjectsCritIsSet, func(v string) error {
+			c.subjectsCrit, err = strconv.Atoi(v)
+			return err
+		}},
+	}
+
+	for _, m := range meta {
+		if m.skip {
+			continue
+		}
+
+		if v, ok := cfg.Metadata[m.k]; ok {
+			if opts().Trace {
+				fmt.Printf(">>> Setting thresholds based on metadata: %v: %v\n", m.k, v)
+			}
+			err = m.fn(v)
+			if err != nil {
+				return fmt.Errorf("invalid metadata: %s: %s", m.k, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.sourcesStream, Check: "stream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
@@ -840,6 +1004,13 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 
 	info, err := stream.LatestInformation()
 	check.CriticalIfErr(err, "could not load stream %s info: %s", c.sourcesStream, err)
+
+	if c.useMetadata {
+		err = c.optionsFromStreamMetadata(&info.Config)
+		if err != nil {
+			return err
+		}
+	}
 
 	if info.Cluster != nil {
 		var sci server.ClusterInfo
@@ -855,11 +1026,11 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 		check.Critical("not clustered expected %d peers", c.raftExpect)
 	}
 
-	check.Pd(&monitor.PerfDataItem{Name: "messages", Value: float64(info.State.Msgs), Warn: float64(c.sourcesMessagesWarn), Crit: float64(c.sourcesMessagesCrit), Help: "Messages stored in the stream"})
-	if c.sourcesMessagesWarn > 0 && info.State.Msgs <= c.sourcesMessagesWarn {
+	check.Pd(&monitor.PerfDataItem{Name: "messages", Value: float64(info.State.Msgs), Warn: float64(c.streamMessagesWarn), Crit: float64(c.streamMessagesCrit), Help: "Messages stored in the stream"})
+	if c.streamMessagesWarn > 0 && info.State.Msgs <= c.streamMessagesWarn {
 		check.Warn("%d messages", info.State.Msgs)
 	}
-	if c.sourcesMessagesCrit > 0 && info.State.Msgs <= c.sourcesMessagesCrit {
+	if c.streamMessagesCrit > 0 && info.State.Msgs <= c.streamMessagesCrit {
 		check.Critical("%d messages", info.State.Msgs)
 	}
 

@@ -8,13 +8,16 @@ and support full JetStream management.
 ### Features
 
 * JetStream management
+* Key-Value management
+* Object Store management
+* Service API management
 * JetStream data and configuration backup
 * Message publish and subscribe
 * Service requests and creation
 * Benchmarking and Latency testing
-* Super Cluster observation
+* Deep system account inspection and reporting
 * Configuration context maintenance
-* NATS eco system schema registry
+* NATS eco-system schema registry
 
 ### Installation
 
@@ -759,6 +762,89 @@ Additional to this various reports can be generated using `nats server report`, 
 subscriptions across the entire cluster with filtering to limit the results by account etc.
 
 Additional raw information in JSON format can be retrieved using the `nats server request` commands.
+
+### Monitoring
+
+The `nats server check` command provides numerous monitoring utilities that supports the popular Nagios exist code based
+protocol, a format compatible with Prometheus `textfile` format and a human friendly textual output.
+
+Using these tools one can create monitors for various aspects of NATS Server, JetStream and KV.
+
+#### Stream and Consumer monitoring
+
+The `nats server check stream` and `nats server check consumer` commands can be used to monitor the health of Streams and 
+Consumers.
+
+We'll cover the flags below but since version `0.2.0` these commands support auto configuration from Metadata on the 
+Stream and Consumer.  For example if the command accepts `--msgs-warn` then the metadata `io.nats.monitor.msgs-warn`
+can be used to set the same value.  Calling the check command without passing the value on the command will use the
+metadata value instead.
+
+##### Streams
+
+The stream check command allows the health of a stream to be monitored including Sources, Mirrors, Cluster Health 
+and more. 
+
+To perform end to end health checks on a stream it is suggested that canary messages are published regularly into the 
+stream with clients detecting those and discarding them after ACK.
+
+The `nats server check message` command can be used to check such canary messages exist in the stream, how old they 
+are and if the content is correct. We suggest using this in complex Sourcing and Mirroring setups to perform an 
+additional out-of-band health check on the flow of messages.  This includes checking timestamps on the messages.
+
+`--lag-critical=MSGS` Critical threshold to allow for lag on any source or mirror. Lag is how many tasks the source or 
+mirror is behind, this means the mirror or source do not have complete data and would require fixing.
+
+`--seen-critical=DURATION` Critical threshold for how long ago the source or mirror should have been seen. During 
+network outages or problems with the foreign Stream this time would increase.  The duration can be a string like `5m`.
+
+`--min-sources=SOURCES`, `--max-sources=SOURCES` Minimum and Maximum number of sources to expect, this allow you to 
+monitor that in a dynamically configured environment that the set number of sources are configured.
+
+`--peer-expect=SERVERS` Number of cluster replicas to expect, again allowing an assertion that the configuration does
+not change unexpectedly
+
+`--peer-lag-critical=OPS` Critical threshold to allow for cluster peer lag, any RAFT peer that is further behind than
+this number of operations will result in a critical error
+
+`--peer-seen-critical=DURATION` Critical threshold for how long ago a cluster peer should have been seen, this is 
+sumular to the lag on Sources and Mirrors but checks the lag in the Raft cluster.
+
+`--msgs-warn=MSGS` and `--msgs-critical=MSGS` Checks the number of messages in the stream, if warn is smaller than 
+critical the check will alert for fewer messages than the thresholds. If warn is bigger than critical the logic will be
+inverted ensuring that no more than the thresholds exist in the stream.
+
+`--subjects-warn=SUBJECTS` and `--subjects-critical=SUBJECTS` Checks the number of subjects in the stream, supports the
+same inversion behaviour described above in `--msgs-warn`.
+
+##### Consumers
+
+The consumer check is concerned with message flow through a consumer and have various adjustable thresholds in duration
+and count to detect stalled consumers, consumers with no active clients, consumers with slow clients or ones where 
+processing the messages are failing.
+
+A suggested pattern is publishing canary messages into the stream regularly, perhaps with the header `Canary: 1` set, 
+and having applications just ACK and discard those messages. This way even in idle times the end to end flow of messages 
+can be monitored.
+
+`--outstanding-ack-critical=-1` Maximum number of outstanding acks to allow, this allow you to alert on the scenario 
+where clients consuming messages are slow to process messages and the number of outstanding acks are growing.  Once this
+hits the configured max the consumer will stall.
+
+`--waiting-critical=-1` Maximum number of waiting pulls to allow
+
+`--unprocessed-critical=-1` Maximum number of unprocessed messages to allow, this indicates how far behind the end 
+of the stream the consumer is, in work queue scenarios this will indicate a alert if the amount of outstanding work 
+grows.
+
+`--last-delivery-critical=0s` This is the time duration since the last delivery to a client, if this number grows it 
+could mean there are no messages to deliver or no clients to deliver messages to.
+
+`--last-ack-critical=0s` This is the duration of time since the last message was acknowledged, this duration might 
+indicate that no messages are being successfully processed.
+
+`--redelivery-critical=-1` Alerts on the number of redeliveries currently in flight, a high number means many clients
+are doing NAKs or not completing message processing within the allowed Ack window.
 
 ### Schema Registry
 
