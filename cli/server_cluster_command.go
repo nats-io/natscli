@@ -56,6 +56,7 @@ func configureServerClusterCommand(srv *fisk.CmdClause) {
 	sd := cluster.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDownAction)
 	sd.Flag("cluster", "Request placement of the leader in a specific cluster").StringVar(&c.placementCluster)
 	sd.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	sd.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
 
 	rm := cluster.Command("peer-remove", "Removes a server from a JetStream cluster").Alias("rm").Alias("pr").Action(c.metaPeerRemoveAction)
 	rm.Arg("name", "The Server Name or ID to remove from the JetStream cluster").Required().StringVar(&c.peer)
@@ -245,11 +246,12 @@ func (c *SrvClusterCmd) metaLeaderStandDownAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("could not obtain cluster information: %s", err)
 	}
 
-	if resp.Meta.Leader == "" {
-		return fmt.Errorf("cluster has no current leader")
-	}
-
 	leader := resp.Meta.Leader
+	if leader == "" && !c.force {
+		return fmt.Errorf("cluster has no current leader")
+	} else if leader == "" {
+		leader = "<unknown>"
+	}
 
 	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(resp.Meta.Replicas)+1)
 	if c.placementCluster != "" {

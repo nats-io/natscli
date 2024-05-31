@@ -396,6 +396,7 @@ Finding streams with certain subjects configured:
 	strCluster := str.Command("cluster", "Manages a clustered Stream").Alias("c")
 	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	strClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
+	strClusterDown.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
 
 	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the Stream cluster").Alias("pr").Action(c.removePeer)
 	strClusterRemovePeer.Arg("stream", "The stream to act on").StringVar(&c.stream)
@@ -706,8 +707,10 @@ func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 	}
 
 	leader := info.Cluster.Leader
-	if leader == "" {
+	if leader == "" && !c.force {
 		return fmt.Errorf("stream has no current leader")
+	} else if leader == "" {
+		leader = "<unknown>"
 	}
 
 	log.Printf("Requesting leader step down of %q in a %d peer cluster group", leader, len(info.Cluster.Replicas)+1)
