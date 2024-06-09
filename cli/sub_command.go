@@ -60,11 +60,14 @@ type subCmd struct {
 	timeStamps            bool
 	deltaTimeStamps       bool
 	subjectsOnly          bool
+	ackPolicy             string
 }
 
 func configureSubCommand(app commandHost) {
 	c := &subCmd{}
-	act := app.Command("subscribe", "Generic subscription client").Alias("sub").Action(c.subscribe)
+	act := app.Command("subscribe", "Generic subscription client. "+
+		"Jetstream will be activate when related options like --stream or --ack are supplied. "+
+		"Currently only supports push subscription. For non-supported consumer options pre-create using 'nats consumer add' ").Alias("sub").Action(c.subscribe)
 	addCheat("sub", act)
 
 	act.Arg("subjects", "Subjects to subscribe to").StringsVar(&c.subjects)
@@ -73,6 +76,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("raw", "Show the raw data received").Short('r').UnNegatableBoolVar(&c.raw)
 	act.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
 	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
+	act.Flag("ackPolicy", "Acknowledgment policy (none, all, explicit) (requires JetStream)").Default("none").StringVar(&c.ackPolicy)
 	act.Flag("match-replies", "Match replies to requests").UnNegatableBoolVar(&c.match)
 	act.Flag("inbox", "Subscribes to a generate inbox").Short('i').UnNegatableBoolVar(&c.inbox)
 	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
@@ -92,6 +96,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("report-top", "Number of subjects to show when doing 'report-subjects'. Default is 10.").Default("10").IntVar(&c.reportSubjectsCount)
 	act.Flag("timestamp", "Show timestamps in output").Short('t').UnNegatableBoolVar(&c.timeStamps)
 	act.Flag("delta-time", "Show time since start in output").Short('d').UnNegatableBoolVar(&c.deltaTimeStamps)
+
 }
 
 func init() {
@@ -166,7 +171,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 	defer nc.Close()
 
-	c.jetStream = c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.stream != ""
+	c.jetStream = c.sseq > 0 || len(c.ackPolicy) > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.stream != ""
 
 	switch {
 	case len(c.subjects) == 0 && c.inbox:
@@ -442,6 +447,21 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		case c.deliverLastPerSubject:
 			log.Printf("Subscribing to JetStream Stream holding messages with subject %s for the last messages for each subject in the Stream %s", subMsg, ignoredSubjInfo)
 			opts = append(opts, nats.DeliverLastPerSubject())
+		case c.ackPolicy != "":
+			switch c.ackPolicy {
+			case "none":
+				opts = append(opts, nats.AckNone())
+				c.jsAck = false
+			case "all":
+				opts = append(opts, nats.AckAll())
+				c.jsAck = true
+			case "explicit":
+				opts = append(opts, nats.AckExplicit())
+				c.jsAck = true
+			default:
+				fisk.Fatalf("invalid ack policy '%s'", c.ackPolicy)
+			}
+
 		}
 
 		if bindDurable {
@@ -451,7 +471,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			}
 			subs = append(subs, sub)
 		} else {
-			c.jsAck = false
+
 			sub, err := js.Subscribe(c.firstSubject(), handler, opts...)
 			if err != nil {
 				return err
