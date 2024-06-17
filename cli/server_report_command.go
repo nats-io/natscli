@@ -17,9 +17,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"sort"
+
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
@@ -641,8 +642,11 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 
 	for i, info := range report {
 		name := info.Name
-		if len(info.Name) > 40 {
-			name = info.Name[:40] + " .."
+		if len(name) == 0 && len(info.MQTTClient) > 0 {
+			name = info.MQTTClient
+		}
+		if len(name) > 40 {
+			name = name[:40] + " .."
 		}
 
 		oMsgs += info.OutMsgs
