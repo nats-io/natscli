@@ -64,7 +64,23 @@ type subCmd struct {
 
 func configureSubCommand(app commandHost) {
 	c := &subCmd{}
+
+	subHelp := `
+	Jetstream will be activated when related options like --stream, --durabled or --ack are supplied.
+
+	Currently only supports push subscriptions. Uses an ephemeral consumer without ack by default.  
+
+	For specific consumer options please pre-create a consumer using 'nats consumer add'.app.
+
+		E.g. when explicit acknowledgement is required.
+
+	Caution: Be careful when subscribing to streams with WorkQueue policy. Messages will be acked and deleted when durable consumer is being used. 
+	User nats stream view <stream> for inspecting messages  	
+		
+	`
+
 	act := app.Command("subscribe", "Generic subscription client").Alias("sub").Action(c.subscribe)
+	act.HelpLong(subHelp)
 	addCheat("sub", act)
 
 	act.Arg("subjects", "Subjects to subscribe to").StringsVar(&c.subjects)
@@ -73,6 +89,10 @@ func configureSubCommand(app commandHost) {
 	act.Flag("raw", "Show the raw data received").Short('r').UnNegatableBoolVar(&c.raw)
 	act.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
 	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
+	//We do not support (explicit) ackPolicy right now. The only situation where it is useful would be WorkQueue policy right now.
+	//Deleting from a stream with WorkQueue through ack could be unexpected behaviour in the sub command.
+	//To be done - check for streams with WorkQueue, then prompt with or allow with override --force=WorkQueueDelete
+	//act.Flag("ackPolicy", "Acknowledgment policy (none, all, explicit) (requires JetStream)").Default("none").EnumVar(&c.ackPolicy, "none", "all", "explicit")
 	act.Flag("match-replies", "Match replies to requests").UnNegatableBoolVar(&c.match)
 	act.Flag("inbox", "Subscribes to a generate inbox").Short('i').UnNegatableBoolVar(&c.inbox)
 	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
