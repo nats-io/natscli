@@ -65,9 +65,17 @@ type subCmd struct {
 
 func configureSubCommand(app commandHost) {
 	c := &subCmd{}
-	act := app.Command("subscribe", "Generic subscription client. "+
-		"Jetstream will be activate when related options like --stream or --ack are supplied. "+
-		"Currently only supports push subscription. For non-supported consumer options pre-create using 'nats consumer add' ").Alias("sub").Action(c.subscribe)
+
+	subHelp := `
+	Jetstream will be activated when related options like --stream, --durable or --ack are supplied.
+
+	Currently only supports push subscriptions. Uses an ephemeral consumer without ack by default.  
+
+	For non-supported consumer options please pre-create a consumer using 'nats consumer add'
+	`
+
+	act := app.Command("subscribe", "Generic subscription client").Alias("sub").Action(c.subscribe)
+	act.HelpLong(subHelp)
 	addCheat("sub", act)
 
 	act.Arg("subjects", "Subjects to subscribe to").StringsVar(&c.subjects)
@@ -76,7 +84,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("raw", "Show the raw data received").Short('r').UnNegatableBoolVar(&c.raw)
 	act.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
 	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
-	act.Flag("ackPolicy", "Acknowledgment policy (none, all, explicit) (requires JetStream)").Default("none").StringVar(&c.ackPolicy)
+	act.Flag("ackPolicy", "Acknowledgment policy (none, all, explicit) (requires JetStream)").Default("none").EnumVar(&c.ackPolicy, "none", "all", "explicit")
 	act.Flag("match-replies", "Match replies to requests").UnNegatableBoolVar(&c.match)
 	act.Flag("inbox", "Subscribes to a generate inbox").Short('i').UnNegatableBoolVar(&c.inbox)
 	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
