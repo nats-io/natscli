@@ -2414,6 +2414,10 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		c.maxMsgSize = -1
 	}
 
+	if c.maxMsgSize > math.MaxInt32 {
+		fisk.Fatalf("max value size %s is too big maximum is %s", f(c.maxMsgSize), f(math.MaxInt32))
+	}
+
 	var dupeWindow time.Duration
 
 	if c.dupeWindow == "" && c.mirror == "" {
