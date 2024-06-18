@@ -163,7 +163,7 @@ password: {{ .Password | t }}
 # Connect using a NATS Credentials stored in a file
 creds: {{ .Creds | t }}
 
-# Connect using a NKey derived from a seedfile
+# Connect using a NKey with seed stored in a file
 nkey: {{ .NKey | t }}
 
 # Configures a token to pass in the connection
