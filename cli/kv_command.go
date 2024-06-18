@@ -16,13 +16,14 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"github.com/nats-io/natscli/internal/util"
 	"io"
 	"math"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -166,6 +167,9 @@ func (c *kvCommand) parseLimitStrings(_ *fisk.ParseContext) (err error) {
 		c.maxValueSize, err = parseStringAsBytes(c.maxValueSizeString)
 		if err != nil {
 			return err
+		}
+		if c.maxValueSize > math.MaxInt32 {
+			return fmt.Errorf("max value size %s is too big maximum is %s", f(c.maxValueSize), f(math.MaxInt32))
 		}
 	}
 
