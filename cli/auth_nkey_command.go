@@ -18,9 +18,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"strings"
+
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nkeys"
@@ -50,27 +51,27 @@ func configureAuthNkeyCommand(auth commandHost) {
 	nkGen.Flag("output", "Write the key to a file").StringVar(&c.outFile)
 
 	nkShow := nk.Command("show", "Show the public key").Action(c.showAction)
-	nkShow.Arg("key", "NKey to act on").Required().ExistingFileVar(&c.keyFile)
+	nkShow.Arg("key", "File containing NKey to act on").Required().ExistingFileVar(&c.keyFile)
 
 	nkSign := nk.Command("sign", "Signs data using NKeys").Action(c.signAction)
 	nkSign.Arg("file", "File to sign").Required().ExistingFileVar(&c.dataFile)
-	nkSign.Arg("key", "NKey to sign with").Required().ExistingFileVar(&c.keyFile)
+	nkSign.Arg("key", "File containing NKey to sign with").Required().ExistingFileVar(&c.keyFile)
 
 	nkVerify := nk.Command("verify", "Verify signed data").Action(c.verifyAction)
 	nkVerify.Arg("file", "File containing the data to check").Required().ExistingFileVar(&c.dataFile)
 	nkVerify.Arg("signature", "File containing the signature").Required().ExistingFileVar(&c.signFile)
-	nkVerify.Arg("key", "The key to use for verification").Required().ExistingFileVar(&c.keyFile)
+	nkVerify.Arg("key", "File containing NKey to use for verification").Required().ExistingFileVar(&c.keyFile)
 
 	nkSeal := nk.Command("seal", "Encrypts a file using NKeys").Alias("encrypt").Alias("enc").Action(c.sealAction)
 	nkSeal.Arg("file", "File to encrypt").Required().ExistingFileVar(&c.dataFile)
-	nkSeal.Arg("key", "NKey to encrypt with").Required().ExistingFileVar(&c.keyFile)
+	nkSeal.Arg("key", "File containing NKey to encrypt with").Required().ExistingFileVar(&c.keyFile)
 	nkSeal.Arg("recipient", "Public XKey of recipient").Required().StringVar(&c.counterpartKey)
 	nkSeal.Flag("output", "Write the encrypted data to a file").StringVar(&c.outFile)
 	nkSeal.Flag("b64", "Write base64 encoded data").Default("true").BoolVar(&c.useB64)
 
 	nkOpen := nk.Command("unseal", "Decrypts a file using NKeys").Alias("open").Alias("decrypt").Alias("dec").Action(c.unsealAction)
 	nkOpen.Arg("file", "File to decrypt").Required().ExistingFileVar(&c.dataFile)
-	nkOpen.Arg("key", "NKey to decrypt with").Required().ExistingFileVar(&c.keyFile)
+	nkOpen.Arg("key", "File containing NKey to decrypt with").Required().ExistingFileVar(&c.keyFile)
 	nkOpen.Arg("sender", "Public XKey of sender").Required().StringVar(&c.counterpartKey)
 	nkOpen.Flag("output", "Write the decrypted data to a file").StringVar(&c.outFile)
 	nkOpen.Flag("b64", "Read data in as base64 encoded").Default("true").BoolVar(&c.useB64)
