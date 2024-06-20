@@ -93,7 +93,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
 	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
 	// We do not support (explicit) ackPolicy right now. The only situation where it is useful would be WorkQueue policy right now.
-	// Deleting from a stream with WorkQueue through ack could be unexpected behaviour in the sub command.
+	// Deleting from a stream with WorkQueue through ack could be unexpected behavior in the sub command.
 	// To be done - check for streams with WorkQueue, then prompt with or allow with override --force=WorkQueueDelete
 	// act.Flag("ackPolicy", "Acknowledgment policy (none, all, explicit) (requires JetStream)").Default("none").EnumVar(&c.ackPolicy, "none", "all", "explicit")
 	act.Flag("match-replies", "Match replies to requests").UnNegatableBoolVar(&c.match)
