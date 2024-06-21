@@ -811,11 +811,10 @@ this number of operations will result in a critical error
 sumular to the lag on Sources and Mirrors but checks the lag in the Raft cluster.
 
 `--msgs-warn=MSGS` and `--msgs-critical=MSGS` Checks the number of messages in the stream, if warn is smaller than 
-critical the check will alert for fewer messages than the thresholds. If warn is bigger than critical the logic will be
-inverted ensuring that no more than the thresholds exist in the stream.
+critical the check will alert for fewer messages than the thresholds.
 
-`--subjects-warn=SUBJECTS` and `--subjects-critical=SUBJECTS` Checks the number of subjects in the stream, supports the
-same inversion behaviour described above in `--msgs-warn`.
+`--subjects-warn=SUBJECTS` and `--subjects-critical=SUBJECTS` Checks the number of subjects in the stream.  If warn is 
+bigger than critical the logic will be inverted ensuring that no more than the thresholds exist in the stream.
 
 ##### Consumers
 

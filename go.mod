@@ -9,7 +9,7 @@ require (
 	github.com/choria-io/scaffold v0.0.2-0.20240516112801-fc127c79a1df
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.6.2
-	github.com/expr-lang/expr v1.16.7
+	github.com/expr-lang/expr v1.16.9
 	github.com/fatih/color v1.17.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.6.0
@@ -18,22 +18,20 @@ require (
 	github.com/guptarohit/asciigraph v0.7.1
 	github.com/jedib0t/go-pretty/v6 v6.5.9
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.17.8
+	github.com/klauspost/compress v1.17.9
 	github.com/mattn/go-isatty v0.0.20
-	github.com/nats-io/jsm.go v0.1.1-0.20240517153523-ca97f76bed5c
+	github.com/nats-io/jsm.go v0.1.1-0.20240621160505-af16666abb2e
 	github.com/nats-io/jwt/v2 v2.5.7
 	github.com/nats-io/nats-server/v2 v2.11.0-preview.2
-	github.com/nats-io/nats.go v1.35.0
+	github.com/nats-io/nats.go v1.36.0
 	github.com/nats-io/nkeys v0.4.7
 	github.com/nats-io/nuid v1.0.1
-	github.com/prometheus/client_golang v1.19.1
-	github.com/prometheus/common v0.53.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240501200458-e2594dc0b29f
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
-	golang.org/x/crypto v0.23.0
+	golang.org/x/crypto v0.24.0
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842
-	golang.org/x/term v0.20.0
+	golang.org/x/term v0.21.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -57,15 +55,17 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/nats-io/nsc/v2 v2.8.6 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
+	github.com/prometheus/client_golang v1.19.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/prometheus/procfs v0.15.0 // indirect
+	github.com/prometheus/common v0.54.0 // indirect
+	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	golang.org/x/net v0.25.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
-	golang.org/x/text v0.15.0 // indirect
+	golang.org/x/net v0.26.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
-	google.golang.org/protobuf v1.34.1 // indirect
+	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

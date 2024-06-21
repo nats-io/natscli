@@ -84,12 +84,12 @@ func (c *SrvClusterCmd) balanceAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	level := connbalancer.InfoLevel
+	level := api.InfoLevel
 	if opts().Trace {
-		level = connbalancer.TraceLevel
+		level = api.TraceLevel
 	}
 
-	balancer, err := connbalancer.New(nc, c.balanceRunTime, connbalancer.NewDefaultLogger(level), connbalancer.ConnectionSelector{
+	balancer, err := connbalancer.New(nc, c.balanceRunTime, api.NewDefaultLogger(level), connbalancer.ConnectionSelector{
 		ServerName:      c.balanceServerName,
 		Idle:            c.balanceIdle,
 		Account:         c.balanceAccount,

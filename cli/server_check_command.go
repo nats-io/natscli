@@ -26,10 +26,10 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/monitor"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/natscli/monitor"
 	"github.com/nats-io/nkeys"
 )
 
@@ -322,51 +322,6 @@ func (c *SrvCheckCmd) checkKVStatusAndBucket(check *monitor.Result, nc *nats.Con
 	}
 }
 
-func (c *SrvCheckCmd) checkConsumerStatus(check *monitor.Result, nfo api.ConsumerInfo) {
-	check.Pd(&monitor.PerfDataItem{Name: "ack_pending", Value: float64(nfo.NumAckPending), Help: "The number of messages waiting to be Acknowledged", Crit: float64(c.consumerAckOutstandingCritical)})
-	check.Pd(&monitor.PerfDataItem{Name: "pull_waiting", Value: float64(nfo.NumWaiting), Help: "The number of waiting Pull requests", Crit: float64(c.consumerWaitingCritical)})
-	check.Pd(&monitor.PerfDataItem{Name: "pending", Value: float64(nfo.NumPending), Help: "The number of messages that have not yet been consumed", Crit: float64(c.consumerUnprocessedCritical)})
-	check.Pd(&monitor.PerfDataItem{Name: "redelivered", Value: float64(nfo.NumRedelivered), Help: "The number of messages currently being redelivered", Crit: float64(c.consumerRedeliveryCritical)})
-	if nfo.Delivered.Last != nil {
-		check.Pd(&monitor.PerfDataItem{Name: "last_delivery", Value: time.Since(*nfo.Delivered.Last).Seconds(), Unit: "s", Help: "Seconds since the last message was delivered", Crit: c.consumerLastDeliveryCritical.Seconds()})
-	}
-	if nfo.AckFloor.Last != nil {
-		check.Pd(&monitor.PerfDataItem{Name: "last_ack", Value: time.Since(*nfo.AckFloor.Last).Seconds(), Unit: "s", Help: "Seconds since the last message was acknowledged", Crit: c.consumerLastDeliveryCritical.Seconds()})
-	}
-
-	if c.consumerAckOutstandingCritical > 0 && nfo.NumAckPending >= c.consumerAckOutstandingCritical {
-		check.Critical("Ack Pending: %d", nfo.NumAckPending)
-	}
-
-	if c.consumerWaitingCritical > 0 && nfo.NumWaiting >= c.consumerWaitingCritical {
-		check.Critical("Waiting Pulls: %d", nfo.NumWaiting)
-	}
-
-	if c.consumerUnprocessedCritical > 0 && nfo.NumPending >= uint64(c.consumerUnprocessedCritical) {
-		check.Critical("Unprocessed Messages: %d", nfo.NumPending)
-	}
-
-	if c.consumerRedeliveryCritical > 0 && nfo.NumRedelivered > c.consumerRedeliveryCritical {
-		check.Critical("Redelivered Messages: %d", nfo.NumRedelivered)
-	}
-
-	switch {
-	case c.consumerLastDeliveryCritical <= 0:
-	case nfo.Delivered.Last == nil:
-		check.Critical("No deliveries")
-	case time.Since(*nfo.Delivered.Last) >= c.consumerLastDeliveryCritical:
-		check.Critical("Last delivery %v ago", time.Since(*nfo.Delivered.Last).Round(time.Second))
-	}
-
-	switch {
-	case c.consumerLastAckCritical <= 0:
-	case nfo.AckFloor.Last == nil:
-		check.Critical("No acknowledgements")
-	case time.Since(*nfo.AckFloor.Last) >= c.consumerLastAckCritical:
-		check.Critical("Last ack %v ago", time.Since(*nfo.AckFloor.Last).Round(time.Second))
-	}
-}
-
 func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: fmt.Sprintf("%s_%s", c.sourcesStream, c.consumerName), Check: "consumer", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
@@ -380,20 +335,40 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	nfo, err := cons.LatestState()
-	if err != nil {
-		check.Critical("consumer state failure: %v", err)
-		return nil
-	}
-
+	checkOpts := &jsm.ConsumerHealthCheckOptions{}
 	if c.useMetadata {
-		err = c.optionsFromConsumerMetadata(&nfo.Config)
+		checkOpts, err = cons.MonitorOptions()
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid metadata: %v", err)
 		}
 	}
+	if !c.useMetadata || c.consumerAckOutstandingCriticalIsSet {
+		checkOpts.AckOutstandingCritical = c.consumerAckOutstandingCritical
+	}
+	if !c.useMetadata || c.consumerWaitingCriticalIsSet {
+		checkOpts.WaitingCritical = c.consumerWaitingCritical
+	}
+	if !c.useMetadata || c.consumerUnprocessedCriticalIsSet {
+		checkOpts.UnprocessedCritical = c.consumerUnprocessedCritical
+	}
+	if !c.useMetadata || c.consumerLastDeliveryCriticalIsSet {
+		checkOpts.LastDeliveryCritical = c.consumerLastDeliveryCritical
+	}
+	if !c.useMetadata || c.consumerLastAckCriticalIsSet {
+		checkOpts.LastAckCritical = c.consumerLastAckCritical
+	}
+	if !c.useMetadata || c.consumerRedeliveryCriticalIsSet {
+		checkOpts.RedeliveryCritical = c.consumerRedeliveryCritical
+	}
 
-	c.checkConsumerStatus(check, nfo)
+	logger := api.NewDiscardLogger()
+	if opts().Trace {
+		logger = api.NewDefaultLogger(api.TraceLevel)
+	}
+	_, err = cons.HealthCheck(*checkOpts, check, logger)
+	if err != nil {
+		return fmt.Errorf("health check failed: %v", err)
+	}
 
 	return nil
 }
@@ -866,132 +841,6 @@ func (c *SrvCheckCmd) checkClusterInfo(check *monitor.Result, ci *server.Cluster
 	return nil
 }
 
-func (c *SrvCheckCmd) optionsFromConsumerMetadata(cfg *api.ConsumerConfig) error {
-	var err error
-
-	var meta = []struct {
-		k    string
-		skip bool
-		fn   func(string) error
-	}{
-		{"io.nats.monitor.outstanding-ack-critical", c.consumerAckOutstandingCriticalIsSet, func(v string) error {
-			c.consumerAckOutstandingCritical, err = strconv.Atoi(v)
-			return err
-		}},
-		{"io.nats.monitor.waiting-critical", c.consumerWaitingCriticalIsSet, func(v string) error {
-			c.consumerWaitingCritical, err = strconv.Atoi(v)
-			return err
-		}},
-		{"io.nats.monitor.unprocessed-critical", c.consumerUnprocessedCriticalIsSet, func(v string) error {
-			c.consumerUnprocessedCritical, err = strconv.Atoi(v)
-			return err
-		}},
-		{"io.nats.monitor.last-delivery-critical", c.consumerLastDeliveryCriticalIsSet, func(v string) error {
-			c.consumerLastDeliveryCritical, err = fisk.ParseDuration(v)
-			return err
-		}},
-		{"io.nats.monitor.last-ack-critical", c.consumerLastAckCriticalIsSet, func(v string) error {
-			c.consumerLastAckCritical, err = fisk.ParseDuration(v)
-			return err
-		}},
-		{"io.nats.monitor.redelivery-critical", c.consumerRedeliveryCriticalIsSet, func(v string) error {
-			c.consumerRedeliveryCritical, err = strconv.Atoi(v)
-			return err
-		}},
-	}
-
-	for _, m := range meta {
-		if m.skip {
-			continue
-		}
-
-		if v, ok := cfg.Metadata[m.k]; ok {
-			if opts().Trace {
-				fmt.Printf(">>> Setting thresholds based on metadata: %v: %v\n", m.k, v)
-			}
-			err = m.fn(v)
-			if err != nil {
-				return fmt.Errorf("invalid metadata: %s: %s", m.k, err)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (c *SrvCheckCmd) optionsFromStreamMetadata(cfg *api.StreamConfig) error {
-	var err error
-
-	var meta = []struct {
-		k    string
-		skip bool
-		fn   func(string) error
-	}{
-		{"io.nats.monitor.lag-critical", c.sourcesLagCriticalIsSet, func(v string) error {
-			c.sourcesLagCritical, err = strconv.ParseUint(v, 10, 64)
-			return err
-		}},
-		{"io.nats.monitor.seen-critical", c.sourcesSeenCriticalIsSet, func(v string) error {
-			c.sourcesSeenCritical, err = fisk.ParseDuration(v)
-			return err
-		}},
-		{"io.nats.monitor.min-sources", c.sourcesMinSourcesIsSet, func(v string) error {
-			c.sourcesMinSources, err = strconv.Atoi(v)
-			return err
-		}},
-		{"io.nats.monitor.max-sources", c.sourcesMaxSourcesIsSet, func(v string) error {
-			c.sourcesMaxSources, err = strconv.Atoi(v)
-			return err
-		}},
-		{"io.nats.monitor.peer-expect", c.raftExpectIsSet, func(v string) error {
-			c.raftExpect, err = strconv.Atoi(v)
-			return err
-		}},
-		{"io.nats.monitor.peer-lag-critical", c.raftLagCriticalIsSet, func(v string) error {
-			c.raftLagCritical, err = strconv.ParseUint(v, 10, 64)
-			return err
-		}},
-		{"io.nats.monitor.peer-seen-critical", c.raftSeenCriticalIsSet, func(v string) error {
-			c.raftSeenCritical, err = fisk.ParseDuration(v)
-			return err
-		}},
-		{"io.nats.monitor.msgs-warn", c.streamMessagesWarnIsSet, func(v string) error {
-			c.streamMessagesWarn, err = strconv.ParseUint(v, 10, 64)
-			return err
-		}},
-		{"io.nats.monitor.msgs-critical", c.streamMessagesCritIsSet, func(v string) error {
-			c.streamMessagesCrit, err = strconv.ParseUint(v, 10, 64)
-			return err
-		}},
-		{"io.nats.monitor.subjects-warn", c.subjectsWarnIsSet, func(v string) error {
-			c.subjectsWarn, err = strconv.Atoi(v)
-			return err
-		}},
-		{"io.nats.monitor.subjects-critical", c.subjectsCritIsSet, func(v string) error {
-			c.subjectsCrit, err = strconv.Atoi(v)
-			return err
-		}},
-	}
-
-	for _, m := range meta {
-		if m.skip {
-			continue
-		}
-
-		if v, ok := cfg.Metadata[m.k]; ok {
-			if opts().Trace {
-				fmt.Printf(">>> Setting thresholds based on metadata: %v: %v\n", m.k, v)
-			}
-			err = m.fn(v)
-			if err != nil {
-				return fmt.Errorf("invalid metadata: %s: %s", m.k, err)
-			}
-		}
-	}
-
-	return nil
-}
-
 func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.sourcesStream, Check: "stream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
@@ -1002,136 +851,52 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	stream, err := mgr.LoadStream(c.sourcesStream)
 	check.CriticalIfErr(err, "could not load stream %s: %s", c.sourcesStream, err)
 
-	info, err := stream.LatestInformation()
-	check.CriticalIfErr(err, "could not load stream %s info: %s", c.sourcesStream, err)
-
+	checkOpts := &jsm.StreamHealthCheckOptions{}
 	if c.useMetadata {
-		err = c.optionsFromStreamMetadata(&info.Config)
-		if err != nil {
-			return err
-		}
+		checkOpts, err = stream.HealthCheckOptions()
+		check.CriticalIfErr(err, "Invalid metadata: %s", err)
 	}
 
-	if info.Cluster != nil {
-		var sci server.ClusterInfo
-		cij, _ := json.Marshal(info.Cluster)
-		json.Unmarshal(cij, &sci)
-		err = c.checkClusterInfo(check, &sci)
-		check.CriticalIfErr(err, "Invalid cluster data: %s", err)
-
-		if len(check.Criticals) == 0 {
-			check.Ok("%d current replicas", len(info.Cluster.Replicas)+1)
-		}
-	} else if c.raftExpect > 0 {
-		check.Critical("not clustered expected %d peers", c.raftExpect)
+	if !c.useMetadata || c.sourcesLagCriticalIsSet {
+		checkOpts.SourcesLagCritical = c.sourcesLagCritical
+	}
+	if !c.useMetadata || c.sourcesSeenCriticalIsSet {
+		checkOpts.SourcesSeenCritical = c.sourcesSeenCritical
+	}
+	if !c.useMetadata || c.sourcesMinSourcesIsSet {
+		checkOpts.MinSources = c.sourcesMinSources
+	}
+	if !c.useMetadata || c.sourcesMaxSourcesIsSet {
+		checkOpts.MaxSources = c.sourcesMaxSources
+	}
+	if !c.useMetadata || c.raftExpectIsSet {
+		checkOpts.ClusterExpectedPeers = c.raftExpect
+	}
+	if !c.useMetadata || c.raftLagCriticalIsSet {
+		checkOpts.ClusterLagCritical = c.raftLagCritical
+	}
+	if !c.useMetadata || c.raftSeenCriticalIsSet {
+		checkOpts.ClusterSeenCritical = c.raftSeenCritical
+	}
+	if !c.useMetadata || c.streamMessagesWarnIsSet {
+		checkOpts.MessagesWarn = c.streamMessagesWarn
+	}
+	if !c.useMetadata || c.streamMessagesCritIsSet {
+		checkOpts.MessagesCrit = c.streamMessagesCrit
+	}
+	if !c.useMetadata || c.subjectsWarnIsSet {
+		checkOpts.SubjectsWarn = c.subjectsWarn
+	}
+	if !c.useMetadata || c.subjectsCritIsSet {
+		checkOpts.SubjectsCrit = c.subjectsCrit
 	}
 
-	check.Pd(&monitor.PerfDataItem{Name: "messages", Value: float64(info.State.Msgs), Warn: float64(c.streamMessagesWarn), Crit: float64(c.streamMessagesCrit), Help: "Messages stored in the stream"})
-	if c.streamMessagesWarn > 0 && info.State.Msgs <= c.streamMessagesWarn {
-		check.Warn("%d messages", info.State.Msgs)
+	logger := api.NewDiscardLogger()
+	if opts().Trace {
+		logger = api.NewDefaultLogger(api.TraceLevel)
 	}
-	if c.streamMessagesCrit > 0 && info.State.Msgs <= c.streamMessagesCrit {
-		check.Critical("%d messages", info.State.Msgs)
-	}
-
-	check.Pd(&monitor.PerfDataItem{Name: "subjects", Value: float64(info.State.NumSubjects), Warn: float64(c.subjectsWarn), Crit: float64(c.subjectsCrit), Help: "Number of subjects stored in the stream"})
-	if c.subjectsWarn > 0 || c.subjectsCrit > 0 {
-		ns := info.State.NumSubjects
-		if c.subjectsWarn < c.subjectsCrit { // it means we're asserting that there are fewer subjects than thresholds
-			if ns >= c.subjectsCrit {
-				check.Critical("%d subjects", info.State.NumSubjects)
-			} else if ns >= c.subjectsWarn {
-				check.Warn("%d subjects", info.State.NumSubjects)
-			}
-		} else { // it means we're asserting that there are more subjects than thresholds
-			if ns <= c.subjectsCrit {
-				check.Critical("%d subjects", info.State.NumSubjects)
-			} else if ns <= c.subjectsWarn {
-				check.Warn("%d subjects", info.State.NumSubjects)
-			}
-		}
-	}
-
-	switch {
-	case stream.IsMirror():
-		err = c.checkMirror(check, info)
-		check.CriticalIfErr(err, "Invalid mirror data: %s", err)
-
-		if len(check.Criticals) == 0 {
-			check.Ok("%s mirror of %s is %d lagged, last seen %s ago", c.sourcesStream, info.Mirror.Name, info.Mirror.Lag, info.Mirror.Active.Round(time.Millisecond))
-		}
-
-	case stream.IsSourced():
-		err = c.checkSources(check, info)
-		check.CriticalIfErr(err, "Invalid source data: %s", err)
-
-		if len(check.Criticals) == 0 {
-			check.Ok("%d sources", len(info.Sources))
-		}
-	}
-
-	return nil
-}
-
-func (c *SrvCheckCmd) checkMirror(check *monitor.Result, info *api.StreamInfo) error {
-	if info.Mirror == nil {
-		check.Critical("not mirrored")
-		return nil
-	}
-
-	check.Pd(
-		&monitor.PerfDataItem{Name: "lag", Crit: float64(c.sourcesLagCritical), Value: float64(info.Mirror.Lag), Help: "Number of operations this peer is behind its origin"},
-		&monitor.PerfDataItem{Name: "active", Crit: c.sourcesSeenCritical.Seconds(), Unit: "s", Value: info.Mirror.Active.Seconds(), Help: "Indicates if this peer is active and catching up if lagged"},
-	)
-
-	if c.sourcesLagCritical > 0 && info.Mirror.Lag > c.sourcesLagCritical {
-		check.Critical("%d messages behind", info.Mirror.Lag)
-	}
-
-	if c.sourcesSeenCritical > 0 && info.Mirror.Active > c.sourcesSeenCritical {
-		check.Critical("last active %s", info.Mirror.Active)
-	}
-
-	return nil
-}
-
-func (c *SrvCheckCmd) checkSources(check *monitor.Result, info *api.StreamInfo) error {
-	check.Pd(&monitor.PerfDataItem{Name: "sources", Value: float64(len(info.Sources)), Warn: float64(c.sourcesMinSources), Crit: float64(c.sourcesMaxSources), Help: "Number of sources being consumed by this stream"})
-
-	if len(info.Sources) == 0 {
-		check.Critical("no sources defined")
-	}
-
-	lagged := 0
-	inactive := 0
-
-	for _, s := range info.Sources {
-		if c.sourcesLagCritical > 0 && s.Lag > c.sourcesLagCritical {
-			lagged++
-		}
-
-		if c.sourcesSeenCritical > 0 && s.Active > c.sourcesSeenCritical {
-			inactive++
-		}
-	}
-
-	check.Pd(
-		&monitor.PerfDataItem{Name: "sources_lagged", Value: float64(lagged), Help: "Number of sources that are behind more than the configured threshold"},
-		&monitor.PerfDataItem{Name: "sources_inactive", Value: float64(inactive), Help: "Number of sources that are inactive"},
-	)
-
-	if lagged > 0 {
-		check.Critical("%d lagged sources", lagged)
-	}
-	if inactive > 0 {
-		check.Critical("%d inactive sources", inactive)
-	}
-	if len(info.Sources) < c.sourcesMinSources {
-		check.Critical("%d sources of min expected %d", len(info.Sources), c.sourcesMinSources)
-	}
-	if len(info.Sources) > c.sourcesMaxSources {
-		check.Critical("%d sources of max expected %d", len(info.Sources), c.sourcesMaxSources)
-	}
+	_, err = stream.HealthCheck(*checkOpts, check, logger)
+	check.CriticalIfErr(err, "Healthcheck failed: %s", err)
 
 	return nil
 }

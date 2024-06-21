@@ -15,7 +15,6 @@ package cli
 
 import (
 	"fmt"
-	"github.com/nats-io/natscli/options"
 	"os"
 	"strconv"
 	"strings"
@@ -23,10 +22,12 @@ import (
 	"time"
 
 	"github.com/nats-io/jsm.go"
-	"github.com/nats-io/jsm.go/api"
-	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/natscli/monitor"
+	"github.com/nats-io/natscli/options"
+
+	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/monitor"
+	"github.com/nats-io/nats-server/v2/server"
 )
 
 func assertHasPDItem(t *testing.T, check *monitor.Result, items ...string) {
@@ -79,158 +80,6 @@ func withJetStream(t *testing.T, cb func(srv *server.Server, nc *nats.Conn, mgr 
 
 func dfltCmd() *SrvCheckCmd {
 	return &SrvCheckCmd{kvBucket: "TEST", kvValuesWarn: -1, kvValuesCrit: -1}
-}
-
-func TestCheckConsumer(t *testing.T) {
-	t.Run("Ack Pending", func(t *testing.T) {
-		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerAckOutstandingCritical: 100}
-		check := &monitor.Result{}
-
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			NumAckPending: 10,
-		})
-
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListIsEmpty(t, check.Criticals)
-
-		check = &monitor.Result{}
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			NumAckPending: 300,
-		})
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListEquals(t, check.Criticals, "Ack Pending: 300")
-	})
-
-	t.Run("Waiting Pulls", func(t *testing.T) {
-		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerWaitingCritical: 100}
-		check := &monitor.Result{}
-
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			NumWaiting: 10,
-		})
-
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListIsEmpty(t, check.Criticals)
-
-		check = &monitor.Result{}
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			NumWaiting: 300,
-		})
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListEquals(t, check.Criticals, "Waiting Pulls: 300")
-	})
-
-	t.Run("Pending", func(t *testing.T) {
-		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerUnprocessedCritical: 100}
-		check := &monitor.Result{}
-
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			NumPending: 10,
-		})
-
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListIsEmpty(t, check.Criticals)
-
-		check = &monitor.Result{}
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			NumPending: 300,
-		})
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListEquals(t, check.Criticals, "Unprocessed Messages: 300")
-	})
-
-	t.Run("Redelivered", func(t *testing.T) {
-		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerRedeliveryCritical: 100}
-		check := &monitor.Result{}
-
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			NumRedelivered: 10,
-		})
-
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListIsEmpty(t, check.Criticals)
-
-		check = &monitor.Result{}
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			NumRedelivered: 300,
-		})
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListEquals(t, check.Criticals, "Redelivered Messages: 300")
-	})
-
-	t.Run("Last Delivery", func(t *testing.T) {
-		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerLastDeliveryCritical: 10 * time.Second}
-		check := &monitor.Result{}
-
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{})
-
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListEquals(t, check.Criticals, "No deliveries")
-
-		check = &monitor.Result{}
-		last := time.Now().Add(-1 * time.Second)
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			Delivered: api.SequenceInfo{
-				Last: &last,
-			},
-		})
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListIsEmpty(t, check.Criticals)
-
-		check = &monitor.Result{}
-		last = time.Now().Add(-500 * time.Second)
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			Delivered: api.SequenceInfo{
-				Last: &last,
-			},
-		})
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListEquals(t, check.Criticals, "Last delivery 8m20s ago")
-	})
-
-	t.Run("Last Ack", func(t *testing.T) {
-		cmd := &SrvCheckCmd{sourcesStream: "TEST", consumerName: "CONS", consumerLastAckCritical: 10 * time.Second}
-		check := &monitor.Result{}
-
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{})
-
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListEquals(t, check.Criticals, "No acknowledgements")
-
-		check = &monitor.Result{}
-		last := time.Now().Add(-1 * time.Second)
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			AckFloor: api.SequenceInfo{
-				Last: &last,
-			},
-		})
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListIsEmpty(t, check.Criticals)
-
-		check = &monitor.Result{}
-		last = time.Now().Add(-500 * time.Second)
-		cmd.checkConsumerStatus(check, api.ConsumerInfo{
-			AckFloor: api.SequenceInfo{
-				Last: &last,
-			},
-		})
-		assertListIsEmpty(t, check.Warnings)
-		assertListIsEmpty(t, check.OKs)
-		assertListEquals(t, check.Criticals, "Last ack 8m20s ago")
-	})
 }
 
 func TestCheckMessage(t *testing.T) {
@@ -535,113 +384,6 @@ func TestCheckAccountInfo(t *testing.T) {
 			assertListEquals(t, check.Criticals, "93% memory")
 			assertListIsEmpty(t, check.Warnings)
 		})
-	})
-}
-
-func TestCheckMirror(t *testing.T) {
-	cmd := &SrvCheckCmd{}
-	info := &api.StreamInfo{}
-	cmd.sourcesSeenCritical = time.Second
-	cmd.sourcesLagCritical = 50
-
-	t.Run("no mirror", func(t *testing.T) {
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkMirror(check, info))
-		assertListEquals(t, check.Criticals, "not mirrored")
-		assertListIsEmpty(t, check.Warnings)
-	})
-
-	t.Run("failed mirror", func(t *testing.T) {
-		info.Mirror = &api.StreamSourceInfo{Name: "M", Lag: 100, Active: time.Hour}
-		check := &monitor.Result{}
-		err := cmd.checkMirror(check, info)
-		checkErr(t, err, "unexpected error")
-		assertHasPDItem(t, check, "lag=100;;50 active=3600.0000s;;1.0000")
-		assertListEquals(t, check.Criticals, "100 messages behind", "last active 1h0m0s")
-		assertListIsEmpty(t, check.Warnings)
-	})
-
-	t.Run("ok mirror", func(t *testing.T) {
-		info.Mirror = &api.StreamSourceInfo{Name: "M", Lag: 1, Active: 10 * time.Millisecond}
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkMirror(check, info))
-		assertHasPDItem(t, check, "lag=1;;50 active=0.0100s;;1.0000")
-		assertListIsEmpty(t, check.Criticals)
-		assertListIsEmpty(t, check.Warnings)
-	})
-}
-
-func TestCheckSources(t *testing.T) {
-	cmd := &SrvCheckCmd{}
-	info := &api.StreamInfo{}
-
-	t.Run("no sources", func(t *testing.T) {
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkSources(check, info))
-		assertListEquals(t, check.Criticals, "no sources defined")
-	})
-
-	cmd.sourcesLagCritical = 10
-	cmd.sourcesSeenCritical = time.Second
-	cmd.sourcesMaxSources = 10
-	cmd.sourcesMinSources = 1
-
-	t.Run("lagged source", func(t *testing.T) {
-		info = &api.StreamInfo{
-			Sources: []*api.StreamSourceInfo{
-				{Name: "s1", Lag: 1000, Active: time.Millisecond},
-			},
-		}
-
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkSources(check, info))
-		assertListEquals(t, check.Criticals, "1 lagged sources")
-		assertHasPDItem(t, check, "sources=1;1;10", "sources_lagged=1", "sources_inactive=0")
-	})
-
-	t.Run("inactive source", func(t *testing.T) {
-		info = &api.StreamInfo{
-			Sources: []*api.StreamSourceInfo{
-				{Name: "s1", Active: time.Hour},
-			},
-		}
-
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkSources(check, info))
-		assertListEquals(t, check.Criticals, "1 inactive sources")
-		assertHasPDItem(t, check, "sources=1;1;10", "sources_lagged=0", "sources_inactive=1")
-	})
-
-	t.Run("not enough sources", func(t *testing.T) {
-		info = &api.StreamInfo{
-			Sources: []*api.StreamSourceInfo{
-				{Name: "s1", Active: time.Millisecond},
-			},
-		}
-
-		cmd.sourcesMinSources = 2
-
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkSources(check, info))
-		assertListEquals(t, check.Criticals, "1 sources of min expected 2")
-		assertHasPDItem(t, check, "sources=1;2;10", "sources_lagged=0", "sources_inactive=0")
-	})
-
-	t.Run("too many sources", func(t *testing.T) {
-		info = &api.StreamInfo{
-			Sources: []*api.StreamSourceInfo{
-				{Name: "s1", Active: time.Millisecond},
-				{Name: "s2", Active: time.Millisecond},
-			},
-		}
-
-		cmd.sourcesMinSources = 1
-		cmd.sourcesMaxSources = 1
-
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkSources(check, info))
-		assertListEquals(t, check.Criticals, "2 sources of max expected 1")
-		assertHasPDItem(t, check, "sources=2;1;1", "sources_lagged=0", "sources_inactive=0")
 	})
 }
 

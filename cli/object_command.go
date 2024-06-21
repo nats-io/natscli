@@ -16,13 +16,14 @@ package cli
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/nats-io/natscli/internal/util"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -79,7 +80,7 @@ NOTE: This is an experimental feature.
 	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 	add.Flag("tags", "Place the store on servers that has specific tags").StringsVar(&c.placementTags)
 	add.Flag("cluster", "Place the store on a specific cluster").StringVar(&c.placementCluster)
-	add.Flag("metadata", "Adds metadata to the bucvket").PlaceHolder("META").StringMapVar(&c.metadata)
+	add.Flag("metadata", "Adds metadata to the bucket").PlaceHolder("META").StringMapVar(&c.metadata)
 	add.Flag("compress", "Compress the bucket data").BoolVar(&c.compression)
 
 	add.PreAction(c.parseLimitStrings)
