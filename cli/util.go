@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/nats-io/natscli/options"
 	"io"
 	"math"
 	"math/rand"
@@ -36,6 +35,8 @@ import (
 	"text/template"
 	"time"
 	"unicode"
+
+	"github.com/nats-io/natscli/options"
 
 	iu "github.com/nats-io/natscli/internal/util"
 

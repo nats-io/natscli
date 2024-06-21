@@ -16,7 +16,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"net"
 	"net/url"
 	"os"
@@ -26,6 +25,8 @@ import (
 	"strings"
 	"syscall"
 	"text/template"
+
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/natscontext"
@@ -175,7 +176,14 @@ func (c *SrvRunCmd) prepareConfig() error {
 		return err
 	}
 
-	c.config.Context = opts().Config
+	if c.config.ExtendWithContext {
+		c.config.Context, err = natscontext.New(c.config.Name, true)
+		if err != nil {
+			return err
+		}
+	} else {
+		c.config.Context = opts().Config
+	}
 
 	if opts().Trace {
 		c.config.Verbose = true

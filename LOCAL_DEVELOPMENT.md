@@ -98,11 +98,11 @@ JetStream Account Information:
 
 The server sets up 3 accounts:
 
-|Account|Description|
-|-------|-----------|
-|USER   |General access for local development|
-|SERVICE|Account for a service with wildcard imports/exports|
-|SYSTEM |Account for monitoring purposes|
+| Account | Description                                         |
+|---------|-----------------------------------------------------|
+| USER    | General access for local development                |
+| SERVICE | Account for a service with wildcard imports/exports |
+| SYSTEM  | Account for monitoring purposes                     |
 
 From the `SERVICE` account we export subjects `service.>` and these are imported into the `USER` account on `imports.SERVICE.>`.
 
