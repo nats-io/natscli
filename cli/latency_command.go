@@ -46,7 +46,7 @@ func configureLatencyCommand(app commandHost) {
 
 	latency := app.Command("latency", "Perform latency tests between two NATS servers").Alias("lat").Action(c.latencyAction)
 	addCheat("latency", latency)
-	latency.Flag("server-b", "The second server to to subscribe on").Required().StringVar(&c.serverB)
+	latency.Flag("server-b", "The second server to subscribe on").Required().StringVar(&c.serverB)
 	latency.Flag("size", "Message size").Default("8").IntVar(&c.msgSize)
 	latency.Flag("rate", "Rate of messages per second").Default("1000").IntVar(&c.targetPubRate)
 	latency.Flag("duration", "Test duration").Default("5s").DurationVar(&c.testDuration)
