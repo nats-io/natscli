@@ -36,9 +36,9 @@ To install a specific release:
 go install github.com/nats-io/natscli/nats@v0.0.33
 ```
 
-#### OS X installation via Homebrew
+#### macOS installation via Homebrew
 
-For OS X `brew` can be used to install the latest version:
+For macOS `brew` can be used to install the latest version:
 
 ```nohighlight
 brew tap nats-io/nats-tools
@@ -55,7 +55,7 @@ yay natscli
 
 #### Installation from the shell
 
-The following script will install the latest version of the nats cli on Linux and OS X:
+The following script will install the latest version of the nats cli on Linux and macOS:
 
 ```nohighlight
 curl -sf https://binaries.nats.dev/nats-io/natscli/nats@latest | sh
