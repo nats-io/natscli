@@ -337,7 +337,7 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 
 	checkOpts := &jsm.ConsumerHealthCheckOptions{}
 	if c.useMetadata {
-		checkOpts, err = cons.MonitorOptions()
+		checkOpts, err = cons.HealthCheckOptions()
 		if err != nil {
 			return fmt.Errorf("invalid metadata: %v", err)
 		}
