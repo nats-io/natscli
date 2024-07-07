@@ -20,7 +20,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.17.9
 	github.com/mattn/go-isatty v0.0.20
-	github.com/nats-io/jsm.go v0.1.1-0.20240621160505-af16666abb2e
+	github.com/nats-io/jsm.go v0.1.1-0.20240707155816-947c94422290
 	github.com/nats-io/jwt/v2 v2.5.7
 	github.com/nats-io/nats-server/v2 v2.11.0-preview.2
 	github.com/nats-io/nats.go v1.36.0
