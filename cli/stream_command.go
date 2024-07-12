@@ -31,7 +31,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/guptarohit/asciigraph"
 	iu "github.com/nats-io/natscli/internal/util"
+	terminal "golang.org/x/term"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -393,6 +395,9 @@ Finding streams with certain subjects configured:
 	gapDetect.Flag("progress", "Enable progress bar").Default("true").BoolVar(&c.showProgress)
 	gapDetect.Flag("json", "Show detected gaps in JSON format").UnNegatableBoolVar(&c.json)
 
+	graph := str.Command("graph", "View a graph of Stream activity").Action(c.graphAction)
+	graph.Arg("stream", "The name of the Stream to graph").StringVar(&c.stream)
+
 	strCluster := str.Command("cluster", "Manages a clustered Stream").Alias("c")
 	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	strClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
@@ -406,6 +411,130 @@ Finding streams with certain subjects configured:
 
 func init() {
 	registerCommand("stream", 16, configureStreamCommand)
+}
+
+func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
+	if !iu.IsTerminal() {
+		return fmt.Errorf("can only graph data on an interactive terminal")
+	}
+
+	width, height, err := terminal.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return fmt.Errorf("failed to get terminal dimensions: %w", err)
+	}
+
+	if width < 20 || height < 20 {
+		return fmt.Errorf("please increase terminal dimensions")
+	}
+
+	c.connectAndAskStream()
+
+	stream, err := c.loadStream(c.stream)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	defer cancel()
+
+	nfo, err := stream.State()
+	if err != nil {
+		return err
+	}
+
+	messageRates := make([]float64, width)
+	messagesStored := make([]float64, width)
+	limitedRates := make([]float64, width)
+	lastLastSeq := nfo.LastSeq
+	lastFirstSeq := nfo.FirstSeq
+	lastStateTs := time.Now()
+
+	resizeData := func(data []float64, width int) []float64 {
+		if width <= 0 {
+			return data
+		}
+
+		length := len(data)
+
+		if length > width {
+			return data[length-width:]
+		}
+
+		return data
+	}
+
+	ticker := time.NewTicker(time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			width, height, err = terminal.GetSize(int(os.Stdout.Fd()))
+			if err != nil {
+				height = 40
+				width = 80
+			}
+			if width > 15 {
+				width -= 10
+			}
+			if height > 10 {
+				height -= 6
+			}
+
+			nfo, err := stream.State()
+			if err != nil {
+				continue
+			}
+
+			messagesStored = append(messagesStored, float64(nfo.Msgs))
+			messageRates = append(messageRates, float64(nfo.LastSeq-lastLastSeq)/time.Since(lastStateTs).Seconds())
+			limitedRates = append(limitedRates, float64(nfo.FirstSeq-lastFirstSeq)/time.Since(lastStateTs).Seconds())
+
+			lastStateTs = time.Now()
+			lastLastSeq = nfo.LastSeq
+			lastFirstSeq = nfo.FirstSeq
+
+			messageRates = resizeData(messageRates, width)
+			messagesStored = resizeData(messagesStored, width)
+			limitedRates = resizeData(limitedRates, width)
+
+			messagesPlot := asciigraph.Plot(messagesStored,
+				asciigraph.Caption("Messages Stored"),
+				asciigraph.Width(width),
+				asciigraph.Height(height/3-2),
+				asciigraph.LowerBound(0),
+				asciigraph.Precision(0),
+			)
+
+			limitedRatePlot := asciigraph.Plot(limitedRates,
+				asciigraph.Caption("Messages Removed / second"),
+				asciigraph.Width(width),
+				asciigraph.Height(height/3-2),
+				asciigraph.LowerBound(0),
+				asciigraph.Precision(0),
+			)
+
+			msgRatePlot := asciigraph.Plot(messageRates,
+				asciigraph.Caption("Messages Stored / second"),
+				asciigraph.Width(width),
+				asciigraph.Height(height/3-2),
+				asciigraph.LowerBound(0),
+				asciigraph.Precision(0),
+			)
+
+			asciigraph.Clear()
+
+			fmt.Printf("Stream Statistics for %s\n", c.stream)
+			fmt.Println()
+			fmt.Println(messagesPlot)
+			fmt.Println()
+			fmt.Println(limitedRatePlot)
+			fmt.Println()
+			fmt.Println(msgRatePlot)
+
+		case <-ctx.Done():
+			asciigraph.Clear()
+			return nil
+		}
+	}
 }
 
 func (c *streamCmd) detectGaps(_ *fisk.ParseContext) error {

@@ -21,13 +21,17 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"os/signal"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/guptarohit/asciigraph"
+	"github.com/nats-io/natscli/columns"
 	iu "github.com/nats-io/natscli/internal/util"
+	terminal "golang.org/x/term"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -54,6 +58,7 @@ type consumerCmd struct {
 	outFile        string
 	showAll        bool
 	acceptDefaults bool
+	showStateOnly  bool
 
 	selectedConsumer *jsm.Consumer
 
@@ -185,6 +190,12 @@ func configureConsumerCommand(app commandHost) {
 	consInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	consInfo.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
 
+	consState := cons.Command("state", "Stream state").Action(c.stateAction)
+	consState.Arg("stream", "Stream to retrieve state information for").StringVar(&c.stream)
+	consState.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	consState.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+	consState.Flag("no-select", "Do not select streams from a list").Default("false").UnNegatableBoolVar(&c.force)
+
 	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
 	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
 	consRm.Arg("consumer", "Consumer name").StringVar(&c.consumer)
@@ -213,6 +224,10 @@ func configureConsumerCommand(app commandHost) {
 	consSub.Flag("raw", "Show only the message").Short('r').UnNegatableBoolVar(&c.raw)
 	consSub.Flag("deliver-group", "Deliver group of the consumer").StringVar(&c.deliveryGroup)
 
+	graph := cons.Command("graph", "View a graph of Consumer activity").Action(c.graphAction)
+	graph.Arg("stream", "Stream name").StringVar(&c.stream)
+	graph.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+
 	conPause := cons.Command("pause", "Pause a consumer until a later time").Action(c.pauseAction)
 	conPause.Arg("stream", "Stream name").StringVar(&c.stream)
 	conPause.Arg("consumer", "Consumer name").StringVar(&c.consumer)
@@ -230,7 +245,7 @@ func configureConsumerCommand(app commandHost) {
 	conReport.Flag("leaders", "Show details about the leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
 
 	conCluster := cons.Command("cluster", "Manages a clustered Consumer").Alias("c")
-	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
+	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDownAction)
 	conClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterDown.Arg("consumer", "Consumer to act on").StringVar(&c.consumer)
 	conClusterDown.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
@@ -240,7 +255,143 @@ func init() {
 	registerCommand("consumer", 4, configureConsumerCommand)
 }
 
-func (c *consumerCmd) leaderStandDown(_ *fisk.ParseContext) error {
+func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
+	if !iu.IsTerminal() {
+		return fmt.Errorf("can only graph data on an interactive terminal")
+	}
+
+	width, height, err := terminal.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return fmt.Errorf("failed to get terminal dimensions: %w", err)
+	}
+
+	if width < 20 || height < 20 {
+		return fmt.Errorf("please increase terminal dimensions")
+	}
+
+	c.connectAndSetup(true, true)
+
+	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	defer cancel()
+
+	nfo, err := consumer.State()
+	if err != nil {
+		return err
+	}
+
+	resizeData := func(data []float64, width int) []float64 {
+		if width <= 0 {
+			return data
+		}
+
+		length := len(data)
+
+		if length > width {
+			return data[length-width:]
+		}
+
+		return data
+	}
+
+	deliveredRates := make([]float64, width)
+	ackedRates := make([]float64, width)
+	outstandingMessages := make([]float64, width)
+	unprocessedMessages := make([]float64, width)
+	lastAckedSeq := nfo.AckFloor.Stream
+	lastDeliveredSeq := nfo.Delivered.Stream
+	lastStateTs := time.Now()
+
+	ticker := time.NewTicker(time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			width, height, err = terminal.GetSize(int(os.Stdout.Fd()))
+			if err != nil {
+				height = 40
+				width = 80
+			}
+			if width > 15 {
+				width -= 10
+			}
+			if height > 10 {
+				height -= 5
+			}
+
+			nfo, err := consumer.State()
+			if err != nil {
+				continue
+			}
+
+			deliveredRates = append(deliveredRates, float64(nfo.Delivered.Stream-lastDeliveredSeq)/time.Since(lastStateTs).Seconds())
+			ackedRates = append(ackedRates, float64(nfo.AckFloor.Stream-lastAckedSeq)/time.Since(lastStateTs).Seconds())
+			unprocessedMessages = append(unprocessedMessages, float64(nfo.NumPending))
+			outstandingMessages = append(outstandingMessages, float64(nfo.NumAckPending))
+			lastDeliveredSeq = nfo.Delivered.Stream
+			lastAckedSeq = nfo.AckFloor.Stream
+			lastStateTs = time.Now()
+
+			deliveredRates = resizeData(deliveredRates, width)
+			ackedRates = resizeData(ackedRates, width)
+			unprocessedMessages = resizeData(unprocessedMessages, width)
+			outstandingMessages = resizeData(outstandingMessages, width)
+
+			deliveredPlot := asciigraph.Plot(deliveredRates,
+				asciigraph.Caption("Messages Delivered / second"),
+				asciigraph.Width(width),
+				asciigraph.Height(height/4-2),
+				asciigraph.LowerBound(0),
+				asciigraph.Precision(0),
+			)
+
+			ackedPlot := asciigraph.Plot(ackedRates,
+				asciigraph.Caption("Messages Acknowledged / second"),
+				asciigraph.Width(width),
+				asciigraph.Height(height/4-2),
+				asciigraph.LowerBound(0),
+				asciigraph.Precision(0),
+			)
+
+			unprocessedPlot := asciigraph.Plot(unprocessedMessages,
+				asciigraph.Caption("Messages Pending"),
+				asciigraph.Width(width),
+				asciigraph.Height(height/4-2),
+				asciigraph.LowerBound(0),
+				asciigraph.Precision(0),
+			)
+
+			outstandingPlot := asciigraph.Plot(outstandingMessages,
+				asciigraph.Caption("Messages Waiting for Ack"),
+				asciigraph.Width(width),
+				asciigraph.Height(height/4-2),
+				asciigraph.LowerBound(0),
+				asciigraph.Precision(0),
+			)
+
+			asciigraph.Clear()
+
+			fmt.Printf("Consumer Statistics for %s > %s\n", c.stream, c.consumer)
+			fmt.Println()
+			fmt.Println(unprocessedPlot)
+			fmt.Println()
+			fmt.Println(outstandingPlot)
+			fmt.Println()
+			fmt.Println(ackedPlot)
+			fmt.Println()
+			fmt.Println(deliveredPlot)
+
+		case <-ctx.Done():
+			asciigraph.Clear()
+			return nil
+		}
+	}
+}
+
+func (c *consumerCmd) leaderStandDownAction(_ *fisk.ParseContext) error {
 	c.connectAndSetup(true, true)
 
 	consumer, err := c.mgr.LoadConsumer(c.stream, c.consumer)
@@ -592,75 +743,82 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		return
 	}
 
-	cols := newColumns(fmt.Sprintf("Information for Consumer %s > %s created %s", state.Stream, state.Name, state.Created.Local().Format(time.RFC3339)))
-
-	cols.AddSectionTitle("Configuration")
-
-	cols.AddRowIfNotEmpty("Name", config.Name)
-	cols.AddRowIf("Durable Name", config.Durable, config.Durable != "" && config.Durable != config.Name)
-	cols.AddRowIfNotEmpty("Description", config.Description)
-
-	if config.DeliverSubject != "" {
-		cols.AddRow("Delivery Subject", config.DeliverSubject)
+	var cols *columns.Writer
+	if c.showStateOnly {
+		cols = newColumns(fmt.Sprintf("State for Consumer %s > %s created %s", state.Stream, state.Name, state.Created.Local().Format(time.RFC3339)))
 	} else {
-		cols.AddRow("Pull Mode", true)
+		cols = newColumns(fmt.Sprintf("Information for Consumer %s > %s created %s", state.Stream, state.Name, state.Created.Local().Format(time.RFC3339)))
 	}
 
-	if config.FilterSubject != "" {
-		cols.AddRow("Filter Subject", config.FilterSubject)
-	} else if len(config.FilterSubjects) > 0 {
-		cols.AddRow("Filter Subjects", config.FilterSubjects)
-	}
+	if !c.showStateOnly {
+		cols.AddSectionTitle("Configuration")
 
-	switch config.DeliverPolicy {
-	case api.DeliverAll:
-		cols.AddRow("Deliver Policy", "All")
-	case api.DeliverLast:
-		cols.AddRow("Deliver Policy", "Last")
-	case api.DeliverNew:
-		cols.AddRow("Deliver Policy", "New")
-	case api.DeliverLastPerSubject:
-		cols.AddRow("Deliver Policy", "Last Per Subject")
-	case api.DeliverByStartTime:
-		cols.AddRowf("Deliver Policy", "Since %s", config.OptStartTime)
-	case api.DeliverByStartSequence:
-		cols.AddRowf("Deliver Policy", "From Sequence %d", config.OptStartSeq)
-	}
+		cols.AddRowIfNotEmpty("Name", config.Name)
+		cols.AddRowIf("Durable Name", config.Durable, config.Durable != "" && config.Durable != config.Name)
+		cols.AddRowIfNotEmpty("Description", config.Description)
 
-	cols.AddRowIf("Deliver Queue Group", config.DeliverGroup, config.DeliverGroup != "" && config.DeliverSubject != "")
-	cols.AddRow("Ack Policy", config.AckPolicy.String())
-	cols.AddRowIf("Ack Wait", config.AckWait, config.AckPolicy != api.AckNone)
-	cols.AddRow("Replay Policy", config.ReplayPolicy.String())
-	cols.AddRowIf("Maximum Deliveries", config.MaxDeliver, config.MaxDeliver != -1)
-	cols.AddRowIfNotEmpty("Sampling Rate", config.SampleFrequency)
-	cols.AddRowIf("Rate Limit", fmt.Sprintf("%s / second", humanize.IBytes(config.RateLimit/8)), config.RateLimit > 0)
-	cols.AddRowIf("Max Ack Pending", config.MaxAckPending, config.MaxAckPending > 0)
-	cols.AddRowIf("Max Waiting Pulls", int64(config.MaxWaiting), config.MaxWaiting > 0)
-	cols.AddRowIf("Idle Heartbeat", config.Heartbeat, config.Heartbeat > 0)
-	cols.AddRowIf("Flow Control", config.FlowControl, config.DeliverSubject != "")
-	cols.AddRowIf("Headers Only", true, config.HeadersOnly)
-	cols.AddRowIf("Inactive Threshold", config.InactiveThreshold, config.InactiveThreshold > 0 && config.DeliverSubject == "")
-	cols.AddRowIf("Max Pull Expire", config.MaxRequestExpires, config.MaxRequestExpires > 0)
-	cols.AddRowIf("Max Pull Batch", config.MaxRequestBatch, config.MaxRequestBatch > 0)
-	cols.AddRowIf("Max Pull MaxBytes", config.MaxRequestMaxBytes, config.MaxRequestMaxBytes > 0)
-	cols.AddRowIf("Backoff", c.renderBackoff(config.BackOff), len(config.BackOff) > 0)
-	cols.AddRowIf("Replicas", config.Replicas, config.Replicas > 0)
-	cols.AddRowIf("Memory Storage", true, config.MemoryStorage)
-	if state.Paused {
-		cols.AddRowf("Paused Until Deadline", "%s (%s remaining)", f(config.PauseUntil), state.PauseRemaining.Round(time.Second))
-	} else {
-		cols.AddRowIf("Paused Until Deadline", fmt.Sprintf("%s (passed)", f(config.PauseUntil)), !config.PauseUntil.IsZero())
-	}
+		if config.DeliverSubject != "" {
+			cols.AddRow("Delivery Subject", config.DeliverSubject)
+		} else {
+			cols.AddRow("Pull Mode", true)
+		}
 
-	if len(config.Metadata) > 0 {
-		cols.AddSectionTitle("Metadata")
-		maxLen := progressWidth()
-		for k, v := range config.Metadata {
-			if len(v) > maxLen && maxLen > 20 {
-				w := maxLen/2 - 10
-				v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
+		if config.FilterSubject != "" {
+			cols.AddRow("Filter Subject", config.FilterSubject)
+		} else if len(config.FilterSubjects) > 0 {
+			cols.AddRow("Filter Subjects", config.FilterSubjects)
+		}
+
+		switch config.DeliverPolicy {
+		case api.DeliverAll:
+			cols.AddRow("Deliver Policy", "All")
+		case api.DeliverLast:
+			cols.AddRow("Deliver Policy", "Last")
+		case api.DeliverNew:
+			cols.AddRow("Deliver Policy", "New")
+		case api.DeliverLastPerSubject:
+			cols.AddRow("Deliver Policy", "Last Per Subject")
+		case api.DeliverByStartTime:
+			cols.AddRowf("Deliver Policy", "Since %s", config.OptStartTime)
+		case api.DeliverByStartSequence:
+			cols.AddRowf("Deliver Policy", "From Sequence %d", config.OptStartSeq)
+		}
+
+		cols.AddRowIf("Deliver Queue Group", config.DeliverGroup, config.DeliverGroup != "" && config.DeliverSubject != "")
+		cols.AddRow("Ack Policy", config.AckPolicy.String())
+		cols.AddRowIf("Ack Wait", config.AckWait, config.AckPolicy != api.AckNone)
+		cols.AddRow("Replay Policy", config.ReplayPolicy.String())
+		cols.AddRowIf("Maximum Deliveries", config.MaxDeliver, config.MaxDeliver != -1)
+		cols.AddRowIfNotEmpty("Sampling Rate", config.SampleFrequency)
+		cols.AddRowIf("Rate Limit", fmt.Sprintf("%s / second", humanize.IBytes(config.RateLimit/8)), config.RateLimit > 0)
+		cols.AddRowIf("Max Ack Pending", config.MaxAckPending, config.MaxAckPending > 0)
+		cols.AddRowIf("Max Waiting Pulls", int64(config.MaxWaiting), config.MaxWaiting > 0)
+		cols.AddRowIf("Idle Heartbeat", config.Heartbeat, config.Heartbeat > 0)
+		cols.AddRowIf("Flow Control", config.FlowControl, config.DeliverSubject != "")
+		cols.AddRowIf("Headers Only", true, config.HeadersOnly)
+		cols.AddRowIf("Inactive Threshold", config.InactiveThreshold, config.InactiveThreshold > 0 && config.DeliverSubject == "")
+		cols.AddRowIf("Max Pull Expire", config.MaxRequestExpires, config.MaxRequestExpires > 0)
+		cols.AddRowIf("Max Pull Batch", config.MaxRequestBatch, config.MaxRequestBatch > 0)
+		cols.AddRowIf("Max Pull MaxBytes", config.MaxRequestMaxBytes, config.MaxRequestMaxBytes > 0)
+		cols.AddRowIf("Backoff", c.renderBackoff(config.BackOff), len(config.BackOff) > 0)
+		cols.AddRowIf("Replicas", config.Replicas, config.Replicas > 0)
+		cols.AddRowIf("Memory Storage", true, config.MemoryStorage)
+		if state.Paused {
+			cols.AddRowf("Paused Until Deadline", "%s (%s remaining)", f(config.PauseUntil), state.PauseRemaining.Round(time.Second))
+		} else {
+			cols.AddRowIf("Paused Until Deadline", fmt.Sprintf("%s (passed)", f(config.PauseUntil)), !config.PauseUntil.IsZero())
+		}
+
+		if len(config.Metadata) > 0 {
+			cols.AddSectionTitle("Metadata")
+			maxLen := progressWidth()
+			for k, v := range config.Metadata {
+				if len(v) > maxLen && maxLen > 20 {
+					w := maxLen/2 - 10
+					v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
+				}
+				cols.AddRow(k, v)
 			}
-			cols.AddRow(k, v)
 		}
 	}
 
@@ -729,6 +887,11 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	}
 
 	cols.Frender(os.Stdout)
+}
+
+func (c *consumerCmd) stateAction(pc *fisk.ParseContext) error {
+	c.showStateOnly = true
+	return c.infoAction(pc)
 }
 
 func (c *consumerCmd) infoAction(_ *fisk.ParseContext) error {
