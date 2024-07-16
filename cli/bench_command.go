@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/nats-io/nats.go/jetstream"
+	"math"
 	"math/rand"
 	"os"
 	"strconv"
@@ -292,11 +293,11 @@ func (c *benchCmd) processActionArgs() error {
 	// for pubs/request/and put only
 	if c.msgSizeString != "" {
 		msgSize, err := parseStringAsBytes(c.msgSizeString)
-		if err != nil || msgSize <= 0 {
+		if err != nil || msgSize <= 0 || msgSize > math.MaxInt {
 			return fmt.Errorf("can not parse or invalid the value specified for the message size: %s", c.msgSizeString)
+		} else {
+			c.msgSize = int(msgSize)
 		}
-
-		c.msgSize = int(msgSize)
 	}
 
 	if opts().Config == nil {
