@@ -2124,7 +2124,12 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startw
 		if err != nil {
 			log.Fatalf("Error PullSubscribe: %v", err)
 		}
-		defer sub.Drain()
+		defer func(sub *nats.Subscription) {
+			err := sub.Drain()
+			if err != nil {
+				log.Fatalf("Error draining the subscription at the end of the run: %v", err)
+			}
+		}(sub)
 	} else if benchType == BenchTypeOldJSPush {
 		state = "Receiving "
 		sub, err = js.QueueSubscribe(getSubscribeSubject(c), c.consumerName+"-GROUP", mh, nats.Bind(c.streamName, c.consumerName), nats.ManualAck())
