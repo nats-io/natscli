@@ -209,7 +209,7 @@ Remember to use --no-progress to measure performance more accurately.
 
 	jspub := jsCommand.Command("pub", "Publish JetStream messages").Action(c.jspubAction)
 	jspub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
-	jspub.Flag("batch", "The number of asynchronous JS publish calls before waiting for all the publish acknowledgements (set to 1 for synchronous)").Default("100").IntVar(&c.batchSize)
+	jspub.Flag("batch", "The number of asynchronous JS publish calls before waiting for all the publish acknowledgements (set to 1 for synchronous)").Default("500").IntVar(&c.batchSize)
 	addCommonFlags(jspub)
 	addPubFlags(jspub)
 	addJSCommonFlags(jspub)
@@ -218,6 +218,7 @@ Remember to use --no-progress to measure performance more accurately.
 	jsOrdered := jsCommand.Command("ordered", "Consume JetStream messages from a consumer using an ephemeral ordered consumer").Action(c.jsOrderedAction)
 	jsOrdered.Flag("consumer", "Specify the durable consumer name to use").Default(DefaultDurableConsumerName).StringVar(&c.consumerName)
 	jsOrdered.Flag("sleep", "Sleep for the specified interval before returning from the message handler").Default("0s").DurationVar(&c.sleep)
+	jsOrdered.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
 	addCommonFlags(jsOrdered)
 	addJSCommonFlags(jsOrdered)
 
@@ -1842,9 +1843,9 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *
 			log.Fatalf("Error creating the ephemeral ordered consumer: %v", err)
 		}
 
-		cc, err := consumer.Consume(mh2)
+		cc, err := consumer.Consume(mh2, jetstream.PullMaxMessages(c.batchSize))
 		if err != nil {
-			return
+			log.Fatalf("Error calling Consume(): %v", err)
 		}
 		defer cc.Stop()
 	case BenchTypeJSConsume:
@@ -1856,7 +1857,7 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *
 
 		cc, err := consumer.Consume(mh2, jetstream.PullMaxMessages(c.batchSize), jetstream.StopAfter(numMsg))
 		if err != nil {
-			return
+			log.Fatalf("Error calling Consume(): %v", err)
 		}
 		defer cc.Stop()
 	case BenchTypeJSFetch:
