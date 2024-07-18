@@ -66,27 +66,27 @@ type benchCmd struct {
 }
 
 const (
-	DefaultDurableConsumerName string = "nats-bench"
-	DefaultStreamName          string = "benchstream"
-	DefaultBucketName          string = "benchbucket"
-	DefaultServiceName         string = "nats-bench-service"
-	DefaultServiceVersion      string = "1.0.0"
-	BenchTypeCorePub           string = "pub"
-	BenchTypeCoreSub           string = "sub"
-	BenchTypeServiceRequest    string = "request"
-	BenchTypeServiceServe      string = "reply"
-	BenchTypeJSPub             string = "jspub"
-	BenchTypeJSOrdered         string = "jsordered"
-	BenchTypeJSConsume         string = "jsconsume"
-	BenchTypeJSFetch           string = "jsfetch"
-	BenchTypeOldJSOrdered      string = "oldjsordered"
-	BenchTypeOldJSPush         string = "oldjspush"
-	BenchTypeOldJSPull         string = "oldjspull"
-	BenchTypeKVPut             string = "kvput"
-	BenchTypeKVGet             string = "kvget"
-	AckModeNone                string = "none"
-	AckModeAll                 string = "all"
-	AckModeExplicit            string = "explicit"
+	BenchDefaultDurableConsumerName string = "nats-bench"
+	BenchDefaultStreamName          string = "benchstream"
+	BenchDefaultBucketName          string = "benchbucket"
+	BenchDefaultServiceName         string = "nats-bench-service"
+	BenchDefaultServiceVersion      string = "1.0.0"
+	BenchTypeCorePub                string = "pub"
+	BenchTypeCoreSub                string = "sub"
+	BenchTypeServiceRequest         string = "request"
+	BenchTypeServiceServe           string = "reply"
+	BenchTypeJSPub                  string = "jspub"
+	BenchTypeJSOrdered              string = "jsordered"
+	BenchTypeJSConsume              string = "jsconsume"
+	BenchTypeJSFetch                string = "jsfetch"
+	BenchTypeOldJSOrdered           string = "oldjsordered"
+	BenchTypeOldJSPush              string = "oldjspush"
+	BenchTypeOldJSPull              string = "oldjspull"
+	BenchTypeKVPut                  string = "kvput"
+	BenchTypeKVGet                  string = "kvget"
+	AckModeNone                     string = "none"
+	AckModeAll                      string = "all"
+	AckModeExplicit                 string = "explicit"
 )
 
 func configureBenchCommand(app commandHost) {
@@ -107,7 +107,7 @@ func configureBenchCommand(app commandHost) {
 	}
 
 	addJSCommonFlags := func(f *fisk.CmdClause) {
-		f.Flag("stream", "The name of the stream to create or use").Default(DefaultStreamName).StringVar(&c.streamOrBucketName)
+		f.Flag("stream", "The name of the stream to create or use").Default(BenchDefaultStreamName).StringVar(&c.streamOrBucketName)
 		f.Flag("js-timeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	}
 
@@ -174,18 +174,18 @@ func configureBenchCommand(app commandHost) {
 	jsOrdered.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
 
 	jsConsume := jsCommand.Command("consume", "Consume JetStream messages from a durable consumer using a callback").Action(c.jsConsumeAction)
-	jsConsume.Flag("consumer", "Specify the durable consumer name to use").Default(DefaultDurableConsumerName).StringVar(&c.consumerName)
+	jsConsume.Flag("consumer", "Specify the durable consumer name to use").Default(BenchDefaultDurableConsumerName).StringVar(&c.consumerName)
 	jsConsume.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
 	jsConsume.Flag("acks", "Acknowledgement mode for the consumer").Default(AckModeExplicit).EnumVar(&c.ackMode, AckModeExplicit, AckModeNone, AckModeAll)
 
 	jsFetch := jsCommand.Command("fetch", "Consume JetStream messages from a durable consumer using fetch").Action(c.jsFetchAction)
-	jsFetch.Flag("consumer", "Specify the durable consumer name to use").Default(DefaultDurableConsumerName).StringVar(&c.consumerName)
+	jsFetch.Flag("consumer", "Specify the durable consumer name to use").Default(BenchDefaultDurableConsumerName).StringVar(&c.consumerName)
 	jsFetch.Flag("batch", "Sets the fetch batch size").Default("500").IntVar(&c.batchSize)
 	jsFetch.Flag("acks", "Acknowledgement mode for the consumer").Default(AckModeExplicit).EnumVar(&c.ackMode, AckModeExplicit, AckModeNone, AckModeAll)
 
 	kvCommand := benchCommand.Command("kv", "KV benchmark operations")
 	addCommonFlags(kvCommand)
-	kvCommand.Flag("bucket", "The bucket to use for the benchmark").Default(DefaultBucketName).StringVar(&c.streamOrBucketName)
+	kvCommand.Flag("bucket", "The bucket to use for the benchmark").Default(BenchDefaultBucketName).StringVar(&c.streamOrBucketName)
 	kvCommand.Flag("js-timeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	kvCommand.Flag("sleep", "Sleep for the specified interval after putting each message").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
 
@@ -206,13 +206,13 @@ func configureBenchCommand(app commandHost) {
 
 	oldJSPush := oldJSCommand.Command("push", "Consume JetStream messages from a consumer using an old JS API's durable push consumer").Action(c.oldjsPushAction)
 	oldJSPush.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
-	oldJSPush.Flag("consumer", "Specify the durable consumer name to use").Default(DefaultDurableConsumerName).StringVar(&c.consumerName)
+	oldJSPush.Flag("consumer", "Specify the durable consumer name to use").Default(BenchDefaultDurableConsumerName).StringVar(&c.consumerName)
 	oldJSPush.Flag("maxacks", "Sets the max ack pending value, adjusts for the number of clients").Default("500").IntVar(&c.batchSize)
 	oldJSPush.Flag("ack", "Uses explicit message acknowledgement or not for the consumer").Default("true").BoolVar(&c.ack)
 
 	oldJSPull := oldJSCommand.Command("pull", "Consume JetStream messages from a consumer using an old JS API's durable pull consumer").Action(c.oldjsPullAction)
 	oldJSPull.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
-	oldJSPull.Flag("consumer", "Specify the durable consumer name to use").Default(DefaultDurableConsumerName).StringVar(&c.consumerName)
+	oldJSPull.Flag("consumer", "Specify the durable consumer name to use").Default(BenchDefaultDurableConsumerName).StringVar(&c.consumerName)
 	oldJSPull.Flag("batch", "Sets the fetch size for the consumer").Default("500").IntVar(&c.batchSize)
 	oldJSPull.Flag("ack", "Uses explicit message acknowledgement or not for the consumer").Default("true").BoolVar(&c.ack)
 }
@@ -832,7 +832,7 @@ func (c *benchCmd) jsConsumeAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if c.consumerName == DefaultDurableConsumerName {
+	if c.consumerName == BenchDefaultDurableConsumerName {
 		// create the consumer
 		// TODO: Should it just delete and create each time?
 		err = c.createOrUpdateConsumer(js)
@@ -905,7 +905,7 @@ func (c *benchCmd) jsFetchAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if c.consumerName == DefaultDurableConsumerName {
+	if c.consumerName == BenchDefaultDurableConsumerName {
 		// create the consumer
 		// TODO: Should it be just create or delete and create each time?
 		err = c.createOrUpdateConsumer(js)
@@ -987,7 +987,7 @@ func (c *benchCmd) kvPutAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	if c.streamOrBucketName == DefaultBucketName {
+	if c.streamOrBucketName == BenchDefaultBucketName {
 		// create bucket
 		_, err := js.CreateKeyValue(ctx, jetstream.KeyValueConfig{Bucket: c.streamOrBucketName, History: c.history, Storage: c.storageType(), Description: "nats bench bucket", Replicas: c.replicas, MaxBytes: c.streamMaxBytes})
 		if err != nil {
@@ -1142,7 +1142,7 @@ func (c *benchCmd) oldjsPushAction(_ *fisk.ParseContext) error {
 		log.Fatalf("Couldn't get the JetStream context: %v", err)
 	}
 
-	if c.consumerName == DefaultDurableConsumerName {
+	if c.consumerName == BenchDefaultDurableConsumerName {
 		ack := nats.AckNonePolicy
 		if c.ack {
 			ack = nats.AckExplicitPolicy
@@ -1239,7 +1239,7 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 		ack = nats.AckExplicitPolicy
 	}
 
-	if c.consumerName == DefaultDurableConsumerName {
+	if c.consumerName == BenchDefaultDurableConsumerName {
 		_, err = js.AddConsumer(c.streamOrBucketName, &nats.ConsumerConfig{
 			Durable:       c.consumerName,
 			DeliverPolicy: nats.DeliverAllPolicy,
@@ -1630,8 +1630,8 @@ func (c *benchCmd) runServiceServer(nc *nats.Conn, startwg *sync.WaitGroup, done
 	}
 
 	_, err := services.AddService(nc, services.Config{
-		Name:    DefaultServiceName,
-		Version: DefaultServiceVersion,
+		Name:    BenchDefaultServiceName,
+		Version: BenchDefaultServiceVersion,
 		Endpoint: &services.EndpointConfig{
 			Subject: c.subject,
 			Handler: services.HandlerFunc(reqHandler),
