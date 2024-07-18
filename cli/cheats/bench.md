@@ -1,30 +1,38 @@
-# benchmark core nats publish and subscribe with 10 publishers and subscribers
-nats bench testsubject --pub 10 --sub 10 --msgs 10000 --size 512
+# benchmark core nats publish with 10 publishers on subject foo
+nats bench pub foo --clients 10 --msgs 10000 --size 512
+
+# benchmark core nats subscribe for 4 clients on subject foo
+nats bench sub foo --clients 5 --msgs 10000
 
 # benchmark core nats request-reply with queuing
-nats bench testsubject --sub 4 --reply
-nats bench testsubject --pub 4 --request --msgs 20000
+## run 4 clients servicing requests
+nats bench service serve --clients 4 testservice
 
-# benchmark JetStream synchronously acknowledged publishing purging the data first
-nats bench testsubject --js --syncpub --pub 10  --msgs 10000 --purge
+## run 4 clients making synchronous requests on the service at subject testservice
+nats bench service request --clients 4 testservice --msgs 20000
 
-# benchmark JS publish and push consumers at the same time purging the data first
-nats bench testsubject --js --pub 4 --sub 4 --purge
+# benchmark JetStream asynchronously acknowledged publishing of batches of 1000 on subject foo creating the stream first
+nats bench js pub foo --create --batch 1000
 
-# benchmark JS stream purge and async batched publishing to the stream
-nats bench testsubject --js --pub 4 --purge
+# benchmark JetStream synchronous publishing on subject foo using 10 clients and purging the stream first
+nats bench js pub foo --purge --batch=1 --clients=10
 
-# benchmark JS stream get replay from the stream using a push consumer
-nats bench testsubject --js --sub 4
+# benchmark JetStream delivery of messages from a stream using an ephemeral ordered consumer, disabling the progress bar
+nats bench js ordered --no-progress
 
-# benchmark JS stream get replay from the stream using a pull consumer
-nats bench testsubject --js --sub 4 --pull
+# benchmark JetStream delivery of messages from a stream through a durable consumer shared by 4 clients using the Consume() (callback) method.
+nats bench js consume --clients 4
 
-# simulate a message processing time (for reply mode and pull JS consumers) of 50 microseconds
-nats bench testsubject --reply --sub 1 --acksleep 50us
+# benchmark JetStream delivery of messages from a stream through a durable consumer with no acks shared by 4 clients using the fetch() method with batches of 1000.
+nats bench js fetch --clients 4 --acks=none --batch=1000
+
+# simulate a message processing time of 50 microseconds
+nats bench service serve testservice --sleep 50us
 
 # generate load by publishing messages at an interval of 100 nanoseconds rather than back to back
-nats bench testsubject --pub 1 --pubsleep 100ns
+nats bench pub foo --sleep=100ns
 
 # remember when benchmarking JetStream
-Once you are finished benchmarking, remember to free up the resources (i.e. memory and files) consumed by the stream using 'nats stream rm'
+Once you are finished benchmarking, remember to free up the resources (i.e. memory and files) consumed by the stream using 'nats stream rm'.
+
+You can get more accurate results by disabling the progress bar using the `--no-progress` flag.
