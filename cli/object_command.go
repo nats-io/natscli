@@ -301,6 +301,7 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 			cols.AddRow("Maximum Bucket Size", humanize.IBytes(uint64(nfo.Config.MaxBytes)))
 		}
 	}
+	cols.AddRow("Storage", status.Storage())
 	cols.AddRow("Backing Store Kind", status.BackingStore())
 	if status.BackingStore() == "JetStream" {
 		cols.AddRow("JetStream Stream", nfo.Config.Name)
