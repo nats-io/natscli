@@ -23,8 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nats-io/natscli/internal/util"
-
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"

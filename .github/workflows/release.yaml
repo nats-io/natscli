@@ -2,10 +2,14 @@ name: Release
 on:
   push:
     tags:
-      - v[0-9]+.[0-9]+.[0-9]+
+      - v[0-9]+\.[0-9]+\.[0-9]+
+      - v[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9]+
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -38,13 +42,18 @@ jobs:
         run: |
           set -e
           cd nats
-
-          # Required, tests execute built binary
           go build
+          cd ..
+          go test -v --failfast -p=1 ./...
 
-          go test -v --failfast -p=1 ./...
-          cd ../cli
-          go test -v --failfast -p=1 ./...
+      - name: Create GitHub App Token
+        id: token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.NATSIO_ARTIFACT_CROSS_REPO_PUSHER_APP_ID }}
+          private-key: ${{ secrets.NATSIO_ARTIFACT_CROSS_REPO_PUSHER_PRIVATE_KEY }}
+          owner: "nats-io"
+          repositories: "homebrew-nats-tools"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
@@ -53,3 +62,4 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_APP_TOKEN: ${{ steps.token.outputs.token }}
