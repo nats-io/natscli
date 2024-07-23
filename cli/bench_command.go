@@ -21,6 +21,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,33 +61,32 @@ type benchCmd struct {
 	multiSubjectMax      int
 	deDuplication        bool
 	deDuplicationWindow  time.Duration
-	retries              int
-	retriesUsed          bool
 	ack                  bool
+	randomizeGets        int
 }
 
 const (
-	BenchDefaultDurableConsumerName string = "nats-bench"
-	BenchDefaultStreamName          string = "benchstream"
-	BenchDefaultBucketName          string = "benchbucket"
-	BenchDefaultServiceName         string = "nats-bench-service"
-	BenchDefaultServiceVersion      string = "1.0.0"
-	BenchTypeCorePub                string = "pub"
-	BenchTypeCoreSub                string = "sub"
-	BenchTypeServiceRequest         string = "request"
-	BenchTypeServiceServe           string = "reply"
-	BenchTypeJSPub                  string = "jspub"
-	BenchTypeJSOrdered              string = "jsordered"
-	BenchTypeJSConsume              string = "jsconsume"
-	BenchTypeJSFetch                string = "jsfetch"
-	BenchTypeOldJSOrdered           string = "oldjsordered"
-	BenchTypeOldJSPush              string = "oldjspush"
-	BenchTypeOldJSPull              string = "oldjspull"
-	BenchTypeKVPut                  string = "kvput"
-	BenchTypeKVGet                  string = "kvget"
-	AckModeNone                     string = "none"
-	AckModeAll                      string = "all"
-	AckModeExplicit                 string = "explicit"
+	benchDefaultDurableConsumerName = "nats-bench"
+	benchDefaultStreamName          = "benchstream"
+	benchDefaultBucketName          = "benchbucket"
+	benchDefaultServiceName         = "nats-bench-service"
+	benchDefaultServiceVersion      = "1.0.0"
+	benchTypeCorePub                = "pub"
+	benchTypeCoreSub                = "sub"
+	benchTypeServiceRequest         = "request"
+	benchTypeServiceServe           = "reply"
+	benchTypeJSPub                  = "jspub"
+	benchTypeJSOrdered              = "jsordered"
+	benchTypeJSConsume              = "jsconsume"
+	benchTypeJSFetch                = "jsfetch"
+	benchTypeOldJSOrdered           = "oldjsordered"
+	benchTypeOldJSPush              = "oldjspush"
+	benchTypeOldJSPull              = "oldjspull"
+	benchTypeKVPut                  = "kvput"
+	BenchTypeKVGet                  = "kvget"
+	benchAckModeNone                = "none"
+	benchAckModeAll                 = "all"
+	benchAckModeExplicit            = "explicit"
 )
 
 func configureBenchCommand(app commandHost) {
@@ -107,28 +107,27 @@ func configureBenchCommand(app commandHost) {
 	}
 
 	addJSCommonFlags := func(f *fisk.CmdClause) {
-		f.Flag("stream", "The name of the stream to create or use").Default(BenchDefaultStreamName).StringVar(&c.streamOrBucketName)
+		f.Flag("stream", "The name of the stream to create or use").Default(benchDefaultStreamName).StringVar(&c.streamOrBucketName)
+		f.Flag("sleep", "Sleep for the specified interval between publications").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
+		f.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
 		f.Flag("js-timeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	}
 
 	addJSPubFlags := func(f *fisk.CmdClause) {
 		f.Flag("create", "Create or update the stream first").UnNegatableBoolVar(&c.createStream)
-		f.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
 		f.Flag("storage", "JetStream storage (memory/file) for the \"benchstream\" stream").Default("file").EnumVar(&c.storage, "memory", "file")
 		f.Flag("replicas", "Number of replicas for the \"benchstream\" stream").Default("1").IntVar(&c.replicas)
 		f.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes").Default("1GB").StringVar(&c.streamMaxBytesString)
-		f.Flag("retries", "The maximum number of retries in JS operations").Default("3").IntVar(&c.retries)
 		f.Flag("dedup", "Sets a message id in the header to use JS Publish de-duplication").Default("false").UnNegatableBoolVar(&c.deDuplication)
 		f.Flag("dedupwindow", "Sets the duration of the stream's deduplication functionality").Default("2m").DurationVar(&c.deDuplicationWindow)
 	}
 
 	addKVPutFlags := func(f *fisk.CmdClause) {
-		f.Flag("purge", "Purge the bucket before running").UnNegatableBoolVar(&c.purge)
 		f.Flag("storage", "JetStream storage (memory/file) for the \"benchstream\" bucket").Default("file").EnumVar(&c.storage, "memory", "file")
 		f.Flag("replicas", "Number of replicas for the \"benchstream\" bucket").Default("1").IntVar(&c.replicas)
 		f.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes").Default("1GB").StringVar(&c.streamMaxBytesString)
-		f.Flag("retries", "The maximum number of retries in JS operations").Default("3").IntVar(&c.retries)
 		f.Flag("history", "History depth for the bucket in KV mode").Default("1").Uint8Var(&c.history)
+		f.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
 	}
 
 	benchCommand := app.Command("bench", "Benchmark utility")
@@ -162,7 +161,6 @@ func configureBenchCommand(app commandHost) {
 	jsCommand := benchCommand.Command("js", "JetStream benchmark commands")
 	addCommonFlags(jsCommand)
 	addJSCommonFlags(jsCommand)
-	jsCommand.Flag("sleep", "Sleep for the specified interval before acknowledging the message, returning from the message handler or publishing each message").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
 
 	jspub := jsCommand.Command("pub", "Publish JetStream messages").Action(c.jspubAction)
 	jspub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
@@ -174,31 +172,31 @@ func configureBenchCommand(app commandHost) {
 	jsOrdered.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
 
 	jsConsume := jsCommand.Command("consume", "Consume JetStream messages from a durable consumer using a callback").Action(c.jsConsumeAction)
-	jsConsume.Flag("consumer", "Specify the durable consumer name to use").Default(BenchDefaultDurableConsumerName).StringVar(&c.consumerName)
+	jsConsume.Flag("consumer", "Specify the durable consumer name to use").Default(benchDefaultDurableConsumerName).StringVar(&c.consumerName)
 	jsConsume.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
-	jsConsume.Flag("acks", "Acknowledgement mode for the consumer").Default(AckModeExplicit).EnumVar(&c.ackMode, AckModeExplicit, AckModeNone, AckModeAll)
+	jsConsume.Flag("acks", "Acknowledgement mode for the consumer").Default(benchAckModeExplicit).EnumVar(&c.ackMode, benchAckModeExplicit, benchAckModeNone, benchAckModeAll)
 
 	jsFetch := jsCommand.Command("fetch", "Consume JetStream messages from a durable consumer using fetch").Action(c.jsFetchAction)
-	jsFetch.Flag("consumer", "Specify the durable consumer name to use").Default(BenchDefaultDurableConsumerName).StringVar(&c.consumerName)
+	jsFetch.Flag("consumer", "Specify the durable consumer name to use").Default(benchDefaultDurableConsumerName).StringVar(&c.consumerName)
 	jsFetch.Flag("batch", "Sets the fetch batch size").Default("500").IntVar(&c.batchSize)
-	jsFetch.Flag("acks", "Acknowledgement mode for the consumer").Default(AckModeExplicit).EnumVar(&c.ackMode, AckModeExplicit, AckModeNone, AckModeAll)
+	jsFetch.Flag("acks", "Acknowledgement mode for the consumer").Default(benchAckModeExplicit).EnumVar(&c.ackMode, benchAckModeExplicit, benchAckModeNone, benchAckModeAll)
 
 	kvCommand := benchCommand.Command("kv", "KV benchmark operations")
 	addCommonFlags(kvCommand)
-	kvCommand.Flag("bucket", "The bucket to use for the benchmark").Default(BenchDefaultBucketName).StringVar(&c.streamOrBucketName)
-	kvCommand.Flag("js-timeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
+	kvCommand.Flag("bucket", "The bucket to use for the benchmark").Default(benchDefaultBucketName).StringVar(&c.streamOrBucketName)
 	kvCommand.Flag("sleep", "Sleep for the specified interval after putting each message").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
+	kvCommand.Flag("js-timeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 
 	kvput := kvCommand.Command("put", "Put messages in a KV bucket").Action(c.kvPutAction)
 	// TODO: support randomized payload data
 	addKVPutFlags(kvput)
 
-	_ = kvCommand.Command("get", "Get messages from a KV bucket").Action(c.kvGetAction)
+	kvget := kvCommand.Command("get", "Get messages from a KV bucket").Action(c.kvGetAction)
+	kvget.Flag("randomize", "Randomly access messages using keys between 0 and this number (set to 0 for sequential access)").Default("0").IntVar(&c.randomizeGets)
 
 	oldJSCommand := benchCommand.Command("oldjs", "JetStream benchmark commands using the old JS API").Hidden()
 	addCommonFlags(oldJSCommand)
 	addJSCommonFlags(oldJSCommand)
-	oldJSCommand.Flag("sleep", "Sleep for the specified interval before acknowledging the message or returning from the message handler").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
 
 	oldJSOrdered := oldJSCommand.Command("ordered", "Consume JetStream messages from a consumer using an old JS API's ephemeral ordered consumer").Action(c.oldjsOrderedAction)
 	oldJSOrdered.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
@@ -206,13 +204,13 @@ func configureBenchCommand(app commandHost) {
 
 	oldJSPush := oldJSCommand.Command("push", "Consume JetStream messages from a consumer using an old JS API's durable push consumer").Action(c.oldjsPushAction)
 	oldJSPush.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
-	oldJSPush.Flag("consumer", "Specify the durable consumer name to use").Default(BenchDefaultDurableConsumerName).StringVar(&c.consumerName)
+	oldJSPush.Flag("consumer", "Specify the durable consumer name to use").Default(benchDefaultDurableConsumerName).StringVar(&c.consumerName)
 	oldJSPush.Flag("maxacks", "Sets the max ack pending value, adjusts for the number of clients").Default("500").IntVar(&c.batchSize)
 	oldJSPush.Flag("ack", "Uses explicit message acknowledgement or not for the consumer").Default("true").BoolVar(&c.ack)
 
 	oldJSPull := oldJSCommand.Command("pull", "Consume JetStream messages from a consumer using an old JS API's durable pull consumer").Action(c.oldjsPullAction)
 	oldJSPull.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
-	oldJSPull.Flag("consumer", "Specify the durable consumer name to use").Default(BenchDefaultDurableConsumerName).StringVar(&c.consumerName)
+	oldJSPull.Flag("consumer", "Specify the durable consumer name to use").Default(benchDefaultDurableConsumerName).StringVar(&c.consumerName)
 	oldJSPull.Flag("batch", "Sets the fetch size for the consumer").Default("500").IntVar(&c.batchSize)
 	oldJSPull.Flag("ack", "Uses explicit message acknowledgement or not for the consumer").Default("true").BoolVar(&c.ack)
 }
@@ -221,7 +219,7 @@ func init() {
 	registerCommand("bench", 2, configureBenchCommand)
 }
 
-func getJS(nc *nats.Conn) (jetstream.JetStream, error) {
+func (c *benchCmd) getJS(nc *nats.Conn) (jetstream.JetStream, error) {
 	var err error
 	var js jetstream.JetStream
 
@@ -234,7 +232,7 @@ func getJS(nc *nats.Conn) (jetstream.JetStream, error) {
 		js, err = jetstream.New(nc)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get the new API JetStream instance: %v", err)
+		return nil, fmt.Errorf("getting the new API JetStream instance: %w", err)
 	}
 
 	return js, nil
@@ -265,7 +263,7 @@ func (c *benchCmd) processActionArgs() error {
 	}
 
 	if opts().Config == nil {
-		log.Fatalf("Unknown context %q", opts().CfgCtx)
+		return fmt.Errorf("unknown context %q", opts().CfgCtx)
 	}
 
 	if c.streamMaxBytesString != "" {
@@ -290,7 +288,6 @@ func (c *benchCmd) generateBanner(benchType string) string {
 	var argnvps []nvp
 
 	streamOrBucketAttribues := func() {
-		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
 		if c.createStream {
 			argnvps = append(argnvps, nvp{"storage", c.storage})
 			argnvps = append(argnvps, nvp{"max-bytes", f(uint64(c.streamMaxBytes))})
@@ -300,86 +297,88 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		}
 	}
 
+	jsAttributes := func() {
+		argnvps = append(argnvps, nvp{"stream", f(c.streamOrBucketName)})
+		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
+		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
+	}
+
 	benchTypeLabel := "Unknown benchmark"
 
 	switch benchType {
-	case BenchTypeCorePub:
+	case benchTypeCorePub:
 		benchTypeLabel = "Core NATS publish"
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
-	case BenchTypeCoreSub:
+	case benchTypeCoreSub:
 		benchTypeLabel = "Core NATS subscribe"
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
-	case BenchTypeServiceRequest:
+	case benchTypeServiceRequest:
 		benchTypeLabel = "Core NATS service request"
 		argnvps = append(argnvps, nvp{"subject", c.subject})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
-	case BenchTypeServiceServe:
+	case benchTypeServiceServe:
 		benchTypeLabel = "Core NATS service serve"
 		argnvps = append(argnvps, nvp{"subject", c.subject})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
-	case BenchTypeJSPub:
+	case benchTypeJSPub:
 		benchTypeLabel = "JetStream publish"
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
-		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
+		jsAttributes()
 		streamOrBucketAttribues()
-	case BenchTypeJSOrdered:
+	case benchTypeJSOrdered:
 		benchTypeLabel = "JetStream ordered ephemeral consumer"
-		argnvps = append(argnvps, nvp{"stream", c.streamOrBucketName})
-		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
+		jsAttributes()
 		streamOrBucketAttribues()
-	case BenchTypeJSConsume:
+	case benchTypeJSConsume:
 		benchTypeLabel = "JetStream durable consumer (callback)"
-		argnvps = append(argnvps, nvp{"stream", c.streamOrBucketName})
 		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
-		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 		argnvps = append(argnvps, nvp{"acks", c.ackMode})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
+		jsAttributes()
 		streamOrBucketAttribues()
-	case BenchTypeJSFetch:
+	case benchTypeJSFetch:
 		benchTypeLabel = "JetStream durable consumer (fetch)"
-		argnvps = append(argnvps, nvp{"stream", c.streamOrBucketName})
 		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
-		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 		argnvps = append(argnvps, nvp{"acks", c.ackMode})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
+		jsAttributes()
 		streamOrBucketAttribues()
-	case BenchTypeKVPut:
+	case benchTypeKVPut:
 		benchTypeLabel = "KV put"
 		argnvps = append(argnvps, nvp{"bucket", c.streamOrBucketName})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
+		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
 		streamOrBucketAttribues()
 	case BenchTypeKVGet:
 		benchTypeLabel = "KV get"
 		argnvps = append(argnvps, nvp{"bucket", c.streamOrBucketName})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
+		argnvps = append(argnvps, nvp{"randomize", f(c.randomizeGets)})
 		streamOrBucketAttribues()
-	case BenchTypeOldJSOrdered:
+	case benchTypeOldJSOrdered:
 		benchTypeLabel = "old JetStream API ordered ephemeral consumer"
-		argnvps = append(argnvps, nvp{"stream", c.streamOrBucketName})
-		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
+		jsAttributes()
 		streamOrBucketAttribues()
-	case BenchTypeOldJSPush:
+	case benchTypeOldJSPush:
 		benchTypeLabel = "old JetStream API durable push consumer"
-		argnvps = append(argnvps, nvp{"stream", c.streamOrBucketName})
 		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
-		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 		argnvps = append(argnvps, nvp{"acked", fmt.Sprintf("%v", c.ack)})
+		jsAttributes()
 		streamOrBucketAttribues()
-	case BenchTypeOldJSPull:
+	case benchTypeOldJSPull:
 		benchTypeLabel = "old JetStream API durable pull consumer"
-		argnvps = append(argnvps, nvp{"stream", c.streamOrBucketName})
 		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
-		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 		argnvps = append(argnvps, nvp{"acked", fmt.Sprintf("%v", c.ack)})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
+		jsAttributes()
 		streamOrBucketAttribues()
 	}
 
@@ -391,9 +390,14 @@ func (c *benchCmd) generateBanner(benchType string) string {
 
 	var joinBuffer []string
 
+	sort.Slice(argnvps, func(i, j int) bool {
+		return argnvps[i].name < argnvps[j].name
+	})
+
 	for _, v := range argnvps {
 		joinBuffer = append(joinBuffer, v.name+"="+v.value)
 	}
+
 	banner += strings.Join(joinBuffer, ", ") + "]"
 
 	return banner
@@ -408,10 +412,6 @@ func (c *benchCmd) printResults(bm *bench.Benchmark) error {
 		log.Print("WARNING: at least one of the pull consumer Fetch operation timed out. These results are not optimal!")
 	}
 
-	if c.retriesUsed {
-		log.Print("WARNING: at least one of the JS publish operations had to be retried. These results are not optimal!")
-	}
-
 	fmt.Println()
 	fmt.Println(bm.Report())
 
@@ -419,7 +419,7 @@ func (c *benchCmd) printResults(bm *bench.Benchmark) error {
 		csv := bm.CSV()
 		err := os.WriteFile(c.csvFile, []byte(csv), 0600)
 		if err != nil {
-			return fmt.Errorf("error writing file %s: %v", c.csvFile, err)
+			return fmt.Errorf("writing file %s: %w", c.csvFile, err)
 		}
 		fmt.Printf("Saved metric data in csv file %s\n", c.csvFile)
 	}
@@ -448,16 +448,10 @@ func (c *benchCmd) getPublishSubject(number int) string {
 }
 
 func (c *benchCmd) storageType() jetstream.StorageType {
-	switch c.storage {
-	case "file":
+	if c.storage == "memory" {
 		return jetstream.FileStorage
-	case "memory":
-		return jetstream.MemoryStorage
-	default:
-		{
-			log.Printf("Unknown storage type %s, using memory", c.storage)
-			return jetstream.MemoryStorage
-		}
+	} else {
+		return jetstream.FileStorage
 	}
 }
 
@@ -465,11 +459,11 @@ func (c *benchCmd) createOrUpdateConsumer(js jetstream.JetStream) error {
 	var ack jetstream.AckPolicy
 
 	switch c.ackMode {
-	case AckModeNone:
+	case benchAckModeNone:
 		ack = jetstream.AckNonePolicy
-	case AckModeAll:
+	case benchAckModeAll:
 		ack = jetstream.AckAllPolicy
-	case AckModeExplicit:
+	case benchAckModeExplicit:
 		ack = jetstream.AckExplicitPolicy
 	}
 
@@ -482,7 +476,32 @@ func (c *benchCmd) createOrUpdateConsumer(js jetstream.JetStream) error {
 		InactiveThreshold: time.Second * 10,
 	})
 	if err != nil {
-		return fmt.Errorf("could not create the durable consumer %s: %v", c.consumerName, err)
+		return fmt.Errorf("creating the durable consumer '%s': %w", c.consumerName, err)
+	}
+
+	return nil
+}
+
+func (c *benchCmd) purgeStream() error {
+	nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
+	if err != nil {
+		return err
+	}
+	defer nc.Close()
+
+	js, err := c.getJS(nc)
+	if err != nil {
+		return err
+	}
+
+	s, err := js.Stream(ctx, c.streamOrBucketName)
+	if err != nil {
+		return fmt.Errorf("getting stream '%s': %w", c.streamOrBucketName, err)
+	}
+
+	err = s.Purge(ctx)
+	if err != nil {
+		return fmt.Errorf("purging stream '%s': %w", c.streamOrBucketName, err)
 	}
 
 	return nil
@@ -495,7 +514,7 @@ func (c *benchCmd) pubAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeCorePub)
+	banner := c.generateBanner(benchTypeCorePub)
 
 	log.Println(banner)
 
@@ -506,17 +525,19 @@ func (c *benchCmd) pubAction(_ *fisk.ParseContext) error {
 
 	pubCounts := bench.MsgsPerClient(c.numMsg, c.numClients)
 	trigger := make(chan struct{})
+	errChan := make(chan error, c.numClients)
+
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("nats connection %d failed: %s", i, err)
+			return err
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runCorePublisher(bm, nc, startwg, donewg, trigger, pubCounts[i], c.offset(i, pubCounts), strconv.Itoa(i))
+		go c.runCorePublisher(bm, errChan, nc, startwg, donewg, trigger, pubCounts[i], c.offset(i, pubCounts), strconv.Itoa(i))
 	}
 
 	if c.progressBar {
@@ -527,8 +548,22 @@ func (c *benchCmd) pubAction(_ *fisk.ParseContext) error {
 	close(trigger)
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -543,7 +578,7 @@ func (c *benchCmd) subAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeCoreSub)
+	banner := c.generateBanner(benchTypeCoreSub)
 
 	log.Println(banner)
 
@@ -551,18 +586,19 @@ func (c *benchCmd) subAction(_ *fisk.ParseContext) error {
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("nats connection %d failed: %s", i, err)
+			return fmt.Errorf("client number %d failed to connect: %w", i, err)
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runCoreSubscriber(bm, nc, startwg, donewg, c.numMsg)
+		go c.runCoreSubscriber(bm, errChan, nc, startwg, donewg, c.numMsg)
 	}
 
 	if c.progressBar {
@@ -572,8 +608,22 @@ func (c *benchCmd) subAction(_ *fisk.ParseContext) error {
 	startwg.Wait()
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -588,7 +638,7 @@ func (c *benchCmd) requestAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeServiceRequest)
+	banner := c.generateBanner(benchTypeServiceRequest)
 
 	log.Println(banner)
 
@@ -596,20 +646,21 @@ func (c *benchCmd) requestAction(_ *fisk.ParseContext) error {
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	pubCounts := bench.MsgsPerClient(c.numMsg, c.numClients)
 	trigger := make(chan struct{})
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("nats connection %d failed: %s", i, err)
+			return fmt.Errorf("client number %d failed to connect: %w", i, err)
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runCoreRequester(bm, nc, startwg, donewg, trigger, pubCounts[i], c.offset(i, pubCounts), strconv.Itoa(i))
+		go c.runCoreRequester(bm, errChan, nc, startwg, donewg, trigger, pubCounts[i], c.offset(i, pubCounts), strconv.Itoa(i))
 	}
 
 	if c.progressBar {
@@ -620,8 +671,22 @@ func (c *benchCmd) requestAction(_ *fisk.ParseContext) error {
 	close(trigger)
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -637,7 +702,7 @@ func (c *benchCmd) serveAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeServiceServe)
+	banner := c.generateBanner(benchTypeServiceServe)
 
 	log.Println(banner)
 
@@ -645,25 +710,40 @@ func (c *benchCmd) serveAction(_ *fisk.ParseContext) error {
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("nats connection %d failed: %s", i, err)
+			return fmt.Errorf("client number %d failed to connect: %w", i, err)
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runServiceServer(nc, startwg, donewg)
+		go c.runServiceServer(nc, errChan, startwg, donewg)
 	}
 
 	startwg.Wait()
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -678,48 +758,40 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeJSPub)
+	banner := c.generateBanner(benchTypeJSPub)
 	log.Println(banner)
 	bm := bench.NewBenchmark("NATS", 0, c.numClients)
 	benchId := strconv.FormatInt(time.Now().UnixMilli(), 16)
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	// create the stream for the benchmark (and purge it)
 	nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 	if err != nil {
-		log.Fatalf("NATS connection failed: %v", err)
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, c.jsTimeout)
 	defer cancel()
 
-	var js2 jetstream.JetStream
-
-	switch {
-	case opts().JsDomain != "":
-		js2, err = jetstream.NewWithDomain(nc, opts().JsDomain)
-	case opts().JsApiPrefix != "":
-		js2, err = jetstream.NewWithAPIPrefix(nc, opts().JsApiPrefix)
-	default:
-		js2, err = jetstream.New(nc)
-	}
+	js, err := c.getJS(nc)
 	if err != nil {
-		log.Fatalf("Couldn't get the new API JetStream instance: %v", err)
+		return err
 	}
 
 	var s jetstream.Stream
 	if c.createStream {
 		// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
-		s, err = js2.CreateOrUpdateStream(ctx, jetstream.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: jetstream.LimitsPolicy, Discard: jetstream.DiscardNew, Storage: c.storageType(), Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow})
+		s, err = js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: jetstream.LimitsPolicy, Discard: jetstream.DiscardNew, Storage: c.storageType(), Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow})
 		if err != nil {
-			log.Fatalf("%v. If you want to delete and re-define the stream use `nats stream delete %s`.", err, c.streamOrBucketName)
+			return fmt.Errorf("could not create the stream. If you want to delete and re-define the stream use `nats stream delete %s`: %w", c.streamOrBucketName, err)
 		}
 		// TODO: a way to wait for the stream to be ready (e.g. when updating the stream's config (e.g. from R1 to R3))
 	} else {
-		s, err = js2.Stream(ctx, c.streamOrBucketName)
+		s, err = js.Stream(ctx, c.streamOrBucketName)
 		if err != nil {
-			log.Fatalf("Stream %s does not exist, can create it with --create: %v", c.streamOrBucketName, err)
+			return fmt.Errorf("stream '%s' does not exist, create it with --create", c.streamOrBucketName)
 		}
 		log.Printf("Using stream: %s", c.streamOrBucketName)
 	}
@@ -728,7 +800,7 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 		log.Printf("Purging the stream")
 		err = s.Purge(ctx)
 		if err != nil {
-			log.Fatalf("Error purging stream %s: %v", c.streamOrBucketName, err)
+			return err
 		}
 	}
 
@@ -737,14 +809,14 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("nats connection %d failed: %s", i, err)
+			return err
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runJSPublisher(bm, nc, startwg, donewg, trigger, pubCounts[i], c.offset(i, pubCounts), benchId, strconv.Itoa(i))
+		go c.runJSPublisher(bm, errChan, nc, startwg, donewg, trigger, pubCounts[i], c.offset(i, pubCounts), benchId, strconv.Itoa(i))
 	}
 
 	if c.progressBar {
@@ -755,8 +827,22 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 	close(trigger)
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -771,24 +857,32 @@ func (c *benchCmd) jsOrderedAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeJSOrdered)
+	banner := c.generateBanner(benchTypeJSOrdered)
 	log.Println(banner)
 	bm := bench.NewBenchmark("NATS", c.numClients, 0)
 
+	if c.purge {
+		err = c.purgeStream()
+		if err != nil {
+			return err
+		}
+	}
+
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("could not establish NATS connection for client number %d: %s", i, err)
+			return fmt.Errorf("client number %d could not connect: %w", i, err)
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runJSSubscriber(bm, nc, startwg, donewg, BenchTypeJSOrdered, c.numMsg)
+		go c.runJSSubscriber(bm, errChan, nc, startwg, donewg, benchTypeJSOrdered, c.numMsg)
 	}
 	startwg.Wait()
 
@@ -798,8 +892,22 @@ func (c *benchCmd) jsOrderedAction(_ *fisk.ParseContext) error {
 
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -814,25 +922,33 @@ func (c *benchCmd) jsConsumeAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeJSConsume)
+	banner := c.generateBanner(benchTypeJSConsume)
 	log.Println(banner)
 	bm := bench.NewBenchmark("NATS", c.numClients, 0)
 
+	if c.purge {
+		err = c.purgeStream()
+		if err != nil {
+			return err
+		}
+	}
+
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 	if err != nil {
-		return fmt.Errorf("could not establish NATS connection: %v", err)
+		return fmt.Errorf("connecting: %w", err)
 	}
 	defer nc.Close()
 
-	js, err := getJS(nc)
+	js, err := c.getJS(nc)
 	if err != nil {
 		return err
 	}
 
-	if c.consumerName == BenchDefaultDurableConsumerName {
+	if c.consumerName == benchDefaultDurableConsumerName {
 		// create the consumer
 		// TODO: Should it just delete and create each time?
 		err = c.createOrUpdateConsumer(js)
@@ -843,7 +959,7 @@ func (c *benchCmd) jsConsumeAction(_ *fisk.ParseContext) error {
 		defer func() {
 			err := js.DeleteConsumer(ctx, c.streamOrBucketName, c.consumerName)
 			if err != nil {
-				log.Fatalf("Error deleting the consumer on stream %s: %v", c.streamOrBucketName, err)
+				log.Printf("Error deleting the consumer on stream %s: %v\n", c.streamOrBucketName, err)
 			}
 			log.Printf("Deleted durable consumer: %s\n", c.consumerName)
 		}()
@@ -854,14 +970,14 @@ func (c *benchCmd) jsConsumeAction(_ *fisk.ParseContext) error {
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("could not establish NATS connection for client number %d: %s", i, err)
+			return fmt.Errorf("client number %d could not connect: %w", i, err)
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runJSSubscriber(bm, nc, startwg, donewg, BenchTypeJSConsume, subCounts[i])
+		go c.runJSSubscriber(bm, errChan, nc, startwg, donewg, benchTypeJSConsume, subCounts[i])
 	}
 	startwg.Wait()
 
@@ -871,8 +987,22 @@ func (c *benchCmd) jsConsumeAction(_ *fisk.ParseContext) error {
 
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -887,25 +1017,33 @@ func (c *benchCmd) jsFetchAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeJSFetch)
+	banner := c.generateBanner(benchTypeJSFetch)
 	log.Println(banner)
 	bm := bench.NewBenchmark("NATS", c.numClients, 0)
 
+	if c.purge {
+		err = c.purgeStream()
+		if err != nil {
+			return err
+		}
+	}
+
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 	if err != nil {
-		return fmt.Errorf("could not establish NATS connection: %v", err)
+		return fmt.Errorf("connecting: %w", err)
 	}
 	defer nc.Close()
 
-	js, err := getJS(nc)
+	js, err := c.getJS(nc)
 	if err != nil {
 		return err
 	}
 
-	if c.consumerName == BenchDefaultDurableConsumerName {
+	if c.consumerName == benchDefaultDurableConsumerName {
 		// create the consumer
 		// TODO: Should it be just create or delete and create each time?
 		err = c.createOrUpdateConsumer(js)
@@ -916,7 +1054,7 @@ func (c *benchCmd) jsFetchAction(_ *fisk.ParseContext) error {
 		defer func() {
 			err := js.DeleteConsumer(ctx, c.streamOrBucketName, c.consumerName)
 			if err != nil {
-				log.Fatalf("Error deleting the consumer on stream %s: %v", c.streamOrBucketName, err)
+				log.Printf("Error deleting the consumer on stream %s: %v\n", c.streamOrBucketName, err)
 			}
 			log.Printf("Deleted durable consumer: %s\n", c.consumerName)
 		}()
@@ -927,14 +1065,14 @@ func (c *benchCmd) jsFetchAction(_ *fisk.ParseContext) error {
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("could not establish NATS connection for client number %d: %s", i, err)
+			return fmt.Errorf("client number %d could not connect: %w", i, err)
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runJSSubscriber(bm, nc, startwg, donewg, BenchTypeJSFetch, subCounts[i])
+		go c.runJSSubscriber(bm, errChan, nc, startwg, donewg, benchTypeJSFetch, subCounts[i])
 	}
 	startwg.Wait()
 
@@ -944,8 +1082,22 @@ func (c *benchCmd) jsFetchAction(_ *fisk.ParseContext) error {
 
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -960,38 +1112,38 @@ func (c *benchCmd) kvPutAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeKVPut)
+	banner := c.generateBanner(benchTypeKVPut)
 	log.Println(banner)
 	bm := bench.NewBenchmark("NATS", 0, c.numClients)
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 	if err != nil {
-		return fmt.Errorf("could not establish NATS connection : %v", err)
+		return fmt.Errorf("connecting: %w", err)
 	}
 	defer nc.Close()
 
-	js, err := getJS(nc)
+	js, err := c.getJS(nc)
 	if err != nil {
 		return err
 	}
 
 	// There is no way to purge all the keys in a KV bucket in a single operation so deleting the bucket instead
 	if c.purge {
-		err = js.DeleteStream(ctx, "KV_"+c.streamOrBucketName)
-		// err = js.DeleteKeyValue(c.subject)
+		err = js.DeleteKeyValue(ctx, c.streamOrBucketName)
 		if err != nil {
-			log.Fatalf("Error trying to purge the bucket: %v", err)
+			return err
 		}
 	}
 
-	if c.streamOrBucketName == BenchDefaultBucketName {
+	if c.streamOrBucketName == benchDefaultBucketName {
 		// create bucket
 		_, err := js.CreateKeyValue(ctx, jetstream.KeyValueConfig{Bucket: c.streamOrBucketName, History: c.history, Storage: c.storageType(), Description: "nats bench bucket", Replicas: c.replicas, MaxBytes: c.streamMaxBytes})
 		if err != nil {
-			log.Fatalf("Couldn't create the KV bucket: %v", err)
+			return err
 		}
 	}
 
@@ -1002,14 +1154,14 @@ func (c *benchCmd) kvPutAction(_ *fisk.ParseContext) error {
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("nats connection %d failed: %s", i, err)
+			return err
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runKVPutter(bm, nc, startwg, donewg, trigger, pubCounts[i], strconv.Itoa(i), c.offset(i, pubCounts))
+		go c.runKVPutter(bm, errChan, nc, startwg, donewg, trigger, pubCounts[i], strconv.Itoa(i), c.offset(i, pubCounts))
 	}
 
 	if c.progressBar {
@@ -1020,8 +1172,22 @@ func (c *benchCmd) kvPutAction(_ *fisk.ParseContext) error {
 	close(trigger)
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1042,20 +1208,21 @@ func (c *benchCmd) kvGetAction(_ *fisk.ParseContext) error {
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	subCounts := bench.MsgsPerClient(c.numMsg, c.numClients)
 
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("nats connection %d failed: %s", i, err)
+			return fmt.Errorf("client number %d cloud not connect: %w", i, err)
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runKVGetter(bm, nc, startwg, donewg, subCounts[i], c.offset(i, subCounts))
+		go c.runKVGetter(bm, errChan, nc, startwg, donewg, subCounts[i], c.offset(i, subCounts))
 	}
 	startwg.Wait()
 
@@ -1066,8 +1233,22 @@ func (c *benchCmd) kvGetAction(_ *fisk.ParseContext) error {
 	startwg.Wait()
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1082,24 +1263,32 @@ func (c *benchCmd) oldjsOrderedAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeOldJSOrdered)
+	banner := c.generateBanner(benchTypeOldJSOrdered)
 	log.Println(banner)
 	bm := bench.NewBenchmark("NATS", c.numClients, 0)
 
+	if c.purge {
+		err = c.purgeStream()
+		if err != nil {
+			return err
+		}
+	}
+
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("nats connection %d failed: %s", i, err)
+			return fmt.Errorf("client number %d could not connect: %w", i, err)
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runOldJSSubscriber(bm, nc, startwg, donewg, c.numMsg, BenchTypeOldJSOrdered)
+		go c.runOldJSSubscriber(bm, errChan, nc, startwg, donewg, c.numMsg, benchTypeOldJSOrdered)
 	}
 	startwg.Wait()
 
@@ -1109,8 +1298,22 @@ func (c *benchCmd) oldjsOrderedAction(_ *fisk.ParseContext) error {
 
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1125,24 +1328,32 @@ func (c *benchCmd) oldjsPushAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeOldJSPush)
+	banner := c.generateBanner(benchTypeOldJSPush)
 	log.Println(banner)
 	bm := bench.NewBenchmark("NATS", c.numClients, 0)
 
+	if c.purge {
+		err = c.purgeStream()
+		if err != nil {
+			return err
+		}
+	}
+
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 	if err != nil {
-		log.Fatalf("NATS connection failed: %v", err)
+		return err
 	}
 
 	js, err := nc.JetStream(append(jsOpts(), nats.MaxWait(c.jsTimeout))...)
 	if err != nil {
-		log.Fatalf("Couldn't get the JetStream context: %v", err)
+		return err
 	}
 
-	if c.consumerName == BenchDefaultDurableConsumerName {
+	if c.consumerName == benchDefaultDurableConsumerName {
 		ack := nats.AckNonePolicy
 		if c.ack {
 			ack = nats.AckExplicitPolicy
@@ -1167,7 +1378,7 @@ func (c *benchCmd) oldjsPushAction(_ *fisk.ParseContext) error {
 		defer func() {
 			err := js.DeleteConsumer(c.streamOrBucketName, c.consumerName)
 			if err != nil {
-				log.Fatalf("Error deleting the durable push consumer on stream %s: %v", c.streamOrBucketName, err)
+				log.Printf("Error deleting the durable push consumer on stream %s: %v", c.streamOrBucketName, err)
 			}
 			log.Printf("Deleted durable consumer: %s\n", c.consumerName)
 		}()
@@ -1184,14 +1395,14 @@ func (c *benchCmd) oldjsPushAction(_ *fisk.ParseContext) error {
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("nats connection %d failed: %s", i, err)
+			return fmt.Errorf("client number %d could not connect: %w", i, err)
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runOldJSSubscriber(bm, nc, startwg, donewg, subCounts[i], BenchTypeOldJSPush)
+		go c.runOldJSSubscriber(bm, errChan, nc, startwg, donewg, subCounts[i], benchTypeOldJSPush)
 	}
 	startwg.Wait()
 
@@ -1201,8 +1412,22 @@ func (c *benchCmd) oldjsPushAction(_ *fisk.ParseContext) error {
 
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1217,21 +1442,29 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	banner := c.generateBanner(BenchTypeOldJSPull)
+	banner := c.generateBanner(benchTypeOldJSPull)
 	log.Println(banner)
 	bm := bench.NewBenchmark("NATS", c.numClients, 0)
 
+	if c.purge {
+		err = c.purgeStream()
+		if err != nil {
+			return err
+		}
+	}
+
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
+	errChan := make(chan error, c.numClients)
 
 	nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 	if err != nil {
-		log.Fatalf("NATS connection failed: %v", err)
+		return fmt.Errorf("connecting: %w", err)
 	}
 
 	js, err := nc.JetStream(append(jsOpts(), nats.MaxWait(c.jsTimeout))...)
 	if err != nil {
-		log.Fatalf("Couldn't get the JetStream context: %v", err)
+		return fmt.Errorf("getting the JetStream context: %w", err)
 	}
 
 	ack := nats.AckNonePolicy
@@ -1239,7 +1472,7 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 		ack = nats.AckExplicitPolicy
 	}
 
-	if c.consumerName == BenchDefaultDurableConsumerName {
+	if c.consumerName == benchDefaultDurableConsumerName {
 		_, err = js.AddConsumer(c.streamOrBucketName, &nats.ConsumerConfig{
 			Durable:       c.consumerName,
 			DeliverPolicy: nats.DeliverAllPolicy,
@@ -1248,7 +1481,7 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 			MaxAckPending: min(c.numClients*c.batchSize, 10000),
 		})
 		if err != nil {
-			log.Fatalf("Error creating the pull consumer: %v", err)
+			return fmt.Errorf("creating the durable consumer '%s': %w", c.consumerName, err)
 		}
 		defer func() {
 			err := js.DeleteConsumer(c.streamOrBucketName, c.consumerName)
@@ -1265,14 +1498,14 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 	for i := 0; i < c.numClients; i++ {
 		nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("nats connection %d failed: %s", i, err)
+			return fmt.Errorf("client number %d could not connect: %w", i, err)
 		}
 		defer nc.Close()
 
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runOldJSSubscriber(bm, nc, startwg, donewg, subCounts[i], BenchTypeOldJSPull)
+		go c.runOldJSSubscriber(bm, errChan, nc, startwg, donewg, subCounts[i], benchTypeOldJSPull)
 	}
 	startwg.Wait()
 
@@ -1282,8 +1515,22 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 
 	donewg.Wait()
 
-	bm.Close()
+	var err2 error
+	for i := 0; i < c.numClients; i++ {
+		if err := <-errChan; err != nil {
+			log.Printf("Error from client %d: %v", i, err)
+			// only return the first error since only one error can be returned
+			if err2 == nil {
+				err2 = err
+			}
+		}
+	}
 
+	if err2 != nil {
+		return err2
+	}
+
+	bm.Close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1292,7 +1539,7 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) {
+func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) error {
 	state := "Publishing"
 
 	if progress != nil {
@@ -1308,16 +1555,17 @@ func coreNATSPublisher(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg 
 
 		err := nc.Publish(c.getPublishSubject(i+offset), msg)
 		if err != nil {
-			log.Fatalf("Publish error: %v", err)
+			return fmt.Errorf("publishing: %w", err)
 		}
 
 		time.Sleep(c.sleep)
 	}
 
 	state = "Finished  "
+	return nil
 }
 
-func coreNATSRequester(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) {
+func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) error {
 	errBytes := []byte("error")
 	minusByte := byte('-')
 
@@ -1336,7 +1584,7 @@ func coreNATSRequester(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg 
 
 		m, err := nc.Request(c.getPublishSubject(i+offset), msg, time.Second)
 		if err != nil {
-			log.Fatalf("Request error %v", err)
+			return fmt.Errorf("requesting: %w", err)
 		}
 
 		if len(m.Data) == 0 || m.Data[0] == minusByte || bytes.Contains(m.Data, errBytes) {
@@ -1347,12 +1595,13 @@ func coreNATSRequester(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg 
 	}
 
 	state = "Finished  "
+	return nil
 }
 
-func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, idPrefix string, pubNumber string, offset int) {
-	js, err := nc.JetStream(jsOpts()...)
+func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, idPrefix string, pubNumber string, offset int) error {
+	js, err := c.getJS(nc)
 	if err != nil {
-		log.Fatalf("Couldn't get the JetStream context: %v", err)
+		return err
 	}
 
 	var state string
@@ -1366,7 +1615,7 @@ func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byt
 	if c.batchSize != 1 {
 		for i := 0; i < numMsg; {
 			state = "Publishing"
-			futures := make([]nats.PubAckFuture, min(c.batchSize, numMsg-i))
+			futures := make([]jetstream.PubAckFuture, min(c.batchSize, numMsg-i))
 			for j := 0; j < c.batchSize && (i+j) < numMsg; j++ {
 				if c.deDuplication {
 					header := nats.Header{}
@@ -1377,7 +1626,7 @@ func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byt
 					futures[j], err = js.PublishAsync(c.getPublishSubject(i+j+offset), msg)
 				}
 				if err != nil {
-					log.Fatalf("PubAsync error: %v", err)
+					return fmt.Errorf("publishing asynchronously: %w", err)
 				}
 				if progress != nil {
 					progress.Incr()
@@ -1395,20 +1644,11 @@ func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byt
 					case <-futures[future].Ok():
 						i++
 					case err := <-futures[future].Err():
-						if err.Error() == "nats: maximum bytes exceeded" {
-							log.Fatalf("Stream maximum bytes exceeded, can not publish any more messages")
-						}
-						log.Printf("PubAsyncFuture for message %v in batch not OK: %v (retrying)", future, err)
-						c.retriesUsed = true
+						return fmt.Errorf("publish acknowledgement: %w", err)
 					}
 				}
 			case <-time.After(c.jsTimeout):
-				c.retriesUsed = true
-				log.Printf("JS PubAsync ack timeout (pending=%d)", js.PublishAsyncPending())
-				js, err = nc.JetStream(jsOpts()...)
-				if err != nil {
-					log.Fatalf("Couldn't get the JetStream context: %v", err)
-				}
+				return fmt.Errorf("JS PubAsync ack timeout (pending=%d)", js.PublishAsyncPending())
 			}
 		}
 		state = "Finished  "
@@ -1422,36 +1662,32 @@ func jsPublisher(c *benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byt
 				header := nats.Header{}
 				header.Set(nats.MsgIdHdr, idPrefix+"-"+pubNumber+"-"+strconv.Itoa(i+offset))
 				message := nats.Msg{Data: msg, Header: header, Subject: c.getPublishSubject(i + offset)}
-				_, err = js.PublishMsg(&message)
+				_, err = js.PublishMsg(ctx, &message)
 			} else {
-				_, err = js.Publish(c.getPublishSubject(i+offset), msg)
+				_, err = js.Publish(ctx, c.getPublishSubject(i+offset), msg)
 			}
 			if err != nil {
-				if err.Error() == "nats: maximum bytes exceeded" {
-					log.Fatalf("Stream maximum bytes exceeded, can not publish any more messages")
-				}
-				log.Printf("Publish error: %v (retrying)", err)
-				c.retriesUsed = true
-				i--
+				return fmt.Errorf("publishing synchronously: %w", err)
 			}
 			time.Sleep(c.sleep)
 		}
 	}
+	return nil
 }
 
-func kvPutter(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) {
+func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) error {
 	ctx, cancel := context.WithTimeout(ctx, c.jsTimeout)
 	defer cancel()
 
-	js, err := getJS(nc)
+	js, err := c.getJS(nc)
 	if err != nil {
-		return
+		return err
 	}
 
 	//if c.newJSAPI {
 	kvBucket, err := js.KeyValue(ctx, c.streamOrBucketName)
 	if err != nil {
-		log.Fatalf("Couldn't find kv bucket %s: %v", c.streamOrBucketName, err)
+		return fmt.Errorf("getting the kv bucket '%s': %w", c.streamOrBucketName, err)
 	}
 	var state = "Putting   "
 
@@ -1468,14 +1704,15 @@ func kvPutter(c benchCmd, nc *nats.Conn, progress *uiprogress.Bar, msg []byte, n
 
 		_, err = kvBucket.Put(ctx, fmt.Sprintf("%d", offset+i), msg)
 		if err != nil {
-			log.Fatalf("Put: %s", err)
+			return fmt.Errorf("putting: %w", err)
 		}
 
 		time.Sleep(c.sleep)
 	}
+	return nil
 }
 
-func (c *benchCmd) runCorePublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, pubNumber string) {
+func (c *benchCmd) runCorePublisher(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, pubNumber string) {
 	startwg.Done()
 
 	var progress *uiprogress.Bar
@@ -1501,19 +1738,27 @@ func (c *benchCmd) runCorePublisher(bm *bench.Benchmark, nc *nats.Conn, startwg 
 	}
 
 	start := time.Now()
-	coreNATSPublisher(*c, nc, progress, msg, numMsg, offset)
-
-	err := nc.Flush()
+	err := c.coreNATSPublisher(nc, progress, msg, numMsg, offset)
 	if err != nil {
-		log.Fatalf("Could not flush the connection: %v", err)
+		errChan <- fmt.Errorf("publishing: %w", err)
+		donewg.Done()
+		return
+	}
+
+	err = nc.Flush()
+	if err != nil {
+		errChan <- fmt.Errorf("flushing: %w", err)
+		donewg.Done()
+		return
 	}
 
 	bm.AddPubSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
 
 	donewg.Done()
+	errChan <- nil
 }
 
-func (c *benchCmd) runCoreSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int) {
+func (c *benchCmd) runCoreSubscriber(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int) {
 	received := 0
 	ch := make(chan time.Time, 2)
 	var progress *uiprogress.Bar
@@ -1552,17 +1797,26 @@ func (c *benchCmd) runCoreSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg
 
 	sub, err := nc.Subscribe(c.getSubscribeSubject(), mh)
 	if err != nil {
-		log.Fatalf("Subscribe error: %v", err)
+		errChan <- fmt.Errorf("subscribing to '%s': %w", c.getSubscribeSubject(), err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	err = sub.SetPendingLimits(-1, -1)
 	if err != nil {
-		log.Fatalf("Error setting pending limits on the subscriber: %v", err)
+		errChan <- fmt.Errorf("setting pending limits on the subscriber: %w", err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	err = nc.Flush()
 	if err != nil {
-		log.Fatalf("Error flushing: %v", err)
+		errChan <- fmt.Errorf("flushing: %w", err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	startwg.Done()
@@ -1575,9 +1829,10 @@ func (c *benchCmd) runCoreSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg
 	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
 
 	donewg.Done()
+	errChan <- nil
 }
 
-func (c *benchCmd) runCoreRequester(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, pubNumber string) {
+func (c *benchCmd) runCoreRequester(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, pubNumber string) {
 	startwg.Done()
 
 	var progress *uiprogress.Bar
@@ -1603,19 +1858,27 @@ func (c *benchCmd) runCoreRequester(bm *bench.Benchmark, nc *nats.Conn, startwg 
 	}
 
 	start := time.Now()
-	coreNATSRequester(*c, nc, progress, msg, numMsg, offset)
-
-	err := nc.Flush()
+	err := c.coreNATSRequester(nc, progress, msg, numMsg, offset)
 	if err != nil {
-		log.Fatalf("Could not flush the connection: %v", err)
+		errChan <- fmt.Errorf("requesting: %w", err)
+		donewg.Done()
+		return
+	}
+
+	err = nc.Flush()
+	if err != nil {
+		errChan <- fmt.Errorf("flushing: %w", err)
+		donewg.Done()
+		return
 	}
 
 	bm.AddPubSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
 
 	donewg.Done()
+	errChan <- nil
 }
 
-func (c *benchCmd) runServiceServer(nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup) {
+func (c *benchCmd) runServiceServer(nc *nats.Conn, errChan chan error, startwg *sync.WaitGroup, donewg *sync.WaitGroup) {
 	ch := make(chan struct{}, 1)
 
 	log.Print("Starting replier, hit control-c to stop")
@@ -1625,25 +1888,33 @@ func (c *benchCmd) runServiceServer(nc *nats.Conn, startwg *sync.WaitGroup, done
 
 		err := request.Respond([]byte("ok"))
 		if err != nil {
-			log.Fatalf("Error replying to the request: %v", err)
+			errChan <- fmt.Errorf("replying to the request: %w", err)
+			donewg.Done()
+			return
 		}
 	}
 
 	_, err := services.AddService(nc, services.Config{
-		Name:    BenchDefaultServiceName,
-		Version: BenchDefaultServiceVersion,
+		Name:    benchDefaultServiceName,
+		Version: benchDefaultServiceVersion,
 		Endpoint: &services.EndpointConfig{
 			Subject: c.subject,
 			Handler: services.HandlerFunc(reqHandler),
 		},
 	})
 	if err != nil {
-		log.Fatalf("AddService error: %v", err)
+		errChan <- fmt.Errorf("adding the service: %w", err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	err = nc.Flush()
 	if err != nil {
-		log.Fatalf("Error flushing: %v", err)
+		errChan <- fmt.Errorf("flushing: %w", err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	startwg.Done()
@@ -1651,9 +1922,10 @@ func (c *benchCmd) runServiceServer(nc *nats.Conn, startwg *sync.WaitGroup, done
 	<-ch
 
 	donewg.Done()
+	errChan <- nil
 }
 
-func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, idPrefix string, pubNumber string) {
+func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, idPrefix string, pubNumber string) {
 	startwg.Done()
 
 	var progress *uiprogress.Bar
@@ -1679,19 +1951,27 @@ func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, nc *nats.Conn, startwg *s
 	}
 
 	start := time.Now()
-	jsPublisher(c, nc, progress, msg, numMsg, idPrefix, pubNumber, offset)
-
-	err := nc.Flush()
+	err := c.jsPublisher(nc, progress, msg, numMsg, idPrefix, pubNumber, offset)
 	if err != nil {
-		log.Fatalf("Could not flush the connection: %v", err)
+		errChan <- fmt.Errorf("publishing: %w", err)
+		donewg.Done()
+		return
+	}
+
+	err = nc.Flush()
+	if err != nil {
+		errChan <- fmt.Errorf("flushing: %w", err)
+		donewg.Done()
+		return
 	}
 
 	bm.AddPubSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
 
 	donewg.Done()
+	errChan <- nil
 }
 
-func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, benchType string, numMsg int) {
+func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, benchType string, numMsg int) {
 	received := 0
 
 	ch := make(chan time.Time, 2)
@@ -1718,12 +1998,23 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *
 		received++
 		time.Sleep(c.sleep)
 
-		if benchType != BenchTypeJSOrdered {
-			if c.ackMode == AckModeExplicit || c.ackMode == AckModeAll {
+		if benchType != benchTypeJSOrdered {
+			if c.ackMode == benchAckModeExplicit || c.ackMode == benchAckModeAll {
 				err := msg.Ack()
 				if err != nil {
-					log.Fatalf("Error acknowledging the message: %v", err)
+					errChan <- fmt.Errorf("acknowledging the message: %w", err)
+					donewg.Done()
+					return
 				}
+			}
+		}
+
+		if received == 1 {
+			startTime := time.Now()
+			ch <- startTime
+
+			if progress != nil {
+				progress.TimeStarted = startTime
 			}
 		}
 
@@ -1742,65 +2033,82 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *
 	ctx, cancel := context.WithTimeout(ctx, c.jsTimeout)
 	defer cancel()
 
-	js, err := getJS(nc)
+	js, err := c.getJS(nc)
 	if err != nil {
-		log.Fatalf("Couldn't get JetStream instance: %v", err)
-	}
-
-	// start the timer now rather than when the first message is received in JS mode
-	startTime := time.Now()
-	ch <- startTime
-	if progress != nil {
-		progress.TimeStarted = startTime
+		errChan <- fmt.Errorf("getting the JetStream instance: %w", err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	s, err := js.Stream(ctx, c.streamOrBucketName)
 	if err != nil {
-		log.Fatalf("Error getting stream %s: %v", c.streamOrBucketName, err)
+		errChan <- fmt.Errorf("getting stream '%s': %w", c.streamOrBucketName, err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	switch benchType {
-	case BenchTypeJSOrdered:
+	case benchTypeJSOrdered:
 		state = "Receiving"
 		consumer, err = s.OrderedConsumer(ctx, jetstream.OrderedConsumerConfig{InactiveThreshold: time.Second * 10})
 		if err != nil {
-			log.Fatalf("Error creating the ephemeral ordered consumer: %v", err)
+			errChan <- fmt.Errorf("creating the ephemeral ordered consumer: %w", err)
+			startwg.Done()
+			donewg.Done()
+			return
 		}
 
 		cc, err := consumer.Consume(mh2, jetstream.PullMaxMessages(c.batchSize))
 		if err != nil {
-			log.Fatalf("Error calling Consume(): %v", err)
+			errChan <- fmt.Errorf("calling Consume() on the ordered consumer: %w", err)
+			startwg.Done()
+			donewg.Done()
+			return
 		}
 		defer cc.Stop()
-	case BenchTypeJSConsume:
+	case benchTypeJSConsume:
 		state = "Consuming"
 		consumer, err = s.Consumer(ctx, c.consumerName)
 		if err != nil {
-			log.Fatalf("Error getting consumer %s: %v", c.consumerName, err)
+			errChan <- fmt.Errorf("getting durable consumer '%s': %w", c.consumerName, err)
+			startwg.Done()
+			donewg.Done()
+			return
 		}
 
 		cc, err := consumer.Consume(mh2, jetstream.PullMaxMessages(c.batchSize), jetstream.StopAfter(numMsg))
 		if err != nil {
-			log.Fatalf("Error calling Consume(): %v", err)
+			errChan <- fmt.Errorf("calling Consume() on the durable consumer '%s': %w", c.consumerName, err)
+			startwg.Done()
+			donewg.Done()
+			return
 		}
 		defer cc.Stop()
-	case BenchTypeJSFetch:
+	case benchTypeJSFetch:
 		state = "Fetching"
 		consumer, err = s.Consumer(ctx, c.consumerName)
 		if err != nil {
-			log.Fatalf("Error getting consumer %s: %v", c.consumerName, err)
+			errChan <- fmt.Errorf("getting durable consumer '%s': %w", c.consumerName, err)
+			startwg.Done()
+			donewg.Done()
+			return
 		}
 	}
 
 	err = nc.Flush()
 	if err != nil {
-		log.Fatalf("Error flushing: %v", err)
+		errChan <- fmt.Errorf("flushing: %w", err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	startwg.Done()
 
 	// Fetch messages if in fetch mode
-	if benchType == BenchTypeJSFetch {
+	if benchType == benchTypeJSFetch {
 		for i := 0; i < numMsg; {
 			batchSize := func() int {
 				if c.batchSize <= (numMsg - i) {
@@ -1816,7 +2124,9 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *
 					if err == nats.ErrTimeout {
 						log.Print("Fetch  timeout!")
 					} else {
-						log.Printf("New consumer Fetch error: %v", err)
+						errChan <- fmt.Errorf("fetching from the consumer '%s': %w", c.consumerName, err)
+						donewg.Done()
+						return
 					}
 					c.fetchTimeout = true
 				}
@@ -1828,8 +2138,10 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *
 			}
 
 			if msgs.Error() != nil {
-				log.Printf("New consumer Fetch msgs error: %v", msgs.Error())
+				errChan <- fmt.Errorf("getting fetched messages: %w", msgs.Error())
 				c.fetchTimeout = true
+				donewg.Done()
+				return
 			}
 
 		}
@@ -1843,10 +2155,10 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *
 	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
 
 	donewg.Done()
-
+	errChan <- nil
 }
 
-func (c *benchCmd) runKVPutter(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, pubNumber string, offset int) {
+func (c *benchCmd) runKVPutter(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, pubNumber string, offset int) {
 	startwg.Done()
 
 	var progress *uiprogress.Bar
@@ -1872,19 +2184,27 @@ func (c *benchCmd) runKVPutter(bm *bench.Benchmark, nc *nats.Conn, startwg *sync
 	}
 
 	start := time.Now()
-	kvPutter(*c, nc, progress, msg, numMsg, offset)
-
-	err := nc.Flush()
+	err := c.kvPutter(nc, progress, msg, numMsg, offset)
 	if err != nil {
-		log.Fatalf("Could not flush the connection: %v", err)
+		errChan <- fmt.Errorf("putting: %w", err)
+		donewg.Done()
+		return
+	}
+
+	err = nc.Flush()
+	if err != nil {
+		errChan <- fmt.Errorf("flushing: %w", err)
+		donewg.Done()
+		return
 	}
 
 	bm.AddPubSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
 
 	donewg.Done()
+	errChan <- nil
 }
 
-func (c *benchCmd) runKVGetter(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, offset int) {
+func (c *benchCmd) runKVGetter(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, offset int) {
 	ch := make(chan time.Time, 2)
 
 	var progress *uiprogress.Bar
@@ -1909,16 +2229,21 @@ func (c *benchCmd) runKVGetter(bm *bench.Benchmark, nc *nats.Conn, startwg *sync
 	ctx, cancel := context.WithTimeout(ctx, c.jsTimeout)
 	defer cancel()
 
-	js, err := getJS(nc)
+	js, err := c.getJS(nc)
 	if err != nil {
-		log.Fatalf("Couldn't get JetStream instance: %v", err)
+		errChan <- fmt.Errorf("getting the JetStream instance: %w", err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	startwg.Done()
 
 	kvBucket, err := js.KeyValue(ctx, c.streamOrBucketName)
 	if err != nil {
-		log.Fatalf("Couldn't find kv bucket %s: %v", c.streamOrBucketName, err)
+		errChan <- fmt.Errorf("finding kv bucket '%s': %w", c.streamOrBucketName, err)
+		donewg.Done()
+		return
 	}
 
 	// start the timer now rather than when the first message is received in JS mode
@@ -1932,14 +2257,23 @@ func (c *benchCmd) runKVGetter(bm *bench.Benchmark, nc *nats.Conn, startwg *sync
 	state = "Getting   "
 
 	for i := 0; i < numMsg; i++ {
-		entry, err := kvBucket.Get(ctx, fmt.Sprintf("%d", offset+i))
+		var key string
+
+		if c.randomizeGets == 0 {
+			key = fmt.Sprintf("%d", offset+i)
+		} else {
+			key = fmt.Sprintf("%d", rand.Intn(c.randomizeGets))
+		}
+		entry, err := kvBucket.Get(ctx, key)
 
 		if err != nil {
-			log.Fatalf("Error getting key %d: %v", offset+i, err)
+			errChan <- fmt.Errorf("getting key '%d': %w", key, err)
+			donewg.Done()
+			return
 		}
 
 		if entry.Value() == nil {
-			log.Printf("Warning: got no value for key %d", offset+i)
+			log.Printf("Warning: got no value for key '%d'", offset+i)
 		}
 
 		if progress != nil {
@@ -1959,10 +2293,10 @@ func (c *benchCmd) runKVGetter(bm *bench.Benchmark, nc *nats.Conn, startwg *sync
 	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
 
 	donewg.Done()
-
+	errChan <- nil
 }
 
-func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, benchType string) {
+func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, benchType string) {
 	received := 0
 
 	ch := make(chan time.Time, 2)
@@ -1987,7 +2321,7 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startw
 	// Message handler
 	var mh func(msg *nats.Msg)
 
-	if benchType == BenchTypeOldJSPush || benchType == BenchTypeOldJSPull {
+	if benchType == benchTypeOldJSPush || benchType == benchTypeOldJSPull {
 		mh = func(msg *nats.Msg) {
 			received++
 
@@ -1995,7 +2329,9 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startw
 			if c.ack {
 				err := msg.Ack()
 				if err != nil {
-					log.Fatalf("Error acknowledging the  message: %v", err)
+					errChan <- fmt.Errorf("acknowledging the message: %w", err)
+					donewg.Done()
+					return
 				}
 			}
 
@@ -2033,7 +2369,10 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startw
 
 	js, err = nc.JetStream(jsOpts()...)
 	if err != nil {
-		log.Fatalf("Couldn't get the JetStream context: %v", err)
+		errChan <- fmt.Errorf("getting the JetStream context: %w", err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	// start the timer now rather than when the first message is received in JS mode
@@ -2043,47 +2382,62 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startw
 		progress.TimeStarted = startTime
 	}
 
-	if benchType == BenchTypeOldJSPull {
+	if benchType == benchTypeOldJSPull {
 		sub, err = js.PullSubscribe(c.getSubscribeSubject(), c.consumerName, nats.BindStream(c.streamOrBucketName))
 		if err != nil {
-			log.Fatalf("Error PullSubscribe: %v", err)
+			errChan <- fmt.Errorf("PullSubscribe: %w", err)
+			startwg.Done()
+			donewg.Done()
+			return
 		}
 		defer func(sub *nats.Subscription) {
 			err := sub.Drain()
 			if err != nil {
-				log.Fatalf("Error draining the subscription at the end of the run: %v", err)
+				log.Printf("draining the subscription at the end of the run: %v", err)
 			}
 		}(sub)
-	} else if benchType == BenchTypeOldJSPush {
+	} else if benchType == benchTypeOldJSPush {
 		state = "Receiving "
 		sub, err = js.QueueSubscribe(c.getSubscribeSubject(), c.consumerName+"-GROUP", mh, nats.Bind(c.streamOrBucketName, c.consumerName), nats.ManualAck())
 		if err != nil {
-			log.Fatalf("Error push durable Subscribe: %v", err)
+			errChan <- fmt.Errorf("subscribing to the push durable '%s': %w", c.consumerName, err)
+			startwg.Done()
+			donewg.Done()
+			return
 		}
 		_ = sub.AutoUnsubscribe(numMsg)
 
-	} else {
+	} else { // benchType == benchTypeOldJSOrdered
 		state = "Consuming "
 		// ordered push consumer
 		sub, err = js.Subscribe(c.getSubscribeSubject(), mh, nats.OrderedConsumer())
 		if err != nil {
-			log.Fatalf("Push consumer Subscribe error: %v", err)
+			errChan <- fmt.Errorf("subscribing to the ordered consumer on subject '%s': %w", c.getSubscribeSubject(), err)
+			startwg.Done()
+			donewg.Done()
+			return
 		}
 	}
 
 	err = sub.SetPendingLimits(-1, -1)
 	if err != nil {
-		log.Fatalf("Error setting pending limits on the subscriber: %v", err)
+		errChan <- fmt.Errorf("setting pending limits on the subscriber: %w", err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	err = nc.Flush()
 	if err != nil {
-		log.Fatalf("Error flushing: %v", err)
+		errChan <- fmt.Errorf("flushing: %w", err)
+		startwg.Done()
+		donewg.Done()
+		return
 	}
 
 	startwg.Done()
 
-	if benchType == BenchTypeOldJSPull {
+	if benchType == benchTypeOldJSPull {
 		for i := 0; i < numMsg; {
 			batchSize := func() int {
 				if c.batchSize <= (numMsg - i) {
@@ -2112,7 +2466,9 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startw
 					if err == nats.ErrTimeout {
 						log.Print("Fetch timeout!")
 					} else {
-						log.Printf("Pull consumer Fetch error: %v", err)
+						errChan <- fmt.Errorf("fetching: %w", err)
+						donewg.Done()
+						return
 					}
 				}
 				c.fetchTimeout = true
@@ -2129,4 +2485,5 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, nc *nats.Conn, startw
 	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
 
 	donewg.Done()
+	errChan <- nil
 }
