@@ -16,11 +16,14 @@ package audit
 import (
 	"errors"
 	"fmt"
+	"reflect"
+	"sort"
+	"strings"
+
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/internal/archive"
-	"reflect"
-	"sort"
+	"golang.org/x/exp/maps"
 )
 
 // checkClusterMemoryUsageOutliers creates a parametrized check to verify the memory usage of any given node in a
@@ -213,4 +216,58 @@ func makeCheckClusterHighHAAssets(haAssetsThreshold int) checkFunc {
 
 		return Pass, nil
 	}
+}
+
+func checkClusterNamesForWhitespace(reader *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+
+	for _, clusterName := range reader.GetClusterNames() {
+		if strings.Contains(clusterName, " ") {
+			examples.add("Cluster: %s", clusterName)
+		}
+	}
+
+	if examples.Count() > 0 {
+		logCritical("Found %d clusters with names containing whitespace", examples.Count())
+		return Fail, nil
+	}
+
+	return Pass, nil
+}
+
+func checkLeafnodeServerNamesForWhitespace(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+
+	for _, clusterName := range r.GetClusterNames() {
+		clusterTag := archive.TagCluster(clusterName)
+
+		leafnodesWithWhitespace := map[string]struct{}{}
+
+		for _, serverName := range r.GetClusterServerNames(clusterName) {
+			serverTag := archive.TagServer(serverName)
+
+			var serverLeafz server.Leafz
+			err := r.Load(&serverLeafz, clusterTag, serverTag, archive.TagServerLeafs())
+			if err != nil {
+				logWarning("Artifact 'LEAFZ' is missing for server %s", serverName)
+				continue
+			}
+
+			for _, leaf := range serverLeafz.Leafs {
+				// check if leafnode name contains whitespace
+				if strings.Contains(leaf.Name, " ") {
+					leafnodesWithWhitespace[leaf.Name] = struct{}{}
+				}
+			}
+		}
+
+		if len(leafnodesWithWhitespace) > 0 {
+			examples.add("Cluster %s: %v", clusterName, maps.Keys(leafnodesWithWhitespace))
+		}
+	}
+
+	if examples.Count() > 0 {
+		logCritical("Found %d clusters with leafnode names containing whitespace", examples.Count())
+		return Fail, nil
+	}
+
+	return Pass, nil
 }

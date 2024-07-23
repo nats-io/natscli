@@ -16,6 +16,8 @@ package audit
 import (
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/internal/archive"
@@ -229,4 +231,34 @@ func makeCheckServerResourceLimits(memoryUsageThreshold, storeUsageThreshold flo
 
 		return Pass, nil
 	}
+}
+
+func checkJetStreamDomainsForWhitespace(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+
+	for _, clusterName := range r.GetClusterNames() {
+		clusterTag := archive.TagCluster(clusterName)
+
+		for _, serverName := range r.GetClusterServerNames(clusterName) {
+			serverTag := archive.TagServer(serverName)
+
+			var serverJsz server.JSInfo
+			err := r.Load(&serverJsz, clusterTag, serverTag, archive.TagServerJetStream())
+			if err != nil {
+				logWarning("Artifact 'JSZ' is missing for server %s", serverName)
+				continue
+			}
+
+			// check if jetstream domain contains whitespace
+			if strings.Contains(serverJsz.Config.Domain, " ") {
+				examples.add("Cluster %s Server %s Domain %s", clusterName, serverName, serverJsz.Config.Domain)
+			}
+		}
+	}
+
+	if examples.Count() > 0 {
+		logCritical("Found %d servers with JetStream domains containing whitespace", examples.Count())
+		return Fail, nil
+	}
+
+	return Pass, nil
 }
