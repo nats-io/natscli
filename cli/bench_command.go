@@ -955,14 +955,6 @@ func (c *benchCmd) jsConsumeAction(_ *fisk.ParseContext) error {
 		if err != nil {
 			return err
 		}
-
-		defer func() {
-			err := js.DeleteConsumer(ctx, c.streamOrBucketName, c.consumerName)
-			if err != nil {
-				log.Printf("Error deleting the consumer on stream %s: %v\n", c.streamOrBucketName, err)
-			}
-			log.Printf("Deleted durable consumer: %s\n", c.consumerName)
-		}()
 	}
 
 	subCounts := bench.MsgsPerClient(c.numMsg, c.numClients)
@@ -1050,14 +1042,6 @@ func (c *benchCmd) jsFetchAction(_ *fisk.ParseContext) error {
 		if err != nil {
 			return err
 		}
-
-		defer func() {
-			err := js.DeleteConsumer(ctx, c.streamOrBucketName, c.consumerName)
-			if err != nil {
-				log.Printf("Error deleting the consumer on stream %s: %v\n", c.streamOrBucketName, err)
-			}
-			log.Printf("Deleted durable consumer: %s\n", c.consumerName)
-		}()
 	}
 
 	subCounts := bench.MsgsPerClient(c.numMsg, c.numClients)
