@@ -148,9 +148,14 @@ func startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, subjectRepor
 					keys = append(keys, k)
 				}
 				// sort.Strings(keys)
-				// sort by count in descending order
+				// sort by count in descending order, and if count is equal, by
+				// subject in ascending order.
 				sort.Slice(keys, func(i, j int) bool {
-					return subjectReportMap[keys[i]] > subjectReportMap[keys[j]]
+					lhs, rhs := subjectReportMap[keys[i]], subjectReportMap[keys[j]]
+					if lhs == rhs {
+						return keys[i] < keys[j]
+					}
+					return lhs > rhs
 				})
 
 				for count, k := range keys {
