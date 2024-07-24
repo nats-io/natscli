@@ -1994,7 +1994,7 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 	}
 
 	// Message handler
-	mh2 := func(msg jetstream.Msg) {
+	mh := func(msg jetstream.Msg) {
 		received++
 		time.Sleep(c.sleep)
 
@@ -2060,7 +2060,7 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 			return
 		}
 
-		cc, err := consumer.Consume(mh2, jetstream.PullMaxMessages(c.batchSize))
+		cc, err := consumer.Consume(mh, jetstream.PullMaxMessages(c.batchSize))
 		if err != nil {
 			errChan <- fmt.Errorf("calling Consume() on the ordered consumer: %w", err)
 			startwg.Done()
@@ -2078,7 +2078,7 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 			return
 		}
 
-		cc, err := consumer.Consume(mh2, jetstream.PullMaxMessages(c.batchSize), jetstream.StopAfter(numMsg))
+		cc, err := consumer.Consume(mh, jetstream.PullMaxMessages(c.batchSize), jetstream.StopAfter(numMsg))
 		if err != nil {
 			errChan <- fmt.Errorf("calling Consume() on the durable consumer '%s': %w", c.consumerName, err)
 			startwg.Done()
@@ -2133,7 +2133,7 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 			}
 
 			for msg := range msgs.Messages() {
-				mh2(msg)
+				mh(msg)
 				i++
 			}
 
