@@ -2267,7 +2267,7 @@ func (c *benchCmd) runKVGetter(bm *bench.Benchmark, errChan chan error, nc *nats
 		entry, err := kvBucket.Get(ctx, key)
 
 		if err != nil {
-			errChan <- fmt.Errorf("getting key '%d': %w", key, err)
+			errChan <- fmt.Errorf("getting key '%s': %w", key, err)
 			donewg.Done()
 			return
 		}
