@@ -50,6 +50,7 @@ type benchCmd struct {
 	streamMaxBytesString string
 	streamMaxBytes       int64
 	ackMode              string
+	doubleAck            bool
 	batchSize            int
 	replicas             int
 	purge                bool
@@ -113,6 +114,13 @@ func configureBenchCommand(app commandHost) {
 		f.Flag("js-timeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	}
 
+	addJSConsumerFlags := func(f *fisk.CmdClause) {
+		f.Flag("consumer", "Specify the durable consumer name to use").Default(benchDefaultDurableConsumerName).StringVar(&c.consumerName)
+		f.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
+		f.Flag("acks", "Acknowledgement mode for the consumer").Default(benchAckModeExplicit).EnumVar(&c.ackMode, benchAckModeExplicit, benchAckModeNone, benchAckModeAll)
+		f.Flag("doubleack", "Synchronously acknowledge messages, waiting for a reply from the server").Default("false").BoolVar(&c.doubleAck)
+	}
+
 	addJSPubFlags := func(f *fisk.CmdClause) {
 		f.Flag("create", "Create or update the stream first").UnNegatableBoolVar(&c.createStream)
 		f.Flag("storage", "JetStream storage (memory/file) for the \"benchstream\" stream").Default("file").EnumVar(&c.storage, "memory", "file")
@@ -120,6 +128,7 @@ func configureBenchCommand(app commandHost) {
 		f.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes").Default("1GB").StringVar(&c.streamMaxBytesString)
 		f.Flag("dedup", "Sets a message id in the header to use JS Publish de-duplication").Default("false").UnNegatableBoolVar(&c.deDuplication)
 		f.Flag("dedupwindow", "Sets the duration of the stream's deduplication functionality").Default("2m").DurationVar(&c.deDuplicationWindow)
+		f.Flag("batch", "The number of asynchronous JS publish calls before waiting for all the publish acknowledgements (set to 1 for synchronous)").Default("500").IntVar(&c.batchSize)
 	}
 
 	addKVPutFlags := func(f *fisk.CmdClause) {
@@ -164,7 +173,6 @@ func configureBenchCommand(app commandHost) {
 
 	jspub := jsCommand.Command("pub", "Publish JetStream messages").Action(c.jspubAction)
 	jspub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
-	jspub.Flag("batch", "The number of asynchronous JS publish calls before waiting for all the publish acknowledgements (set to 1 for synchronous)").Default("500").IntVar(&c.batchSize)
 	addPubFlags(jspub)
 	addJSPubFlags(jspub)
 
@@ -172,14 +180,10 @@ func configureBenchCommand(app commandHost) {
 	jsOrdered.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
 
 	jsConsume := jsCommand.Command("consume", "Consume JetStream messages from a durable consumer using a callback").Action(c.jsConsumeAction)
-	jsConsume.Flag("consumer", "Specify the durable consumer name to use").Default(benchDefaultDurableConsumerName).StringVar(&c.consumerName)
-	jsConsume.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
-	jsConsume.Flag("acks", "Acknowledgement mode for the consumer").Default(benchAckModeExplicit).EnumVar(&c.ackMode, benchAckModeExplicit, benchAckModeNone, benchAckModeAll)
+	addJSConsumerFlags(jsConsume)
 
 	jsFetch := jsCommand.Command("fetch", "Consume JetStream messages from a durable consumer using fetch").Action(c.jsFetchAction)
-	jsFetch.Flag("consumer", "Specify the durable consumer name to use").Default(benchDefaultDurableConsumerName).StringVar(&c.consumerName)
-	jsFetch.Flag("batch", "Sets the fetch batch size").Default("500").IntVar(&c.batchSize)
-	jsFetch.Flag("acks", "Acknowledgement mode for the consumer").Default(benchAckModeExplicit).EnumVar(&c.ackMode, benchAckModeExplicit, benchAckModeNone, benchAckModeAll)
+	addJSConsumerFlags(jsFetch)
 
 	kvCommand := benchCommand.Command("kv", "KV benchmark operations")
 	addCommonFlags(kvCommand)
@@ -207,12 +211,15 @@ func configureBenchCommand(app commandHost) {
 	oldJSPush.Flag("consumer", "Specify the durable consumer name to use").Default(benchDefaultDurableConsumerName).StringVar(&c.consumerName)
 	oldJSPush.Flag("maxacks", "Sets the max ack pending value, adjusts for the number of clients").Default("500").IntVar(&c.batchSize)
 	oldJSPush.Flag("ack", "Uses explicit message acknowledgement or not for the consumer").Default("true").BoolVar(&c.ack)
+	oldJSPush.Flag("doubleack", "Synchronously acknowledge messages, waiting for a reply from the server").Default("false").BoolVar(&c.doubleAck)
 
 	oldJSPull := oldJSCommand.Command("pull", "Consume JetStream messages from a consumer using an old JS API's durable pull consumer").Action(c.oldjsPullAction)
 	oldJSPull.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
 	oldJSPull.Flag("consumer", "Specify the durable consumer name to use").Default(benchDefaultDurableConsumerName).StringVar(&c.consumerName)
 	oldJSPull.Flag("batch", "Sets the fetch size for the consumer").Default("500").IntVar(&c.batchSize)
 	oldJSPull.Flag("ack", "Uses explicit message acknowledgement or not for the consumer").Default("true").BoolVar(&c.ack)
+	oldJSPull.Flag("doubleack", "Synchronously acknowledge messages, waiting for a reply from the server").Default("false").BoolVar(&c.doubleAck)
+
 }
 
 func init() {
@@ -340,6 +347,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		benchTypeLabel = "JetStream durable consumer (callback)"
 		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
 		argnvps = append(argnvps, nvp{"acks", c.ackMode})
+		argnvps = append(argnvps, nvp{"double-acked", f(c.doubleAck)})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
 		jsAttributes()
 		streamOrBucketAttribues()
@@ -347,6 +355,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		benchTypeLabel = "JetStream durable consumer (fetch)"
 		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
 		argnvps = append(argnvps, nvp{"acks", c.ackMode})
+		argnvps = append(argnvps, nvp{"double-acked", f(c.doubleAck)})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
 		jsAttributes()
 		streamOrBucketAttribues()
@@ -371,12 +380,14 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		benchTypeLabel = "old JetStream API durable push consumer"
 		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
 		argnvps = append(argnvps, nvp{"acked", fmt.Sprintf("%v", c.ack)})
+		argnvps = append(argnvps, nvp{"double-acked", f(c.doubleAck)})
 		jsAttributes()
 		streamOrBucketAttribues()
 	case benchTypeOldJSPull:
 		benchTypeLabel = "old JetStream API durable pull consumer"
 		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
 		argnvps = append(argnvps, nvp{"acked", fmt.Sprintf("%v", c.ack)})
+		argnvps = append(argnvps, nvp{"double-acked", f(c.doubleAck)})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
 		jsAttributes()
 		streamOrBucketAttribues()
@@ -1984,7 +1995,12 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 
 		if benchType != benchTypeJSOrdered {
 			if c.ackMode == benchAckModeExplicit || c.ackMode == benchAckModeAll {
-				err := msg.Ack()
+				var err error
+				if c.doubleAck {
+					err = msg.DoubleAck(ctx)
+				} else {
+					err = msg.Ack()
+				}
 				if err != nil {
 					errChan <- fmt.Errorf("acknowledging the message: %w", err)
 					donewg.Done()
@@ -2311,7 +2327,12 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, errChan chan error, n
 
 			time.Sleep(c.sleep)
 			if c.ack {
-				err := msg.Ack()
+				var err error
+				if c.doubleAck {
+					err = msg.AckSync()
+				} else {
+					err = msg.Ack()
+				}
 				if err != nil {
 					errChan <- fmt.Errorf("acknowledging the message: %w", err)
 					donewg.Done()
