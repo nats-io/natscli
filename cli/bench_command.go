@@ -781,22 +781,22 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 	}
 
 	var s jetstream.Stream
-	if c.createStream {
-		// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
-		s, err = js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: jetstream.LimitsPolicy, Discard: jetstream.DiscardNew, Storage: c.storageType(), Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow})
-		if err != nil {
-			return fmt.Errorf("could not create the stream. If you want to delete and re-define the stream use `nats stream delete %s`: %w", c.streamOrBucketName, err)
-		}
-		// TODO: a way to wait for the stream to be ready (e.g. when updating the stream's config (e.g. from R1 to R3))
-	} else {
-		s, err = js.Stream(ctx, c.streamOrBucketName)
-		if err != nil {
-			return fmt.Errorf("stream '%s' does not exist, create it with --create", c.streamOrBucketName)
-		}
-		log.Printf("Using stream: %s", c.streamOrBucketName)
-	}
-
 	if c.purge {
+		if c.createStream {
+			// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
+			s, err = js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: jetstream.LimitsPolicy, Discard: jetstream.DiscardNew, Storage: c.storageType(), Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow})
+			if err != nil {
+				return fmt.Errorf("could not create the stream. If you want to delete and re-define the stream use `nats stream delete %s`: %w", c.streamOrBucketName, err)
+			}
+			// TODO: a way to wait for the stream to be ready (e.g. when updating the stream's config (e.g. from R1 to R3))
+		} else {
+			s, err = js.Stream(ctx, c.streamOrBucketName)
+			if err != nil {
+				return fmt.Errorf("stream '%s' does not exist, create it with --create", c.streamOrBucketName)
+			}
+			log.Printf("Using stream: %s", c.streamOrBucketName)
+		}
+
 		log.Printf("Purging the stream")
 		err = s.Purge(ctx)
 		if err != nil {
