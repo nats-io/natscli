@@ -310,6 +310,7 @@ func natsOpts() []nats.Option {
 
 	if opts().TlsInsecure {
 		insecureOption := func(o *nats.Options) error {
+			o.Secure = true
 			if o.TLSConfig == nil {
 				o.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 			} else {
