@@ -137,8 +137,6 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 		cols.AddSectionTitle("JetStream")
 		cols.AddRow("Domain", js.Config.Domain)
 		cols.AddRow("Storage Directory", js.Config.StoreDir)
-		cols.AddRow("Max Memory", humanize.IBytes(uint64(js.Config.MaxMemory)))
-		cols.AddRow("Max File", humanize.IBytes(uint64(js.Config.MaxStore)))
 		cols.AddRow("Active Accounts", js.Stats.Accounts)
 		cols.AddRow("Memory In Use", humanize.IBytes(js.Stats.Memory))
 		cols.AddRow("File In Use", humanize.IBytes(js.Stats.Store))
@@ -148,6 +146,18 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 		if js.Config.SyncInterval > 0 {
 			cols.AddRow("Always sync writes to disk", js.Config.SyncAlways)
 			cols.AddRow("Write sync Frequency", js.Config.SyncInterval)
+		}
+		cols.AddRow("Max Memory Storage", humanize.IBytes(uint64(js.Config.MaxMemory)))
+		cols.AddRow("Max File Storage", humanize.IBytes(uint64(js.Config.MaxStore)))
+		if js.Limits != nil {
+			cols.AddRowUnlimited("Maximum HA Assets", int64(js.Limits.MaxHAAssets), 0)
+			cols.AddRowUnlimited("Maximum Ack Pending", int64(js.Limits.MaxAckPending), 0)
+			cols.AddRowUnlimited("Maximum Request Batch", int64(js.Limits.MaxRequestBatch), 0)
+			if js.Limits.Duplicates == 0 {
+				cols.AddRow("Maximum Duplicate Window", "unlimited")
+			} else {
+				cols.AddRow("Maximum Duplicate Window", js.Limits.Duplicates)
+			}
 		}
 	}
 
