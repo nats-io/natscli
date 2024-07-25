@@ -309,7 +309,15 @@ func natsOpts() []nats.Option {
 	}
 
 	if opts().TlsInsecure {
-		copts = append(copts, nats.Secure(&tls.Config{InsecureSkipVerify: true}))
+		insecureOption := func(o *nats.Options) error {
+			if o.TLSConfig == nil {
+				o.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+			} else {
+				o.TLSConfig.InsecureSkipVerify = true
+			}
+			return nil
+		}
+		copts = append(copts, insecureOption)	
 	}
 
 	return append(copts, []nats.Option{
