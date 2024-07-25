@@ -147,8 +147,8 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 			cols.AddRow("Always sync writes to disk", js.Config.SyncAlways)
 			cols.AddRow("Write sync Frequency", js.Config.SyncInterval)
 		}
-		cols.AddRow("Max Memory Storage", humanize.IBytes(uint64(js.Config.MaxMemory)))
-		cols.AddRow("Max File Storage", humanize.IBytes(uint64(js.Config.MaxStore)))
+		cols.AddRow("Maximum Memory Storage", humanize.IBytes(uint64(js.Config.MaxMemory)))
+		cols.AddRow("Maximum File Storage", humanize.IBytes(uint64(js.Config.MaxStore)))
 		if js.Limits != nil {
 			cols.AddRowUnlimited("Maximum HA Assets", int64(js.Limits.MaxHAAssets), 0)
 			cols.AddRowUnlimited("Maximum Ack Pending", int64(js.Limits.MaxAckPending), 0)
@@ -162,9 +162,9 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 	}
 
 	cols.AddSectionTitle("Limits")
-	cols.AddRow("Max Conn", varz.MaxConn)
-	cols.AddRow("Max Subs", varz.MaxSubs)
-	cols.AddRow("Max Payload", humanize.IBytes(uint64(varz.MaxPayload)))
+	cols.AddRow("Maximum Connections", varz.MaxConn)
+	cols.AddRow("Maximum Subscriptions", varz.MaxSubs)
+	cols.AddRow("Maximum Payload", humanize.IBytes(uint64(varz.MaxPayload)))
 	cols.AddRow("TLS Timeout", time.Duration(varz.TLSTimeout)*time.Second)
 	cols.AddRow("Write Deadline", varz.WriteDeadline.Round(time.Millisecond))
 
