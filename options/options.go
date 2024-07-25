@@ -36,6 +36,8 @@ type Options struct {
 	TlsKey string
 	// TlsCA is the certificate authority to verify the connection with
 	TlsCA string
+	// TlsInsecure Disable TLS Certificate Verification
+	TlsInsecure bool
 	// Timeout is how long to wait for operations
 	Timeout time.Duration
 	// ConnectionName is the name to use for the underlying NATS connection
