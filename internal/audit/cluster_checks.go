@@ -221,7 +221,7 @@ func makeCheckClusterHighHAAssets(haAssetsThreshold int) checkFunc {
 func checkClusterNamesForWhitespace(reader *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
 
 	for _, clusterName := range reader.GetClusterNames() {
-		if strings.Contains(clusterName, " ") {
+		if strings.ContainsAny(clusterName, " \n") {
 			examples.add("Cluster: %s", clusterName)
 		}
 	}
@@ -253,7 +253,7 @@ func checkLeafnodeServerNamesForWhitespace(r *archive.Reader, examples *Examples
 
 			for _, leaf := range serverLeafz.Leafs {
 				// check if leafnode name contains whitespace
-				if strings.Contains(leaf.Name, " ") {
+				if strings.ContainsAny(leaf.Name, " \n") {
 					leafnodesWithWhitespace[leaf.Name] = struct{}{}
 				}
 			}

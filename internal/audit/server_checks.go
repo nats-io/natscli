@@ -249,7 +249,7 @@ func checkJetStreamDomainsForWhitespace(r *archive.Reader, examples *ExamplesCol
 			}
 
 			// check if jetstream domain contains whitespace
-			if strings.Contains(serverJsz.Config.Domain, " ") {
+			if strings.ContainsAny(serverJsz.Config.Domain, " \n") {
 				examples.add("Cluster %s Server %s Domain %s", clusterName, serverName, serverJsz.Config.Domain)
 			}
 		}
