@@ -156,6 +156,21 @@ func GetDefaultChecks() []Check {
 			Description: "Verify that all nodes part of the meta group agree on the meta cluster leader",
 			fun:         checkMetaClusterLeader,
 		},
+		{
+			Name:        "Whitespace in leafnode server names",
+			Description: "Verify that no leafnode contains whitespace in its name",
+			fun:         checkLeafnodeServerNamesForWhitespace,
+		},
+		{
+			Name:        "Whitespace in JetStream domains",
+			Description: "Verify that no JetStream server is configured with whitespace in its domain",
+			fun:         checkJetStreamDomainsForWhitespace,
+		},
+		{
+			Name:        "Whitespace in cluster name",
+			Description: "Verify that no cluster name contains whitespace",
+			fun:         checkClusterNamesForWhitespace,
+		},
 	}
 }
 
