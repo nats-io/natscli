@@ -831,18 +831,18 @@ func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if info.Cluster == nil {
+	if info.Cluster == nil || len(info.Cluster.Replicas) == 0 {
 		return fmt.Errorf("stream %q is not clustered", stream.Name())
 	}
 
 	leader := info.Cluster.Leader
 	if leader == "" && !c.force {
-		return fmt.Errorf("stream has no current leader")
+		return fmt.Errorf("stream %q has no current leader", stream.Name())
 	} else if leader == "" {
 		leader = "<unknown>"
 	}
 
-	log.Printf("Requesting leader step down of %q in a %d peer cluster group", leader, len(info.Cluster.Replicas)+1)
+	log.Printf("Requesting leader step down of %q for stream %q in a %d peer cluster group", leader, stream.Name(), len(info.Cluster.Replicas)+1)
 	err = stream.LeaderStepDown()
 	if err != nil {
 		return err
@@ -852,7 +852,7 @@ func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 	start := time.Now()
 	for range time.NewTicker(500 * time.Millisecond).C {
 		if ctr == 10 {
-			return fmt.Errorf("stream did not elect a new leader in time")
+			return fmt.Errorf("stream %q did not elect a new leader in time", stream.Name())
 		}
 		ctr++
 
@@ -862,7 +862,7 @@ func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 			continue
 		}
 
-		if info.Cluster.Leader == "" {
+		if info.Cluster == nil || info.Cluster.Leader == "" {
 			log.Printf("No leader elected")
 			continue
 		}
