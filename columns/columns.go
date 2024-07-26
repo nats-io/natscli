@@ -20,6 +20,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -394,6 +395,9 @@ func F(v any) string {
 	case uint16:
 		return humanize.Comma(int64(x))
 	case uint64:
+		if x >= math.MaxInt64 {
+			return strconv.FormatUint(x, 10)
+		}
 		return humanize.Comma(int64(x))
 	case int:
 		return humanize.Comma(int64(x))
