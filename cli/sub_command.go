@@ -124,8 +124,8 @@ func configureSubCommand(app commandHost) {
 	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
 	act.Flag("wait", "Unsubscribe after this amount of time without any traffic").DurationVar(&c.wait)
 	act.Flag("report-subjects", "Subscribes to subject patterns and builds a de-duplicated report of active subjects receiving data").UnNegatableBoolVar(&c.reportSubjects)
-	act.Flag("report-subscription", "Reports the subscription pattern when doing 'report-subjects'").UnNegatableBoolVar(&c.reportSub)
-	act.Flag("report-top", "Number of subjects to show when reporting subjects or subscriptions").Default("10").IntVar(&c.reportSubjectsCount)
+	act.Flag("report-subscriptions", "Subscribes to subject patterns and builds a de-duplicated report of active subscriptions receiving data").UnNegatableBoolVar(&c.reportSub)
+	act.Flag("report-top", "Number of subjects to show when doing 'report-subjects'. Default is 10.").Default("10").IntVar(&c.reportSubjectsCount)
 	act.Flag("timestamp", "Show timestamps in output").Short('t').UnNegatableBoolVar(&c.timeStamps)
 	act.Flag("delta-time", "Show time since start in output").Short('d').UnNegatableBoolVar(&c.deltaTimeStamps)
 	act.Flag("graph", "Graph the rate of messages received").UnNegatableBoolVar(&c.graphOnly)
@@ -298,6 +298,10 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	if c.reportSubjects && c.reportSubjectsCount == 0 {
 		return fmt.Errorf("subject count must be at least one")
 	}
+	if c.reportSub {
+		c.reportSubjects = true
+	}
+
 	if c.timeStamps && c.deltaTimeStamps {
 		return fmt.Errorf("timestamp and delta-time flags are mutually exclusive")
 	}
