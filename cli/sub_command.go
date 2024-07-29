@@ -28,9 +28,11 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
+	"github.com/guptarohit/asciigraph"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	terminal "golang.org/x/term"
 )
 
 type subCmd struct {
@@ -49,6 +51,7 @@ type subCmd struct {
 	deliverNew            bool
 	reportSubjects        bool
 	reportSubjectsCount   int
+	reportSub             bool
 	deliverLast           bool
 	deliverSince          string
 	deliverLastPerSubject bool
@@ -60,6 +63,15 @@ type subCmd struct {
 	timeStamps            bool
 	deltaTimeStamps       bool
 	subjectsOnly          bool
+	graphOnly             bool
+	width                 int
+	height                int
+	messageRates          map[string]*subMessageRate
+}
+
+type subMessageRate struct {
+	lastCount int
+	rates     []float64
 }
 
 func configureSubCommand(app commandHost) {
@@ -111,17 +123,87 @@ func configureSubCommand(app commandHost) {
 	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
 	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
 	act.Flag("wait", "Unsubscribe after this amount of time without any traffic").DurationVar(&c.wait)
-	act.Flag("report-subjects", "Subscribes to a subject pattern and builds a de-duplicated report of active subjects receiving data").UnNegatableBoolVar(&c.reportSubjects)
+	act.Flag("report-subjects", "Subscribes to subject patterns and builds a de-duplicated report of active subjects receiving data").UnNegatableBoolVar(&c.reportSubjects)
+	act.Flag("report-subscription", "Reports the subscription pattern when doing 'report-subjects'").UnNegatableBoolVar(&c.reportSub)
 	act.Flag("report-top", "Number of subjects to show when doing 'report-subjects'. Default is 10.").Default("10").IntVar(&c.reportSubjectsCount)
 	act.Flag("timestamp", "Show timestamps in output").Short('t').UnNegatableBoolVar(&c.timeStamps)
 	act.Flag("delta-time", "Show time since start in output").Short('d').UnNegatableBoolVar(&c.deltaTimeStamps)
+	act.Flag("graph", "Graph the rate of messages received").UnNegatableBoolVar(&c.graphOnly)
 }
 
 func init() {
 	registerCommand("sub", 17, configureSubCommand)
 }
 
-func startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, subjectReportMap map[string]int64, subjectBytesReportMap map[string]int64, subjCount int) {
+func (c *subCmd) startGraph(ctx context.Context, mu *sync.Mutex) {
+	resizeData := func(data []float64, width int) []float64 {
+		if width <= 0 {
+			return data
+		}
+
+		length := len(data)
+
+		if length > width {
+			return data[length-width:]
+		}
+
+		return data
+	}
+
+	go func() {
+		ticker := time.NewTicker(time.Second)
+
+		for {
+			select {
+			case <-ticker.C:
+				mu.Lock()
+
+				width, height, err := terminal.GetSize(int(os.Stdout.Fd()))
+				if err != nil {
+					width = c.width
+					height = c.height
+				}
+				c.width = width
+				c.height = height
+				if c.width > 15 {
+					c.width -= 10
+				}
+				if c.height > 10 {
+					c.height -= 6
+				}
+
+				asciigraph.Clear()
+
+				for _, subject := range c.subjects {
+					rates := c.messageRates[subject]
+					count := 0
+					if rates.lastCount > 0 {
+						count = rates.lastCount
+						rates.lastCount = 0
+					}
+					rates.rates = append(rates.rates, float64(count))
+					rates.rates = resizeData(rates.rates, c.width)
+
+					msgRatePlot := asciigraph.Plot(rates.rates,
+						asciigraph.Caption(fmt.Sprintf("%s / second", subject)),
+						asciigraph.Width(c.width),
+						asciigraph.Height((c.height/(len(c.subjects)+1))-1),
+						asciigraph.LowerBound(0),
+						asciigraph.Precision(0),
+					)
+					fmt.Println(msgRatePlot)
+					fmt.Println()
+				}
+
+				mu.Unlock()
+			case <-ctx.Done():
+				ticker.Stop()
+			}
+		}
+	}()
+}
+
+func (c *subCmd) startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, subjectReportMap map[string]int64, subjectBytesReportMap map[string]int64, subjCount int) {
 	go func() {
 		ticker := time.NewTicker(time.Second)
 
@@ -130,7 +212,6 @@ func startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, subjectRepor
 			case <-ctx.Done():
 				ticker.Stop()
 			case <-ticker.C:
-
 				subjectRows := [][]any{}
 
 				if runtime.GOOS != "windows" {
@@ -247,6 +328,28 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	)
 	defer cancel()
 
+	if c.graphOnly {
+		c.width, c.height, err = terminal.GetSize(int(os.Stdout.Fd()))
+		if err != nil {
+			return fmt.Errorf("failed to get terminal dimensions: %w", err)
+		}
+		if c.width < 20 || c.height < 20 {
+			return fmt.Errorf("please increase terminal dimensions")
+		}
+		if c.width > 15 {
+			c.width -= 10
+		}
+		if c.height > 10 {
+			c.height -= 6
+		}
+		c.messageRates = make(map[string]*subMessageRate)
+		for _, subject := range c.subjects {
+			c.messageRates[subject] = &subMessageRate{
+				rates: make([]float64, c.width),
+			}
+		}
+	}
+
 	// If the wait timeout is set, then we will cancel after the timer fires.
 	var t *time.Timer
 	if c.wait > 0 {
@@ -293,15 +396,26 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 
 		ctr++
-		if c.reportSubjects {
+		switch {
+		case c.reportSubjects:
 			subjMu.Lock()
-			subjectReportMap[m.Subject]++
-			subjectBytesReportMap[m.Subject] += int64(len(m.Data))
+			sub := m.Subject
+			if c.reportSub {
+				sub = m.Sub.Subject
+			}
+			subjectReportMap[sub]++
+			subjectBytesReportMap[sub] += int64(len(m.Data))
 			subjMu.Unlock()
-		}
 
-		// if we're not reporting on subjects, then print the message
-		if !c.reportSubjects {
+		case c.graphOnly:
+			if m.Sub == nil {
+				return
+			}
+
+			subjMu.Lock()
+			c.messageRates[m.Sub.Subject].lastCount++
+			subjMu.Unlock()
+		default:
 			if c.match && m.Reply != "" {
 				matchMap[m.Reply] = m
 			} else {
@@ -386,6 +500,21 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 
 	switch {
+	case c.graphOnly:
+		if len(c.subjects) > 4 {
+			return fmt.Errorf("maximum 4 subject patterns may be graphed")
+		}
+
+		for _, subj := range c.subjects {
+			sub, err := nc.Subscribe(subj, handler)
+			if err != nil {
+				return err
+			}
+			subs = append(subs, sub)
+		}
+
+		c.startGraph(ctx, &subjMu)
+
 	case c.reportSubjects:
 		for _, subj := range c.subjects {
 			sub, err := nc.Subscribe(subj, handler)
@@ -395,7 +524,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			subs = append(subs, sub)
 		}
 
-		startSubjectReporting(ctx, &subjMu, subjectReportMap, subjectBytesReportMap, c.reportSubjectsCount)
+		c.startSubjectReporting(ctx, &subjMu, subjectReportMap, subjectBytesReportMap, c.reportSubjectsCount)
 
 	case c.jetStream:
 		var js nats.JetStreamContext
@@ -546,7 +675,7 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 	}
 
 	if c.dump != "" {
-		// Output format 1/3: dumping, to stdout or files
+		// Output format 1: dumping, to stdout or files
 
 		var (
 			stdout      = c.dump == "-"
@@ -563,20 +692,20 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 			}
 		}
 
-		dumpMsg(msg, stdout, requestFile, ctr)
+		c.dumpMsg(msg, stdout, requestFile, ctr)
 		if reply != nil {
-			dumpMsg(reply, stdout, replyFile, ctr)
+			c.dumpMsg(reply, stdout, replyFile, ctr)
 		}
 
 	} else if c.raw {
-		// Output format 2/3: raw
+		// Output format 2: raw
 		outPutMSGBodyCompact(msg.Data, c.translate, "", "")
 		if reply != nil {
 			fmt.Println(string(reply.Data))
 		}
 
 	} else {
-		// Output format 3/3: pretty
+		// Output format 4: pretty
 
 		if info == nil {
 			if msg.Reply != "" {
@@ -594,7 +723,7 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 			return
 		}
 
-		prettyPrintMsg(msg, c.headersOnly, c.translate)
+		c.prettyPrintMsg(msg, c.headersOnly, c.translate)
 
 		if reply != nil {
 			if info == nil {
@@ -605,13 +734,13 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 				fmt.Printf("[#%d] Matched reply JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, info.Stream(), info.Consumer(), reply.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
 			}
 
-			prettyPrintMsg(reply, c.headersOnly, c.translate)
+			c.prettyPrintMsg(reply, c.headersOnly, c.translate)
 
 		}
 	} // output format type dispatch
 }
 
-func dumpMsg(msg *nats.Msg, stdout bool, filepath string, ctr uint) {
+func (c *subCmd) dumpMsg(msg *nats.Msg, stdout bool, filepath string, ctr uint) {
 	// dont want sub etc
 	serMsg := nats.NewMsg(msg.Subject)
 	serMsg.Header = msg.Header
@@ -635,7 +764,7 @@ func dumpMsg(msg *nats.Msg, stdout bool, filepath string, ctr uint) {
 	}
 }
 
-func prettyPrintMsg(msg *nats.Msg, headersOnly bool, filter string) {
+func (c *subCmd) prettyPrintMsg(msg *nats.Msg, headersOnly bool, filter string) {
 	if len(msg.Header) > 0 {
 		for h, vals := range msg.Header {
 			for _, val := range vals {
