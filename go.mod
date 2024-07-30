@@ -20,7 +20,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.17.9
 	github.com/mattn/go-isatty v0.0.20
-	github.com/nats-io/jsm.go v0.1.1-0.20240724161704-1b53f861fef7
+	github.com/nats-io/jsm.go v0.1.1-0.20240730140702-7412cdaa18da
 	github.com/nats-io/jwt/v2 v2.5.8
 	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240724152920-81805a2cd269
 	github.com/nats-io/nats.go v1.36.0
@@ -30,7 +30,7 @@ require (
 	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240628155003-21e8d1e9d490
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.25.0
-	golang.org/x/exp v0.0.0-20240707233637-46b078467d37
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	golang.org/x/term v0.22.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v3 v3.0.1
@@ -63,7 +63,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	go.uber.org/automaxprocs v1.5.3 // indirect
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sys v0.22.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
