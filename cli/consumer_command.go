@@ -99,10 +99,21 @@ type consumerCmd struct {
 	metadata            map[string]string
 	pauseUntil          string
 
-	dryRun bool
-	mgr    *jsm.Manager
-	nc     *nats.Conn
-	nak    bool
+	dryRun      bool
+	mgr         *jsm.Manager
+	nc          *nats.Conn
+	nak         bool
+	fPull       bool
+	fPush       bool
+	fBound      bool
+	fWaiting    int
+	fAckPending int
+	fPending    uint64
+	fIdle       time.Duration
+	fCreated    time.Duration
+	fReplicas   uint
+	fInvert     bool
+	fExpression string
 }
 
 func configureConsumerCommand(app commandHost) {
@@ -184,6 +195,20 @@ func configureConsumerCommand(app commandHost) {
 	consLs.Flag("names", "Show just the consumer names").Short('n').UnNegatableBoolVar(&c.listNames)
 	consLs.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
 
+	consFind := cons.Command("find", "Finds consumers matching certain criteria").Alias("query").Action(c.findAction)
+	consFind.Arg("stream", "Stream name").StringVar(&c.stream)
+	consFind.Flag("pull", "Display only pull based consumers").UnNegatableBoolVar(&c.fPull)
+	consFind.Flag("push", "Display only push based consumers").UnNegatableBoolVar(&c.fPush)
+	consFind.Flag("bound", "Display push-bound or pull consumers with waiting pulls").UnNegatableBoolVar(&c.fBound)
+	consFind.Flag("waiting", "Display consumers with fewer waiting pulls").IntVar(&c.fWaiting)
+	consFind.Flag("ack-pending", "Display consumers with fewer pending acks").IntVar(&c.fAckPending)
+	consFind.Flag("pending", "Display consumers with fewer unprocessed messages").Uint64Var(&c.fPending)
+	consFind.Flag("idle", "Display consumers with no new deliveries for a period").DurationVar(&c.fIdle)
+	consFind.Flag("created", "Display consumers created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
+	consFind.Flag("replicas", "Display consumers with fewer or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
+	consFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
+	consFind.Flag("expression", "Match consumers using an expression language").StringVar(&c.fExpression)
+
 	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
 	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
 	consInfo.Arg("consumer", "Consumer name").StringVar(&c.consumer)
@@ -253,6 +278,71 @@ func configureConsumerCommand(app commandHost) {
 
 func init() {
 	registerCommand("consumer", 4, configureConsumerCommand)
+}
+
+func (c *consumerCmd) findAction(_ *fisk.ParseContext) error {
+	var err error
+	var stream *jsm.Stream
+
+	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
+	if err != nil {
+		return fmt.Errorf("setup failed: %v", err)
+	}
+
+	c.stream, stream, err = selectStream(c.mgr, c.stream, c.force, c.showAll)
+	if err != nil {
+		return err
+	}
+
+	if stream == nil {
+		return fmt.Errorf("no stream selected")
+	}
+
+	var opts []jsm.ConsumerQueryOpt
+	if c.fPush {
+		opts = append(opts, jsm.ConsumerQueryIsPush())
+	}
+	if c.fPull {
+		opts = append(opts, jsm.ConsumerQueryIsPull())
+	}
+	if c.fBound {
+		opts = append(opts, jsm.ConsumerQueryIsBound())
+	}
+	if c.fWaiting > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithFewerWaiting(c.fWaiting))
+	}
+	if c.fAckPending > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithFewerAckPending(c.fAckPending))
+	}
+	if c.fPending > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithFewerPending(c.fPending))
+	}
+	if c.fIdle > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithDeliverySince(c.fIdle))
+	}
+	if c.fCreated > 0 {
+		opts = append(opts, jsm.ConsumerQueryOlderThan(c.fCreated))
+	}
+	if c.fReplicas > 0 {
+		opts = append(opts, jsm.ConsumerQueryReplicas(c.fReplicas))
+	}
+	if c.fInvert {
+		opts = append(opts, jsm.ConsumerQueryInvert())
+	}
+	if c.fExpression != "" {
+		opts = append(opts, jsm.ConsumerQueryExpression(c.fExpression))
+	}
+
+	found, err := stream.QueryConsumers(opts...)
+	if err != nil {
+		return err
+	}
+
+	for _, c := range found {
+		fmt.Println(c.Name())
+	}
+
+	return nil
 }
 
 func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
@@ -1932,8 +2022,10 @@ func (c *consumerCmd) nextAction(_ *fisk.ParseContext) error {
 func (c *consumerCmd) connectAndSetup(askStream bool, askConsumer bool, opts ...nats.Option) {
 	var err error
 
-	c.nc, c.mgr, err = prepareHelper("", append(natsOpts(), opts...)...)
-	fisk.FatalIfError(err, "setup failed")
+	if c.nc == nil || c.mgr == nil {
+		c.nc, c.mgr, err = prepareHelper("", append(natsOpts(), opts...)...)
+		fisk.FatalIfError(err, "setup failed")
+	}
 
 	if c.stream != "" && c.consumer != "" {
 		c.selectedConsumer, err = c.mgr.LoadConsumer(c.stream, c.consumer)

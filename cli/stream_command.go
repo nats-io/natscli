@@ -794,8 +794,6 @@ func (c *streamCmd) findAction(_ *fisk.ParseContext) (err error) {
 
 	out := ""
 	switch {
-	case c.json:
-		out, err = iu.ToJSON(found)
 	case c.listNames:
 		out = c.renderStreamsAsList(found, nil)
 	default:
