@@ -29,7 +29,6 @@ import (
 	"github.com/nats-io/jsm.go/monitor"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
 )
 
@@ -115,8 +114,8 @@ type SrvCheckCmd struct {
 	msgBodyAsTs bool
 
 	kvBucket                 string
-	kvValuesCrit             int
-	kvValuesWarn             int
+	kvValuesCrit             int64
+	kvValuesWarn             int64
 	kvKey                    string
 	credentialValidityCrit   time.Duration
 	credentialValidityWarn   time.Duration
@@ -223,8 +222,8 @@ When set these settings will be used, but can be overridden using --waiting-crit
 
 	kv := check.Command("kv", "Checks a NATS KV Bucket").Action(c.checkKV)
 	kv.Flag("bucket", "Checks a specific bucket").Required().StringVar(&c.kvBucket)
-	kv.Flag("values-critical", "Critical threshold for number of values in the bucket").Default("-1").IntVar(&c.kvValuesCrit)
-	kv.Flag("values-warn", "Warning threshold for number of values in the bucket").Default("-1").IntVar(&c.kvValuesWarn)
+	kv.Flag("values-critical", "Critical threshold for number of values in the bucket").Default("-1").Int64Var(&c.kvValuesCrit)
+	kv.Flag("values-warn", "Warning threshold for number of values in the bucket").Default("-1").Int64Var(&c.kvValuesWarn)
 	kv.Flag("key", "Requires a key to have any non-delete value set").StringVar(&c.kvKey)
 
 	cred := check.Command("credential", "Checks the validity of a NATS credential file").Action(c.checkCredentialAction)
@@ -251,75 +250,6 @@ func (c *SrvCheckCmd) parseRenderFormat(_ *fisk.ParseContext) error {
 	}
 
 	return nil
-}
-
-func (c *SrvCheckCmd) checkKVStatusAndBucket(check *monitor.Result, nc *nats.Conn) {
-	js, err := nc.JetStream()
-	check.CriticalIfErr(err, "connection failed: %v", err)
-
-	kv, err := js.KeyValue(c.kvBucket)
-	if err == nats.ErrBucketNotFound {
-		check.Critical("bucket %v not found", c.kvBucket)
-		return
-	} else if err != nil {
-		check.Critical("could not load bucket: %v", err)
-		return
-	}
-
-	check.Ok("bucket %s", c.kvBucket)
-
-	status, err := kv.Status()
-	check.CriticalIfErr(err, "could not obtain bucket status: %v", err)
-
-	check.Pd(
-		&monitor.PerfDataItem{Name: "values", Value: float64(status.Values()), Warn: float64(c.kvValuesWarn), Crit: float64(c.kvValuesCrit), Help: "How many values are stored in the bucket"},
-	)
-
-	if c.kvKey != "" {
-		v, err := kv.Get(c.kvKey)
-		if err == nats.ErrKeyNotFound {
-			check.Critical("key %s not found", c.kvKey)
-		} else if err != nil {
-			check.Critical("key %s not loaded: %v", c.kvKey, err)
-		} else {
-			switch v.Operation() {
-			case nats.KeyValueDelete:
-				check.Critical("key %v is deleted", c.kvKey)
-			case nats.KeyValuePurge:
-				check.Critical("key %v is purged", c.kvKey)
-			default:
-				check.Ok("key %s found", c.kvKey)
-			}
-		}
-	}
-
-	if c.kvValuesWarn > -1 || c.kvValuesCrit > -1 {
-		if c.kvValuesCrit < c.kvValuesWarn {
-			if c.kvValuesCrit > -1 && status.Values() <= uint64(c.kvValuesCrit) {
-				check.Critical("%d values", status.Values())
-			} else if c.kvValuesWarn > -1 && status.Values() <= uint64(c.kvValuesWarn) {
-				check.Warn("%d values", status.Values())
-			} else {
-				check.Ok("%d values", status.Values())
-			}
-		} else {
-			if c.kvValuesCrit > -1 && status.Values() >= uint64(c.kvValuesCrit) {
-				check.Critical("%d values", status.Values())
-			} else if c.kvValuesWarn > -1 && status.Values() >= uint64(c.kvValuesWarn) {
-				check.Warn("%d values", status.Values())
-			} else {
-				check.Ok("%d values", status.Values())
-			}
-		}
-	}
-
-	if status.BackingStore() == "JetStream" {
-		nfo := status.(*nats.KeyValueBucketStatus).StreamInfo()
-		check.Pd(
-			&monitor.PerfDataItem{Name: "bytes", Value: float64(nfo.State.Bytes), Unit: "B", Help: "Bytes stored in the bucket"},
-			&monitor.PerfDataItem{Name: "replicas", Value: float64(nfo.Config.Replicas)},
-		)
-	}
 }
 
 func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
@@ -380,9 +310,12 @@ func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	check.CriticalIfErr(err, "connection failed: %s", err)
 
-	c.checkKVStatusAndBucket(check, nc)
-
-	return nil
+	return monitor.CheckKVBucketAndKey(nc, check, monitor.KVCheckOptions{
+		Bucket:         c.kvBucket,
+		Key:            c.kvKey,
+		ValuesCritical: c.kvValuesCrit,
+		ValuesWarning:  c.kvValuesWarn,
+	})
 }
 
 func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
