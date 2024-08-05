@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -105,7 +104,6 @@ type SrvCheckCmd struct {
 	srvAuthRequire bool
 	srvTLSRequired bool
 	srvJSRequired  bool
-	srvURL         *url.URL
 
 	msgSubject  string
 	msgAgeWarn  time.Duration
@@ -308,7 +306,9 @@ func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
 	defer check.GenericExit()
 
 	nc, _, err := prepareHelper("", natsOpts()...)
-	check.CriticalIfErr(err, "connection failed: %s", err)
+	if check.CriticalIfErr(err, "connection failed: %s", err) {
+		return nil
+	}
 
 	return monitor.CheckKVBucketAndKey(nc, check, monitor.KVCheckOptions{
 		Bucket:         c.kvBucket,
@@ -322,158 +322,12 @@ func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.srvName, Check: "server", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
-	vz, err := c.fetchVarz()
-	check.CriticalIfErr(err, "could not retrieve VARZ information: %s", err)
-
-	err = c.checkVarz(check, vz)
-	check.CriticalIfErr(err, "check failed: %s", err)
-
-	return nil
-}
-
-func (c *SrvCheckCmd) checkVarz(check *monitor.Result, vz *server.Varz) error {
-	if vz == nil {
-		return fmt.Errorf("no data received")
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if check.CriticalIfErr(err, "connection failed: %s", err) {
+		return nil
 	}
 
-	if vz.Name != c.srvName {
-		return fmt.Errorf("result from %s", vz.Name)
-	}
-
-	if c.srvJSRequired {
-		if vz.JetStream.Config == nil {
-			check.Critical("JetStream not enabled")
-		} else {
-			check.Ok("JetStream enabled")
-		}
-	}
-
-	if c.srvTLSRequired {
-		if vz.TLSRequired {
-			check.Ok("TLS required")
-		} else {
-			check.Critical("TLS not required")
-		}
-	}
-
-	if c.srvAuthRequire {
-		if vz.AuthRequired {
-			check.Ok("Authentication required")
-		} else {
-			check.Critical("Authentication not required")
-		}
-	}
-
-	up := vz.Now.Sub(vz.Start)
-	if c.srvUptimeWarn > 0 || c.srvUptimeCrit > 0 {
-		if c.srvUptimeCrit > c.srvUptimeWarn {
-			check.Critical("Up invalid thresholds")
-			return nil
-		}
-
-		if up <= c.srvUptimeCrit {
-			check.Critical("Up %s", f(up))
-		} else if up <= c.srvUptimeWarn {
-			check.Warn("Up %s", f(up))
-		} else {
-			check.Ok("Up %s", f(up))
-		}
-	}
-
-	check.Pd(
-		&monitor.PerfDataItem{Name: "uptime", Value: up.Seconds(), Warn: c.srvUptimeWarn.Seconds(), Crit: c.srvUptimeCrit.Seconds(), Unit: "s", Help: "NATS Server uptime in seconds"},
-		&monitor.PerfDataItem{Name: "cpu", Value: vz.CPU, Warn: float64(c.srvCPUWarn), Crit: float64(c.srvCPUCrit), Unit: "%", Help: "NATS Server CPU usage in percentage"},
-		&monitor.PerfDataItem{Name: "mem", Value: float64(vz.Mem), Warn: float64(c.srvMemWarn), Crit: float64(c.srvMemCrit), Help: "NATS Server memory usage in bytes"},
-		&monitor.PerfDataItem{Name: "connections", Value: float64(vz.Connections), Warn: float64(c.srvConnWarn), Crit: float64(c.srvConnCrit), Help: "Active connections"},
-		&monitor.PerfDataItem{Name: "subscriptions", Value: float64(vz.Subscriptions), Warn: float64(c.srvSubsWarn), Crit: float64(c.srvSubCrit), Help: "Active subscriptions"},
-	)
-
-	checkVal := func(name string, crit float64, warn float64, value float64, r bool) {
-		if crit == 0 && warn == 0 {
-			return
-		}
-
-		if !r && crit < warn {
-			check.Critical("%s invalid thresholds", name)
-			return
-		}
-
-		if r && crit < warn {
-			if value <= crit {
-				check.Critical("%s %.2f", name, value)
-			} else if value <= warn {
-				check.Warn("%s %.2f", name, value)
-			} else {
-				check.Ok("%s %.2f", name, value)
-			}
-		} else {
-			if value >= crit {
-				check.Critical("%s %.2f", name, value)
-			} else if value >= warn {
-				check.Warn("%s %.2f", name, value)
-			} else {
-				check.Ok("%s %.2f", name, value)
-			}
-		}
-	}
-
-	checkVal("CPU", float64(c.srvCPUCrit), float64(c.srvCPUWarn), vz.CPU, false)
-	checkVal("Memory", float64(c.srvMemCrit), float64(c.srvMemWarn), float64(vz.Mem), false)
-	checkVal("Connections", float64(c.srvConnCrit), float64(c.srvConnWarn), float64(vz.Connections), true)
-	checkVal("Subscriptions", float64(c.srvSubCrit), float64(c.srvSubsWarn), float64(vz.Subscriptions), true)
-
-	return nil
-}
-
-func (c *SrvCheckCmd) fetchVarz() (*server.Varz, error) {
-	var vz json.RawMessage
-
-	if c.srvURL == nil {
-		nc, _, err := prepareHelper("", natsOpts()...)
-		if err != nil {
-			return nil, err
-		}
-
-		if c.srvName == "" {
-			return nil, fmt.Errorf("server name is required")
-		}
-
-		res, err := doReq(server.VarzEventOptions{EventFilterOptions: server.EventFilterOptions{Name: c.srvName}}, "$SYS.REQ.SERVER.PING.VARZ", 1, nc)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(res) != 1 {
-			return nil, fmt.Errorf("received %d responses for %s", len(res), c.srvName)
-		}
-
-		reqresp := map[string]json.RawMessage{}
-		err = json.Unmarshal(res[0], &reqresp)
-		if err != nil {
-			return nil, err
-		}
-
-		errresp, ok := reqresp["error"]
-		if ok {
-			return nil, fmt.Errorf("invalid response received: %#v", errresp)
-		}
-
-		vz = reqresp["data"]
-	} else {
-		return nil, fmt.Errorf("not implemented")
-	}
-
-	if len(vz) == 0 {
-		return nil, fmt.Errorf("no data received for %s", c.srvName)
-	}
-
-	varz := &server.Varz{}
-	err := json.Unmarshal(vz, varz)
-	if err != nil {
-		return nil, err
-	}
-
-	return varz, nil
+	return monitor.CheckServer(nc, check, opts().Timeout, monitor.ServerCheckOptions{})
 }
 
 func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
@@ -898,62 +752,21 @@ func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "Connection", Check: "connections", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
-	connStart := time.Now()
-	nc, _, err := prepareHelper("", natsOpts()...)
-	check.CriticalIfErr(err, "connection failed")
-
-	ct := time.Since(connStart)
-	check.Pd(&monitor.PerfDataItem{Name: "connect_time", Value: ct.Seconds(), Warn: c.connectWarning.Seconds(), Crit: c.connectCritical.Seconds(), Unit: "s", Help: "Time taken to connect to NATS"})
-
-	if ct >= c.connectCritical {
-		check.Critical("connected to %s, connect time exceeded %v", nc.ConnectedUrl(), c.connectCritical)
-	} else if ct >= c.connectWarning {
-		check.Warn("connected to %s, connect time exceeded %v", nc.ConnectedUrl(), c.connectWarning)
-	} else {
-		check.Ok("connected to %s in %s", nc.ConnectedUrl(), ct)
+	if opts().Config == nil {
+		err := loadContext(false)
+		if check.CriticalIfErr(err, "loading context failed: %v", err) {
+			return nil
+		}
 	}
 
-	rtt, err := nc.RTT()
-	check.CriticalIfErr(err, "rtt failed: %s", err)
-
-	check.Pd(&monitor.PerfDataItem{Name: "rtt", Value: rtt.Seconds(), Warn: c.rttWarning.Seconds(), Crit: c.rttCritical.Seconds(), Unit: "s", Help: "The round-trip-time of the connection"})
-	if rtt >= c.rttCritical {
-		check.Critical("rtt time exceeded %v", c.rttCritical)
-	} else if rtt >= c.rttWarning {
-		check.Critical("rtt time exceeded %v", c.rttWarning)
-	} else {
-		check.Ok("rtt time %v", rtt)
-	}
-
-	msg := []byte(randomPassword(100))
-	ib := nc.NewRespInbox()
-	sub, err := nc.SubscribeSync(ib)
-	check.CriticalIfErr(err, "could not subscribe to %s: %s", ib, err)
-	sub.AutoUnsubscribe(1)
-
-	start := time.Now()
-	err = nc.Publish(ib, msg)
-	check.CriticalIfErr(err, "could not publish to %s: %s", ib, err)
-
-	received, err := sub.NextMsg(opts().Timeout)
-	check.CriticalIfErr(err, "did not receive from %s: %s", ib, err)
-
-	reqt := time.Since(start)
-	check.Pd(&monitor.PerfDataItem{Name: "request_time", Value: reqt.Seconds(), Warn: c.reqWarning.Seconds(), Crit: c.reqCritical.Seconds(), Unit: "s", Help: "Time taken for a full Request-Reply operation"})
-
-	if !bytes.Equal(received.Data, msg) {
-		check.Critical("did not receive expected message")
-	}
-
-	if reqt >= c.reqCritical {
-		check.Critical("round trip request took %f", reqt.Seconds())
-	} else if reqt >= c.reqWarning {
-		check.Warn("round trip request took %f", reqt.Seconds())
-	} else {
-		check.Ok("round trip took %fs", reqt.Seconds())
-	}
-
-	return nil
+	return monitor.CheckConnection(opts().Config.ServerURL(), natsOpts(), opts().Timeout, check, monitor.ConnectionCheckOptions{
+		ConnectTimeWarning:  c.connectWarning,
+		ConnectTimeCritical: c.connectCritical,
+		ServerRttWarning:    c.rttWarning,
+		ServerRttCritical:   c.rttCritical,
+		RequestRttWarning:   c.reqWarning,
+		RequestRttCritical:  c.reqCritical,
+	})
 }
 
 func (c *SrvCheckCmd) checkCredential(check *monitor.Result) error {
