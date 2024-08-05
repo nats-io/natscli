@@ -141,6 +141,7 @@ type streamCmd struct {
 	fMirrored    bool
 	fMirroredSet bool
 	fExpression  string
+	fLeader      string
 
 	listNames    bool
 	vwStartId    int
@@ -300,6 +301,7 @@ Finding streams with certain subjects configured:
 	strFind.Flag("replicas", "Display streams with fewer or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
 	strFind.Flag("sourced", "Display that sources data from other streams").IsSetByUser(&c.fSourcedSet).UnNegatableBoolVar(&c.fSourced)
 	strFind.Flag("mirrored", "Display that mirrors data from other streams").IsSetByUser(&c.fMirroredSet).UnNegatableBoolVar(&c.fMirrored)
+	strFind.Flag("leader", "Display only clustered streams with a specific leader").PlaceHolder("SERVER").StringVar(&c.fLeader)
 	strFind.Flag("names", "Show just the stream names").Short('n').UnNegatableBoolVar(&c.listNames)
 	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	strFind.Flag("expression", "Match streams using an expression language").StringVar(&c.fExpression)
@@ -785,6 +787,9 @@ func (c *streamCmd) findAction(_ *fisk.ParseContext) (err error) {
 	}
 	if c.fExpression != "" {
 		opts = append(opts, jsm.StreamQueryExpression(c.fExpression))
+	}
+	if c.fLeader != "" {
+		opts = append(opts, jsm.StreamQueryLeaderServer(c.fLeader))
 	}
 
 	found, err := c.mgr.QueryStreams(opts...)
