@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/choria-io/fisk"
-	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/monitor"
 )
@@ -248,7 +247,7 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	defer check.GenericExit()
 
 	_, mgr, err := prepareHelper("", natsOpts()...)
-	check.CriticalIfErr(err, "connection failed: %s", err)
+	check.CriticalExitIfErr(err, "connection failed: %s", err)
 
 	cons, err := mgr.LoadConsumer(c.sourcesStream, c.consumerName)
 	if err != nil {
@@ -256,11 +255,12 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	checkOpts := &jsm.ConsumerHealthCheckOptions{}
+	checkOpts := &monitor.ConsumerHealthCheckOptions{}
 	if c.useMetadata {
-		checkOpts, err = cons.HealthCheckOptions()
+		checkOpts, err = monitor.ExtractConsumerHealthCheckOptions(cons.Metadata())
 		if err != nil {
-			return fmt.Errorf("invalid metadata: %v", err)
+			check.Critical("invalid metadata: %v", err)
+			return nil
 		}
 	}
 	if !c.useMetadata || c.consumerAckOutstandingCriticalIsSet {
@@ -286,7 +286,7 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	if opts().Trace {
 		logger = api.NewDefaultLogger(api.TraceLevel)
 	}
-	_, err = cons.HealthCheck(*checkOpts, check, logger)
+	err = monitor.ConsumerHealthCheck(cons, check, *checkOpts, logger)
 	if err != nil {
 		return fmt.Errorf("health check failed: %v", err)
 	}
@@ -327,168 +327,24 @@ func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "JetStream", Check: "jetstream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
-	_, mgr, err := prepareHelper("", natsOpts()...)
-	check.CriticalIfErr(err, "connection failed: %s", err)
-
-	info, err := mgr.JetStreamAccountInfo()
-	check.CriticalIfErr(err, "JetStream not available: %s", err)
-
-	err = c.checkAccountInfo(check, info)
-	check.CriticalIfErr(err, "JetStream not available: %s", err)
-
-	if c.jsReplicas {
-		streams, _, err := mgr.Streams(nil)
-		check.CriticalIfErr(err, "JetStream not available: %s", err)
-
-		err = c.checkStreamClusterHealth(check, streams)
-		check.CriticalIfErr(err, "JetStream not available: %s", err)
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if check.CriticalIfErr(err, "connection failed: %s", err) {
+		return nil
 	}
 
-	return nil
-}
-
-func (c *SrvCheckCmd) checkStreamClusterHealth(check *monitor.Result, info []*jsm.Stream) error {
-	var okCnt, noLeaderCnt, notEnoughReplicasCnt, critCnt, lagCritCnt, seenCritCnt int
-
-	for _, s := range info {
-		nfo, err := s.LatestInformation()
-		if err != nil {
-			critCnt++
-			continue
-		}
-
-		if nfo.Config.Replicas == 1 {
-			okCnt++
-			continue
-		}
-
-		if nfo.Cluster == nil {
-			critCnt++
-			continue
-		}
-
-		if nfo.Cluster.Leader == "" {
-			noLeaderCnt++
-			continue
-		}
-
-		if len(nfo.Cluster.Replicas) != s.Replicas()-1 {
-			notEnoughReplicasCnt++
-			continue
-		}
-
-		for _, r := range nfo.Cluster.Replicas {
-			if r.Offline {
-				critCnt++
-				continue
-			}
-
-			if r.Active > c.jsReplicaSeenCritical {
-				seenCritCnt++
-				continue
-			}
-			if r.Lag > c.jsReplicaLagCritical {
-				lagCritCnt++
-				continue
-			}
-		}
-
-		okCnt++
-	}
-
-	check.Pd(&monitor.PerfDataItem{
-		Name:  "replicas_ok",
-		Value: float64(okCnt),
-		Help:  "Streams with healthy cluster state",
+	return monitor.CheckJetStreamAccount(nc, check, monitor.JetStreamAccountOptions{
+		MemoryWarning:       c.jsMemWarn,
+		MemoryCritical:      c.jsMemCritical,
+		FileWarning:         c.jsStoreWarn,
+		FileCritical:        c.jsStoreCritical,
+		StreamWarning:       c.jsStreamsWarn,
+		StreamCritical:      c.jsStreamsCritical,
+		ConsumersWarning:    c.jsConsumersWarn,
+		ConsumersCritical:   c.jsConsumersCritical,
+		CheckReplicas:       c.jsReplicas,
+		ReplicaSeenCritical: c.jsReplicaSeenCritical,
+		ReplicaLagCritical:  c.jsReplicaLagCritical,
 	})
-
-	check.Pd(&monitor.PerfDataItem{
-		Name:  "replicas_no_leader",
-		Value: float64(noLeaderCnt),
-		Help:  "Streams with no leader elected",
-	})
-
-	check.Pd(&monitor.PerfDataItem{
-		Name:  "replicas_missing_replicas",
-		Value: float64(notEnoughReplicasCnt),
-		Help:  "Streams where there are fewer known replicas than configured",
-	})
-
-	check.Pd(&monitor.PerfDataItem{
-		Name:  "replicas_lagged",
-		Value: float64(lagCritCnt),
-		Crit:  float64(c.jsReplicaLagCritical),
-		Help:  fmt.Sprintf("Streams with > %d lagged replicas", c.jsReplicaLagCritical),
-	})
-
-	check.Pd(&monitor.PerfDataItem{
-		Name:  "replicas_not_seen",
-		Value: float64(seenCritCnt),
-		Crit:  c.jsReplicaSeenCritical.Seconds(),
-		Unit:  "s",
-		Help:  fmt.Sprintf("Streams with replicas seen > %d ago", c.jsReplicaSeenCritical),
-	})
-
-	check.Pd(&monitor.PerfDataItem{
-		Name:  "replicas_fail",
-		Value: float64(critCnt),
-		Help:  "Streams unhealthy cluster state",
-	})
-
-	if critCnt > 0 || notEnoughReplicasCnt > 0 || noLeaderCnt > 0 || seenCritCnt > 0 || lagCritCnt > 0 {
-		check.Critical("%d unhealthy streams", critCnt+notEnoughReplicasCnt+noLeaderCnt)
-	}
-
-	return nil
-}
-
-func (c *SrvCheckCmd) checkAccountInfo(check *monitor.Result, info *api.JetStreamAccountStats) error {
-	if info == nil {
-		return fmt.Errorf("invalid account status")
-	}
-
-	checkVal := func(item string, unit string, warn int, crit int, max int64, current uint64) {
-		pct := 0
-		if max > 0 {
-			pct = int(float64(current) / float64(max) * 100)
-		}
-
-		check.Pd(&monitor.PerfDataItem{Name: item, Value: float64(current), Unit: unit, Help: fmt.Sprintf("JetStream %s resource usage", item)})
-		check.Pd(&monitor.PerfDataItem{
-			Name:  fmt.Sprintf("%s_pct", item),
-			Value: float64(pct),
-			Unit:  "%",
-			Warn:  float64(warn),
-			Crit:  float64(crit),
-			Help:  fmt.Sprintf("JetStream %s resource usage in percent", item),
-		})
-
-		if warn != -1 && crit != -1 && warn >= crit {
-			check.Critical("%s: invalid thresholds", item)
-			return
-		}
-
-		if pct > 100 {
-			check.Critical("%s: exceed server limits", item)
-			return
-		}
-
-		if warn >= 0 && crit >= 0 {
-			switch {
-			case pct > crit:
-				check.Critical("%d%% %s", pct, item)
-			case pct > warn:
-				check.Warn("%d%% %s", pct, item)
-			}
-		}
-	}
-
-	checkVal("memory", "B", c.jsMemWarn, c.jsMemCritical, info.Limits.MaxMemory, info.Memory)
-	checkVal("storage", "B", c.jsStoreWarn, c.jsStoreCritical, info.Limits.MaxStore, info.Store)
-	checkVal("streams", "", c.jsStreamsWarn, c.jsStreamsCritical, int64(info.Limits.MaxStreams), uint64(info.Streams))
-	checkVal("consumers", "", c.jsConsumersWarn, c.jsConsumersCritical, int64(info.Limits.MaxConsumers), uint64(info.Consumers))
-
-	return nil
 }
 
 func (c *SrvCheckCmd) checkRaft(_ *fisk.ParseContext) error {
@@ -496,7 +352,9 @@ func (c *SrvCheckCmd) checkRaft(_ *fisk.ParseContext) error {
 	defer check.GenericExit()
 
 	nc, _, err := prepareHelper("", natsOpts()...)
-	check.CriticalIfErr(err, "connection failed: %s", err)
+	if check.CriticalIfErr(err, "connection failed: %s", err) {
+		return nil
+	}
 
 	return monitor.CheckJetstreamMeta(nc, check, monitor.CheckMetaOptions{
 		ExpectServers: c.raftExpect,
@@ -510,15 +368,21 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	defer check.GenericExit()
 
 	_, mgr, err := prepareHelper("", natsOpts()...)
-	check.CriticalIfErr(err, "connection failed: %s", err)
+	if check.CriticalIfErr(err, "connection failed: %s", err) {
+		return nil
+	}
 
 	stream, err := mgr.LoadStream(c.sourcesStream)
-	check.CriticalIfErr(err, "could not load stream %s: %s", c.sourcesStream, err)
+	if check.CriticalIfErr(err, "could not load stream %s: %s", c.sourcesStream, err) {
+		return nil
+	}
 
-	checkOpts := &jsm.StreamHealthCheckOptions{}
+	checkOpts := &monitor.StreamHealthCheckOptions{}
 	if c.useMetadata {
-		checkOpts, err = stream.HealthCheckOptions()
-		check.CriticalIfErr(err, "Invalid metadata: %s", err)
+		checkOpts, err = monitor.ExtractStreamHealthCheckOptions(stream.Metadata())
+		if check.CriticalIfErr(err, "Invalid metadata: %s", err) {
+			return nil
+		}
 	}
 
 	if !c.useMetadata || c.sourcesLagCriticalIsSet {
@@ -559,7 +423,7 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	if opts().Trace {
 		logger = api.NewDefaultLogger(api.TraceLevel)
 	}
-	_, err = stream.HealthCheck(*checkOpts, check, logger)
+	err = monitor.StreamHealthCheck(stream, check, *checkOpts, logger)
 	check.CriticalIfErr(err, "Healthcheck failed: %s", err)
 
 	return nil
@@ -570,7 +434,9 @@ func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
 	defer check.GenericExit()
 
 	_, mgr, err := prepareHelper("", natsOpts()...)
-	check.CriticalIfErr(err, "connection failed")
+	if check.CriticalIfErr(err, "connection failed") {
+		return nil
+	}
 
 	return monitor.CheckStreamMessage(mgr, check, monitor.CheckStreamMessageOptions{
 		StreamName:      c.sourcesStream,
