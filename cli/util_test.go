@@ -15,39 +15,11 @@ package cli
 
 import (
 	"errors"
-	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/nats-io/jsm.go/api"
 )
-
-func assertNoError(t *testing.T, err error) {
-	t.Helper()
-
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-func assertListIsEmpty(t *testing.T, list []string) {
-	t.Helper()
-
-	if len(list) > 0 {
-		t.Fatalf("invalid items: %v", list)
-	}
-}
-
-func assertListEquals(t *testing.T, list []string, vals ...string) {
-	t.Helper()
-
-	sort.Strings(list)
-	sort.Strings(vals)
-
-	if !cmp.Equal(list, vals) {
-		t.Fatalf("invalid items: %v", list)
-	}
-}
 
 func TestParseStringAsBytes(t *testing.T) {
 	cases := []struct {
