@@ -16,11 +16,9 @@ package cli
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/monitor"
-	"github.com/nats-io/nats-server/v2/server"
 )
 
 func assertHasPDItem(t *testing.T, check *monitor.Result, items ...string) {
@@ -143,134 +141,5 @@ func TestCheckAccountInfo(t *testing.T) {
 			assertListEquals(t, check.Criticals, "93% memory")
 			assertListIsEmpty(t, check.Warnings)
 		})
-	})
-}
-
-func TestCheckJSZ(t *testing.T) {
-	cmd := &SrvCheckCmd{}
-
-	t.Run("nil meta", func(t *testing.T) {
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkClusterInfo(check, nil))
-		assertListEquals(t, check.Criticals, "no cluster information")
-	})
-
-	meta := &server.ClusterInfo{}
-	t.Run("no meta leader", func(t *testing.T) {
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkClusterInfo(check, meta))
-		assertListEquals(t, check.Criticals, "No leader")
-		assertListIsEmpty(t, check.OKs)
-	})
-
-	t.Run("invalid peer count", func(t *testing.T) {
-		meta = &server.ClusterInfo{Leader: "l1"}
-		cmd.raftExpect = 2
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkClusterInfo(check, meta))
-		assertListEquals(t, check.Criticals, "1 peers of expected 2")
-	})
-
-	cmd.raftExpect = 3
-	cmd.raftSeenCritical = time.Second
-	cmd.raftLagCritical = 10
-
-	t.Run("good peer", func(t *testing.T) {
-		meta = &server.ClusterInfo{
-			Leader: "l1",
-			Replicas: []*server.PeerInfo{
-				{Name: "replica1", Current: true, Active: 10 * time.Millisecond, Lag: 1},
-				{Name: "replica2", Current: true, Active: 10 * time.Millisecond, Lag: 1},
-			},
-		}
-
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkClusterInfo(check, meta))
-		assertListIsEmpty(t, check.Criticals)
-		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=0", "peer_not_current=0", "peer_inactive=0", "peer_lagged=0")
-	})
-
-	t.Run("not current peer", func(t *testing.T) {
-		meta = &server.ClusterInfo{
-			Leader: "l1",
-			Replicas: []*server.PeerInfo{
-				{Name: "replica1", Active: 10 * time.Millisecond, Lag: 1},
-				{Name: "replica2", Current: true, Active: 10 * time.Millisecond, Lag: 1},
-			},
-		}
-
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkClusterInfo(check, meta))
-		assertListEquals(t, check.Criticals, "1 not current")
-		assertListIsEmpty(t, check.OKs)
-		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=0", "peer_not_current=1", "peer_inactive=0", "peer_lagged=0")
-	})
-
-	t.Run("offline peer", func(t *testing.T) {
-		meta = &server.ClusterInfo{
-			Leader: "l1",
-			Replicas: []*server.PeerInfo{
-				{Name: "replica1", Current: true, Offline: true, Active: 10 * time.Millisecond, Lag: 1},
-				{Name: "replica2", Current: true, Active: 10 * time.Millisecond, Lag: 1},
-			},
-		}
-
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkClusterInfo(check, meta))
-		assertListEquals(t, check.Criticals, "1 offline")
-		assertListIsEmpty(t, check.OKs)
-		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=1", "peer_not_current=0", "peer_inactive=0", "peer_lagged=0")
-	})
-
-	t.Run("inactive peer", func(t *testing.T) {
-		meta = &server.ClusterInfo{
-			Leader: "l1",
-			Replicas: []*server.PeerInfo{
-				{Name: "replica1", Current: true, Active: 10 * time.Hour, Lag: 1},
-				{Name: "replica2", Current: true, Active: 10 * time.Millisecond, Lag: 1},
-			},
-		}
-
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkClusterInfo(check, meta))
-		assertListEquals(t, check.Criticals, "1 inactive more than 1s")
-		assertListIsEmpty(t, check.OKs)
-		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=0", "peer_not_current=0", "peer_inactive=1", "peer_lagged=0")
-	})
-
-	t.Run("lagged peer", func(t *testing.T) {
-		meta = &server.ClusterInfo{
-			Leader: "l1",
-			Replicas: []*server.PeerInfo{
-				{Name: "replica1", Current: true, Active: 10 * time.Millisecond, Lag: 10000},
-				{Name: "replica2", Current: true, Active: 10 * time.Millisecond, Lag: 1},
-			},
-		}
-
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkClusterInfo(check, meta))
-		assertListEquals(t, check.Criticals, "1 lagged more than 10 ops")
-		assertHasPDItem(t, check, "peers=3;3;3", "peer_offline=0", "peer_not_current=0", "peer_inactive=0", "peer_lagged=1")
-	})
-
-	t.Run("multiple errors", func(t *testing.T) {
-		meta = &server.ClusterInfo{
-			Leader: "l1",
-			Replicas: []*server.PeerInfo{
-				{Name: "replica1", Current: true, Active: 10 * time.Millisecond, Lag: 10000},
-				{Name: "replica2", Current: true, Active: 10 * time.Hour, Lag: 1},
-				{Name: "replica3", Current: true, Offline: true, Active: 10 * time.Millisecond, Lag: 1},
-				{Name: "replica4", Active: 10 * time.Millisecond, Lag: 1},
-			},
-		}
-
-		check := &monitor.Result{}
-		assertNoError(t, cmd.checkClusterInfo(check, meta))
-		assertHasPDItem(t, check, "peers=5;3;3", "peer_offline=1", "peer_not_current=1", "peer_inactive=1", "peer_lagged=1")
-		assertListEquals(t, check.Criticals, "5 peers of expected 3",
-			"1 not current",
-			"1 inactive more than 1s",
-			"1 offline",
-			"1 lagged more than 10 ops")
 	})
 }

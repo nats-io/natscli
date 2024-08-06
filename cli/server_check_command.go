@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"time"
@@ -23,7 +22,6 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/monitor"
-	"github.com/nats-io/nats-server/v2/server"
 )
 
 type SrvCheckCmd struct {
@@ -500,127 +498,11 @@ func (c *SrvCheckCmd) checkRaft(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	check.CriticalIfErr(err, "connection failed: %s", err)
 
-	res, err := doReq(&server.JSzOptions{LeaderOnly: true}, "$SYS.REQ.SERVER.PING.JSZ", 1, nc)
-	check.CriticalIfErr(err, "JSZ API request failed: %s", err)
-
-	if len(res) != 1 {
-		check.CriticalExit(fmt.Sprintf("JSZ API request returned %d results", len(res)))
-		return nil
-	}
-
-	type jszr struct {
-		Data   server.JSInfo     `json:"data"`
-		Server server.ServerInfo `json:"server"`
-	}
-
-	// works around 2.7.0 breaking chances
-	type jszrCompact struct {
-		Data struct {
-			Streams   int    `json:"total_streams,omitempty"`
-			Consumers int    `json:"total_consumers,omitempty"`
-			Messages  uint64 `json:"total_messages,omitempty"`
-			Bytes     uint64 `json:"total_message_bytes,omitempty"`
-		} `json:"data"`
-	}
-
-	jszresp := &jszr{}
-	err = json.Unmarshal(res[0], jszresp)
-	check.CriticalIfErr(err, "invalid result received: %s", err)
-
-	// we may have a pre 2.7.0 machine and will try get data with old struct names, if all of these are
-	// 0 it might be that they are 0 or that we had data in the old format, so we try parse the old
-	// and set what is in there.  If it's not an old server 0s will stay 0s, otherwise we pull in old format values
-	if jszresp.Data.Streams == 0 && jszresp.Data.Consumers == 0 && jszresp.Data.Messages == 0 && jszresp.Data.Bytes == 0 {
-		cresp := jszrCompact{}
-		if json.Unmarshal(res[0], &cresp) == nil {
-			jszresp.Data.Streams = cresp.Data.Streams
-			jszresp.Data.Consumers = cresp.Data.Consumers
-			jszresp.Data.Messages = cresp.Data.Messages
-			jszresp.Data.Bytes = cresp.Data.Bytes
-		}
-	}
-
-	err = c.checkMetaClusterInfo(check, jszresp.Data.Meta)
-	check.CriticalIfErr(err, "invalid result received: %s", err)
-
-	if len(check.Criticals) == 0 && len(check.Warnings) == 0 {
-		check.Ok("%d peers led by %s", len(jszresp.Data.Meta.Replicas)+1, jszresp.Data.Meta.Leader)
-	}
-
-	return nil
-}
-
-func (c *SrvCheckCmd) checkMetaClusterInfo(check *monitor.Result, ci *server.MetaClusterInfo) error {
-	return c.checkClusterInfo(check, &server.ClusterInfo{
-		Name:     ci.Name,
-		Leader:   ci.Leader,
-		Replicas: ci.Replicas,
+	return monitor.CheckJetstreamMeta(nc, check, monitor.CheckMetaOptions{
+		ExpectServers: c.raftExpect,
+		LagCritical:   c.raftLagCritical,
+		SeenCritical:  c.raftSeenCritical,
 	})
-}
-
-func (c *SrvCheckCmd) checkClusterInfo(check *monitor.Result, ci *server.ClusterInfo) error {
-	if ci == nil {
-		check.Critical("no cluster information")
-		return nil
-	}
-
-	if ci.Leader == "" {
-		check.Critical("No leader")
-		return nil
-	}
-
-	check.Pd(&monitor.PerfDataItem{
-		Name:  "peers",
-		Value: float64(len(ci.Replicas) + 1),
-		Warn:  float64(c.raftExpect),
-		Crit:  float64(c.raftExpect),
-		Help:  "Configured RAFT peers",
-	})
-
-	if len(ci.Replicas)+1 != c.raftExpect {
-		check.Critical("%d peers of expected %d", len(ci.Replicas)+1, c.raftExpect)
-	}
-
-	notCurrent := 0
-	inactive := 0
-	offline := 0
-	lagged := 0
-	for _, peer := range ci.Replicas {
-		if !peer.Current {
-			notCurrent++
-		}
-		if peer.Offline {
-			offline++
-		}
-		if peer.Active > c.raftSeenCritical {
-			inactive++
-		}
-		if peer.Lag > c.raftLagCritical {
-			lagged++
-		}
-	}
-
-	check.Pd(
-		&monitor.PerfDataItem{Name: "peer_offline", Value: float64(offline), Help: "Offline RAFT peers"},
-		&monitor.PerfDataItem{Name: "peer_not_current", Value: float64(notCurrent), Help: "RAFT peers that are not current"},
-		&monitor.PerfDataItem{Name: "peer_inactive", Value: float64(inactive), Help: "Inactive RAFT peers"},
-		&monitor.PerfDataItem{Name: "peer_lagged", Value: float64(lagged), Help: "RAFT peers that are lagged more than configured threshold"},
-	)
-
-	if notCurrent > 0 {
-		check.Critical("%d not current", notCurrent)
-	}
-	if inactive > 0 {
-		check.Critical("%d inactive more than %s", inactive, c.raftSeenCritical)
-	}
-	if offline > 0 {
-		check.Critical("%d offline", offline)
-	}
-	if lagged > 0 {
-		check.Critical("%d lagged more than %d ops", lagged, c.raftLagCritical)
-	}
-
-	return nil
 }
 
 func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
