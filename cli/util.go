@@ -17,6 +17,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -305,6 +306,19 @@ func natsOpts() []nats.Option {
 	connectionName := strings.TrimSpace(opts().ConnectionName)
 	if len(connectionName) == 0 {
 		connectionName = "NATS CLI Version " + Version
+	}
+
+	if opts().TlsInsecure {
+		insecureOption := func(o *nats.Options) error {
+			o.Secure = true
+			if o.TLSConfig == nil {
+				o.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+			} else {
+				o.TLSConfig.InsecureSkipVerify = true
+			}
+			return nil
+		}
+		copts = append(copts, insecureOption)	
 	}
 
 	return append(copts, []nats.Option{
