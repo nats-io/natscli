@@ -22,15 +22,6 @@ import (
 	"github.com/nats-io/jsm.go/api"
 )
 
-func checkErr(t *testing.T, err error, format string, a ...any) {
-	t.Helper()
-	if err == nil {
-		return
-	}
-
-	t.Fatalf(format, a...)
-}
-
 func assertNoError(t *testing.T, err error) {
 	t.Helper()
 

@@ -14,11 +14,9 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/choria-io/fisk"
@@ -685,56 +683,6 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *SrvCheckCmd) checkStreamMessage(mgr *jsm.Manager, check *monitor.Result) error {
-	msg, err := mgr.ReadLastMessageForSubject(c.sourcesStream, c.msgSubject)
-	if jsm.IsNatsError(err, 10037) {
-		check.Critical("no message found")
-		return nil
-	}
-	check.CriticalIfErr(err, "msg load failed: %v", err)
-
-	ts := msg.Time
-	if c.msgBodyAsTs {
-		i, err := strconv.ParseInt(string(bytes.TrimSpace(msg.Data)), 10, 64)
-		check.CriticalIfErr(err, "invalid timestamp body: %v", err)
-		ts = time.Unix(i, 0)
-	}
-
-	check.Pd(&monitor.PerfDataItem{
-		Help:  "The age of the message",
-		Name:  "age",
-		Value: time.Since(ts).Round(time.Millisecond).Seconds(),
-		Warn:  c.msgAgeWarn.Seconds(),
-		Crit:  c.msgAgeCrit.Seconds(),
-		Unit:  "s",
-	})
-
-	check.Pd(&monitor.PerfDataItem{
-		Help:  "The size of the message",
-		Name:  "size",
-		Value: float64(len(msg.Data)),
-		Unit:  "B",
-	})
-
-	since := time.Since(ts)
-
-	if c.msgAgeWarn > 0 || c.msgAgeCrit > 0 {
-		if c.msgAgeCrit > 0 && since > c.msgAgeCrit {
-			check.Critical("%v old", since.Round(time.Millisecond))
-		} else if c.msgAgeWarn > 0 && since > c.msgAgeWarn {
-			check.Warn("%v old", time.Since(ts).Round(time.Millisecond))
-		}
-	}
-
-	if c.msgRegexp != nil && !c.msgRegexp.Match(msg.Data) {
-		check.Critical("does not match regex: %s", c.msgRegexp.String())
-	}
-
-	check.Ok("Valid message on %s > %s", c.sourcesStream, c.msgSubject)
-
-	return nil
-}
-
 func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "Stream Message", Check: "message", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
@@ -742,7 +690,14 @@ func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	check.CriticalIfErr(err, "connection failed")
 
-	return c.checkStreamMessage(mgr, check)
+	return monitor.CheckStreamMessage(mgr, check, monitor.CheckStreamMessageOptions{
+		StreamName:      c.sourcesStream,
+		Subject:         c.msgSubject,
+		AgeWarning:      c.msgAgeWarn,
+		AgeCritical:     c.msgAgeCrit,
+		Content:         c.msgRegexp.String(),
+		BodyAsTimestamp: c.msgBodyAsTs,
+	})
 }
 
 func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
