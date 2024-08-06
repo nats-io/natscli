@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"time"
@@ -26,9 +25,7 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/monitor"
-	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nkeys"
 )
 
 type SrvCheckCmd struct {
@@ -769,60 +766,14 @@ func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 	})
 }
 
-func (c *SrvCheckCmd) checkCredential(check *monitor.Result) error {
-	ok, err := fileAccessible(c.credential)
-	if err != nil {
-		check.Critical("credential not accessible: %v", err)
-		return nil
-	}
-
-	if !ok {
-		check.Critical("credential not accessible")
-		return nil
-	}
-
-	cb, err := os.ReadFile(c.credential)
-	if err != nil {
-		check.Critical("credential not accessible: %v", err)
-		return nil
-	}
-
-	token, err := nkeys.ParseDecoratedJWT(cb)
-	if err != nil {
-		check.Critical("invalid credential: %v", err)
-		return nil
-	}
-
-	claims, err := jwt.Decode(token)
-	if err != nil {
-		check.Critical("invalid credential: %v", err)
-	}
-
-	now := time.Now().UTC().Unix()
-	cd := claims.Claims()
-	until := cd.Expires - now
-	crit := int64(c.credentialValidityCrit.Seconds())
-	warn := int64(c.credentialValidityWarn.Seconds())
-
-	check.Pd(&monitor.PerfDataItem{Help: "Expiry time in seconds", Name: "expiry", Value: float64(until), Warn: float64(warn), Crit: float64(crit), Unit: "s"})
-
-	switch {
-	case cd.Expires == 0 && c.credentialRequiresExpire:
-		check.Critical("never expires")
-	case c.credentialValidityCrit > 0 && (until <= crit):
-		check.Critical("expires sooner than %s", f(c.credentialValidityCrit))
-	case c.credentialValidityWarn > 0 && (until <= warn):
-		check.Warn("expires sooner than %s", f(c.credentialValidityWarn))
-	default:
-		check.Ok("expires in %s", time.Unix(cd.Expires, 0).UTC())
-	}
-
-	return nil
-}
-
 func (c *SrvCheckCmd) checkCredentialAction(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "Credential", Check: "credential", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
-	return c.checkCredential(check)
+	return monitor.CheckCredential(check, monitor.CredentialCheckOptions{
+		File:             c.credential,
+		ValidityWarning:  c.credentialValidityWarn,
+		ValidityCritical: c.credentialValidityCrit,
+		RequiresExpiry:   c.credentialRequiresExpire,
+	})
 }
