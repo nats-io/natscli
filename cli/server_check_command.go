@@ -82,20 +82,20 @@ type SrvCheckCmd struct {
 	jsReplicaSeenCritical time.Duration
 	jsReplicaLagCritical  uint64
 
-	srvName        string
-	srvCPUWarn     int
-	srvCPUCrit     int
-	srvMemWarn     int
-	srvMemCrit     int
-	srvConnWarn    int
-	srvConnCrit    int
-	srvSubsWarn    int
-	srvSubCrit     int
-	srvUptimeWarn  time.Duration
-	srvUptimeCrit  time.Duration
-	srvAuthRequire bool
-	srvTLSRequired bool
-	srvJSRequired  bool
+	srvName         string
+	srvCPUWarn      int
+	srvCPUCrit      int
+	srvMemWarn      int
+	srvMemCrit      int
+	srvConnWarn     int
+	srvConnCrit     int
+	srvSubsWarn     int
+	srvSubCrit      int
+	srvUptimeWarn   time.Duration
+	srvUptimeCrit   time.Duration
+	srvAuthRequired bool
+	srvTLSRequired  bool
+	srvJSRequired   bool
 
 	msgSubject  string
 	msgAgeWarn  time.Duration
@@ -112,7 +112,10 @@ type SrvCheckCmd struct {
 	credentialRequiresExpire bool
 	credential               string
 
-	useMetadata bool
+	exporterConfigFile  string
+	exporterPort        int
+	exporterCertificate string
+	exporterKey         string
 }
 
 func configureServerCheckCommand(srv *fisk.CmdClause) {
@@ -150,7 +153,6 @@ When set these settings will be used, but can be overridden using --lag-critical
 	stream.Flag("msgs-critical", "Critical if there are fewer than this many messages in the stream").PlaceHolder("MSGS").IsSetByUser(&c.streamMessagesCritIsSet).Uint64Var(&c.streamMessagesCrit)
 	stream.Flag("subjects-warn", "Critical threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IsSetByUser(&c.subjectsWarnIsSet).IntVar(&c.subjectsWarn)
 	stream.Flag("subjects-critical", "Warning threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IsSetByUser(&c.subjectsCritIsSet).IntVar(&c.subjectsCrit)
-	stream.Flag("metadata", "Sets monitoring thresholds from Stream metadata").Default("true").BoolVar(&c.useMetadata)
 
 	consumer := check.Command("consumer", "Checks the health of a consumer").Action(c.checkConsumer)
 	consumer.HelpLong(`These settings can be set using Consumer Metadata in the following form:
@@ -166,7 +168,6 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	consumer.Flag("last-delivery-critical", "Time to allow since the last delivery").Default("0s").IsSetByUser(&c.consumerLastDeliveryCriticalIsSet).DurationVar(&c.consumerLastDeliveryCritical)
 	consumer.Flag("last-ack-critical", "Time to allow since the last ack").Default("0s").IsSetByUser(&c.consumerLastAckCriticalIsSet).DurationVar(&c.consumerLastAckCritical)
 	consumer.Flag("redelivery-critical", "Maximum number of redeliveries to allow").Default("-1").IsSetByUser(&c.consumerRedeliveryCriticalIsSet).IntVar(&c.consumerRedeliveryCritical)
-	consumer.Flag("metadata", "Sets monitoring thresholds from Consumer metadata").Default("true").BoolVar(&c.useMetadata)
 
 	msg := check.Command("message", "Checks properties of a message stored in a stream").Action(c.checkMsg)
 	msg.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
@@ -206,7 +207,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	serv.Flag("subs-critical", "Critical threshold for number of active subscriptions, supports inversion").IntVar(&c.srvSubCrit)
 	serv.Flag("uptime-warn", "Warning threshold for server uptime as duration").DurationVar(&c.srvUptimeWarn)
 	serv.Flag("uptime-critical", "Critical threshold for server uptime as duration").DurationVar(&c.srvUptimeCrit)
-	serv.Flag("auth-required", "Checks that authentication is enabled").UnNegatableBoolVar(&c.srvAuthRequire)
+	serv.Flag("auth-required", "Checks that authentication is enabled").UnNegatableBoolVar(&c.srvAuthRequired)
 	serv.Flag("tls-required", "Checks that TLS is required").UnNegatableBoolVar(&c.srvTLSRequired)
 	serv.Flag("js-required", "Checks that JetStream is enabled").UnNegatableBoolVar(&c.srvJSRequired)
 
@@ -221,6 +222,12 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	cred.Flag("validity-warn", "Warning threshold for time before expiry").DurationVar(&c.credentialValidityWarn)
 	cred.Flag("validity-critical", "Critical threshold for time before expiry").DurationVar(&c.credentialValidityCrit)
 	cred.Flag("require-expiry", "Requires the credential to have expiry set").Default("true").BoolVar(&c.credentialRequiresExpire)
+
+	exporter := check.Command("exporter", "Prometheus exporter for server checks").Hidden().Action(c.exporterAction)
+	exporter.Flag("config", "Exporter configuration").Required().ExistingFileVar(&c.exporterConfigFile)
+	exporter.Flag("port", "Port to listen on").Default("8080").IntVar(&c.exporterPort)
+	exporter.Flag("https-key", "Key for HTTPS").ExistingFileVar(&c.exporterKey)
+	exporter.Flag("https-certificate", "Certificate for HTTPS").ExistingFileVar(&c.exporterCertificate)
 }
 
 var (
@@ -246,39 +253,23 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: fmt.Sprintf("%s_%s", c.sourcesStream, c.consumerName), Check: "consumer", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
-	_, mgr, err := prepareHelper("", natsOpts()...)
-	check.CriticalExitIfErr(err, "connection failed: %s", err)
-
-	cons, err := mgr.LoadConsumer(c.sourcesStream, c.consumerName)
-	if err != nil {
-		check.Critical("consumer load failure: %v", err)
-		return nil
-	}
-
 	checkOpts := &monitor.ConsumerHealthCheckOptions{}
-	if c.useMetadata {
-		checkOpts, err = monitor.ExtractConsumerHealthCheckOptions(cons.Metadata())
-		if err != nil {
-			check.Critical("invalid metadata: %v", err)
-			return nil
-		}
-	}
-	if !c.useMetadata || c.consumerAckOutstandingCriticalIsSet {
+	if c.consumerAckOutstandingCriticalIsSet {
 		checkOpts.AckOutstandingCritical = c.consumerAckOutstandingCritical
 	}
-	if !c.useMetadata || c.consumerWaitingCriticalIsSet {
+	if c.consumerWaitingCriticalIsSet {
 		checkOpts.WaitingCritical = c.consumerWaitingCritical
 	}
-	if !c.useMetadata || c.consumerUnprocessedCriticalIsSet {
+	if c.consumerUnprocessedCriticalIsSet {
 		checkOpts.UnprocessedCritical = c.consumerUnprocessedCritical
 	}
-	if !c.useMetadata || c.consumerLastDeliveryCriticalIsSet {
-		checkOpts.LastDeliveryCritical = c.consumerLastDeliveryCritical
+	if c.consumerLastDeliveryCriticalIsSet {
+		checkOpts.LastDeliveryCritical = c.consumerLastDeliveryCritical.Seconds()
 	}
-	if !c.useMetadata || c.consumerLastAckCriticalIsSet {
-		checkOpts.LastAckCritical = c.consumerLastAckCritical
+	if c.consumerLastAckCriticalIsSet {
+		checkOpts.LastAckCritical = c.consumerLastAckCritical.Seconds()
 	}
-	if !c.useMetadata || c.consumerRedeliveryCriticalIsSet {
+	if c.consumerRedeliveryCriticalIsSet {
 		checkOpts.RedeliveryCritical = c.consumerRedeliveryCritical
 	}
 
@@ -286,7 +277,7 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	if opts().Trace {
 		logger = api.NewDefaultLogger(api.TraceLevel)
 	}
-	err = monitor.ConsumerHealthCheck(cons, check, *checkOpts, logger)
+	err := monitor.ConsumerHealthCheck(opts().Config.ServerURL(), natsOpts(), check, *checkOpts, logger)
 	if err != nil {
 		return fmt.Errorf("health check failed: %v", err)
 	}
@@ -298,12 +289,7 @@ func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.kvBucket, Check: "kv", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
-	nc, _, err := prepareHelper("", natsOpts()...)
-	if check.CriticalIfErr(err, "connection failed: %s", err) {
-		return nil
-	}
-
-	return monitor.CheckKVBucketAndKey(nc, check, monitor.KVCheckOptions{
+	return monitor.CheckKVBucketAndKey(opts().Config.ServerURL(), natsOpts(), check, monitor.KVCheckOptions{
 		Bucket:         c.kvBucket,
 		Key:            c.kvKey,
 		ValuesCritical: c.kvValuesCrit,
@@ -315,24 +301,29 @@ func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.srvName, Check: "server", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
-	nc, _, err := prepareHelper("", natsOpts()...)
-	if check.CriticalIfErr(err, "connection failed: %s", err) {
-		return nil
-	}
-
-	return monitor.CheckServer(nc, check, opts().Timeout, monitor.ServerCheckOptions{})
+	return monitor.CheckServer(opts().Config.ServerURL(), natsOpts(), check, opts().Timeout, monitor.ServerCheckOptions{
+		Name:                   c.srvName,
+		CPUWarning:             c.srvCPUWarn,
+		CPUCritical:            c.srvCPUCrit,
+		MemoryWarning:          c.srvMemWarn,
+		MemoryCritical:         c.srvMemCrit,
+		ConnectionsWarning:     c.srvConnWarn,
+		ConnectionsCritical:    c.srvConnCrit,
+		SubscriptionsWarning:   c.srvSubsWarn,
+		SubscriptionsCritical:  c.srvSubCrit,
+		UptimeWarning:          c.srvUptimeWarn.Seconds(),
+		UptimeCritical:         c.srvUptimeCrit.Seconds(),
+		AuthenticationRequired: c.srvAuthRequired,
+		TLSRequired:            c.srvTLSRequired,
+		JetStreamRequired:      c.srvJSRequired,
+	})
 }
 
 func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "JetStream", Check: "jetstream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
-	nc, _, err := prepareHelper("", natsOpts()...)
-	if check.CriticalIfErr(err, "connection failed: %s", err) {
-		return nil
-	}
-
-	return monitor.CheckJetStreamAccount(nc, check, monitor.JetStreamAccountOptions{
+	return monitor.CheckJetStreamAccount(opts().Config.ServerURL(), natsOpts(), check, monitor.JetStreamAccountOptions{
 		MemoryWarning:       c.jsMemWarn,
 		MemoryCritical:      c.jsMemCritical,
 		FileWarning:         c.jsStoreWarn,
@@ -342,7 +333,7 @@ func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 		ConsumersWarning:    c.jsConsumersWarn,
 		ConsumersCritical:   c.jsConsumersCritical,
 		CheckReplicas:       c.jsReplicas,
-		ReplicaSeenCritical: c.jsReplicaSeenCritical,
+		ReplicaSeenCritical: c.jsReplicaSeenCritical.Seconds(),
 		ReplicaLagCritical:  c.jsReplicaLagCritical,
 	})
 }
@@ -351,15 +342,10 @@ func (c *SrvCheckCmd) checkRaft(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "JetStream Meta Cluster", Check: "meta"}
 	defer check.GenericExit()
 
-	nc, _, err := prepareHelper("", natsOpts()...)
-	if check.CriticalIfErr(err, "connection failed: %s", err) {
-		return nil
-	}
-
-	return monitor.CheckJetstreamMeta(nc, check, monitor.CheckMetaOptions{
+	return monitor.CheckJetstreamMeta(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckMetaOptions{
 		ExpectServers: c.raftExpect,
 		LagCritical:   c.raftLagCritical,
-		SeenCritical:  c.raftSeenCritical,
+		SeenCritical:  c.raftSeenCritical.Seconds(),
 	})
 }
 
@@ -367,55 +353,41 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.sourcesStream, Check: "stream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
-	_, mgr, err := prepareHelper("", natsOpts()...)
-	if check.CriticalIfErr(err, "connection failed: %s", err) {
-		return nil
+	checkOpts := &monitor.StreamHealthCheckOptions{
+		StreamName: c.sourcesStream,
 	}
 
-	stream, err := mgr.LoadStream(c.sourcesStream)
-	if check.CriticalIfErr(err, "could not load stream %s: %s", c.sourcesStream, err) {
-		return nil
-	}
-
-	checkOpts := &monitor.StreamHealthCheckOptions{}
-	if c.useMetadata {
-		checkOpts, err = monitor.ExtractStreamHealthCheckOptions(stream.Metadata())
-		if check.CriticalIfErr(err, "Invalid metadata: %s", err) {
-			return nil
-		}
-	}
-
-	if !c.useMetadata || c.sourcesLagCriticalIsSet {
+	if c.sourcesLagCriticalIsSet {
 		checkOpts.SourcesLagCritical = c.sourcesLagCritical
 	}
-	if !c.useMetadata || c.sourcesSeenCriticalIsSet {
-		checkOpts.SourcesSeenCritical = c.sourcesSeenCritical
+	if c.sourcesSeenCriticalIsSet {
+		checkOpts.SourcesSeenCritical = c.sourcesSeenCritical.Seconds()
 	}
-	if !c.useMetadata || c.sourcesMinSourcesIsSet {
+	if c.sourcesMinSourcesIsSet {
 		checkOpts.MinSources = c.sourcesMinSources
 	}
-	if !c.useMetadata || c.sourcesMaxSourcesIsSet {
+	if c.sourcesMaxSourcesIsSet {
 		checkOpts.MaxSources = c.sourcesMaxSources
 	}
-	if !c.useMetadata || c.raftExpectIsSet {
+	if c.raftExpectIsSet {
 		checkOpts.ClusterExpectedPeers = c.raftExpect
 	}
-	if !c.useMetadata || c.raftLagCriticalIsSet {
+	if c.raftLagCriticalIsSet {
 		checkOpts.ClusterLagCritical = c.raftLagCritical
 	}
-	if !c.useMetadata || c.raftSeenCriticalIsSet {
-		checkOpts.ClusterSeenCritical = c.raftSeenCritical
+	if c.raftSeenCriticalIsSet {
+		checkOpts.ClusterSeenCritical = c.raftSeenCritical.Seconds()
 	}
-	if !c.useMetadata || c.streamMessagesWarnIsSet {
+	if c.streamMessagesWarnIsSet {
 		checkOpts.MessagesWarn = c.streamMessagesWarn
 	}
-	if !c.useMetadata || c.streamMessagesCritIsSet {
+	if c.streamMessagesCritIsSet {
 		checkOpts.MessagesCrit = c.streamMessagesCrit
 	}
-	if !c.useMetadata || c.subjectsWarnIsSet {
+	if c.subjectsWarnIsSet {
 		checkOpts.SubjectsWarn = c.subjectsWarn
 	}
-	if !c.useMetadata || c.subjectsCritIsSet {
+	if c.subjectsCritIsSet {
 		checkOpts.SubjectsCrit = c.subjectsCrit
 	}
 
@@ -423,7 +395,7 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	if opts().Trace {
 		logger = api.NewDefaultLogger(api.TraceLevel)
 	}
-	err = monitor.StreamHealthCheck(stream, check, *checkOpts, logger)
+	err := monitor.StreamHealthCheck(opts().Config.ServerURL(), natsOpts(), check, *checkOpts, logger)
 	check.CriticalIfErr(err, "Healthcheck failed: %s", err)
 
 	return nil
@@ -433,16 +405,11 @@ func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "Stream Message", Check: "message", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
-	_, mgr, err := prepareHelper("", natsOpts()...)
-	if check.CriticalIfErr(err, "connection failed") {
-		return nil
-	}
-
-	return monitor.CheckStreamMessage(mgr, check, monitor.CheckStreamMessageOptions{
+	return monitor.CheckStreamMessage(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckStreamMessageOptions{
 		StreamName:      c.sourcesStream,
 		Subject:         c.msgSubject,
-		AgeWarning:      c.msgAgeWarn,
-		AgeCritical:     c.msgAgeCrit,
+		AgeWarning:      c.msgAgeWarn.Seconds(),
+		AgeCritical:     c.msgAgeCrit.Seconds(),
 		Content:         c.msgRegexp.String(),
 		BodyAsTimestamp: c.msgBodyAsTs,
 	})
@@ -460,12 +427,12 @@ func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 	}
 
 	return monitor.CheckConnection(opts().Config.ServerURL(), natsOpts(), opts().Timeout, check, monitor.ConnectionCheckOptions{
-		ConnectTimeWarning:  c.connectWarning,
-		ConnectTimeCritical: c.connectCritical,
-		ServerRttWarning:    c.rttWarning,
-		ServerRttCritical:   c.rttCritical,
-		RequestRttWarning:   c.reqWarning,
-		RequestRttCritical:  c.reqCritical,
+		ConnectTimeWarning:  c.connectWarning.Seconds(),
+		ConnectTimeCritical: c.connectCritical.Seconds(),
+		ServerRttWarning:    c.rttWarning.Seconds(),
+		ServerRttCritical:   c.rttCritical.Seconds(),
+		RequestRttWarning:   c.reqWarning.Seconds(),
+		RequestRttCritical:  c.reqCritical.Seconds(),
 	})
 }
 
@@ -475,8 +442,8 @@ func (c *SrvCheckCmd) checkCredentialAction(_ *fisk.ParseContext) error {
 
 	return monitor.CheckCredential(check, monitor.CredentialCheckOptions{
 		File:             c.credential,
-		ValidityWarning:  c.credentialValidityWarn,
-		ValidityCritical: c.credentialValidityCrit,
+		ValidityWarning:  c.credentialValidityWarn.Seconds(),
+		ValidityCritical: c.credentialValidityCrit.Seconds(),
 		RequiresExpiry:   c.credentialRequiresExpire,
 	})
 }
