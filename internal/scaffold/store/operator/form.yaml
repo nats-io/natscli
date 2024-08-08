@@ -2,12 +2,15 @@ name: nats-server.conf
 description: |
   Operator Managed NATS Server
 
-  This wizard will guide you through a series of question to create a 
-  NATS Server configuration managed by the "{{ .operator.Name }}" operator
-  {{ if not .jetstream }}
-  The configuration can include JetStream configuration by passing 
-  the --jetstream flag on the command line.
-  {{- end -}}
+  This will guide you through a series of question to create a NATS Server
+  configuration managed by a NATS Operator. 
+  
+  To use this an Operator should have been created using the "nats auth" command.
+
+  For more information about Decentralized Authentication please read:
+  
+    https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/jwt
+
 properties:
   - name: server_name
     description: Unique name for this server
