@@ -111,7 +111,7 @@ Permissions:
 
 ## Configuring NATS Server
 
-TODO: Full resolver generate
+Using `nats server generate` create a configuration file which will pre-load the important JWTs.
 
 ```
 $ nats-server --config nats-server.conf

@@ -30,12 +30,6 @@ import (
 	"github.com/synadia-io/jwt-auth-builder.go/providers/nsc"
 )
 
-//go:embed resolver_form.yaml
-var ResolverForm []byte
-
-//go:embed resolver_template.txt
-var ResolverTemplate string
-
 type listWithNames interface {
 	Name() string
 }

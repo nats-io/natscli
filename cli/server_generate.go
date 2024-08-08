@@ -34,7 +34,7 @@ type serverGenerateCmd struct {
 func configureServerGenerateCommand(srv *fisk.CmdClause) {
 	c := &serverGenerateCmd{}
 
-	gen := srv.Command("generate", `Generate server configurations`).Hidden().Alias("gen").Action(c.generateAction)
+	gen := srv.Command("generate", `Generate server configurations`).Alias("gen").Action(c.generateAction)
 	gen.Arg("target", "Write the output to a specific location").Required().StringVar(&c.target)
 	gen.Flag("source", "Fetch the configuration bundle from a file or URL").StringVar(&c.source)
 }
