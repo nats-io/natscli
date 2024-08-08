@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -23,10 +22,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
-	"text/template"
 
-	"github.com/choria-io/scaffold/forms"
-	"github.com/ghodss/yaml"
 	au "github.com/nats-io/natscli/internal/auth"
 	iu "github.com/nats-io/natscli/internal/util"
 
@@ -51,7 +47,6 @@ type authOperatorCommand struct {
 	pubKey               string
 	outputFile           string
 	encKey               string
-	jetstream            bool
 	tags                 []string
 	rmTags               []string
 }
@@ -88,11 +83,6 @@ func configureAuthOperatorCommand(auth commandHost) {
 	sel := op.Command("select", "Selects the default operator").Action(c.selectAction)
 	sel.Arg("name", "Operator to select").StringVar(&c.operatorName)
 
-	scaffold := op.Command("generate", "Guided creation of a Operator managed NATS Server").Alias("scaffold").Alias("gen").Action(c.generateAction)
-	scaffold.Arg("name", "Operator to act on").StringVar(&c.operatorName)
-	scaffold.Flag("output", "Location to store the configuration").Short('O').StringVar(&c.outputFile)
-	scaffold.Flag("jetstream", "Enables JetStream").BoolVar(&c.jetstream)
-
 	backup := op.Command("backup", "Creates a backup of an operator").Action(c.backupAction)
 	backup.Arg("name", "Operator to act on").Required().StringVar(&c.operatorName)
 	backup.Arg("output", "File to write backup to").Required().StringVar(&c.outputFile)
@@ -115,58 +105,6 @@ func configureAuthOperatorCommand(auth commandHost) {
 	skrm.Arg("name", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Arg("key", "The public key to remove").StringVar(&c.pubKey)
 	skrm.Flag("force", "Remove without prompting").Short('f').UnNegatableBoolVar(&c.force)
-}
-
-func (c *authOperatorCommand) generateAction(_ *fisk.ParseContext) error {
-	_, oper, err := au.SelectOperator(c.operatorName, true, false)
-	if err != nil {
-		return err
-	}
-
-	var f forms.Form
-	err = yaml.Unmarshal(au.ResolverForm, &f)
-	if err != nil {
-		return err
-	}
-
-	res, err := forms.ProcessForm(f, map[string]any{
-		"jetstream": c.jetstream,
-		"operator":  oper,
-	})
-	if err != nil {
-		return err
-	}
-
-	t, err := template.New("nats-server.conf").Parse(au.ResolverTemplate)
-	if err != nil {
-		return err
-	}
-
-	res["operator"] = oper
-	res["system"], _ = oper.Accounts().Get("SYSTEM")
-
-	buff := bytes.NewBuffer([]byte{})
-	err = t.Execute(buff, res)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println()
-
-	if c.outputFile == "" {
-		fmt.Println("Generated Server Config")
-		fmt.Println()
-		fmt.Println(buff.String())
-		return nil
-	}
-
-	err = os.WriteFile(c.outputFile, buff.Bytes(), 0600)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Generated server configuration written to %s\n", c.outputFile)
-
-	return nil
 }
 
 func (c *authOperatorCommand) selectAction(_ *fisk.ParseContext) error {
