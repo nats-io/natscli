@@ -15,6 +15,7 @@ package scaffold
 
 import (
 	"archive/zip"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,6 +33,10 @@ import (
 	"github.com/choria-io/scaffold/forms"
 	iu "github.com/nats-io/natscli/internal/util"
 )
+
+//go:embed all:store
+
+var Store embed.FS
 
 // Requires indicate what data the bundle requires to run successfully
 type Requires struct {
@@ -63,6 +68,10 @@ func FromFile(file string) (*Bundle, error) {
 
 // FromUrl reads a bundle from a http(s) URL
 func FromUrl(url *url.URL) (*Bundle, error) {
+	if url.Scheme == "fs" {
+		return FromFs(Store, filepath.Join("store", url.Path))
+	}
+
 	res, err := http.Get(url.String())
 	if err != nil {
 		return nil, err
@@ -85,22 +94,42 @@ func FromUrl(url *url.URL) (*Bundle, error) {
 	return FromFile(tf.Name())
 }
 
-// FromFs reads a bundle from an fs abstracted file, typically via embedding
-func FromFs(f fs.File) (*Bundle, error) {
-	tf, err := os.CreateTemp("", "")
+// FromFs reads a bundle from an fs directory, typically via embedding
+func FromFs(f fs.FS, dir string) (*Bundle, error) {
+	tf, err := os.MkdirTemp("", "")
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = io.Copy(tf, f)
+	err = fs.WalkDir(f, dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			err = os.MkdirAll(filepath.Join(tf, path), 0700)
+			if err != nil {
+				return err
+			}
+		} else {
+			f, err := fs.ReadFile(f, path)
+			if err != nil {
+				return err
+			}
+
+			err = os.WriteFile(filepath.Join(tf, path), f, 0600)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 	if err != nil {
-		tf.Close()
 		return nil, err
 	}
 
-	tf.Close()
-
-	return FromFile(tf.Name())
+	return FromDir(filepath.Join(tf, dir))
 }
 
 // FromDir reads the bundle from a directory

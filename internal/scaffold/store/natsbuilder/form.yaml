@@ -1,0 +1,52 @@
+name: nats-cluster
+description: |
+  Generate local development NATS Clusters for use with Docker Compose
+  
+  You will be asked for number of clusters and members per cluster, configuration
+  for each node will be generated along with a Docker Compose configuration.
+  
+  The 'nats' command line will be setup with contexts for accessing the various
+  clusters, system account and more.
+
+properties:
+  - name: data
+    description: The directory to store data in
+    default: ./data
+
+  - name: domain
+    description: The DNS domain to use for the network
+    default: nats.internal
+
+  - name: image
+    description: The docker image to use
+    default: nats:latest
+
+  - name: clusters
+    description: The number of clusters to create
+    type: integer
+    default: 3
+
+  - name: members
+    description: The number of servers to create per cluster
+    type: integer
+    default: 3
+
+  - name: port
+    description: The port used by the first server in the first cluster
+    default: 10000
+
+  - name: configPath
+    description: The location in the docker container to mount the configuration
+    default: /nats-server.conf
+
+  - name: password
+    description: When set creates multiple accounts with this password
+    default: s3cret
+
+  - name: jetstream
+    description: Enables JetStream in the cluster
+    type: bool
+    default: true
+
+  - name: mount
+    description: Mounts a specific directory into the containers

@@ -1,0 +1,52 @@
+{{- $base_port := .port  -}}
+{{- $members := .members -}}
+{{- $configPath := .configPath }}
+{{- $domain := .domain -}}
+{{- $image := .image -}}
+{{- $mount := .mount -}}
+{{- $data := .data -}}
+
+version: "3"
+services:
+  cli.{{ $domain }}:
+    image: synadia/nats-server:nightly
+    dns_search: {{ $domain }}
+    entrypoint: /bin/sh
+    networks:
+      - shared
+    {{- if $mount }}
+    volumes:
+      - "./cli:/root/.config/nats"
+      - {{ $mount }}
+    {{- end }}
+
+{{- range $cluster := .clusters | seq | split " " }}
+  {{- range $node := $members | seq | split " " }}
+    {{- $client_listen := (sub (add $base_port (mul (sub $cluster 1) 100) $node) 1) -}}
+    {{- $node_name := cat "n" $node ".c" $cluster | nospace }}
+  {{ $node_name }}.{{ $domain }}:
+    dns_search: c{{ $cluster}}.{{ $domain }}
+    image: {{ $image }}
+    environment:
+      GATEWAY: c{{$cluster}}
+      NAME: {{ $node_name }}
+      ADVERTISE: {{ $node_name }}.{{ $domain }}:{{ $client_listen }}
+    networks:
+      - shared
+      - nats-cluster{{ $cluster }}
+    ports:
+      - {{ $client_listen }}:4222
+    volumes:
+      - ./cluster.conf:{{ $configPath }}
+      - {{ $data }}/{{ $node_name }}:/data
+      {{- if $mount }}
+      - {{ $mount }}
+      {{- end }}
+  {{end }}
+{{- end }}
+
+networks:
+{{- range $cluster := .clusters | seq | split " " }}
+  nats-cluster{{ $cluster }}: {}
+{{- end }}
+  shared: {}
