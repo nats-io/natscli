@@ -816,6 +816,9 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		state = server.ConnClosed
 	}
 
+	offset := 0
+	more := false
+
 	req := &server.ConnzEventOptions{
 		ConnzOptions: server.ConnzOptions{
 			Subscriptions:       true,
@@ -825,6 +828,8 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 			Account:             c.account,
 			State:               state,
 			FilterSubject:       c.subject,
+			Limit:               1024,
+			Offset:              offset,
 		},
 		EventFilterOptions: c.reqFilter(),
 	}
@@ -856,20 +861,18 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		return result[:limit], nil
 	}
 
-	offset := 0
 	for _, conn := range result {
 		if conn.Data.Offset+conn.Data.Limit < conn.Data.Total {
-			offset = conn.Data.Offset + conn.Data.Limit + 1
-			break
+			more = true
 		}
 	}
 
-	if offset > 0 && !c.json {
-		fmt.Print("Gathering paged connection information")
+	if more && !c.json {
+		fmt.Printf("Gathering paged connection information")
 	}
 
 	for {
-		if offset <= 0 {
+		if !more {
 			break
 		}
 
@@ -882,14 +885,20 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 			fmt.Print(".")
 		}
 
+		offset += 1025
+
 		// get on offset
 		// iterate and add to results
 		req := &server.ConnzEventOptions{
 			ConnzOptions: server.ConnzOptions{
 				Subscriptions:       true,
 				SubscriptionsDetail: false,
-				Account:             c.account,
 				Username:            true,
+				User:                c.user,
+				Account:             c.account,
+				State:               state,
+				FilterSubject:       c.subject,
+				Limit:               1024,
 				Offset:              offset,
 			},
 			EventFilterOptions: c.reqFilter(),
@@ -902,14 +911,13 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 			return nil, err
 		}
 
-		offset = 0
+		more = false
 
 		for _, res := range res {
 			co, err := parseConnzResp(res)
 			if err != nil {
 				return nil, err
 			}
-
 			found += len(co.Data.Conns)
 
 			if len(co.Data.Conns) == 0 {
@@ -925,8 +933,8 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 
 			result = append(result, co)
 
-			if co.Data.Offset+co.Data.Limit < co.Data.Total {
-				offset = co.Data.Offset + co.Data.Limit + 1
+			if !more && co.Data.Offset+co.Data.Limit < co.Data.Total {
+				more = true
 			}
 		}
 	}
