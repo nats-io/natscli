@@ -447,9 +447,12 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 		storage = nats.MemoryStorage
 	}
 
-	placement := &nats.Placement{Cluster: c.placementCluster}
-	if len(c.placementTags) > 0 {
-		placement.Tags = c.placementTags
+	var placement *nats.Placement
+	if c.placementCluster != "" || len(c.placementTags) > 0 {
+		placement = &nats.Placement{Cluster: c.placementCluster}
+		if len(c.placementTags) > 0 {
+			placement.Tags = c.placementTags
+		}
 	}
 
 	cfg := &nats.KeyValueConfig{
