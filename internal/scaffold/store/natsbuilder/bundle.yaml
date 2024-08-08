@@ -32,4 +32,4 @@ post_scaffold: |
 
   Once running use the following command to start a shell:
   
-    docker compose run -v "{{ ._target }}/cli:/root/.config/nats" cli.{{ $domain }}
+    docker compose run cli.{{ $domain }}
