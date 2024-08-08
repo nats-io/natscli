@@ -14,9 +14,9 @@ services:
     entrypoint: /bin/sh
     networks:
       - shared
-    {{- if $mount }}
     volumes:
       - "./cli:/root/.config/nats"
+    {{- if $mount }}
       - {{ $mount }}
     {{- end }}
 
