@@ -1,0 +1,35 @@
+description: Generates development NATS clusters for Docker Compose
+contact: https://github.com/nats-io/natscli/issues
+source: https://github.com/nats-io/natscli/
+version: 0.0.1
+post_scaffold: |
+  {{- $base_port := .port  -}}
+  {{- $domain := .domain  -}}
+  {{- $members := .members  -}}
+  Generated {{.clusters }} NATS Cluster each with {{.members }} servers
+  
+                 JetStream: {{ if .jetstream}}yes{{else}}no{{end}}
+                DNS Domain: {{ .domain }}
+              Docker Image: {{ .image }}
+   Container Configuration: {{ .configPath }}
+           System Password: system / {{ .password }}
+             User Password: user / {{ .password }}
+  
+  Port Configuration:
+  {{ $base_port := .port  -}}
+  {{- $domain := .domain  -}}
+  {{- $members := .members  -}}
+ 
+  {{- range $cluster := .clusters | seq | split " " }}
+  {{- range $node := $members | seq | split " " }}
+    {{- $client_listen := (sub (add $base_port (mul (sub $cluster 1) 100) $node) 1) -}}
+    {{- $node_name := cat "n" $node ".c" $cluster | nospace }}
+    {{ $node_name }}.{{ $domain }}:{{ $client_listen }}
+  {{- end }}
+  {{- end }}
+  
+  Start the network by changing to the target directory and doing "docker compose up"
+
+  Once running use the following command to start a shell:
+  
+    docker compose run -v "{{ ._target }}/cli:/root/.config/nats" cli.{{ $domain }}

@@ -1,0 +1,78 @@
+name: nats-server.conf
+description: |
+  Operator Managed NATS Server
+
+  This wizard will guide you through a series of question to create a 
+  NATS Server configuration managed by the "{{ .operator.Name }}" operator
+  {{ if not .jetstream }}
+  The configuration can include JetStream configuration by passing 
+  the --jetstream flag on the command line.
+  {{- end -}}
+properties:
+  - name: server_name
+    description: Unique name for this server
+    help: Each server needs a Unique name, by default this uses the FQDN but in JetStream scenarios it is worth setting stable names and adjusting DNS pointing at the right node.
+    default: nats.example.net
+    required: true
+  - name: address
+    description: Address to listen on
+    default: "0.0.0.0"
+    validation: isIP(value)
+  - name: port
+    description: The port to listen on for client connections
+    default: "4222"
+    type: integer
+  - name: monitor_port
+    description: Port to listen on for monitoring requests
+    default: "8222"
+    type: integer
+  - name: streams
+    description: Enables JetStream in the cluster
+    type: bool
+    default: true
+
+  - name: jetstream
+    description: |
+      JetStream configuration
+      
+      We will now configure the NATS JetStream persistence layer. Setting the limits 
+      to -1 means a dynamic value will be chosen by the server at start. We strongly 
+      suggest setting specific limits.
+
+      See https://docs.nats.io/nats-concepts/jetstream for more information
+    conditional: "input.streams == true"
+    properties:
+      - name: store_dir
+        description: Directory to store JetStream data
+        default: "/var/lib/nats/jetstream"
+        required: true
+      - name: max_mem
+        description: Maximum amount of RAM that can be used by JetStream
+        help: Valid values are -1 for unlimited or strings like 1GB
+        default: "-1"
+      - name: max_file
+        description: Maximum amount of disk storage that can be used by JetStream
+        help: Valid values are -1 for unlimited or strings like 1GB
+        default: "-1"
+
+  - name: resolver
+    description: |
+      NATS Resolver Configuration
+      
+      We will now configure where the NATS Server will store account JWT files. 
+      JWT files are pushed to the server using 'nats auth account push' and 
+      describe the full configuration for each account.
+      
+      Every server in a cluster needs a resolver configuration.
+    properties:
+      - name: dir
+        description: The directory to store JWTs in
+        default: "/var/lib/nats/resolver"
+      - name: allow_delete
+        description: Should the server allow accounts to be deleted
+        default: "true"
+        type: bool
+      - name: limit
+        description: The maximum amount of accounts to allow
+        default: "1000"
+        type: integer

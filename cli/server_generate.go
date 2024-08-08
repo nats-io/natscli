@@ -16,8 +16,10 @@ package cli
 import (
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	au "github.com/nats-io/natscli/internal/auth"
 	"github.com/nats-io/natscli/internal/scaffold"
@@ -34,7 +36,7 @@ func configureServerGenerateCommand(srv *fisk.CmdClause) {
 
 	gen := srv.Command("generate", `Generate server configurations`).Hidden().Alias("gen").Action(c.generateAction)
 	gen.Arg("target", "Write the output to a specific location").Required().StringVar(&c.target)
-	gen.Flag("source", "Fetch the configuration bundle from a file or URL").Required().StringVar(&c.source)
+	gen.Flag("source", "Fetch the configuration bundle from a file or URL").StringVar(&c.source)
 }
 
 func (c *serverGenerateCmd) generateAction(_ *fisk.ParseContext) error {
@@ -46,10 +48,17 @@ func (c *serverGenerateCmd) generateAction(_ *fisk.ParseContext) error {
 	}
 
 	switch {
+	case c.source == "":
+		err = c.pickEmbedded()
+		if err != nil {
+			return err
+		}
+
+		fallthrough
+
 	case strings.Contains(c.source, "://"):
 		var uri *url.URL
 		uri, err = url.Parse(c.source)
-
 		if err != nil {
 			return err
 		}
@@ -89,6 +98,33 @@ func (c *serverGenerateCmd) generateAction(_ *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
+
+	return b.Close()
+}
+
+func (c *serverGenerateCmd) pickEmbedded() error {
+	list := map[string]string{
+		"Development Super Cluster using Docker Compose": "fs:///natsbuilder",
+		"'nats auth' managed NATS Server configuration":  "fs:///operator",
+	}
+
+	names := []string{}
+	for k := range list {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+
+	choice := ""
+	err := iu.AskOne(&survey.Select{
+		Message:  "Select a template",
+		Options:  names,
+		PageSize: iu.SelectPageSize(len(names)),
+	}, &choice)
+	if err != nil {
+		return err
+	}
+
+	c.source = list[choice]
 
 	return nil
 }
