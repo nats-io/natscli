@@ -1,0 +1,14 @@
+description: Generates configuration to connect a leafnode to Synadia Cloud
+contact: https://github.com/nats-io/natscli/issues
+source: https://github.com/nats-io/natscli/
+version: 0.0.1
+post_scaffold: |
+  A NATS Server Leafnode configuration was written in {{ ._target }}/leafnode.conf
+  
+     Credentials: {{ .credentials }}
+     Client Port: {{ .port }}
+       JetStream: {{ if .jetstream}}yes storage in "{{ .store_dir }}"{{else}}no{{end}}
+  
+  Store your Synadia Cloud credentials in "{{ .credentials }}" and run:
+    
+     nats-server --config leafnode.conf

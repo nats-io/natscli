@@ -106,6 +106,7 @@ func (c *serverGenerateCmd) pickEmbedded() error {
 	list := map[string]string{
 		"Development Super Cluster using Docker Compose": "fs:///natsbuilder",
 		"'nats auth' managed NATS Server configuration":  "fs:///operator",
+		"Synadia Cloud Leafnode Configuration":           "fs:///ngsleafnodeconfig",
 	}
 
 	names := []string{}
