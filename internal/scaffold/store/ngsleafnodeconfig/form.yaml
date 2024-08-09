@@ -1,0 +1,37 @@
+name: ngs-leafnode
+description: |
+  Generates configuration to connect a Leafnode to the Synadia Cloud
+  
+  Further information can be found at:
+  
+    https://docs.nats.io/running-a-nats-service/nats_docker/ngs-leafnodes-docker
+
+properties:
+  - name: port
+    description: The port used by the first server in the first cluster
+    default: "4222"
+
+  - name: monitor_port
+    description: Configures the monitor port, 0 disables
+    type: integer
+    default: "0"
+
+  - name: jetstream
+    description: Enables JetStream in the cluster
+    type: bool
+    default: "false"
+
+  - name: store_dir
+    conditional: input.jetstream == true
+    description: Directory to write JetStream data
+    default: data
+
+  - name: jetstream_domain
+    conditional: input.jetstream == true
+    description: The JetStream Domain for the Leafnode
+    default: LEAF
+
+  - name: credentials
+    description: Path to the Synadia Cloud credential file
+    required: true
+    default: ngs.creds
