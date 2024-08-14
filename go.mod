@@ -1,6 +1,6 @@
 module github.com/nats-io/natscli
 
-go 1.21.0
+go 1.22.0
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -15,23 +15,23 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gosuri/uiprogress v0.0.1
-	github.com/guptarohit/asciigraph v0.7.1
+	github.com/guptarohit/asciigraph v0.7.2
 	github.com/jedib0t/go-pretty/v6 v6.5.9
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.17.9
 	github.com/mattn/go-isatty v0.0.20
 	github.com/nats-io/jsm.go v0.1.1-0.20240806123840-b0cf607873df
 	github.com/nats-io/jwt/v2 v2.5.8
-	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240724152920-81805a2cd269
-	github.com/nats-io/nats.go v1.36.0
+	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240813233400-f2726b416745
+	github.com/nats-io/nats.go v1.37.0
 	github.com/nats-io/nkeys v0.4.7
 	github.com/nats-io/nuid v1.0.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240628155003-21e8d1e9d490
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
-	golang.org/x/crypto v0.25.0
-	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
-	golang.org/x/term v0.22.0
+	golang.org/x/crypto v0.26.0
+	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
+	golang.org/x/term v0.23.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -42,7 +42,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/google/go-tpm v0.9.0 // indirect
+	github.com/google/go-tpm v0.9.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
@@ -62,10 +62,10 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/spf13/cast v1.6.0 // indirect
-	golang.org/x/net v0.27.0 // indirect
-	golang.org/x/sys v0.23.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	github.com/spf13/cast v1.7.0 // indirect
+	golang.org/x/net v0.28.0 // indirect
+	golang.org/x/sys v0.24.0 // indirect
+	golang.org/x/text v0.17.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
