@@ -15,6 +15,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -312,7 +313,7 @@ func (c *errCmd) validateErr(err *server.ErrorsData) error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf(f(errs))
+		return errors.New(f(errs))
 	}
 
 	return nil
