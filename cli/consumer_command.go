@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -766,36 +767,69 @@ func (c *consumerCmd) lsAction(pc *fisk.ParseContext) error {
 	stream, err := c.mgr.LoadStream(c.stream)
 	fisk.FatalIfError(err, "could not load Consumers")
 
-	consumers, err := stream.ConsumerNames()
+	consumerNames, err := stream.ConsumerNames()
 	fisk.FatalIfError(err, "could not load Consumers")
 
 	if c.json {
-		err = iu.PrintJSON(consumers)
+		err = iu.PrintJSON(consumerNames)
 		fisk.FatalIfError(err, "could not display Consumers")
 		return nil
 	}
 
 	if c.listNames {
-		for _, sc := range consumers {
+		for _, sc := range consumerNames {
 			fmt.Println(sc)
 		}
 
 		return nil
 	}
 
-	if len(consumers) == 0 {
+	if len(consumerNames) == 0 {
 		fmt.Println("No Consumers defined")
 		return nil
 	}
 
-	fmt.Printf("Consumers for Stream %s:\n", c.stream)
-	fmt.Println()
-	for _, sc := range consumers {
-		fmt.Printf("\t%s\n", sc)
+	out, err := c.renderConsumerAsTable(stream)
+	if err != nil {
+		return err
 	}
-	fmt.Println()
+
+	fmt.Println(out)
 
 	return nil
+}
+
+func (c *consumerCmd) renderConsumerAsTable(stream *jsm.Stream) (string, error) {
+	var out bytes.Buffer
+	table := newTableWriter("Consumers")
+	table.AddHeaders("Name", "Description", "Created", "Ack Pending", "Unprocessed", "Last Delivery")
+
+	missing, err := stream.EachConsumer(func(cons *jsm.Consumer) {
+		cs, err := cons.LatestState()
+		if err != nil {
+			log.Printf("Could not obtain consumer state for %s: %s", cons.Name(), err)
+			return
+		}
+
+		lastDelivery := sinceRefOrNow(cs.TimeStamp, time.Time{})
+		if cs.Delivered.Last != nil {
+			lastDelivery = sinceRefOrNow(cs.TimeStamp, *cs.Delivered.Last)
+		}
+
+		table.AddRow(cs.Name, cs.Config.Description, f(cs.Created.Local()), cs.NumAckPending, cs.NumPending, f(lastDelivery))
+
+	})
+	if err != nil {
+		return "", err
+	}
+
+	fmt.Fprintln(&out, table.Render())
+
+	if len(missing) > 0 {
+		c.renderMissing(&out, missing)
+	}
+
+	return out.String(), nil
 }
 
 func (c *consumerCmd) showConsumer(consumer *jsm.Consumer) {
