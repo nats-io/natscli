@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/nats-io/natscli/options"
 	"os"
 	"path/filepath"
 	"time"
@@ -137,7 +138,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	healthz.Flag("details", "Include extended details about all failures").Default("true").BoolVar(&c.includeDetails)
 
 	profilez := req.Command("profile", "Run a profile").Action(c.profilez)
-	profilez.Arg("profile", "Specify the name of the profile to run (allocs, heap, goroutine, mutex, threadcreate, block)").StringVar(&c.profileName)
+	profilez.Arg("profile", "Specify the name of the profile to run (allocs, heap, goroutine, mutex, threadcreate, block, cpu)").StringVar(&c.profileName)
 	profilez.Arg("dir", "Set the output directory for profile files").Default(".").ExistingDirVar(&c.profileDir)
 	profilez.Flag("level", "Set the debug level of the profile").IntVar(&c.profileDebug)
 
@@ -220,6 +221,13 @@ func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
 			Debug: c.profileDebug,
 		},
 		EventFilterOptions: c.reqFilter(),
+	}
+
+	if c.profileName == "cpu" {
+		// people can use --timeout to adjust the wait time
+		opts.Duration = options.DefaultOptions.Timeout
+		// but we have to then bump timeout to give the network time
+		options.DefaultOptions.Timeout = options.DefaultOptions.Timeout + 2*time.Second
 	}
 
 	res, err := c.doReq("PROFILEZ", &opts, nc)
