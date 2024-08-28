@@ -106,6 +106,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/nats-io/jsm.go v0.1.1-0.20240814122033-0134ba65422d h1:N25N6EGr53WHECD++/NjqrnwN8qV7MmcD8cqLkNavjU=
 github.com/nats-io/jsm.go v0.1.1-0.20240814122033-0134ba65422d/go.mod h1:QMSyT1YrxQujqM+8OCWfl3M3e4H13/aQvgAh0iMhfRY=
+github.com/nats-io/jsm.go v0.1.1-0.20240828111101-4d2a0a055996 h1:TIA0KkwEqEeSXLf6kb0m8lm+S75wqWttTKjxt6+ySHA=
+github.com/nats-io/jsm.go v0.1.1-0.20240828111101-4d2a0a055996/go.mod h1:GqhrbjF7id/JW5arS8TZUbHwWTsxL98ubUAloC2f6QY=
 github.com/nats-io/jwt/v2 v2.5.8 h1:uvdSzwWiEGWGXf+0Q+70qv6AQdvcvxrv9hPM0RiPamE=
 github.com/nats-io/jwt/v2 v2.5.8/go.mod h1:ZdWS1nZa6WMZfFwwgpEaqBV8EPGVgOTDHN/wTbz0Y5A=
 github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240813233400-f2726b416745 h1:jWXoDTp7NUeq+aPFANE2/1WBH52567DSn1G9bi0X64w=
