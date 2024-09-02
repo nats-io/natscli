@@ -1716,8 +1716,26 @@ func (c *benchCmd) runCorePublisher(bm *bench.Benchmark, errChan chan error, nc 
 	log.Printf("Starting publisher, publishing %s messages", f(numMsg))
 
 	if c.progressBar {
-		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
+		barTotal := numMsg
+		if barTotal == 0 {
+			barTotal = 1
+		}
+
+		progress = uiprogress.AddBar(barTotal).AppendCompleted().PrependElapsed()
 		progress.Width = progressWidth()
+
+		if numMsg == 0 {
+			progress.PrependFunc(func(b *uiprogress.Bar) string {
+				return "Finished  "
+			})
+			progress.Incr()
+		}
+	}
+
+	if numMsg == 0 {
+		donewg.Done()
+		errChan <- nil
+		return
 	}
 
 	var msg []byte
