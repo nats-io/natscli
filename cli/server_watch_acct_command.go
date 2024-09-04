@@ -32,6 +32,7 @@ import (
 
 type SrvWatchAccountCmd struct {
 	topCount  int
+	top       int
 	sort      string
 	accounts  map[string]map[string]server.AccountNumConns
 	sortNames map[string]string
@@ -63,27 +64,35 @@ The 'Servers' column will show how many servers sent statistics about an account
 Only servers with active connections will send these updates.
 `)
 	accounts.Flag("sort", fmt.Sprintf("Sorts by a specific property (%s)", strings.Join(sortKeys, ", "))).Default("conns").EnumVar(&c.sort, sortKeys...)
-	accounts.Flag("number", "Amount of Accounts to show by the selected dimension").Default("0").Short('n').IntVar(&c.topCount)
+	accounts.Flag("number", "Amount of Accounts to show by the selected dimension").Default("0").Short('n').IntVar(&c.top)
 }
 
-func (c *SrvWatchAccountCmd) accountsAction(_ *fisk.ParseContext) error {
+func (c *SrvWatchAccountCmd) updateSizes() error {
+	c.topCount = c.top
+
 	_, h, err := terminal.GetSize(int(os.Stdout.Fd()))
 	if err != nil && c.topCount == 0 {
 		return fmt.Errorf("could not determine screen dimensions: %v", err)
 	}
 
+	maxRows := h - 7
+
 	if c.topCount == 0 {
-		c.topCount = h - 8
+		c.topCount = maxRows
+	}
+
+	if c.topCount > maxRows {
+		c.topCount = maxRows
 	}
 
 	if c.topCount < 1 {
 		return fmt.Errorf("requested render limits exceed screen size")
 	}
 
-	if c.topCount > h-8 {
-		c.topCount = h - 8
-	}
+	return nil
+}
 
+func (c *SrvWatchAccountCmd) accountsAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -101,7 +110,10 @@ func (c *SrvWatchAccountCmd) accountsAction(_ *fisk.ParseContext) error {
 	for {
 		select {
 		case <-tick.C:
-			c.redraw()
+			err = c.redraw()
+			if err != nil {
+				return err
+			}
 		case <-ctx.Done():
 			return nil
 		}
@@ -126,9 +138,14 @@ func (c *SrvWatchAccountCmd) handle(msg *nats.Msg) {
 	c.lastMsg = time.Now()
 }
 
-func (c *SrvWatchAccountCmd) redraw() {
+func (c *SrvWatchAccountCmd) redraw() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	err := c.updateSizes()
+	if err != nil {
+		return err
+	}
 
 	var accounts []*server.AccountStat
 	seen := map[string]int{}
@@ -195,7 +212,9 @@ func (c *SrvWatchAccountCmd) redraw() {
 		)
 	}
 
-	fmt.Println(table.Render())
+	fmt.Print(table.Render())
+
+	return nil
 }
 
 func (c *SrvWatchAccountCmd) accountTotal(acct string) (int, *server.AccountStat) {
