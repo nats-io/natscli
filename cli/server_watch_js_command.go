@@ -31,6 +31,7 @@ import (
 )
 
 type SrvWatchJSCmd struct {
+	top       int
 	topCount  int
 	sort      string
 	servers   map[string]*server.ServerStatsMsg
@@ -60,27 +61,35 @@ func configureServerWatchJSCommand(watch *fisk.CmdClause) {
 Since the updates are sent on a 30 second interval this is not a point in time view.
 `)
 	js.Flag("sort", fmt.Sprintf("Sorts by a specific property (%s)", strings.Join(sortKeys, ", "))).Default("assets").EnumVar(&c.sort, sortKeys...)
-	js.Flag("number", "Amount of Accounts to show by the selected dimension").Default("0").Short('n').IntVar(&c.topCount)
+	js.Flag("number", "Amount of Accounts to show by the selected dimension").Default("0").Short('n').IntVar(&c.top)
 }
 
-func (c *SrvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
+func (c *SrvWatchJSCmd) updateSizes() error {
+	c.topCount = c.top
+
 	_, h, err := terminal.GetSize(int(os.Stdout.Fd()))
 	if err != nil && c.topCount == 0 {
 		return fmt.Errorf("could not determine screen dimensions: %v", err)
 	}
 
+	maxRows := h - 9
+
 	if c.topCount == 0 {
-		c.topCount = h - 8
+		c.topCount = maxRows
+	}
+
+	if c.topCount > maxRows {
+		c.topCount = maxRows
 	}
 
 	if c.topCount < 1 {
 		return fmt.Errorf("requested render limits exceed screen size")
 	}
 
-	if c.topCount > h-8 {
-		c.topCount = h - 8
-	}
+	return nil
+}
 
+func (c *SrvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -99,7 +108,10 @@ func (c *SrvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
 	for {
 		select {
 		case <-tick.C:
-			c.redraw()
+			err = c.redraw()
+			if err != nil {
+				return err
+			}
 		case <-ctx.Done():
 			return nil
 		}
@@ -123,9 +135,14 @@ func (c *SrvWatchJSCmd) handle(msg *nats.Msg) {
 	c.mu.Unlock()
 }
 
-func (c *SrvWatchJSCmd) redraw() {
+func (c *SrvWatchJSCmd) redraw() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	err := c.updateSizes()
+	if err != nil {
+		return err
+	}
 
 	var (
 		servers  []*server.ServerStatsMsg
@@ -197,5 +214,7 @@ func (c *SrvWatchJSCmd) redraw() {
 	table.AddFooter("Totals (All Servers)", f(assets), fiBytes(mem), fiBytes(store), f(api), f(apiError))
 
 	clearScreen()
-	fmt.Println(table.Render())
+	fmt.Print(table.Render())
+
+	return nil
 }

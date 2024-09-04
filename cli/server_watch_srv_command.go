@@ -32,6 +32,7 @@ import (
 
 type SrvWatchServerCmd struct {
 	topCount  int
+	top       int
 	sort      string
 	servers   map[string]*server.ServerStatsMsg
 	sortNames map[string]string
@@ -66,27 +67,34 @@ func configureServerWatchServerCommand(watch *fisk.CmdClause) {
 Since the updates are sent on a 30 second interval this is not a point in time view.
 `)
 	servers.Flag("sort", fmt.Sprintf("Sorts by a specific property (%s)", strings.Join(sortKeys, ", "))).Default("conns").EnumVar(&c.sort, sortKeys...)
-	servers.Flag("number", "Amount of Accounts to show by the selected dimension").Default("0").Short('n').IntVar(&c.topCount)
+	servers.Flag("number", "Amount of Accounts to show by the selected dimension").Default("0").Short('n').IntVar(&c.top)
 }
 
-func (c *SrvWatchServerCmd) serversAction(_ *fisk.ParseContext) error {
+func (c *SrvWatchServerCmd) updateSizes() error {
+	c.topCount = c.top
+
 	_, h, err := terminal.GetSize(int(os.Stdout.Fd()))
 	if err != nil && c.topCount == 0 {
 		return fmt.Errorf("could not determine screen dimensions: %v", err)
 	}
 
+	maxRows := h - 9
+
 	if c.topCount == 0 {
-		c.topCount = h - 8
+		c.topCount = maxRows
+	}
+
+	if c.topCount > maxRows {
+		c.topCount = maxRows
 	}
 
 	if c.topCount < 1 {
 		return fmt.Errorf("requested render limits exceed screen size")
 	}
 
-	if c.topCount > h-8 {
-		c.topCount = h - 8
-	}
-
+	return nil
+}
+func (c *SrvWatchServerCmd) serversAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -105,7 +113,10 @@ func (c *SrvWatchServerCmd) serversAction(_ *fisk.ParseContext) error {
 	for {
 		select {
 		case <-tick.C:
-			c.redraw()
+			err = c.redraw()
+			if err != nil {
+				return err
+			}
 		case <-ctx.Done():
 			return nil
 		}
@@ -125,9 +136,14 @@ func (c *SrvWatchServerCmd) handle(msg *nats.Msg) {
 	c.mu.Unlock()
 }
 
-func (c *SrvWatchServerCmd) redraw() {
+func (c *SrvWatchServerCmd) redraw() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	err := c.updateSizes()
+	if err != nil {
+		return err
+	}
 
 	var servers []*server.ServerStatsMsg
 
@@ -220,5 +236,6 @@ func (c *SrvWatchServerCmd) redraw() {
 	table.AddFooter("Totals (All Servers)", f(conns), f(subs), f(slow), fiBytes(uint64(mem)), "", "", "", fmt.Sprintf("%s / %s", f(sentM), fiBytes(uint64(sentB))), fmt.Sprintf("%s / %s", f(recvM), fiBytes(uint64(recvB))))
 
 	clearScreen()
-	fmt.Println(table.Render())
+	fmt.Print(table.Render())
+	return nil
 }
