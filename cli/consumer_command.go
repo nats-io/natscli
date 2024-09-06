@@ -573,14 +573,10 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
-	var ncfg api.ConsumerConfig
+	var ncfg *api.ConsumerConfig
 
 	if c.inputFile != "" {
-		cf, err := os.ReadFile(c.inputFile)
-		if err != nil {
-			return err
-		}
-		err = json.Unmarshal(cf, &ncfg)
+		ncfg, err = c.loadConfigFile(c.inputFile)
 		if err != nil {
 			return err
 		}
@@ -673,7 +669,7 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 		return out
 	})
 
-	diff := cmp.Diff(c.selectedConsumer.Configuration(), ncfg, sorter)
+	diff := cmp.Diff(c.selectedConsumer.Configuration(), *ncfg, sorter)
 	if diff == "" {
 		if !c.dryRun {
 			fmt.Println("No difference in configuration")
@@ -696,7 +692,7 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 		}
 	}
 
-	cons, err := c.mgr.NewConsumerFromDefault(c.stream, ncfg)
+	cons, err := c.mgr.NewConsumerFromDefault(c.stream, *ncfg)
 	if err != nil {
 		return err
 	}
