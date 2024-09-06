@@ -148,7 +148,9 @@ func configureConsumerCommand(app commandHost) {
 		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").PlaceHolder("TRIES").IntVar(&c.maxDeliver)
 		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
-		f.Flag("max-waiting", "Maximum number of outstanding pulls allowed").PlaceHolder("PULLS").IntVar(&c.maxWaiting)
+		if !edit {
+			f.Flag("max-waiting", "Maximum number of outstanding pulls allowed").PlaceHolder("PULLS").IntVar(&c.maxWaiting)
+		}
 		f.Flag("max-pull-batch", "Maximum size batch size for a pull request to accept").PlaceHolder("BATCH_SIZE").IntVar(&c.maxPullBatch)
 		f.Flag("max-pull-expire", "Maximum expire duration for a pull request to accept").PlaceHolder("EXPIRES").DurationVar(&c.maxPullExpire)
 		f.Flag("max-pull-bytes", "Maximum max bytes for a pull request to accept").PlaceHolder("BYTES").IntVar(&c.maxPullBytes)
