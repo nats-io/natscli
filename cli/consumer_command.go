@@ -146,7 +146,7 @@ func configureConsumerCommand(app commandHost) {
 
 		f.Flag("headers-only", "Deliver only headers and no bodies").IsSetByUser(&c.hdrsOnlySet).BoolVar(&c.hdrsOnly)
 		f.Flag("max-deliver", "Maximum amount of times a message will be delivered").PlaceHolder("TRIES").IntVar(&c.maxDeliver)
-		f.Flag("max-outstanding", "Maximum pending Acks before consumers are paused").Hidden().Default("-1").IntVar(&c.maxAckPending)
+		f.Flag("max-outstanding", "Maximum pending Acks before consumers stop delivering messages").Hidden().Default("-1").IntVar(&c.maxAckPending)
 		f.Flag("max-pending", "Maximum pending Acks before consumers are paused").Default("-1").IntVar(&c.maxAckPending)
 		if !edit {
 			f.Flag("max-waiting", "Maximum number of outstanding pulls allowed").PlaceHolder("PULLS").IntVar(&c.maxWaiting)
@@ -671,7 +671,10 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 		return out
 	})
 
-	diff := cmp.Diff(c.selectedConsumer.Configuration(), *ncfg, sorter)
+	t.Metadata = iu.RemoveReservedMetadata(t.Metadata)
+	ncfg.Metadata = iu.RemoveReservedMetadata(ncfg.Metadata)
+
+	diff := cmp.Diff(t, *ncfg, sorter)
 	if diff == "" {
 		if !c.dryRun {
 			fmt.Println("No difference in configuration")
@@ -1279,7 +1282,7 @@ func (c *consumerCmd) loadConfigFile(file string) (*api.ConsumerConfig, error) {
 	return &cfg, nil
 }
 
-func (c *consumerCmd) prepareConfig(pc *fisk.ParseContext) (cfg *api.ConsumerConfig, err error) {
+func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 	cfg = c.defaultConsumer()
 	cfg.Description = c.description
 
@@ -1620,6 +1623,11 @@ func (c *consumerCmd) parsePauseUntil(until string) (time.Time, error) {
 func (c *consumerCmd) resumeAction(_ *fisk.ParseContext) error {
 	c.connectAndSetup(true, true)
 
+	err := iu.RequireAPILevel(c.mgr, 1, "resuming consumers requires NATS Server 2.11")
+	if err != nil {
+		return err
+	}
+
 	state, err := c.selectedConsumer.LatestState()
 	if err != nil {
 		return err
@@ -1648,6 +1656,11 @@ func (c *consumerCmd) resumeAction(_ *fisk.ParseContext) error {
 
 func (c *consumerCmd) pauseAction(_ *fisk.ParseContext) error {
 	c.connectAndSetup(true, true)
+
+	err := iu.RequireAPILevel(c.mgr, 1, "pausing consumers requires NATS Server 2.11")
+	if err != nil {
+		return err
+	}
 
 	if c.pauseUntil == "" {
 		dflt := time.Now().Add(time.Hour).Format(time.DateTime)
@@ -1765,7 +1778,7 @@ func (c *consumerCmd) validateCfg(cfg *api.ConsumerConfig) (bool, []byte, []stri
 }
 
 func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
-	cfg, err := c.prepareConfig(pc)
+	cfg, err := c.prepareConfig()
 	if err != nil {
 		return err
 	}
@@ -1796,6 +1809,13 @@ func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
 	}
 
 	c.connectAndSetup(true, false)
+
+	if !cfg.PauseUntil.IsZero() {
+		err := iu.RequireAPILevel(c.mgr, 1, "pausing consumers requires NATS Server 2.11")
+		if err != nil {
+			return err
+		}
+	}
 
 	created, err := c.mgr.NewConsumerFromDefault(c.stream, *cfg)
 	fisk.FatalIfError(err, "Consumer creation failed")

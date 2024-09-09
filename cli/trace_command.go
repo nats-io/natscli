@@ -17,16 +17,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/choria-io/fisk"
 	"github.com/choria-io/fisk/units"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api/server/tracing"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"os"
-	"strings"
-	"sync"
-	"time"
+	iu "github.com/nats-io/natscli/internal/util"
 )
 
 type traceCmd struct {
@@ -80,6 +82,10 @@ func (c *traceCmd) traceAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
+	}
+
+	if !iu.ServerMinVersion(nc, 2, 11, 0) {
+		return fmt.Errorf("tracing messages require NATS Server 2.11")
 	}
 
 	msg := nats.NewMsg(c.subject)

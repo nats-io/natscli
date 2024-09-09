@@ -1856,6 +1856,8 @@ func (c *streamCmd) editAction(pc *fisk.ParseContext) error {
 
 	// lazy deep copy
 	input := sourceStream.Configuration()
+	input.Metadata = iu.RemoveReservedMetadata(input.Metadata)
+
 	ij, err := json.Marshal(input)
 	if err != nil {
 		return err
@@ -1881,7 +1883,7 @@ func (c *streamCmd) editAction(pc *fisk.ParseContext) error {
 		return out
 	})
 
-	diff := cmp.Diff(sourceStream.Configuration(), cfg, sorter)
+	diff := cmp.Diff(input, cfg, sorter)
 	if diff == "" {
 		if !c.dryRun {
 			fmt.Println("No difference in configuration")

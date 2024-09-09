@@ -136,6 +136,7 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 		js := varz.JetStream
 		cols.AddSectionTitle("JetStream")
 		cols.AddRow("Domain", js.Config.Domain)
+		cols.AddRow("API Support Level", js.Stats.API.Level)
 		cols.AddRow("Storage Directory", js.Config.StoreDir)
 		cols.AddRow("Active Accounts", js.Stats.Accounts)
 		cols.AddRow("Memory In Use", humanize.IBytes(js.Stats.Memory))
