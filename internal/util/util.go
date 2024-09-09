@@ -16,19 +16,88 @@ package util
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/options"
 
 	"github.com/nats-io/nkeys"
 	terminal "golang.org/x/term"
 )
+
+// RemoveReservedMetadata returns a new version of metadata with reserved keys starting with _nats. removed
+func RemoveReservedMetadata(metadata map[string]string) map[string]string {
+	res := make(map[string]string)
+
+	for k, v := range metadata {
+		if strings.HasPrefix(k, "_nats.") {
+			continue
+		}
+		res[k] = v
+	}
+
+	if len(res) == 0 {
+		return nil
+	}
+
+	return res
+}
+
+// RequireAPILevel asserts if the meta leader supports api level lvl
+func RequireAPILevel(m *jsm.Manager, lvl int, format string, a ...any) error {
+	mlvl, err := m.MetaApiLevel(false)
+	if err != nil {
+		return err
+	}
+
+	if mlvl >= lvl {
+		return nil
+	}
+
+	return fmt.Errorf(format, a...)
+}
+
+var semVerRe = regexp.MustCompile(`\Av?([0-9]+)\.?([0-9]+)?\.?([0-9]+)?`)
+
+func versionComponents(version string) (major, minor, patch int, err error) {
+	m := semVerRe.FindStringSubmatch(version)
+	if m == nil {
+		return 0, 0, 0, errors.New("invalid semver")
+	}
+	major, err = strconv.Atoi(m[1])
+	if err != nil {
+		return -1, -1, -1, err
+	}
+	minor, err = strconv.Atoi(m[2])
+	if err != nil {
+		return -1, -1, -1, err
+	}
+	patch, err = strconv.Atoi(m[3])
+	if err != nil {
+		return -1, -1, -1, err
+	}
+	return major, minor, patch, err
+}
+
+// ServerMinVersion checks if the connected server meets certain version constraints
+func ServerMinVersion(nc *nats.Conn, major, minor, patch int) bool {
+	smajor, sminor, spatch, _ := versionComponents(nc.ConnectedServerVersion())
+	if smajor < major || (smajor == major && sminor < minor) || (smajor == major && sminor == minor && spatch < patch) {
+		return false
+	}
+
+	return true
+}
 
 // XdgShareHome is where to store data like nsc stored
 func XdgShareHome() (string, error) {
