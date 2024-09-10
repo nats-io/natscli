@@ -939,16 +939,10 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 			cols.AddRowIf("Paused Until Deadline", fmt.Sprintf("%s (passed)", f(config.PauseUntil)), !config.PauseUntil.IsZero())
 		}
 
-		if len(config.Metadata) > 0 {
+		meta := iu.RemoveReservedMetadata(config.Metadata)
+		if len(meta) > 0 {
 			cols.AddSectionTitle("Metadata")
-			maxLen := iu.ProgressWidth()
-			for k, v := range config.Metadata {
-				if len(v) > maxLen && maxLen > 20 {
-					w := maxLen/2 - 10
-					v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
-				}
-				cols.AddRow(k, v)
-			}
+			cols.AddMapStrings(meta)
 		}
 	}
 
@@ -972,7 +966,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	}
 
 	cols.AddSectionTitle("State")
-
+	iu.RenderMetaApi(cols, config.Metadata)
 	if state.Delivered.Last == nil {
 		cols.AddRowf("Last Delivered Message", "Consumer sequence: %s Stream sequence: %s", f(state.Delivered.Consumer), f(state.Delivered.Stream))
 	} else {

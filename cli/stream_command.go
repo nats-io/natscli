@@ -2039,9 +2039,10 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRowIf("Consumer Inactive Threshold", cfg.ConsumerLimits.InactiveThreshold, cfg.ConsumerLimits.InactiveThreshold > 0)
 	cols.AddRowIf("Consumer Max Ack Pending", cfg.ConsumerLimits.MaxAckPending, cfg.ConsumerLimits.MaxAckPending > 0)
 
-	if len(cfg.Metadata) > 0 {
+	meta := iu.RemoveReservedMetadata(cfg.Metadata)
+	if len(meta) > 0 {
 		cols.AddSectionTitle("Metadata")
-		cols.AddMapStrings(cfg.Metadata)
+		cols.AddMapStrings(meta)
 	}
 
 	if cfg.Mirror != nil || len(cfg.Sources) > 0 {
@@ -2125,38 +2126,38 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 
 	if info.Cluster != nil && info.Cluster.Name != "" {
 		cols.AddSectionTitle("Cluster Information")
+		if info.Cluster != nil && info.Cluster.Name != "" {
+			cols.AddRow("Name", info.Cluster.Name)
+			cols.AddRowIfNotEmpty("Cluster Group", info.Cluster.RaftGroup)
+			cols.AddRow("Leader", info.Cluster.Leader)
+			for _, r := range info.Cluster.Replicas {
+				state := []string{r.Name}
 
-		cols.AddRow("Name", info.Cluster.Name)
-		cols.AddRowIfNotEmpty("Cluster Group", info.Cluster.RaftGroup)
-		cols.AddRow("Leader", info.Cluster.Leader)
-		for _, r := range info.Cluster.Replicas {
-			state := []string{r.Name}
+				if r.Current {
+					state = append(state, "current")
+				} else {
+					state = append(state, "outdated")
+				}
 
-			if r.Current {
-				state = append(state, "current")
-			} else {
-				state = append(state, "outdated")
+				if r.Offline {
+					state = append(state, "OFFLINE")
+				}
+
+				if r.Active > 0 && r.Active < math.MaxInt64 {
+					state = append(state, fmt.Sprintf("seen %s ago", f(r.Active)))
+				} else {
+					state = append(state, "not seen")
+				}
+
+				switch {
+				case r.Lag > 1:
+					state = append(state, fmt.Sprintf("%s operations behind", f(r.Lag)))
+				case r.Lag == 1:
+					state = append(state, fmt.Sprintf("%s operation behind", f(r.Lag)))
+				}
+
+				cols.AddRow("Replica", state)
 			}
-
-			if r.Offline {
-				state = append(state, "OFFLINE")
-			}
-
-			if r.Active > 0 && r.Active < math.MaxInt64 {
-				state = append(state, fmt.Sprintf("seen %s ago", f(r.Active)))
-			} else {
-				state = append(state, "not seen")
-			}
-
-			switch {
-			case r.Lag > 1:
-				state = append(state, fmt.Sprintf("%s operations behind", f(r.Lag)))
-			case r.Lag == 1:
-				state = append(state, fmt.Sprintf("%s operation behind", f(r.Lag)))
-			}
-
-			cols.AddRow("Replica", state)
-
 		}
 		cols.Println()
 	}
@@ -2226,6 +2227,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 	}
 
 	cols.AddSectionTitle("State")
+	iu.RenderMetaApi(cols, info.Config.Metadata)
 	cols.AddRow("Messages", info.State.Msgs)
 	cols.AddRow("Bytes", humanize.IBytes(info.State.Bytes))
 
