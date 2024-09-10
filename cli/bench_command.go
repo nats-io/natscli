@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/nats-io/nats.go/jetstream"
 	"math"
 	"math/rand"
 	"os"
@@ -26,6 +25,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/nats-io/nats.go/jetstream"
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
@@ -1722,7 +1724,7 @@ func (c *benchCmd) runCorePublisher(bm *bench.Benchmark, errChan chan error, nc 
 		}
 
 		progress = uiprogress.AddBar(barTotal).AppendCompleted().PrependElapsed()
-		progress.Width = progressWidth()
+		progress.Width = iu.ProgressWidth()
 
 		if numMsg == 0 {
 			progress.PrependFunc(func(b *uiprogress.Bar) string {
@@ -1779,7 +1781,7 @@ func (c *benchCmd) runCoreSubscriber(bm *bench.Benchmark, errChan chan error, nc
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
-		progress.Width = progressWidth()
+		progress.Width = iu.ProgressWidth()
 	}
 
 	state := "Setup     "
@@ -1855,7 +1857,7 @@ func (c *benchCmd) runCoreRequester(bm *bench.Benchmark, errChan chan error, nc 
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
-		progress.Width = progressWidth()
+		progress.Width = iu.ProgressWidth()
 	}
 
 	var msg []byte
@@ -1948,7 +1950,7 @@ func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *n
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
-		progress.Width = progressWidth()
+		progress.Width = iu.ProgressWidth()
 	}
 
 	var msg []byte
@@ -1996,7 +1998,7 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
-		progress.Width = progressWidth()
+		progress.Width = iu.ProgressWidth()
 	}
 
 	state := "Setup     "
@@ -2186,7 +2188,7 @@ func (c *benchCmd) runKVPutter(bm *bench.Benchmark, errChan chan error, nc *nats
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
-		progress.Width = progressWidth()
+		progress.Width = iu.ProgressWidth()
 	}
 
 	var msg []byte
@@ -2232,7 +2234,7 @@ func (c *benchCmd) runKVGetter(bm *bench.Benchmark, errChan chan error, nc *nats
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
-		progress.Width = progressWidth()
+		progress.Width = iu.ProgressWidth()
 	}
 
 	state := "Setup     "
@@ -2326,7 +2328,7 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, errChan chan error, n
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
-		progress.Width = progressWidth()
+		progress.Width = iu.ProgressWidth()
 	}
 
 	state := "Setup     "

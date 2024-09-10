@@ -27,6 +27,7 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 )
 
@@ -53,7 +54,7 @@ func configureServerWatchAccountCommand(watch *fisk.CmdClause) {
 			"slow":  "Slow Consumers",
 		},
 	}
-	sortKeys := mapKeys(c.sortNames)
+	sortKeys := iu.MapKeys(c.sortNames)
 	sort.Strings(sortKeys)
 
 	accounts := watch.Command("accounts", "Watch account usage").Alias("account").Alias("acct").Action(c.accountsAction)
@@ -162,19 +163,19 @@ func (c *SrvWatchAccountCmd) redraw() error {
 
 		switch c.sort {
 		case "subs":
-			return sortMultiSort(ai.NumSubs, aj.NumSubs, ai.Conns, aj.Conns)
+			return iu.SortMultiSort(ai.NumSubs, aj.NumSubs, ai.Conns, aj.Conns)
 		case "slow":
-			return sortMultiSort(ai.SlowConsumers, aj.SlowConsumers, ai.Conns, aj.Conns)
+			return iu.SortMultiSort(ai.SlowConsumers, aj.SlowConsumers, ai.Conns, aj.Conns)
 		case "sentb":
-			return sortMultiSort(ai.Sent.Bytes, aj.Sent.Bytes, ai.Conns, aj.Conns)
+			return iu.SortMultiSort(ai.Sent.Bytes, aj.Sent.Bytes, ai.Conns, aj.Conns)
 		case "sentm":
-			return sortMultiSort(ai.Sent.Msgs, aj.Sent.Msgs, ai.Conns, aj.Conns)
+			return iu.SortMultiSort(ai.Sent.Msgs, aj.Sent.Msgs, ai.Conns, aj.Conns)
 		case "recvb":
-			return sortMultiSort(ai.Received.Bytes, aj.Received.Bytes, ai.Conns, aj.Conns)
+			return iu.SortMultiSort(ai.Received.Bytes, aj.Received.Bytes, ai.Conns, aj.Conns)
 		case "recvm":
-			return sortMultiSort(ai.Received.Msgs, aj.Received.Msgs, ai.Conns, aj.Conns)
+			return iu.SortMultiSort(ai.Received.Msgs, aj.Received.Msgs, ai.Conns, aj.Conns)
 		default:
-			return sortMultiSort(ai.Conns, aj.Conns, ai.Conns, aj.Conns)
+			return iu.SortMultiSort(ai.Conns, aj.Conns, ai.Conns, aj.Conns)
 		}
 	})
 
@@ -193,7 +194,7 @@ func (c *SrvWatchAccountCmd) redraw() error {
 		matched = accounts[:c.topCount]
 	}
 
-	clearScreen()
+	iu.ClearScreen()
 	for _, account := range matched {
 		acct := account.Account
 		if account.Name != "" {

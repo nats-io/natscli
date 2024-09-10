@@ -24,6 +24,7 @@ import (
 	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
+	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 )
 
@@ -305,7 +306,7 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 		progress = uiprogress.AddBar(c.cnt).PrependFunc(func(b *uiprogress.Bar) string {
 			return fmt.Sprintf(progressFormat, b.Current(), c.cnt)
 		}).AppendElapsed()
-		progress.Width = progressWidth()
+		progress.Width = iu.ProgressWidth()
 
 		fmt.Println()
 		uiprogress.Start()

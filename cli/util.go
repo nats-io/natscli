@@ -42,7 +42,6 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
-	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/gosuri/uiprogress"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -51,13 +50,10 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/natscontext"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
-	"golang.org/x/exp/constraints"
-	terminal "golang.org/x/term"
-
-	"github.com/nats-io/jsm.go/natscontext"
 )
 
 var (
@@ -161,28 +157,6 @@ func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string
 		}
 
 		return s, nil, nil
-	}
-}
-
-// calculates progress bar width for uiprogress:
-//
-// if it cant figure out the width, assume 80
-// if the width is too small, set it to minWidth and just live with the overflow
-//
-// this ensures a reasonable progress size, ideally we should switch over
-// to a spinner for < minWidth rather than cause overflows, but thats for later.
-func progressWidth() int {
-	w, _, err := terminal.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		return 80
-	}
-
-	minWidth := 10
-
-	if w-30 <= minWidth {
-		return minWidth
-	} else {
-		return w - 30
 	}
 }
 
@@ -1151,37 +1125,6 @@ func parseStringAsBytes(s string) (int64, error) {
 	return num, nil
 }
 
-var semVerRe = regexp.MustCompile(`\Av?([0-9]+)\.?([0-9]+)?\.?([0-9]+)?`)
-
-func versionComponents(version string) (major, minor, patch int, err error) {
-	m := semVerRe.FindStringSubmatch(version)
-	if m == nil {
-		return 0, 0, 0, errors.New("invalid semver")
-	}
-	major, err = strconv.Atoi(m[1])
-	if err != nil {
-		return -1, -1, -1, err
-	}
-	minor, err = strconv.Atoi(m[2])
-	if err != nil {
-		return -1, -1, -1, err
-	}
-	patch, err = strconv.Atoi(m[3])
-	if err != nil {
-		return -1, -1, -1, err
-	}
-	return major, minor, patch, err
-}
-
-// Check for minimum server requirement.
-func serverMinVersion(version string, major, minor, patch int) bool {
-	smajor, sminor, spatch, _ := versionComponents(version)
-	if smajor < major || (smajor == major && sminor < minor) || (smajor == major && sminor == minor && spatch < patch) {
-		return false
-	}
-	return true
-}
-
 func outPutMSGBodyCompact(data []byte, filter string, subject string, stream string) (string, error) {
 	if len(data) == 0 {
 		fmt.Println("nil body")
@@ -1250,85 +1193,7 @@ func filterDataThroughCmd(data []byte, filter, subject, stream string) ([]byte, 
 	return runner.CombinedOutput()
 }
 
-// copied from choria-io/appbuilder
-func barGraph(w io.Writer, data map[string]float64, caption string, width int, bytes bool) error {
-	longest := 0
-	min := math.MaxFloat64
-	max := -math.MaxFloat64
-	keys := []string{}
-	for k, v := range data {
-		keys = append(keys, k)
-		if len(k) > longest {
-			longest = len(k)
-		}
-
-		if v < min {
-			min = v
-		}
-
-		if v > max {
-			max = v
-		}
-	}
-
-	sort.Slice(keys, func(i, j int) bool {
-		return data[keys[i]] < data[keys[j]]
-	})
-
-	if caption != "" {
-		fmt.Fprintln(w, caption)
-		fmt.Fprintln(w)
-	}
-
-	var steps float64
-	if max == min {
-		steps = max / float64(width)
-	} else {
-		steps = (max - min) / float64(width)
-	}
-
-	longestLine := 0
-	for _, k := range keys {
-		v := data[k]
-
-		var blocks int
-		switch {
-		case v == 0:
-			// value 0 is always 0
-			blocks = 0
-		case len(keys) == 1:
-			// one entry, so we show full width
-			blocks = width
-		case min == max:
-			// all entries have same value, so we show full width
-			blocks = width
-		default:
-			blocks = int((v - min) / steps)
-		}
-
-		var h string
-		if bytes {
-			h = humanize.IBytes(uint64(v))
-		} else {
-			h = humanize.Commaf(v)
-		}
-
-		bar := strings.Repeat("█", blocks)
-		if blocks == 0 {
-			bar = "▏"
-		}
-
-		line := fmt.Sprintf("%s%s: %s (%s)", strings.Repeat(" ", longest-len(k)+2), k, bar, h)
-		if len(line) > longestLine {
-			longestLine = len(line)
-		}
-
-		fmt.Fprintln(w, line)
-	}
-
-	return nil
-}
-
+// currentActiveServers determines how many servers the connected server knows about
 func currentActiveServers(nc *nats.Conn) (int, error) {
 	var expect int
 
@@ -1344,27 +1209,4 @@ func currentActiveServers(nc *nats.Conn) (int, error) {
 	})
 
 	return expect, err
-}
-
-// clearScreen tries to ensure resetting original state of screen, todo windows
-func clearScreen() {
-	fmt.Print("\033[2J")
-	fmt.Print("\033[H")
-}
-
-func sortMultiSort[V constraints.Ordered, S string | constraints.Ordered](i1 V, j1 V, i2 S, j2 S) bool {
-	if i1 == j1 {
-		return i2 < j2
-	}
-
-	return i1 > j1
-}
-
-func mapKeys[M ~map[K]V, K comparable, V any](m M) []K {
-	r := make([]K, 0, len(m))
-	for k := range m {
-		r = append(r, k)
-	}
-
-	return r
 }

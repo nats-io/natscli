@@ -47,6 +47,13 @@ func (c *serverGenerateCmd) generateAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("target directory %s already exist", c.target)
 	}
 
+	fmt.Println("This tool generates NATS Server configurations based on a question and answer")
+	fmt.Println("form-based approach and then renders the result into a directory.")
+	fmt.Println()
+	fmt.Println("It supports rendering local bundles compiled into the 'nats' command but can also")
+	fmt.Println("fetch and render remote ones using a URL.")
+	fmt.Println()
+
 	switch {
 	case c.source == "":
 		err = c.pickEmbedded()

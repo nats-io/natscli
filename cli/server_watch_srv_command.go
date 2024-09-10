@@ -27,6 +27,7 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 )
 
@@ -58,7 +59,7 @@ func configureServerWatchServerCommand(watch *fisk.CmdClause) {
 		},
 	}
 
-	sortKeys := mapKeys(c.sortNames)
+	sortKeys := iu.MapKeys(c.sortNames)
 	sort.Strings(sortKeys)
 
 	servers := watch.Command("servers", "Watch server statistics").Alias("server").Alias("srv").Action(c.serversAction)
@@ -178,27 +179,27 @@ func (c *SrvWatchServerCmd) redraw() error {
 
 		switch c.sort {
 		case "subs":
-			return sortMultiSort(si.NumSubs, sj.NumSubs, iName, jName)
+			return iu.SortMultiSort(si.NumSubs, sj.NumSubs, iName, jName)
 		case "sentb":
-			return sortMultiSort(si.Sent.Bytes, sj.Sent.Bytes, iName, jName)
+			return iu.SortMultiSort(si.Sent.Bytes, sj.Sent.Bytes, iName, jName)
 		case "sentm":
-			return sortMultiSort(si.Sent.Msgs, sj.Sent.Msgs, iName, jName)
+			return iu.SortMultiSort(si.Sent.Msgs, sj.Sent.Msgs, iName, jName)
 		case "recvb":
-			return sortMultiSort(si.Received.Bytes, sj.Received.Bytes, iName, jName)
+			return iu.SortMultiSort(si.Received.Bytes, sj.Received.Bytes, iName, jName)
 		case "recvm":
-			return sortMultiSort(si.Received.Msgs, sj.Received.Msgs, iName, jName)
+			return iu.SortMultiSort(si.Received.Msgs, sj.Received.Msgs, iName, jName)
 		case "slow":
-			return sortMultiSort(si.SlowConsumers, sj.SlowConsumers, iName, jName)
+			return iu.SortMultiSort(si.SlowConsumers, sj.SlowConsumers, iName, jName)
 		case "route":
-			return sortMultiSort(len(si.Routes), len(sj.Routes), iName, jName)
+			return iu.SortMultiSort(len(si.Routes), len(sj.Routes), iName, jName)
 		case "gway":
-			return sortMultiSort(len(si.Gateways), len(sj.Gateways), iName, jName)
+			return iu.SortMultiSort(len(si.Gateways), len(sj.Gateways), iName, jName)
 		case "mem":
-			return sortMultiSort(si.Mem, sj.Mem, iName, jName)
+			return iu.SortMultiSort(si.Mem, sj.Mem, iName, jName)
 		case "cpu":
-			return sortMultiSort(si.CPU, sj.CPU, iName, jName)
+			return iu.SortMultiSort(si.CPU, sj.CPU, iName, jName)
 		default:
-			return sortMultiSort(si.Connections, sj.Connections, iName, jName)
+			return iu.SortMultiSort(si.Connections, sj.Connections, iName, jName)
 		}
 	})
 
@@ -235,7 +236,7 @@ func (c *SrvWatchServerCmd) redraw() error {
 
 	table.AddFooter("Totals (All Servers)", f(conns), f(subs), f(slow), fiBytes(uint64(mem)), "", "", "", fmt.Sprintf("%s / %s", f(sentM), fiBytes(uint64(sentB))), fmt.Sprintf("%s / %s", f(recvM), fiBytes(uint64(recvB))))
 
-	clearScreen()
+	iu.ClearScreen()
 	fmt.Print(table.Render())
 	return nil
 }

@@ -166,21 +166,3 @@ func TestHostnameCompactor(t *testing.T) {
 		t.Fatalf("Recevied %#v", result)
 	}
 }
-
-func TestMultipleSort(t *testing.T) {
-	if sortMultiSort(1, 1, "b", "a") {
-		t.Fatalf("expected true")
-	}
-
-	if !sortMultiSort(1, 1, "a", "b") {
-		t.Fatalf("expected false")
-	}
-
-	if sortMultiSort(1, 2, "a", "b") {
-		t.Fatalf("expected false")
-	}
-
-	if !sortMultiSort(2, 1, "a", "b") {
-		t.Fatalf("expected true")
-	}
-}
