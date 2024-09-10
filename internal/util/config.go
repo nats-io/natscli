@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 )
 
@@ -67,4 +68,58 @@ func SaveConfig(cfg *Config) error {
 	}
 
 	return nil
+}
+
+// XdgShareHome is where to store data like nsc stored
+func XdgShareHome() (string, error) {
+	parent := os.Getenv("XDG_DATA_HOME")
+	if parent != "" {
+		return parent, nil
+	}
+
+	u, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+
+	if u.HomeDir == "" {
+		return "", fmt.Errorf("cannot determine home directory")
+	}
+
+	return filepath.Join(u.HomeDir, ".local", "share"), nil
+}
+
+// ConfigDir is the directory holding configuration files
+func ConfigDir() (string, error) {
+	parent, err := ParentDir()
+	if err != nil {
+		return "", err
+	}
+
+	dir := filepath.Join(parent, "nats", "cli")
+	err = os.MkdirAll(dir, 0700)
+	if err != nil {
+		return "", err
+	}
+
+	return dir, nil
+}
+
+// ParentDir is the parent, controlled by XDG_CONFIG_HOME, for any configuration
+func ParentDir() (string, error) {
+	parent := os.Getenv("XDG_CONFIG_HOME")
+	if parent != "" {
+		return parent, nil
+	}
+
+	u, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+
+	if u.HomeDir == "" {
+		return "", fmt.Errorf("cannot determine home directory")
+	}
+
+	return filepath.Join(u.HomeDir, parent, ".config"), nil
 }

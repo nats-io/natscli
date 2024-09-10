@@ -470,7 +470,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Precision(0),
 			)
 
-			asciigraph.Clear()
+			iu.ClearScreen()
 
 			fmt.Printf("Consumer Statistics for %s > %s\n", c.stream, c.consumer)
 			fmt.Println()
@@ -483,7 +483,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 			fmt.Println(deliveredPlot)
 
 		case <-ctx.Done():
-			asciigraph.Clear()
+			iu.ClearScreen()
 			return nil
 		}
 	}
@@ -941,7 +941,7 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 
 		if len(config.Metadata) > 0 {
 			cols.AddSectionTitle("Metadata")
-			maxLen := progressWidth()
+			maxLen := iu.ProgressWidth()
 			for k, v := range config.Metadata {
 				if len(v) > maxLen && maxLen > 20 {
 					w := maxLen/2 - 10

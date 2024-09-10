@@ -32,6 +32,7 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 )
 
@@ -172,7 +173,7 @@ func (c *subCmd) startGraph(ctx context.Context, mu *sync.Mutex) {
 					c.height -= 6
 				}
 
-				asciigraph.Clear()
+				iu.ClearScreen()
 
 				for _, subject := range c.subjects {
 					rates := c.messageRates[subject]

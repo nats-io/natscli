@@ -27,6 +27,7 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 )
 
@@ -52,7 +53,7 @@ func configureServerWatchJSCommand(watch *fisk.CmdClause) {
 		},
 	}
 
-	sortKeys := mapKeys(c.sortNames)
+	sortKeys := iu.MapKeys(c.sortNames)
 	sort.Strings(sortKeys)
 
 	js := watch.Command("jetstream", "Watch JetStream statistics").Alias("js").Alias("jsz").Action(c.jetstreamAction)
@@ -173,15 +174,15 @@ func (c *SrvWatchJSCmd) redraw() error {
 
 		switch c.sort {
 		case "mem":
-			return sortMultiSort(si.Memory, sj.Memory, servers[i].Server.Name, servers[j].Server.Name)
+			return iu.SortMultiSort(si.Memory, sj.Memory, servers[i].Server.Name, servers[j].Server.Name)
 		case "file":
-			return sortMultiSort(si.Store, sj.Store, servers[i].Server.Name, servers[j].Server.Name)
+			return iu.SortMultiSort(si.Store, sj.Store, servers[i].Server.Name, servers[j].Server.Name)
 		case "api":
-			return sortMultiSort(si.API.Total, sj.API.Total, servers[i].Server.Name, servers[j].Server.Name)
+			return iu.SortMultiSort(si.API.Total, sj.API.Total, servers[i].Server.Name, servers[j].Server.Name)
 		case "err":
-			return sortMultiSort(si.API.Errors, sj.API.Errors, servers[i].Server.Name, servers[j].Server.Name)
+			return iu.SortMultiSort(si.API.Errors, sj.API.Errors, servers[i].Server.Name, servers[j].Server.Name)
 		default:
-			return sortMultiSort(si.HAAssets, sj.HAAssets, servers[i].Server.Name, servers[j].Server.Name)
+			return iu.SortMultiSort(si.HAAssets, sj.HAAssets, servers[i].Server.Name, servers[j].Server.Name)
 		}
 	})
 
@@ -213,7 +214,7 @@ func (c *SrvWatchJSCmd) redraw() error {
 	}
 	table.AddFooter("Totals (All Servers)", f(assets), fiBytes(mem), fiBytes(store), f(api), f(apiError))
 
-	clearScreen()
+	iu.ClearScreen()
 	fmt.Print(table.Render())
 
 	return nil

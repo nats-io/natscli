@@ -500,7 +500,7 @@ func (c *objCommand) putAction(_ *fisk.ParseContext) error {
 		progress = uiprogress.AddBar(int(stat.Size())).PrependFunc(func(b *uiprogress.Bar) string {
 			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
 		})
-		progress.Width = progressWidth()
+		progress.Width = util.ProgressWidth()
 
 		fmt.Println()
 		uiprogress.Start()
@@ -576,7 +576,7 @@ func (c *objCommand) getAction(_ *fisk.ParseContext) error {
 		progress = uiprogress.AddBar(int(nfo.Size)).PrependFunc(func(b *uiprogress.Bar) string {
 			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
 		})
-		progress.Width = progressWidth()
+		progress.Width = util.ProgressWidth()
 
 		fmt.Println()
 		uiprogress.Start()

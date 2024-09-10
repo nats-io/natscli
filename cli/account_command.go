@@ -31,6 +31,7 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/columns"
+	iu "github.com/nats-io/natscli/internal/util"
 )
 
 type actCmd struct {
@@ -403,7 +404,7 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 	tlsc, _ := nc.TLSConnectionState()
 
 	var ui *server.UserInfo
-	if serverMinVersion(nc.ConnectedServerVersion(), 2, 10, 0) {
+	if iu.ServerMinVersion(nc, 2, 10, 0) {
 		subj := "$SYS.REQ.USER.INFO"
 		if opts().Trace {
 			log.Printf(">>> %s: {}\n", subj)

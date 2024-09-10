@@ -522,7 +522,7 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Precision(0),
 			)
 
-			asciigraph.Clear()
+			iu.ClearScreen()
 
 			fmt.Printf("Stream Statistics for %s\n", c.stream)
 			fmt.Println()
@@ -533,7 +533,7 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 			fmt.Println(msgRatePlot)
 
 		case <-ctx.Done():
-			asciigraph.Clear()
+			iu.ClearScreen()
 			return nil
 		}
 	}
@@ -1099,7 +1099,7 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 			progress = uiprogress.AddBar(p.ChunksToSend()).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
 				return humanize.IBytes(bps) + "/s"
 			})
-			progress.Width = progressWidth()
+			progress.Width = iu.ProgressWidth()
 		}
 
 		progress.Set(int(p.ChunksSent()))
@@ -1201,7 +1201,7 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 			bar = progress.AddBar(expected).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
 				return humanize.IBytes(bps) + "/s"
 			})
-			bar.Width = progressWidth()
+			bar.Width = iu.ProgressWidth()
 		}
 
 		if first {

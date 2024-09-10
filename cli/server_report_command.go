@@ -152,16 +152,16 @@ func (c *SrvReportCmd) reportCpuOrMem(mem bool) error {
 		return iu.PrintJSON(usage)
 	}
 
-	width := progressWidth() / 2
+	width := iu.ProgressWidth() / 2
 	if width > 30 {
 		width = 30
 	}
 
 	if mem {
-		return barGraph(os.Stdout, usage, "Memory Usage", width, true)
+		return iu.BarGraph(os.Stdout, usage, "Memory Usage", width, true)
 	}
 
-	return barGraph(os.Stdout, usage, "CPU Usage", width, false)
+	return iu.BarGraph(os.Stdout, usage, "CPU Usage", width, false)
 }
 
 func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {

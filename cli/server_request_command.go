@@ -17,10 +17,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/nats-io/natscli/options"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/nats-io/natscli/options"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"

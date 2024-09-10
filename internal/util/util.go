@@ -18,18 +18,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"math"
 	"os"
-	"os/user"
-	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/dustin/go-humanize"
+	"github.com/guptarohit/asciigraph"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/options"
+	"golang.org/x/exp/constraints"
 
 	"github.com/nats-io/nkeys"
 	terminal "golang.org/x/term"
@@ -97,60 +101,6 @@ func ServerMinVersion(nc *nats.Conn, major, minor, patch int) bool {
 	}
 
 	return true
-}
-
-// XdgShareHome is where to store data like nsc stored
-func XdgShareHome() (string, error) {
-	parent := os.Getenv("XDG_DATA_HOME")
-	if parent != "" {
-		return parent, nil
-	}
-
-	u, err := user.Current()
-	if err != nil {
-		return "", err
-	}
-
-	if u.HomeDir == "" {
-		return "", fmt.Errorf("cannot determine home directory")
-	}
-
-	return filepath.Join(u.HomeDir, ".local", "share"), nil
-}
-
-// ConfigDir is the directory holding configuration files
-func ConfigDir() (string, error) {
-	parent, err := ParentDir()
-	if err != nil {
-		return "", err
-	}
-
-	dir := filepath.Join(parent, "nats", "cli")
-	err = os.MkdirAll(dir, 0700)
-	if err != nil {
-		return "", err
-	}
-
-	return dir, nil
-}
-
-// ParentDir is the parent, controlled by XDG_CONFIG_HOME, for any configuration
-func ParentDir() (string, error) {
-	parent := os.Getenv("XDG_CONFIG_HOME")
-	if parent != "" {
-		return parent, nil
-	}
-
-	u, err := user.Current()
-	if err != nil {
-		return "", err
-	}
-
-	if u.HomeDir == "" {
-		return "", fmt.Errorf("cannot determine home directory")
-	}
-
-	return filepath.Join(u.HomeDir, parent, ".config"), nil
 }
 
 // ToJSON converts any to json string
@@ -349,5 +299,129 @@ func SurveyColors() []survey.AskOpt {
 				icons.Help.Text = ""
 			}
 		}),
+	}
+}
+
+func SortMultiSort[V constraints.Ordered, S string | constraints.Ordered](i1 V, j1 V, i2 S, j2 S) bool {
+	if i1 == j1 {
+		return i2 < j2
+	}
+
+	return i1 > j1
+}
+
+// MapKeys extracts the keys from a map
+func MapKeys[M ~map[K]V, K comparable, V any](m M) []K {
+	r := make([]K, 0, len(m))
+	for k := range m {
+		r = append(r, k)
+	}
+
+	return r
+}
+
+// ClearScreen tries to ensure resetting original state of screen
+func ClearScreen() {
+	asciigraph.Clear()
+}
+
+// BarGraph generates a bar group based on data, copied from choria-io/appbuilder
+func BarGraph(w io.Writer, data map[string]float64, caption string, width int, bytes bool) error {
+	longest := 0
+	minVal := math.MaxFloat64
+	maxVal := -math.MaxFloat64
+	keys := []string{}
+	for k, v := range data {
+		keys = append(keys, k)
+		if len(k) > longest {
+			longest = len(k)
+		}
+
+		if v < minVal {
+			minVal = v
+		}
+
+		if v > maxVal {
+			maxVal = v
+		}
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		return data[keys[i]] < data[keys[j]]
+	})
+
+	if caption != "" {
+		fmt.Fprintln(w, caption)
+		fmt.Fprintln(w)
+	}
+
+	var steps float64
+	if maxVal == minVal {
+		steps = maxVal / float64(width)
+	} else {
+		steps = (maxVal - minVal) / float64(width)
+	}
+
+	longestLine := 0
+	for _, k := range keys {
+		v := data[k]
+
+		var blocks int
+		switch {
+		case v == 0:
+			// value 0 is always 0
+			blocks = 0
+		case len(keys) == 1:
+			// one entry, so we show full width
+			blocks = width
+		case minVal == maxVal:
+			// all entries have same value, so we show full width
+			blocks = width
+		default:
+			blocks = int((v - minVal) / steps)
+		}
+
+		var h string
+		if bytes {
+			h = humanize.IBytes(uint64(v))
+		} else {
+			h = humanize.Commaf(v)
+		}
+
+		bar := strings.Repeat("█", blocks)
+		if blocks == 0 {
+			bar = "▏"
+		}
+
+		line := fmt.Sprintf("%s%s: %s (%s)", strings.Repeat(" ", longest-len(k)+2), k, bar, h)
+		if len(line) > longestLine {
+			longestLine = len(line)
+		}
+
+		fmt.Fprintln(w, line)
+	}
+
+	return nil
+}
+
+// ProgressWidth calculates progress bar width for uiprogress:
+//
+// if it cant figure out the width, assume 80
+// if the width is too small, set it to minWidth and just live with the overflow
+//
+// this ensures a reasonable progress size, ideally we should switch over
+// to a spinner for < minWidth rather than cause overflows, but thats for later.
+func ProgressWidth() int {
+	w, _, err := terminal.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return 80
+	}
+
+	minWidth := 10
+
+	if w-30 <= minWidth {
+		return minWidth
+	} else {
+		return w - 30
 	}
 }
