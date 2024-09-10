@@ -1304,6 +1304,8 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 			cfg.DeliverSubject = c.delivery
 		}
 
+		cfg.Metadata = iu.RemoveReservedMetadata(cfg.Metadata)
+
 		return cfg, err
 	}
 
@@ -1596,6 +1598,8 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 			return nil, err
 		}
 	}
+
+	cfg.Metadata = iu.RemoveReservedMetadata(cfg.Metadata)
 
 	return cfg, nil
 }

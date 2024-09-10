@@ -2349,6 +2349,8 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		cfg, err := c.loadConfigFile(c.inputFile)
 		fisk.FatalIfError(err, "invalid input")
 
+		cfg.Metadata = iu.RemoveReservedMetadata(cfg.Metadata)
+
 		if c.stream != "" {
 			cfg.Name = c.stream
 		}
@@ -2679,6 +2681,8 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 			Destination: c.subjectTransformDest,
 		}
 	}
+
+	cfg.Metadata = iu.RemoveReservedMetadata(cfg.Metadata)
 
 	return cfg
 }
