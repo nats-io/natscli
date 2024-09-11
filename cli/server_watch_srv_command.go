@@ -208,8 +208,12 @@ func (c *SrvWatchServerCmd) redraw() error {
 		tc = fmt.Sprintf("%d / %d", c.topCount, len(servers))
 	}
 
+	if c.lastMsg.IsZero() {
+		c.lastMsg = time.Now()
+	}
+
 	table := newTableWriter(fmt.Sprintf("Top %s Server activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime)))
-	table.AddHeaders("Server", "Connections", "Subscription", "Slow", "Memory", "CPU", "Routes", "Gateways", "Sent", "Received")
+	table.AddHeaders("Server", "Connections", "Subscription", "Slow", "Memory", "CPU", "Cores", "Routes", "Gateways", "Sent", "Received")
 
 	var matched []*server.ServerStatsMsg
 	if len(servers) < c.topCount {
@@ -227,6 +231,7 @@ func (c *SrvWatchServerCmd) redraw() error {
 			f(st.SlowConsumers),
 			fiBytes(uint64(st.Mem)),
 			f(st.CPU),
+			f(st.Cores),
 			f(len(st.Routes)),
 			f(len(st.Gateways)),
 			fmt.Sprintf("%s / %s", f(st.Sent.Msgs), fiBytes(uint64(st.Sent.Bytes))),
@@ -234,7 +239,7 @@ func (c *SrvWatchServerCmd) redraw() error {
 		)
 	}
 
-	table.AddFooter("Totals (All Servers)", f(conns), f(subs), f(slow), fiBytes(uint64(mem)), "", "", "", fmt.Sprintf("%s / %s", f(sentM), fiBytes(uint64(sentB))), fmt.Sprintf("%s / %s", f(recvM), fiBytes(uint64(recvB))))
+	table.AddFooter("Totals (All Servers)", f(conns), f(subs), f(slow), fiBytes(uint64(mem)), "", "", "", "", fmt.Sprintf("%s / %s", f(sentM), fiBytes(uint64(sentB))), fmt.Sprintf("%s / %s", f(recvM), fiBytes(uint64(recvB))))
 
 	iu.ClearScreen()
 	fmt.Print(table.Render())
