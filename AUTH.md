@@ -4,13 +4,13 @@ The `nats auth` command is a new addition that aims to bring the most common fea
 the `nats` command.  The aim is not to have 100% feature parity but rather to provide a easy to use
 solution for what most people will use.
 
-It remains compatible with the `nsc` store and so users can switch between these commands.
+It remains compatible with the `nsc` storage format and default storage location, so users can switch between these commands.
 
 It is implemented using a new [Go SDK](https://github.com/synadia-io/jwt-auth-builder.go/) allowing
 programmatic interaction with the `nsc` store.
 
-This guide is based on the [nsc documentation](https://docs.nats.io/using-nats/nats-tools/nsc) and attempts to 
-achieve the same outcome.
+This guide replicates the steps in the getting started guide of [nsc basics documentation](https://docs.nats.io/using-nats/nats-tools/nsc/basics) and attempts to 
+
 
 ## Limitations
 
@@ -111,7 +111,21 @@ Permissions:
 
 ## Configuring NATS Server
 
-Using `nats server generate` create a configuration file which will pre-load the important JWTs.
+Using `nats server generate nats-server.conf` create a configuration file which will pre-load the important JWTs.
+```
+This tool generates NATS Server configurations based on a question and answer
+form-based approach and then renders the result into a directory.
+
+It supports rendering local bundles compiled into the 'nats' command but can also
+fetch and render remote ones using a URL.
+
+[LOCAL] ? Select a template  [Use arrows to move, type to filter]
+> 'nats auth' managed NATS Server configuration
+  Development Super Cluster using Docker Compose
+  Synadia Cloud Leafnode Configuration
+```
+
+Starting with the generated config, the server log should show the trusted operators.
 
 ```
 $ nats-server --config nats-server.conf
@@ -123,12 +137,12 @@ $ nats-server --config nats-server.conf
 [31] 2024/04/23 09:49:20.430708 [INF]   Expires : Never
 ```
 
-The dynamic account - `MyAccount` in this case - needs to be sent to the NATS Server `SYSTEM` account before you can use it.
+## Creating a system user to connect to the new server
+
+The newly created account - `MyAccount` in this case - needs to be sent to the NATS Server's `SYSTEM` account before you can use it.
 To do this we need a `SYSTEM` account user and credential.
 
-Unlike `nsc` that makes credentials on demand to push to the servers we use contexts to authenticate to the system account
-which feels more in-line with how the `nats` command works. We need a user and credentials for a system user, if we do 
-not supply the username or account they will be prompted for:
+Unlike `nsc`, which makes credentials on demand to push to the servers, we use contexts to authenticate to the system account which feels more in-line with how the `nats` command works. We create a user and credentials for a system user.
 
 ```
 # nats auth user add admin SYSTEM
@@ -136,7 +150,7 @@ not supply the username or account they will be prompted for:
 Wrote credential for admin to /path/to/system.cred
 # nats ctx add system --description "System Account" --server localhost:4222 --creds /path/to/system.cred
 ```
-
+## Synchronizing the configuration
 Next we use the credential we just made to push to the server:
 
 ```
@@ -148,7 +162,7 @@ Updating account MyAccount (ADNJMEHSIAQAE3X5EKGABVVOFX3GECHZKG6M4DK72ZDHEPQ5YW4C
 Success 1 Failed 0 Expected 1
 ```
 
-## User Authorization
+## User authentication and login
 
 To do a basic test of publish / subscribe we can use the user we created earlier:
 
@@ -172,6 +186,8 @@ And in a another terminal we communicate with it:
 10:20:41 Received with rtt 627.799µs
 x
 ```
+
+## User with subject based authorization
 
 Now lets lock the requester and responder down, we'll add a user for the service with appropriate permissions.
 
@@ -206,7 +222,7 @@ Permissions:
 x
 ```
 
-And we confirm the limits are applied by subscribing to an invalid subject:
+And we confirm the restrictions are applied by subscribing to an invalid subject:
 
 ```
 # nats req other x --creds myuser.cred
@@ -214,7 +230,7 @@ And we confirm the limits are applied by subscribing to an invalid subject:
 10:36:36 Unexpected NATS error from server nats://127.0.0.1:4222: nats: Permissions Violation for Publish to "other"
 ```
 
-## Imports and Exports
+## Subject Imports and Exports
 
 For the examples below we'll add an account and some users with their credentials:
 
