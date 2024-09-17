@@ -425,3 +425,8 @@ func ProgressWidth() int {
 		return w - 30
 	}
 }
+
+// JSONString returns a quoted string to be used as a JSON object
+func JSONString(s string) string {
+	return "\"" + s + "\""
+}
