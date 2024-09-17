@@ -69,7 +69,8 @@ func FromFile(file string) (*Bundle, error) {
 // FromUrl reads a bundle from a http(s) URL
 func FromUrl(url *url.URL) (*Bundle, error) {
 	if url.Scheme == "fs" {
-		return FromFs(Store, filepath.Join("store", url.Path))
+		// fs requires unix paths even on windows
+		return FromFs(Store, strings.ReplaceAll(filepath.Join("store", url.Path), `\`, `/`))
 	}
 
 	res, err := http.Get(url.String())
