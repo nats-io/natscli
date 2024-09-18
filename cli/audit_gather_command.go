@@ -268,8 +268,9 @@ func (c *auditGatherCmd) gather(_ *fisk.ParseContext) error {
 // Discover servers by broadcasting a PING and then collecting responses
 func (c *auditGatherCmd) discoverServers(nc *nats.Conn) (map[string]*server.ServerInfo, error) {
 	var serverInfoMap = make(map[string]*server.ServerInfo)
+
 	c.logProgress("Broadcasting PING to discover servers... (this may take a few seconds)")
-	err := doReqAsync(nil, "$SYS.REQ.SERVER.PING", 0, nc, func(b []byte) {
+	err := doReqAsync(nil, "$SYS.REQ.SERVER.PING", doReqAsyncWaitFullTimeoutInterval, nc, func(b []byte) {
 		var apiResponse server.ServerAPIResponse
 		if err := json.Unmarshal(b, &apiResponse); err != nil {
 			c.logWarning("Failed to deserialize PING response: %s", err)
