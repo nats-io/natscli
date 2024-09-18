@@ -243,6 +243,33 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			gwaysOk = "X"
 		}
 
+		var slow []string
+		if ssm.Stats.SlowConsumersStats != nil {
+			sstat := ssm.Stats.SlowConsumersStats
+			if sstat.Clients > 0 {
+				slow = append(slow, fmt.Sprintf("c: %s", f(sstat.Clients)))
+			}
+			if sstat.Routes > 0 {
+				slow = append(slow, fmt.Sprintf("r: %s", f(sstat.Routes)))
+			}
+			if sstat.Gateways > 0 {
+				slow = append(slow, fmt.Sprintf("g: %s", f(sstat.Gateways)))
+			}
+			if sstat.Leafs > 0 {
+				slow = append(slow, fmt.Sprintf("l: %s", f(sstat.Leafs)))
+			}
+
+			// only print details if non clients also had slow consumers
+			if len(slow) == 1 && sstat.Clients > 0 {
+				slow = []string{}
+			}
+		}
+
+		sc := f(ssm.Stats.SlowConsumers)
+		if len(slow) > 0 {
+			sc = fmt.Sprintf("%s (%s)", sc, strings.Join(slow, " "))
+		}
+
 		table.AddRow(
 			cNames[i],
 			cluster,
@@ -256,7 +283,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			humanize.IBytes(uint64(ssm.Stats.Mem)),
 			fmt.Sprintf("%.0f", ssm.Stats.CPU),
 			ssm.Stats.Cores,
-			ssm.Stats.SlowConsumers,
+			sc,
 			f(ssm.Server.Time.Sub(ssm.Stats.Start)),
 			f(ssm.rtt.Round(time.Millisecond)))
 	}
