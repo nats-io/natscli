@@ -31,6 +31,8 @@ func configureServerCommand(app commandHost) {
 	configureServerRequestCommand(srv)
 	configureServerRunCommand(srv)
 	configureServerWatchCommand(srv)
+	configureStreamCheckCommand(srv)
+	configureConsumerCheckCommand(srv)
 }
 
 func init() {
