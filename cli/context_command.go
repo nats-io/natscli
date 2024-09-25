@@ -17,12 +17,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"os/exec"
 	"sort"
 	"strings"
 	"text/template"
+
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -450,7 +451,9 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 		if file == "" {
 			return ""
 		}
-
+		if strings.HasPrefix(file, "op://") {
+			return color.CyanString("1Password")
+		}
 		ok, err := fileAccessible(file)
 		if !ok || err != nil {
 			c.validateErrors++
