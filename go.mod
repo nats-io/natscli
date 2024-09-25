@@ -18,17 +18,17 @@ require (
 	github.com/guptarohit/asciigraph v0.7.2
 	github.com/jedib0t/go-pretty/v6 v6.5.9
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.17.9
+	github.com/klauspost/compress v1.17.10
 	github.com/mattn/go-isatty v0.0.20
-	github.com/nats-io/jsm.go v0.1.1-0.20240919203217-782ac92b60d7
-	github.com/nats-io/jwt/v2 v2.6.0
-	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240924173324-4954cc0786ee
+	github.com/nats-io/jsm.go v0.1.1-0.20240925194717-21ca5720ba1e
+	github.com/nats-io/jwt/v2 v2.7.0
+	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240925161109-4c21aa3ac686
 	github.com/nats-io/nats.go v1.37.0
 	github.com/nats-io/nkeys v0.4.7
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.20.4
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240628155003-21e8d1e9d490
+	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240829124321-43722a8ce3ce
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.27.0
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
@@ -63,7 +63,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	go.uber.org/automaxprocs v1.5.3 // indirect
 	golang.org/x/net v0.29.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
