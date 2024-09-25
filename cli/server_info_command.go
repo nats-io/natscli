@@ -150,6 +150,8 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 		}
 		cols.AddRow("Maximum Memory Storage", humanize.IBytes(uint64(js.Config.MaxMemory)))
 		cols.AddRow("Maximum File Storage", humanize.IBytes(uint64(js.Config.MaxStore)))
+		cols.AddRowIfNotEmpty("Unique Tag", js.Config.UniqueTag)
+		cols.AddRow("Cluster Message Compression", js.Config.CompressOK)
 		if js.Limits != nil {
 			cols.AddRowUnlimited("Maximum HA Assets", int64(js.Limits.MaxHAAssets), 0)
 			cols.AddRowUnlimited("Maximum Ack Pending", int64(js.Limits.MaxAckPending), 0)
