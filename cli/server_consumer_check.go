@@ -175,10 +175,11 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 	fmt.Printf("Consumers: %d\n", len(keys))
 
 	table := newTableWriter("Consumers")
-	table.AddHeaders("Consumer", "Stream", "Raft", "Account", "Account ID", "Node", "Delivered (S,C)", "ACK Floor (S,C)", "Counters", "Status", "Leader", "Stream Cluster Leader", "Peers")
 
 	if c.health {
-		table.AddHeaders("Health")
+		table.AddHeaders("Consumer", "Stream", "Raft", "Account", "Account ID", "Node", "Delivered (S,C)", "ACK Floor (S,C)", "Counters", "Status", "Leader", "Stream Cluster Leader", "Peers", "Health")
+	} else {
+		table.AddHeaders("Consumer", "Stream", "Raft", "Account", "Account ID", "Node", "Delivered (S,C)", "ACK Floor (S,C)", "Counters", "Status", "Leader", "Stream Cluster Leader", "Peers")
 	}
 
 	for _, k := range keys {

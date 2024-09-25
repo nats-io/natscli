@@ -123,10 +123,10 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 	fmt.Printf("Streams: %d\n", len(keys))
 
 	table := newTableWriter("Streams")
-	table.AddHeaders("Stream Replica", "Raft", "Account", "Account ID", "Node", "Messages", "Bytes", "Subjects", "Deleted", "Consumers", "First", "Last", "Status", "Leader", "Peers")
-
 	if c.health {
-		table.AddHeaders("Health")
+		table.AddHeaders("Stream Replica", "Raft", "Account", "Account ID", "Node", "Messages", "Bytes", "Subjects", "Deleted", "Consumers", "First", "Last", "Status", "Leader", "Peers", "Health")
+	} else {
+		table.AddHeaders("Stream Replica", "Raft", "Account", "Account ID", "Node", "Messages", "Bytes", "Subjects", "Deleted", "Consumers", "First", "Last", "Status", "Leader", "Peers")
 	}
 
 	for _, k := range keys {

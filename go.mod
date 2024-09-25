@@ -22,7 +22,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/nats-io/jsm.go v0.1.1-0.20240919203217-782ac92b60d7
 	github.com/nats-io/jwt/v2 v2.6.0
-	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240919192050-816061f4f441
+	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240924173324-4954cc0786ee
 	github.com/nats-io/nats.go v1.37.0
 	github.com/nats-io/nkeys v0.4.7
 	github.com/nats-io/nuid v1.0.1
@@ -63,6 +63,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
+	go.uber.org/automaxprocs v1.5.3 // indirect
 	golang.org/x/net v0.29.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
