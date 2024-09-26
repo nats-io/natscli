@@ -229,12 +229,18 @@ func (c *SrvWatchJSCmd) redraw(drawPending bool) error {
 
 	for _, srv := range matched {
 		js := srv.Stats.JetStream.Stats
+		name := srv.Server.Name
+
 		pending := 0
 		if srv.Stats.JetStream.Meta != nil {
 			pending = srv.Stats.JetStream.Meta.Pending
+			if srv.Stats.JetStream.Meta.Leader == name {
+				name = name + "*"
+			}
 		}
 
-		row := []any{srv.Server.Name,
+		row := []any{
+			name,
 			f(js.HAAssets),
 			fiBytes(js.Memory),
 			fiBytes(js.Store),
