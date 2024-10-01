@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -143,7 +145,10 @@ func (c *objCommand) watchAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	w, err := obj.Watch(nats.IncludeHistory())
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	w, err := obj.Watch(ctx, jetstream.IncludeHistory())
 	if err != nil {
 		return err
 	}
@@ -179,7 +184,10 @@ func (c *objCommand) sealAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	err = obj.Seal()
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	err = obj.Seal(ctx)
 	if err != nil {
 		return err
 	}
@@ -195,9 +203,13 @@ func (c *objCommand) delAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
 	if c.file != "" {
 		if !c.force {
-			nfo, err := obj.GetInfo(c.file)
+
+			nfo, err := obj.GetInfo(ctx, c.file)
 			if err != nil {
 				return err
 			}
@@ -212,7 +224,7 @@ func (c *objCommand) delAction(_ *fisk.ParseContext) error {
 				return nil
 			}
 		}
-		err = obj.Delete(c.file)
+		err = obj.Delete(ctx, c.file)
 		if err != nil {
 			return err
 		}
@@ -239,7 +251,10 @@ func (c *objCommand) delAction(_ *fisk.ParseContext) error {
 			return err
 		}
 
-		return js.DeleteObjectStore(c.bucket)
+		ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+		defer cancel()
+
+		return js.DeleteObjectStore(ctx, c.bucket)
 	}
 }
 
@@ -253,7 +268,10 @@ func (c *objCommand) infoAction(_ *fisk.ParseContext) error {
 		return c.showBucketInfo(obj)
 	}
 
-	nfo, err := obj.GetInfo(c.file)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	nfo, err := obj.GetInfo(ctx, c.file)
 	if err != nil {
 		return err
 	}
@@ -263,15 +281,18 @@ func (c *objCommand) infoAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
-	status, err := store.Status()
+func (c *objCommand) showBucketInfo(store jetstream.ObjectStore) error {
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	status, err := store.Status(ctx)
 	if err != nil {
 		return err
 	}
 
-	var nfo *nats.StreamInfo
+	var nfo *jetstream.StreamInfo
 	if status.BackingStore() == "JetStream" {
-		nfo = status.(*nats.ObjectBucketStatus).StreamInfo()
+		nfo = status.(*jetstream.ObjectBucketStatus).StreamInfo()
 	}
 
 	cols := newColumns("")
@@ -319,7 +340,7 @@ func (c *objCommand) showBucketInfo(store nats.ObjectStore) error {
 	return nil
 }
 
-func (c *objCommand) showObjectInfo(nfo *nats.ObjectInfo) {
+func (c *objCommand) showObjectInfo(nfo *jetstream.ObjectInfo) {
 	digest := strings.SplitN(nfo.Digest, "=", 2)
 	digestBytes, _ := base64.URLEncoding.DecodeString(digest[1])
 
@@ -403,7 +424,10 @@ func (c *objCommand) lsAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	contents, err := obj.List()
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	contents, err := obj.List(ctx)
 	if err != nil {
 		return err
 	}
@@ -447,7 +471,10 @@ func (c *objCommand) putAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("--name is required when reading from stdin")
 	}
 
-	nfo, err := obj.GetInfo(name)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	nfo, err := obj.GetInfo(ctx, name)
 	if err == nil && !nfo.Deleted && !c.force {
 		c.showObjectInfo(nfo)
 		fmt.Println()
@@ -486,7 +513,7 @@ func (c *objCommand) putAction(_ *fisk.ParseContext) error {
 		pr = f
 	}
 
-	meta := &nats.ObjectMeta{
+	meta := jetstream.ObjectMeta{
 		Name:        filepath.Clean(name),
 		Description: c.description,
 		Headers:     hdr,
@@ -508,7 +535,7 @@ func (c *objCommand) putAction(_ *fisk.ParseContext) error {
 		pr = &progressRW{p: progress, r: pr}
 	}
 
-	nfo, err = obj.Put(meta, pr)
+	nfo, err = obj.Put(ctx, meta, pr)
 	stop()
 	if err != nil {
 		return err
@@ -525,7 +552,10 @@ func (c *objCommand) getAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	res, err := obj.Get(c.file)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	res, err := obj.Get(ctx, c.file)
 	if err != nil {
 		return err
 	}
@@ -616,17 +646,20 @@ func (c *objCommand) addAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	st := nats.FileStorage
+	st := jetstream.FileStorage
 	if c.storage == "memory" || c.storage == "m" {
-		st = nats.MemoryStorage
+		st = jetstream.MemoryStorage
 	}
 
-	placement := &nats.Placement{Cluster: c.placementCluster}
+	placement := &jetstream.Placement{Cluster: c.placementCluster}
 	if len(c.placementTags) > 0 {
 		placement.Tags = c.placementTags
 	}
 
-	obj, err := js.CreateObjectStore(&nats.ObjectStoreConfig{
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	obj, err := js.CreateObjectStore(ctx, jetstream.ObjectStoreConfig{
 		Bucket:      c.bucket,
 		Description: c.description,
 		TTL:         c.ttl,
@@ -644,7 +677,7 @@ func (c *objCommand) addAction(_ *fisk.ParseContext) error {
 	return c.showBucketInfo(obj)
 }
 
-func (c *objCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.ObjectStore, error) {
+func (c *objCommand) loadBucket() (*nats.Conn, jetstream.JetStream, jetstream.ObjectStore, error) {
 	nc, js, err := prepareJSHelper()
 	if err != nil {
 		return nil, nil, nil, err
@@ -670,7 +703,10 @@ func (c *objCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.Objec
 		}
 	}
 
-	store, err := js.ObjectStore(c.bucket)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	store, err := js.ObjectStore(ctx, c.bucket)
 	if err != nil {
 		return nil, nil, nil, err
 	}

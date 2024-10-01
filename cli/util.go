@@ -36,6 +36,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/options"
 
 	iu "github.com/nats-io/natscli/internal/util"
@@ -376,7 +377,7 @@ func newNatsConn(servers string, copts ...nats.Option) (*nats.Conn, error) {
 	return newNatsConnUnlocked(servers, copts...)
 }
 
-func prepareJSHelper() (*nats.Conn, nats.JetStreamContext, error) {
+func prepareJSHelper() (*nats.Conn, jetstream.JetStream, error) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -394,12 +395,13 @@ func prepareJSHelper() (*nats.Conn, nats.JetStreamContext, error) {
 		return opts.Conn, opts.JSc, nil
 	}
 
-	opts.JSc, err = opts.Conn.JetStream(jsOpts()...)
+	opts.JSc, err = jetstream.New(opts.Conn)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return opts.Conn, opts.JSc, nil
+
 }
 
 func prepareHelper(servers string, copts ...nats.Option) (*nats.Conn, *jsm.Manager, error) {
