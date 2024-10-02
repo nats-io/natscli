@@ -14,10 +14,12 @@
 package options
 
 import (
+	"time"
+
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/natscontext"
 	"github.com/nats-io/nats.go"
-	"time"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 var DefaultOptions *Options
@@ -63,7 +65,7 @@ type Options struct {
 	// Mgr sets a prepared jsm Manager to use for JetStream access
 	Mgr *jsm.Manager
 	// JSc is a prepared NATS JetStream context to use for KV and Object access
-	JSc nats.JetStreamContext
+	JSc jetstream.JetStream
 	// Disables registering of CLI cheats
 	NoCheats bool
 	// PrometheusNamespace is the namespace to use for prometheus format output in server check

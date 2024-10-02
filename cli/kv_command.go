@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -118,7 +120,7 @@ for an indefinite period or a per-bucket configured TTL.
 	update.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	update.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	update.Arg("value", "The value to store").Required().StringVar(&c.val)
-	update.Arg("revision", "The revision of the previous value in the bucket").Uint64Var(&c.revision)
+	update.Arg("revision", "The revision of the previous value in the bucket").Required().Uint64Var(&c.revision)
 
 	del := kv.Command("del", "Deletes a key or the entire bucket").Alias("rm").Action(c.deleteAction)
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -183,13 +185,13 @@ func (c *kvCommand) parseLimitStrings(_ *fisk.ParseContext) (err error) {
 	return nil
 }
 
-func (c *kvCommand) strForOp(op nats.KeyValueOp) string {
+func (c *kvCommand) strForOp(op jetstream.KeyValueOp) string {
 	switch op {
-	case nats.KeyValuePut:
+	case jetstream.KeyValuePut:
 		return "PUT"
-	case nats.KeyValuePurge:
+	case jetstream.KeyValuePurge:
 		return "PURGE"
-	case nats.KeyValueDelete:
+	case jetstream.KeyValueDelete:
 		return "DELETE"
 	default:
 		return "UNKNOWN"
@@ -210,12 +212,15 @@ func (c *kvCommand) lsBucketKeys() error {
 		return fmt.Errorf("unable to prepare js helper: %s", err)
 	}
 
-	kv, err := js.KeyValue(c.bucket)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	kv, err := js.KeyValue(ctx, c.bucket)
 	if err != nil {
 		return fmt.Errorf("unable to load bucket: %s", err)
 	}
 
-	lister, err := kv.ListKeys()
+	lister, err := kv.ListKeys(ctx)
 	if err != nil {
 		return err
 	}
@@ -240,7 +245,7 @@ func (c *kvCommand) lsBucketKeys() error {
 	return nil
 }
 
-func (c *kvCommand) displayKeyInfo(kv nats.KeyValue, keys nats.KeyLister) (bool, error) {
+func (c *kvCommand) displayKeyInfo(kv jetstream.KeyValue, keys jetstream.KeyLister) (bool, error) {
 	var found bool
 
 	if kv == nil {
@@ -255,9 +260,12 @@ func (c *kvCommand) displayKeyInfo(kv nats.KeyValue, keys nats.KeyLister) (bool,
 		table.AddHeaders("Key", "Created", "Delta", "Revision")
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
 	for keyName := range keys.Keys() {
 		found = true
-		kve, err := kv.Get(keyName)
+		kve, err := kv.Get(ctx, keyName)
 		if err != nil {
 			return found, fmt.Errorf("unable to fetch key %s: %s", keyName, err)
 		}
@@ -336,7 +344,19 @@ func (c *kvCommand) revertAction(pc *fisk.ParseContext) error {
 		return err
 	}
 
-	rev, err := store.GetRevision(c.key, c.revision)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	history, err := store.History(ctx, c.key)
+	if err != nil {
+		return err
+	}
+
+	if len(history) <= 1 {
+		return errors.New("cannot revert key in a bucket where history=1")
+	}
+
+	rev, err := store.GetRevision(ctx, c.key, c.revision)
 	if err != nil {
 		return err
 	}
@@ -355,7 +375,10 @@ func (c *kvCommand) revertAction(pc *fisk.ParseContext) error {
 		}
 	}
 
-	_, err = store.Put(c.key, rev.Value())
+	// We get the latest revision number so that we can revert with update() over put()
+	latestRevision := history[len(history)-1].Revision()
+
+	_, err = store.Update(ctx, c.key, rev.Value(), latestRevision)
 	if err != nil {
 		return err
 	}
@@ -369,7 +392,10 @@ func (c *kvCommand) historyAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	history, err := store.History(c.key)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	history, err := store.History(ctx, c.key)
 	if err != nil {
 		return err
 	}
@@ -408,7 +434,10 @@ func (c *kvCommand) compactAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	return store.PurgeDeletes()
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	return store.PurgeDeletes(ctx)
 }
 
 func (c *kvCommand) deleteAction(pc *fisk.ParseContext) error {
@@ -433,7 +462,10 @@ func (c *kvCommand) deleteAction(pc *fisk.ParseContext) error {
 		}
 	}
 
-	return store.Delete(c.key)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	return store.Delete(ctx, c.key)
 }
 
 func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
@@ -442,20 +474,20 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	storage := nats.FileStorage
+	storage := jetstream.FileStorage
 	if strings.HasPrefix(c.storage, "m") {
-		storage = nats.MemoryStorage
+		storage = jetstream.MemoryStorage
 	}
 
-	var placement *nats.Placement
+	var placement *jetstream.Placement
 	if c.placementCluster != "" || len(c.placementTags) > 0 {
-		placement = &nats.Placement{Cluster: c.placementCluster}
+		placement = &jetstream.Placement{Cluster: c.placementCluster}
 		if len(c.placementTags) > 0 {
 			placement.Tags = c.placementTags
 		}
 	}
 
-	cfg := &nats.KeyValueConfig{
+	cfg := jetstream.KeyValueConfig{
 		Bucket:       c.bucket,
 		Description:  c.description,
 		MaxValueSize: int32(c.maxValueSize),
@@ -469,7 +501,7 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.repubDest != "" {
-		cfg.RePublish = &nats.RePublish{
+		cfg.RePublish = &jetstream.RePublish{
 			Source:      c.repubSource,
 			Destination: c.repubDest,
 			HeadersOnly: c.repubHeadersOnly,
@@ -477,19 +509,22 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.mirror != "" {
-		cfg.Mirror = &nats.StreamSource{
+		cfg.Mirror = &jetstream.StreamSource{
 			Name:   c.mirror,
 			Domain: c.mirrorDomain,
 		}
 	}
 
 	for _, source := range c.sources {
-		cfg.Sources = append(cfg.Sources, &nats.StreamSource{
+		cfg.Sources = append(cfg.Sources, &jetstream.StreamSource{
 			Name: source,
 		})
 	}
 
-	store, err := js.CreateKeyValue(cfg)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	store, err := js.CreateKeyValue(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -503,11 +538,14 @@ func (c *kvCommand) getAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	var res nats.KeyValueEntry
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	var res jetstream.KeyValueEntry
 	if c.revision > 0 {
-		res, err = store.GetRevision(c.key, c.revision)
+		res, err = store.GetRevision(ctx, c.key, c.revision)
 	} else {
-		res, err = store.Get(c.key)
+		res, err = store.Get(ctx, c.key)
 	}
 	if err != nil {
 		return err
@@ -545,7 +583,10 @@ func (c *kvCommand) putAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	_, err = store.Put(c.key, val)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	_, err = store.Put(ctx, c.key, val)
 	if err != nil {
 		return err
 	}
@@ -566,7 +607,10 @@ func (c *kvCommand) createAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	_, err = store.Create(c.key, val)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	_, err = store.Create(ctx, c.key, val)
 	if err != nil {
 		return err
 	}
@@ -587,7 +631,10 @@ func (c *kvCommand) updateAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	_, err = store.Update(c.key, val, c.revision)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	_, err = store.Update(ctx, c.key, val, c.revision)
 	if err != nil {
 		return err
 	}
@@ -605,7 +652,7 @@ func (c *kvCommand) valOrReadVal() ([]byte, error) {
 	return io.ReadAll(os.Stdin)
 }
 
-func (c *kvCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.KeyValue, error) {
+func (c *kvCommand) loadBucket() (*nats.Conn, jetstream.JetStream, jetstream.KeyValue, error) {
 	nc, js, err := prepareJSHelper()
 	if err != nil {
 		return nil, nil, nil, err
@@ -631,7 +678,10 @@ func (c *kvCommand) loadBucket() (*nats.Conn, nats.JetStreamContext, nats.KeyVal
 		}
 	}
 
-	store, err := js.KeyValue(c.bucket)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	store, err := js.KeyValue(ctx, c.bucket)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -675,7 +725,10 @@ func (c *kvCommand) watchAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	watch, err := store.Watch(c.key)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	watch, err := store.Watch(ctx, c.key)
 	if err != nil {
 		return err
 	}
@@ -687,9 +740,9 @@ func (c *kvCommand) watchAction(_ *fisk.ParseContext) error {
 		}
 
 		switch res.Operation() {
-		case nats.KeyValueDelete, nats.KeyValuePurge:
+		case jetstream.KeyValueDelete, jetstream.KeyValuePurge:
 			fmt.Printf("[%s] %s %s > %s\n", f(res.Created()), color.RedString(c.strForOp(res.Operation())), res.Bucket(), res.Key())
-		case nats.KeyValuePut:
+		case jetstream.KeyValuePut:
 			fmt.Printf("[%s] %s %s > %s: %s\n", f(res.Created()), color.GreenString(c.strForOp(res.Operation())), res.Bucket(), res.Key(), res.Value())
 		}
 	}
@@ -715,7 +768,10 @@ func (c *kvCommand) purgeAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	return store.Purge(c.key)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	return store.Purge(ctx, c.key)
 }
 
 func (c *kvCommand) rmBucketAction(_ *fisk.ParseContext) error {
@@ -736,18 +792,24 @@ func (c *kvCommand) rmBucketAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	return js.DeleteKeyValue(c.bucket)
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	return js.DeleteKeyValue(ctx, c.bucket)
 }
 
-func (c *kvCommand) showStatus(store nats.KeyValue) error {
-	status, err := store.Status()
+func (c *kvCommand) showStatus(store jetstream.KeyValue) error {
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	status, err := store.Status(ctx)
 	if err != nil {
 		return err
 	}
 
-	var nfo *nats.StreamInfo
+	var nfo *jetstream.StreamInfo
 	if status.BackingStore() == "JetStream" {
-		nfo = status.(*nats.KeyValueBucketStatus).StreamInfo()
+		nfo = status.(*jetstream.KeyValueBucketStatus).StreamInfo()
 	}
 
 	cols := newColumns("")
@@ -797,26 +859,31 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 		}
 
 		if nfo.Mirror != nil {
-			s := nfo.Mirror
+			s := nfo.Config.Mirror
 			cols.AddSectionTitle("Mirror Information")
 			cols.AddRow("Origin Bucket", strings.TrimPrefix(s.Name, "KV_"))
 			if s.External != nil {
 				cols.AddRow("External API", s.External.APIPrefix)
 			}
-			if s.Active > 0 && s.Active < math.MaxInt64 {
-				cols.AddRow("Last Seen", s.Active)
+
+			if nfo.Mirror.Active > 0 && nfo.Mirror.Active < math.MaxInt64 {
+				cols.AddRow("Last Seen", nfo.Mirror.Active)
 			} else {
 				cols.AddRowf("Last Seen", "never")
 			}
-			cols.AddRow("Lag", s.Lag)
+			cols.AddRow("Lag", nfo.Mirror.Lag)
 		}
 
 		if len(nfo.Sources) > 0 {
 			cols.AddSectionTitle("Sources Information")
 			for _, source := range nfo.Sources {
-				cols.AddRow("Source Bucket", strings.TrimPrefix(source.Name, "KV_"))
-				if source.External != nil {
-					cols.AddRow("External API", source.External.APIPrefix)
+				for _, s := range nfo.Config.Sources {
+					if s.Name == source.Name {
+						cols.AddRow("Source Bucket", strings.TrimPrefix(source.Name, "KV_"))
+						if s.External != nil {
+							cols.AddRow("External API", s.External.APIPrefix)
+						}
+					}
 				}
 				if source.Active > 0 && source.Active < math.MaxInt64 {
 					cols.AddRow("Last Seen", source.Active)
@@ -836,7 +903,7 @@ func (c *kvCommand) showStatus(store nats.KeyValue) error {
 	return nil
 }
 
-func renderNatsGoClusterInfo(cols *columns.Writer, info *nats.StreamInfo) {
+func renderNatsGoClusterInfo(cols *columns.Writer, info *jetstream.StreamInfo) {
 	cols.AddRow("Name", info.Cluster.Name)
 	cols.AddRow("Leader", info.Cluster.Leader)
 	for _, r := range info.Cluster.Replicas {
