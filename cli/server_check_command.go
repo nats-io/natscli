@@ -174,7 +174,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	msg.Flag("subject", "The subject to fetch a message from").Default(">").StringVar(&c.msgSubject)
 	msg.Flag("age-warn", "Warning threshold for message age as a duration").PlaceHolder("DURATION").DurationVar(&c.msgAgeWarn)
 	msg.Flag("age-critical", "Critical threshold for message age as a duration").PlaceHolder("DURATION").DurationVar(&c.msgAgeCrit)
-	msg.Flag("content", "Regular expression to check the content against").PlaceHolder("REGEX").RegexpVar(&c.msgRegexp)
+	msg.Flag("content", "Regular expression to check the content against").PlaceHolder("REGEX").Default(".").RegexpVar(&c.msgRegexp)
 	msg.Flag("body-timestamp", "Use message body as a unix timestamp instead of message metadata").UnNegatableBoolVar(&c.msgBodyAsTs)
 
 	meta := check.Command("meta", "Check JetStream cluster state").Alias("raft").Action(c.checkRaft)
