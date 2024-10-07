@@ -3039,7 +3039,7 @@ func (c *streamCmd) purgeAction(_ *fisk.ParseContext) (err error) {
 	var req *api.JSApiStreamPurgeRequest
 	if c.purgeKeep > 0 || c.purgeSubject != "" || c.purgeSequence > 0 {
 		if c.purgeSequence > 0 && c.purgeKeep > 0 {
-			return fmt.Errorf("sequence and keep cannot be combined when purghing")
+			return fmt.Errorf("sequence and keep cannot be combined when purging")
 		}
 
 		req = &api.JSApiStreamPurgeRequest{
