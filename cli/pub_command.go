@@ -266,7 +266,14 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *uiprogress.Bar) error {
 			progress.Incr()
 		}
 
-		fmt.Printf(">>> Stream: %v Sequence: %s Duplicate: %t Domain: %q\n", ack.Stream, f(ack.Sequence), ack.Duplicate, ack.Domain)
+		fmt.Printf(">>> Stream: %s Sequence: %s", ack.Stream, f(ack.Sequence))
+		if ack.Domain != "" {
+			fmt.Printf(" Domain: %q", ack.Domain)
+		}
+		if ack.Duplicate {
+			fmt.Printf(" Duplicate: true")
+		}
+		fmt.Println()
 
 		// If applicable, account for the wait duration in a publish sleep.
 		if c.cnt > 1 && c.sleep > 0 {

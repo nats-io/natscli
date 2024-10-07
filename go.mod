@@ -22,7 +22,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/nats-io/jsm.go v0.1.1-0.20240925194717-21ca5720ba1e
 	github.com/nats-io/jwt/v2 v2.7.0
-	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20240925161109-4c21aa3ac686
+	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20241004162106-225cd3dd6eca
 	github.com/nats-io/nats.go v1.37.0
 	github.com/nats-io/nkeys v0.4.7
 	github.com/nats-io/nuid v1.0.1
