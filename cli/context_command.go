@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"sort"
 	"strings"
 	"text/template"
@@ -454,6 +455,14 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 		if strings.HasPrefix(file, "op://") {
 			return color.CyanString("1Password")
 		}
+		if file[0] == '~' {
+			usr, err := user.Current()
+			if err != nil {
+				return color.YellowString("failed to expand '~'. $HOME or $USER possibly not set")
+			}
+			file = strings.Replace(file, "~", usr.HomeDir, 1)
+		}
+
 		ok, err := fileAccessible(file)
 		if !ok || err != nil {
 			c.validateErrors++
