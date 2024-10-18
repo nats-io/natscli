@@ -725,8 +725,7 @@ func (c *kvCommand) watchAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
+	ctx := context.Background()
 
 	watch, err := store.Watch(ctx, c.key)
 	if err != nil {
