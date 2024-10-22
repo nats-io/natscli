@@ -122,11 +122,15 @@ func (c *errCmd) listAction(_ *fisk.ParseContext) error {
 }
 
 func (c *errCmd) editAction(pc *fisk.ParseContext) error {
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
+	rawEditor := os.Getenv("EDITOR")
+	if rawEditor == "" {
 		return fmt.Errorf("EDITOR variable is not set")
 	}
-	editor, args := splitCommand(editor)
+
+	editor, args, err := splitCommand(rawEditor)
+	if err != nil {
+		return fmt.Errorf("could not parse EDITOR: %v", rawEditor)
+	}
 
 	errs, err := c.loadErrors(nil)
 	if err != nil {

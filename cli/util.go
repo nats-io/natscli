@@ -255,11 +255,15 @@ func splitString(s string) []string {
 }
 
 // Split the string into a command and its arguments.
-func splitCommand(s string) (string, []string) {
-	cmdAndArgs := strings.Fields(s)
+func splitCommand(s string) (string, []string, error) {
+	cmdAndArgs, err := shlex.Split(s)
+	if err != nil {
+		return "", nil, err
+	}
+
 	cmd := cmdAndArgs[0]
 	args := cmdAndArgs[1:]
-	return cmd, args
+	return cmd, args, nil
 }
 
 func splitCLISubjects(subjects []string) []string {

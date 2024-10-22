@@ -1793,11 +1793,15 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 }
 
 func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, error) {
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
+	rawEditor := os.Getenv("EDITOR")
+	if rawEditor == "" {
 		return api.StreamConfig{}, fmt.Errorf("set EDITOR environment variable to your chosen editor")
 	}
-	editor, args := splitCommand(editor)
+
+	editor, args, err := splitCommand(rawEditor)
+	if err != nil {
+		return api.StreamConfig{}, fmt.Errorf("could not parse EDITOR: %v", rawEditor)
+	}
 
 	cj, err := decoratedYamlMarshal(cfg)
 	if err != nil {

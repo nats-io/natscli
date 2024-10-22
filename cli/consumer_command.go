@@ -561,11 +561,15 @@ func (c *consumerCmd) leaderStandDownAction(_ *fisk.ParseContext) error {
 }
 
 func (c *consumerCmd) interactiveEdit(cfg api.ConsumerConfig) (*api.ConsumerConfig, error) {
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
+	rawEditor := os.Getenv("EDITOR")
+	if rawEditor == "" {
 		return &api.ConsumerConfig{}, fmt.Errorf("set EDITOR environment variable to your chosen editor")
 	}
-	editor, args := splitCommand(editor)
+
+	editor, args, err := splitCommand(rawEditor)
+	if err != nil {
+		return &api.ConsumerConfig{}, fmt.Errorf("could not parse EDITOR: %v", rawEditor)
+	}
 
 	cj, err := decoratedYamlMarshal(cfg)
 	if err != nil {

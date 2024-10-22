@@ -87,19 +87,34 @@ func TestSplitString(t *testing.T) {
 }
 
 func TestSplitCommand(t *testing.T) {
-	cmd, args := splitCommand("vim")
+	cmd, args, err := splitCommand("vim")
+	if err != nil {
+		t.Fatalf("Expected err to be nil, got %v", err)
+	}
 	if cmd != "vim" && len(args) != 0 {
 		t.Fatalf("Expected vim and [], got %v and %v", cmd, args)
 	}
 
-	cmd, args = splitCommand("code --wait")
+	cmd, args, err = splitCommand("code --wait")
+	if err != nil {
+		t.Fatalf("Expected err to be nil, got %v", err)
+	}
 	if cmd != "code" && !slices.Equal(args, []string{"--wait"}) {
 		t.Fatalf("Expected code and [\"--wait\"], got %v and %v", cmd, args)
 	}
 
-	cmd, args = splitCommand("code --wait --new-window")
+	cmd, args, err = splitCommand("code --wait --new-window")
+	if err != nil {
+		t.Fatalf("Expected err to be nil, got %v", err)
+	}
 	if cmd != "code" && !slices.Equal(args, []string{"--wait", "--new-window"}) {
 		t.Fatalf("Expected code and [\"--wait\", \"--new-window\"], got %v and %v", cmd, args)
+	}
+
+	// EOF found when expecting closing quote
+	_, _, err = splitCommand("foo --bar 'hello")
+	if err == nil {
+		t.Fatalf("Expdected err to not be nil, got %v", err)
 	}
 }
 
