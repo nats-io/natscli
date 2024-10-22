@@ -92,14 +92,14 @@ func TestSplitCommand(t *testing.T) {
 		t.Fatalf("Expected vim and [], got %v and %v", cmd, args)
 	}
 
-	cmd, args = splitCommand("vscode --wait")
-	if cmd != "vscode" && !slices.Equal(args, []string{"--wait"}) {
-		t.Fatalf("Expected vscode and [\"--wait\"], got %v and %v", cmd, args)
+	cmd, args = splitCommand("code --wait")
+	if cmd != "code" && !slices.Equal(args, []string{"--wait"}) {
+		t.Fatalf("Expected code and [\"--wait\"], got %v and %v", cmd, args)
 	}
 
-	cmd, args = splitCommand("vscode --wait --new-window")
-	if cmd != "vscode" && !slices.Equal(args, []string{"--wait", "--new-window"}) {
-		t.Fatalf("Expected vscode and [\"--wait\", \"--new-window\"], got %v and %v", cmd, args)
+	cmd, args = splitCommand("code --wait --new-window")
+	if cmd != "code" && !slices.Equal(args, []string{"--wait", "--new-window"}) {
+		t.Fatalf("Expected code and [\"--wait\", \"--new-window\"], got %v and %v", cmd, args)
 	}
 }
 
