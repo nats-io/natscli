@@ -565,6 +565,7 @@ func (c *consumerCmd) interactiveEdit(cfg api.ConsumerConfig) (*api.ConsumerConf
 	if editor == "" {
 		return &api.ConsumerConfig{}, fmt.Errorf("set EDITOR environment variable to your chosen editor")
 	}
+	editor, args := splitCommand(editor)
 
 	cj, err := decoratedYamlMarshal(cfg)
 	if err != nil {
@@ -584,7 +585,8 @@ func (c *consumerCmd) interactiveEdit(cfg api.ConsumerConfig) (*api.ConsumerConf
 
 	tfile.Close()
 
-	cmd := exec.Command(editor, tfile.Name())
+	args = append(args, tfile.Name())
+	cmd := exec.Command(editor, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

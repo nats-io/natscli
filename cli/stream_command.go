@@ -1797,6 +1797,7 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 	if editor == "" {
 		return api.StreamConfig{}, fmt.Errorf("set EDITOR environment variable to your chosen editor")
 	}
+	editor, args := splitCommand(editor)
 
 	cj, err := decoratedYamlMarshal(cfg)
 	if err != nil {
@@ -1816,7 +1817,8 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 
 	tfile.Close()
 
-	cmd := exec.Command(editor, tfile.Name())
+	args = append(args, tfile.Name())
+	cmd := exec.Command(editor, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

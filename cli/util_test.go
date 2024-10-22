@@ -15,6 +15,7 @@ package cli
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -82,6 +83,23 @@ func TestSplitString(t *testing.T) {
 	parts := splitString("x foo.*")
 	if parts[0] != "x" && parts[1] != "y" {
 		t.Fatalf("Expected x and foo.* from 'x foo.*', got %v", parts)
+	}
+}
+
+func TestSplitCommand(t *testing.T) {
+	cmd, args := splitCommand("vim")
+	if cmd != "vim" && len(args) != 0 {
+		t.Fatalf("Expected vim and [], got %v and %v", cmd, args)
+	}
+
+	cmd, args = splitCommand("vscode --wait")
+	if cmd != "vscode" && !slices.Equal(args, []string{"--wait"}) {
+		t.Fatalf("Expected vscode and [\"--wait\"], got %v and %v", cmd, args)
+	}
+
+	cmd, args = splitCommand("vscode --wait --new-window")
+	if cmd != "vscode" && !slices.Equal(args, []string{"--wait", "--new-window"}) {
+		t.Fatalf("Expected vscode and [\"--wait\", \"--new-window\"], got %v and %v", cmd, args)
 	}
 }
 

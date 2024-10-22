@@ -122,9 +122,11 @@ func (c *errCmd) listAction(_ *fisk.ParseContext) error {
 }
 
 func (c *errCmd) editAction(pc *fisk.ParseContext) error {
-	if os.Getenv("EDITOR") == "" {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
 		return fmt.Errorf("EDITOR variable is not set")
 	}
+	editor, args := splitCommand(editor)
 
 	errs, err := c.loadErrors(nil)
 	if err != nil {
@@ -162,8 +164,10 @@ func (c *errCmd) editAction(pc *fisk.ParseContext) error {
 	tfile.Write(fj)
 	tfile.Close()
 
+	args = append(args, tfile.Name())
+
 	for {
-		cmd := exec.Command(os.Getenv("EDITOR"), tfile.Name())
+		cmd := exec.Command(editor, args...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

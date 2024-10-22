@@ -238,10 +238,7 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 	if editor == "" {
 		return fmt.Errorf("set EDITOR environment variable to your chosen editor")
 	}
-
-	editorAndArgs := strings.Fields(editor)
-	editor = editorAndArgs[0]
-	editorArgs := editorAndArgs[1:]
+	editor, args := splitCommand(editor)
 
 	if !natscontext.IsKnown(c.name) {
 		return fmt.Errorf("unknown context %q", c.name)
@@ -293,7 +290,7 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 		editFile = f.Name()
 	}
 
-	args := append(editorArgs, editFile)
+	args = append(args, editFile)
 	cmd := exec.Command(editor, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
