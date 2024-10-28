@@ -21,7 +21,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"sort"
@@ -1793,16 +1792,6 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 }
 
 func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, error) {
-	rawEditor := os.Getenv("EDITOR")
-	if rawEditor == "" {
-		return api.StreamConfig{}, fmt.Errorf("set EDITOR environment variable to your chosen editor")
-	}
-
-	editor, args, err := splitCommand(rawEditor)
-	if err != nil {
-		return api.StreamConfig{}, fmt.Errorf("could not parse EDITOR: %v", rawEditor)
-	}
-
 	cj, err := decoratedYamlMarshal(cfg)
 	if err != nil {
 		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
@@ -1821,15 +1810,9 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 
 	tfile.Close()
 
-	args = append(args, tfile.Name())
-	cmd := exec.Command(editor, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err = cmd.Run()
+	err = editFile(tfile.Name())
 	if err != nil {
-		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
+		return api.StreamConfig{}, err
 	}
 
 	nb, err := os.ReadFile(tfile.Name())

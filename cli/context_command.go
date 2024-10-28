@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
 	"sort"
 	"strings"
@@ -234,16 +233,6 @@ socks_proxy: {{ .SocksProxy | t }}
 `
 
 func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
-	rawEditor := os.Getenv("EDITOR")
-	if rawEditor == "" {
-		return fmt.Errorf("set EDITOR environment variable to your chosen editor")
-	}
-
-	editor, args, err := splitCommand(rawEditor)
-	if err != nil {
-		return fmt.Errorf("could not parse EDITOR: %v", rawEditor)
-	}
-
 	if !natscontext.IsKnown(c.name) {
 		return fmt.Errorf("unknown context %q", c.name)
 	}
@@ -252,7 +241,7 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
-	editFile := path
+	editFp := path
 
 	var ctx *natscontext.Context
 
@@ -291,22 +280,16 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 		}
 		f.Close()
 
-		editFile = f.Name()
+		editFp = f.Name()
 	}
 
-	args = append(args, editFile)
-	cmd := exec.Command(editor, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err = cmd.Run()
+	err = editFile(editFp)
 	if err != nil {
 		return err
 	}
 
-	if path != editFile {
-		yctx, err := os.ReadFile(editFile)
+	if path != editFp {
+		yctx, err := os.ReadFile(editFp)
 		if err != nil {
 			return fmt.Errorf("could not read temporary copy: %w", err)
 		}
@@ -338,7 +321,7 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 	err = c.showCommand(pc)
 	if err != nil {
 		// but not if the file was already corrupt and we are editing the json directly
-		if path == editFile {
+		if path == editFp {
 			return err
 		}
 

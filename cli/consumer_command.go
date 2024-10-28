@@ -22,7 +22,6 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"os/exec"
 	"os/signal"
 	"regexp"
 	"sort"
@@ -561,16 +560,6 @@ func (c *consumerCmd) leaderStandDownAction(_ *fisk.ParseContext) error {
 }
 
 func (c *consumerCmd) interactiveEdit(cfg api.ConsumerConfig) (*api.ConsumerConfig, error) {
-	rawEditor := os.Getenv("EDITOR")
-	if rawEditor == "" {
-		return &api.ConsumerConfig{}, fmt.Errorf("set EDITOR environment variable to your chosen editor")
-	}
-
-	editor, args, err := splitCommand(rawEditor)
-	if err != nil {
-		return &api.ConsumerConfig{}, fmt.Errorf("could not parse EDITOR: %v", rawEditor)
-	}
-
 	cj, err := decoratedYamlMarshal(cfg)
 	if err != nil {
 		return &api.ConsumerConfig{}, fmt.Errorf("could not create temporary file: %s", err)
@@ -589,15 +578,9 @@ func (c *consumerCmd) interactiveEdit(cfg api.ConsumerConfig) (*api.ConsumerConf
 
 	tfile.Close()
 
-	args = append(args, tfile.Name())
-	cmd := exec.Command(editor, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err = cmd.Run()
+	err = editFile(tfile.Name())
 	if err != nil {
-		return &api.ConsumerConfig{}, fmt.Errorf("could not create temporary file: %s", err)
+		return &api.ConsumerConfig{}, err
 	}
 
 	nb, err := os.ReadFile(tfile.Name())

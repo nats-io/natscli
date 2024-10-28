@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"sort"
 	"strconv"
@@ -122,16 +121,6 @@ func (c *errCmd) listAction(_ *fisk.ParseContext) error {
 }
 
 func (c *errCmd) editAction(pc *fisk.ParseContext) error {
-	rawEditor := os.Getenv("EDITOR")
-	if rawEditor == "" {
-		return fmt.Errorf("EDITOR variable is not set")
-	}
-
-	editor, args, err := splitCommand(rawEditor)
-	if err != nil {
-		return fmt.Errorf("could not parse EDITOR: %v", rawEditor)
-	}
-
 	errs, err := c.loadErrors(nil)
 	if err != nil {
 		return err
@@ -168,17 +157,12 @@ func (c *errCmd) editAction(pc *fisk.ParseContext) error {
 	tfile.Write(fj)
 	tfile.Close()
 
-	args = append(args, tfile.Name())
+	fp := tfile.Name()
 
 	for {
-		cmd := exec.Command(editor, args...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		err = cmd.Run()
+		err = editFile(fp)
 		if err != nil {
-			return fmt.Errorf("could not edit error: %s", err)
+			return err
 		}
 
 		eb, err := os.ReadFile(tfile.Name())
