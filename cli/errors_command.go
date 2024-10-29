@@ -27,6 +27,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go/schemas"
 	"github.com/nats-io/nats-server/v2/server"
+	iu "github.com/nats-io/natscli/internal/util"
 )
 
 type errCmd struct {
@@ -160,7 +161,7 @@ func (c *errCmd) editAction(pc *fisk.ParseContext) error {
 	fp := tfile.Name()
 
 	for {
-		err = editFile(fp)
+		err = iu.EditFile(fp)
 		if err != nil {
 			return err
 		}

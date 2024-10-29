@@ -578,7 +578,7 @@ func (c *consumerCmd) interactiveEdit(cfg api.ConsumerConfig) (*api.ConsumerConf
 
 	tfile.Close()
 
-	err = editFile(tfile.Name())
+	err = iu.EditFile(tfile.Name())
 	if err != nil {
 		return &api.ConsumerConfig{}, err
 	}

@@ -283,7 +283,7 @@ func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
 		editFp = f.Name()
 	}
 
-	err = editFile(editFp)
+	err = iu.EditFile(editFp)
 	if err != nil {
 		return err
 	}

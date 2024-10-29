@@ -1810,7 +1810,7 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 
 	tfile.Close()
 
-	err = editFile(tfile.Name())
+	err = iu.EditFile(tfile.Name())
 	if err != nil {
 		return api.StreamConfig{}, err
 	}
