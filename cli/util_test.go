@@ -160,7 +160,7 @@ func TestEditFile(t *testing.T) {
 		lines := strings.Split(actual, "\n")
 
 		if len(lines) != 2 || lines[1] != "" {
-			t.Fatalf("Expeced one line of output, got %v", actual)
+			t.Fatalf("Expected one line of output, got %v", actual)
 		}
 
 		if !strings.Contains(lines[0], "test_edit_file") {
