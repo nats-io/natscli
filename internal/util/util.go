@@ -21,6 +21,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"os/exec"
 	"reflect"
 	"regexp"
 	"sort"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/google/shlex"
 	"github.com/guptarohit/asciigraph"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
@@ -429,4 +431,42 @@ func ProgressWidth() int {
 // JSONString returns a quoted string to be used as a JSON object
 func JSONString(s string) string {
 	return "\"" + s + "\""
+}
+
+// Split the string into a command and its arguments.
+func SplitCommand(s string) (string, []string, error) {
+	cmdAndArgs, err := shlex.Split(s)
+	if err != nil {
+		return "", nil, err
+	}
+
+	cmd := cmdAndArgs[0]
+	args := cmdAndArgs[1:]
+	return cmd, args, nil
+}
+
+// Edit the file at filepath f using the environment variable EDITOR command.
+func EditFile(f string) error {
+	rawEditor := os.Getenv("EDITOR")
+	if rawEditor == "" {
+		return fmt.Errorf("set EDITOR environment variable to your chosen editor")
+	}
+
+	editor, args, err := SplitCommand(rawEditor)
+	if err != nil {
+		return fmt.Errorf("could not parse EDITOR: %v", rawEditor)
+	}
+
+	args = append(args, f)
+	cmd := exec.Command(editor, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("could not edit file %v: %s", f, err)
+	}
+
+	return nil
 }

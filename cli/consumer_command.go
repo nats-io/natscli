@@ -22,7 +22,6 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"os/exec"
 	"os/signal"
 	"regexp"
 	"sort"
@@ -561,11 +560,6 @@ func (c *consumerCmd) leaderStandDownAction(_ *fisk.ParseContext) error {
 }
 
 func (c *consumerCmd) interactiveEdit(cfg api.ConsumerConfig) (*api.ConsumerConfig, error) {
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		return &api.ConsumerConfig{}, fmt.Errorf("set EDITOR environment variable to your chosen editor")
-	}
-
 	cj, err := decoratedYamlMarshal(cfg)
 	if err != nil {
 		return &api.ConsumerConfig{}, fmt.Errorf("could not create temporary file: %s", err)
@@ -584,14 +578,9 @@ func (c *consumerCmd) interactiveEdit(cfg api.ConsumerConfig) (*api.ConsumerConf
 
 	tfile.Close()
 
-	cmd := exec.Command(editor, tfile.Name())
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err = cmd.Run()
+	err = iu.EditFile(tfile.Name())
 	if err != nil {
-		return &api.ConsumerConfig{}, fmt.Errorf("could not create temporary file: %s", err)
+		return &api.ConsumerConfig{}, err
 	}
 
 	nb, err := os.ReadFile(tfile.Name())
