@@ -16,17 +16,17 @@ require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/guptarohit/asciigraph v0.7.2
-	github.com/jedib0t/go-pretty/v6 v6.6.0
+	github.com/jedib0t/go-pretty/v6 v6.6.1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.17.10
+	github.com/klauspost/compress v1.17.11
 	github.com/mattn/go-isatty v0.0.20
-	github.com/nats-io/jsm.go v0.1.1-0.20241009102239-a4b8b81de28f
-	github.com/nats-io/jwt/v2 v2.7.0
-	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20241004162106-225cd3dd6eca
+	github.com/nats-io/jsm.go v0.1.1-0.20241031085745-33958a03bf6d
+	github.com/nats-io/jwt/v2 v2.7.2
+	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20241030181516-1ee2b8a11af8
 	github.com/nats-io/nats.go v1.37.0
 	github.com/nats-io/nkeys v0.4.7
 	github.com/nats-io/nuid v1.0.1
-	github.com/prometheus/client_golang v1.20.4
+	github.com/prometheus/client_golang v1.20.5
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240829124321-43722a8ce3ce
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
@@ -58,7 +58,7 @@ require (
 	github.com/nats-io/nsc/v2 v2.8.6-0.20231220104935-3f89317df670 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/prometheus/common v0.60.0 // indirect
+	github.com/prometheus/common v0.60.1 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
