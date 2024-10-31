@@ -235,7 +235,7 @@ func (c *actCmd) reportServerStats(_ *fisk.ParseContext) error {
 	}
 
 	table := newTableWriter("Server Statistics")
-	table.AddHeaders("Server", "Cluster", "Version", "Tags", "Connections", "Leafnodes", "Sent Bytes", "Sent Messages", "Received Bytes", "Received Messages", "Slow Consumers")
+	table.AddHeaders("Server", "Cluster", "Version", "Tags", "Connections", "Subscriptions", "Leafnodes", "Sent Bytes", "Sent Messages", "Received Bytes", "Received Messages", "Slow Consumers")
 
 	var (
 		conn, ln           int
@@ -267,6 +267,7 @@ func (c *actCmd) reportServerStats(_ *fisk.ParseContext) error {
 			sz.ServerInfo.Version,
 			f(sz.ServerInfo.Tags),
 			f(stats.Conns),
+			f(stats.NumSubs),
 			f(stats.LeafNodes),
 			humanize.IBytes(uint64(stats.Sent.Bytes)),
 			f(stats.Sent.Msgs),

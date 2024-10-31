@@ -162,6 +162,7 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 				cols.AddRow("Maximum Duplicate Window", js.Limits.Duplicates)
 			}
 		}
+		cols.AddRow("Strict API Parsing", js.Config.Strict)
 	}
 
 	cols.AddSectionTitle("Limits")
