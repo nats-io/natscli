@@ -62,6 +62,7 @@ type benchCmd struct {
 	fetchTimeout         bool
 	multiSubject         bool
 	multiSubjectMax      int
+	multisubjectFormat   string
 	deDuplication        bool
 	deDuplicationWindow  time.Duration
 	ack                  bool
@@ -453,9 +454,7 @@ func (c *benchCmd) getPublishSubject(number int) string {
 		if c.multiSubjectMax == 0 {
 			return c.subject + "." + strconv.Itoa(number)
 		} else {
-			maxDigits := len(strconv.Itoa(c.multiSubjectMax))
-			format := fmt.Sprintf("%%0%dd", maxDigits)
-			return c.subject + "." + fmt.Sprintf(format, number%c.multiSubjectMax)
+			return c.subject + "." + fmt.Sprintf(c.multisubjectFormat, number%c.multiSubjectMax)
 		}
 	} else {
 		return c.subject
@@ -1548,6 +1547,8 @@ func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, ms
 		})
 	}
 
+	c.multisubjectFormat = fmt.Sprintf("%%0%dd", len(strconv.Itoa(c.multiSubjectMax)))
+
 	for i := 0; i < numMsg; i++ {
 		if progress != nil {
 			progress.Incr()
@@ -1576,6 +1577,8 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, ms
 			return state
 		})
 	}
+
+	c.multisubjectFormat = fmt.Sprintf("%%0%dd", len(strconv.Itoa(c.multiSubjectMax)))
 
 	for i := 0; i < numMsg; i++ {
 		if progress != nil {
@@ -1611,6 +1614,8 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, msg []by
 			return state
 		})
 	}
+
+	c.multisubjectFormat = fmt.Sprintf("%%0%dd", len(strconv.Itoa(c.multiSubjectMax)))
 
 	if c.batchSize != 1 {
 		for i := 0; i < numMsg; {
