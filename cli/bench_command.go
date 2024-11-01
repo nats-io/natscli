@@ -453,7 +453,9 @@ func (c *benchCmd) getPublishSubject(number int) string {
 		if c.multiSubjectMax == 0 {
 			return c.subject + "." + strconv.Itoa(number)
 		} else {
-			return c.subject + "." + strconv.Itoa(number%c.multiSubjectMax)
+			maxDigits := len(strconv.Itoa(c.multiSubjectMax))
+			format := fmt.Sprintf("%%0%dd", maxDigits)
+			return c.subject + "." + fmt.Sprintf(format, number%c.multiSubjectMax)
 		}
 	} else {
 		return c.subject
