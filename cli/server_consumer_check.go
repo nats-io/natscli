@@ -255,8 +255,10 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 			status = "IN SYNC"
 		}
 
-		if serverName == replica.Cluster.Leader && replica.Cluster.Leader == replica.StreamCluster.Leader {
-			status += " / INTERSECT"
+		if replica.Cluster != nil {
+			if serverName == replica.Cluster.Leader && replica.Cluster.Leader == replica.StreamCluster.Leader {
+				status += " / INTERSECT"
+			}
 		}
 
 		if c.unsyncedFilter && !unsynced {
@@ -296,9 +298,11 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 		counters := fmt.Sprintf("(ap:%d, nr:%d, nw:%d, np:%d)", replica.NumAckPending, replica.NumRedelivered, replica.NumWaiting, replica.NumPending)
 
 		var replicasInfo string
-		for _, r := range replica.Cluster.Replicas {
-			info := fmt.Sprintf("%s(current=%-5v,offline=%v)", r.Name, r.Current, r.Offline)
-			replicasInfo = fmt.Sprintf("%-40s %s", info, replicasInfo)
+		if replica.Cluster != nil {
+			for _, r := range replica.Cluster.Replicas {
+				info := fmt.Sprintf("%s(current=%-5v,offline=%v)", r.Name, r.Current, r.Offline)
+				replicasInfo = fmt.Sprintf("%-40s %s", info, replicasInfo)
+			}
 		}
 
 		// Include Healthz if option added.
@@ -316,7 +320,13 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 			}
 		}
 
-		table.AddRow(replica.ConsumerName, replica.StreamName, replica.RaftGroup, accountname, replica.AccountID, node, delivered, ackfloor, counters, status, replica.Cluster.Leader, replica.StreamCluster.Leader, replicasInfo, healthStatus)
+		clusterLeader := ""
+
+		if replica.Cluster != nil {
+			clusterLeader = replica.Cluster.Leader
+		}
+
+		table.AddRow(replica.ConsumerName, replica.StreamName, replica.RaftGroup, accountname, replica.AccountID, node, delivered, ackfloor, counters, status, clusterLeader, replica.StreamCluster.Leader, replicasInfo, healthStatus)
 	}
 
 	fmt.Println(table.Render())
