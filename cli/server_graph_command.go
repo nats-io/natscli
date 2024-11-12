@@ -16,16 +16,17 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/choria-io/fisk"
-	"github.com/guptarohit/asciigraph"
-	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nats.go"
-	iu "github.com/nats-io/natscli/internal/util"
-	terminal "golang.org/x/term"
 	"os"
 	"os/signal"
 	"strings"
 	"time"
+
+	"github.com/choria-io/fisk"
+	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/internal/asciigraph"
+	iu "github.com/nats-io/natscli/internal/util"
+	terminal "golang.org/x/term"
 )
 
 type SrvGraphCmd struct {
@@ -183,35 +184,41 @@ func (c *SrvGraphCmd) graphJetStream() error {
 			asciigraph.Caption(fmt.Sprintf("CPU %% Used (normalized for %d cores)", vz.Cores)),
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
-			asciigraph.Precision(0))
+			asciigraph.Precision(0),
+			asciigraph.ValueFormatter(f))
 
 		memPlot := asciigraph.Plot(memUsed,
 			asciigraph.Caption("Memory Storage in GB"),
 			asciigraph.Height(height/6-2),
-			asciigraph.Width(width))
+			asciigraph.Width(width),
+			asciigraph.ValueFormatter(fiBytesFloat2Int))
 
 		filePlot := asciigraph.Plot(fileUsed,
 			asciigraph.Caption("File Storage in GB"),
 			asciigraph.Height(height/6-2),
-			asciigraph.Width(width))
+			asciigraph.Width(width),
+			asciigraph.ValueFormatter(fiBytesFloat2Int))
 
 		assetsPlot := asciigraph.Plot(haAssets,
 			asciigraph.Caption("HA Assets"),
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
-			asciigraph.Precision(0))
+			asciigraph.Precision(0),
+			asciigraph.ValueFormatter(fFloat2Int))
 
 		apiRatesPlot := asciigraph.Plot(apiRates,
 			asciigraph.Caption("API Requests / second"),
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
-			asciigraph.Precision(0))
+			asciigraph.Precision(0),
+			asciigraph.ValueFormatter(f))
 
 		pendingPlot := asciigraph.Plot(pending,
 			asciigraph.Caption("Pending API Requests"),
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
-			asciigraph.Precision(0))
+			asciigraph.Precision(0),
+			asciigraph.ValueFormatter(fFloat2Int))
 
 		return []string{cpuPlot, assetsPlot, apiRatesPlot, pendingPlot, filePlot, memPlot}, nil
 	})
@@ -257,36 +264,42 @@ func (c *SrvGraphCmd) graphServer() error {
 			asciigraph.Caption(fmt.Sprintf("CPU %% Used (normalized for %d cores)", vz.Cores)),
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
-			asciigraph.Precision(0))
+			asciigraph.Precision(0),
+			asciigraph.ValueFormatter(f))
 
 		memPlot := asciigraph.Plot(memUsed,
 			asciigraph.Caption("Memory Used in MB"),
 			asciigraph.Height(height/6-2),
-			asciigraph.Width(width))
+			asciigraph.Width(width),
+			asciigraph.ValueFormatter(fiBytesFloat2Int))
 
 		connectionsPlot := asciigraph.Plot(connections,
 			asciigraph.Caption("Connections"),
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
-			asciigraph.Precision(0))
+			asciigraph.Precision(0),
+			asciigraph.ValueFormatter(fFloat2Int))
 
 		subscriptionsPlot := asciigraph.Plot(subscriptions,
 			asciigraph.Caption("Subscriptions"),
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
-			asciigraph.Precision(0))
+			asciigraph.Precision(0),
+			asciigraph.ValueFormatter(fFloat2Int))
 
 		messagesPlot := asciigraph.Plot(messagesRate,
 			asciigraph.Caption("Messages In+Out / second"),
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
-			asciigraph.Precision(0))
+			asciigraph.Precision(0),
+			asciigraph.ValueFormatter(f))
 
 		bytesPlot := asciigraph.Plot(bytesRate,
 			asciigraph.Caption("Bytes In+Out / second"),
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
-			asciigraph.Precision(0))
+			asciigraph.Precision(0),
+			asciigraph.ValueFormatter(fiBytesFloat2Int))
 
 		return []string{cpuPlot, memPlot, connectionsPlot, subscriptionsPlot, messagesPlot, bytesPlot}, nil
 	})

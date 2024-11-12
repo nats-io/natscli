@@ -28,10 +28,10 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
-	"github.com/guptarohit/asciigraph"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/internal/asciigraph"
 	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 )
@@ -191,6 +191,7 @@ func (c *subCmd) startGraph(ctx context.Context, mu *sync.Mutex) {
 						asciigraph.Height((c.height/(len(c.subjects)+1))-1),
 						asciigraph.LowerBound(0),
 						asciigraph.Precision(0),
+						asciigraph.ValueFormatter(f),
 					)
 					fmt.Println(msgRatePlot)
 					fmt.Println()

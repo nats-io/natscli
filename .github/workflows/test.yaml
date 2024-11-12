@@ -36,15 +36,15 @@ jobs:
         shell: bash --noprofile --norc -x -eo pipefail {0}
         run: |
           PATH=$PATH:$GOPATH/bin
-          GO_LIST=$(go list ./...)
+          GO_LIST=$(go list ./... | grep -F -e asciigraph -v)
           $(exit $(go fmt $GO_LIST | wc -l))
           go vet -composites=false $GO_LIST
-          find . -type f -name "*.go" | xargs misspell -error -locale US
+          find . -type f -name "*.go" | grep -F -e asciigraph -v | xargs misspell -error -locale US
           staticcheck -f stylish $GO_LIST
 
       - name: Run tests
         shell: bash --noprofile --norc -x -eo pipefail {0}
         run: |
           set -e
-          go test -v --failfast -p=1 ./...
+          go list ./... | grep -F -e asciigraph -v | xargs go test -v --failfast -p=1
           set +e
