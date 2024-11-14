@@ -60,17 +60,17 @@ commands:
 
           {{ if .Flags.spell }}          
           ab_say Checking spelling
-          find . -type f -name "*.go" | xargs misspell -error -locale US -i flavour
+          find . -type f -name "*.go" | grep -F -e asciigraph -v | xargs misspell -error -locale US -i flavour
           {{ end }}
           
           {{ if .Flags.vet }}
           ab_say Performing go vet
-          go vet ./...
+          go list ./... | grep -F -e asciigraph -v |xargs go vet
           {{ end }}
           
           {{ if .Flags.staticcheck }}
           ab_say Running staticcheck
-          staticcheck ./...
+          go list ./... | grep -F -e asciigraph -v |xargs staticcheck
           {{ end }}
 
   - name: dependencies

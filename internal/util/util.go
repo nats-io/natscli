@@ -31,9 +31,9 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
-	"github.com/guptarohit/asciigraph"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/internal/asciigraph"
 	"github.com/nats-io/natscli/options"
 	"golang.org/x/exp/constraints"
 

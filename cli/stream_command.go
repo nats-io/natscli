@@ -30,7 +30,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/guptarohit/asciigraph"
+	"github.com/nats-io/natscli/internal/asciigraph"
 	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 
@@ -503,6 +503,7 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/3-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(fFloat2Int),
 			)
 
 			limitedRatePlot := asciigraph.Plot(limitedRates,
@@ -511,6 +512,7 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/3-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(f),
 			)
 
 			msgRatePlot := asciigraph.Plot(messageRates,
@@ -519,6 +521,7 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/3-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(f),
 			)
 
 			iu.ClearScreen()

@@ -29,8 +29,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/guptarohit/asciigraph"
 	"github.com/nats-io/natscli/columns"
+	"github.com/nats-io/natscli/internal/asciigraph"
 	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 	"gopkg.in/yaml.v3"
@@ -515,6 +515,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/4-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(f),
 			)
 
 			ackedPlot := asciigraph.Plot(ackedRates,
@@ -523,6 +524,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/4-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(f),
 			)
 
 			unprocessedPlot := asciigraph.Plot(unprocessedMessages,
@@ -531,6 +533,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/4-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(fFloat2Int),
 			)
 
 			outstandingPlot := asciigraph.Plot(outstandingMessages,
@@ -539,6 +542,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/4-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(fFloat2Int),
 			)
 
 			iu.ClearScreen()
