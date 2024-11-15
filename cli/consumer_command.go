@@ -491,6 +491,10 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				height -= 5
 			}
 
+			if width < 20 || height < 20 {
+				return fmt.Errorf("please increase terminal dimensions")
+			}
+
 			nfo, err := consumer.State()
 			if err != nil {
 				continue

@@ -474,10 +474,14 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				width = 80
 			}
 			if width > 15 {
-				width -= 10
+				width -= 11
 			}
 			if height > 10 {
 				height -= 6
+			}
+
+			if width < 20 || height < 20 {
+				return fmt.Errorf("please increase terminal dimensions")
 			}
 
 			nfo, err := stream.State()

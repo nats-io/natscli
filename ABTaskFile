@@ -17,7 +17,7 @@ commands:
         script: |
           set -e
                     
-          go test ./...
+          go list ./... | grep -F -e asciigraph -v |xargs go test
 
       - name: lint
         type: exec

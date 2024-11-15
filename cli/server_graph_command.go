@@ -60,7 +60,9 @@ func (c *SrvGraphCmd) graphWrapper(graphs int, h func(width int, height int, vz 
 		return fmt.Errorf("failed to get terminal dimensions: %w", err)
 	}
 
-	if width < 20 || height < graphs*5 {
+	minHeight := graphs*5 + 2 // 3 graph lines, the ruler, the heading and overall heading plus newline
+
+	if width < 20 || height < minHeight {
 		return fmt.Errorf("please increase terminal dimensions")
 	}
 
@@ -104,10 +106,14 @@ func (c *SrvGraphCmd) graphWrapper(graphs int, h func(width int, height int, vz 
 				width = 80
 			}
 			if width > 15 {
-				width -= 10
+				width -= 11
 			}
 			if height > 10 {
-				height -= 6
+				height -= graphs + 1 // make space for the main heading and gaps in the graphs etc
+			}
+
+			if width < 20 || height < minHeight {
+				return fmt.Errorf("please increase terminal dimensions")
 			}
 
 			vz, err = c.getVz(nc, subj, body)
@@ -222,7 +228,6 @@ func (c *SrvGraphCmd) graphJetStream() error {
 
 		return []string{cpuPlot, assetsPlot, apiRatesPlot, pendingPlot, filePlot, memPlot}, nil
 	})
-
 }
 
 func (c *SrvGraphCmd) graphServer() error {
