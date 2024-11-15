@@ -169,6 +169,7 @@ func PlotMany(data [][]float64, options ...Option) string {
 		maxWidth = 0
 	}
 
+	maxLabelLength := 0
 	// axis and labels reusing the previously calculated magnitudes
 	for w, magnitude := range magnitudes {
 		var label string
@@ -181,11 +182,18 @@ func PlotMany(data [][]float64, options ...Option) string {
 
 		h := int(math.Max(float64(config.Offset)-float64(len(label)), 0))
 
+		labelLength := len(label)
+		if labelLength > maxLabelLength {
+			maxLabelLength = labelLength
+		}
+
 		plot[w][h].Text = label
 		plot[w][h].Color = config.LabelColor
 		plot[w][config.Offset-1].Text = "┤"
 		plot[w][config.Offset-1].Color = config.AxisColor
 	}
+
+	width -= maxLabelLength
 
 	for i := range data {
 		series := data[i]
@@ -289,7 +297,7 @@ func PlotMany(data [][]float64, options ...Option) string {
 		lines.WriteRune('\n')
 		lines.WriteString(strings.Repeat(" ", config.Offset+maxWidth))
 		if len(config.Caption) < lenMax {
-			lines.WriteString(strings.Repeat(" ", (lenMax-len(config.Caption))/2))
+			lines.WriteString(strings.Repeat(" ", (lenMax-len(config.Caption)-maxLabelLength)/2))
 		}
 		if config.CaptionColor != Default {
 			lines.WriteString(config.CaptionColor.String())
