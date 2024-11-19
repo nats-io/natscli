@@ -169,7 +169,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	consumer.Flag("last-delivery-critical", "Time to allow since the last delivery").Default("0s").IsSetByUser(&c.consumerLastDeliveryCriticalIsSet).DurationVar(&c.consumerLastDeliveryCritical)
 	consumer.Flag("last-ack-critical", "Time to allow since the last ack").Default("0s").IsSetByUser(&c.consumerLastAckCriticalIsSet).DurationVar(&c.consumerLastAckCritical)
 	consumer.Flag("redelivery-critical", "Maximum number of redeliveries to allow").Default("-1").IsSetByUser(&c.consumerRedeliveryCriticalIsSet).IntVar(&c.consumerRedeliveryCritical)
-	consumer.Flag("pinned", "Requires Pinned Client priority with all groups having a pinned client").BoolVar(&c.consumerPinned)
+	consumer.Flag("pinned", "Requires Pinned Client priority with all groups having a pinned client").UnNegatableBoolVar(&c.consumerPinned)
 
 	msg := check.Command("message", "Checks properties of a message stored in a stream").Action(c.checkMsg)
 	msg.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
@@ -256,7 +256,9 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	defer check.GenericExit()
 
 	checkOpts := &monitor.ConsumerHealthCheckOptions{
-		Pinned: c.consumerPinned,
+		StreamName:   c.sourcesStream,
+		ConsumerName: c.consumerName,
+		Pinned:       c.consumerPinned,
 	}
 
 	if c.consumerAckOutstandingCriticalIsSet {
