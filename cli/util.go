@@ -1229,3 +1229,12 @@ func currentActiveServers(nc *nats.Conn) (int, error) {
 
 	return expect, err
 }
+
+func calculateRate(new, last float64, since time.Duration) float64 {
+	// If new == 0 we have missed a data point from nats.
+	// Return the previous calculation so that it doesn't break graphs
+	if new == 0 {
+		return last
+	}
+	return (new - last) / since.Seconds()
+}
