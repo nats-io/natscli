@@ -490,8 +490,8 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 			}
 
 			messagesStored = append(messagesStored, float64(nfo.Msgs))
-			messageRates = append(messageRates, float64(nfo.LastSeq-lastLastSeq)/time.Since(lastStateTs).Seconds())
-			limitedRates = append(limitedRates, float64(nfo.FirstSeq-lastFirstSeq)/time.Since(lastStateTs).Seconds())
+			messageRates = append(messageRates, calculateRate(float64(nfo.LastSeq), float64(lastLastSeq), time.Since(lastStateTs)))
+			limitedRates = append(limitedRates, calculateRate(float64(nfo.FirstSeq), float64(lastFirstSeq), time.Since(lastStateTs)))
 
 			lastStateTs = time.Now()
 			lastLastSeq = nfo.LastSeq

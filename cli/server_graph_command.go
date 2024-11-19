@@ -258,8 +258,9 @@ func (c *SrvGraphCmd) graphServer() error {
 		memUsed = c.resizeData(memUsed, width, float64(vz.Mem)/1024/1024)
 		connections = c.resizeData(connections, width, float64(vz.Connections))
 		subscriptions = c.resizeData(subscriptions, width, float64(vz.Subscriptions))
-		messagesRate = c.resizeData(messagesRate, width, (float64(vz.InMsgs+vz.OutMsgs)-lastMessages)/time.Since(lastStateTs).Seconds())
-		bytesRate = c.resizeData(bytesRate, width, (float64(vz.InBytes+vz.OutBytes)-lastByes)/time.Since(lastStateTs).Seconds())
+
+		messagesRate = c.resizeData(messagesRate, width, calculateRate(float64(vz.InMsgs+vz.OutMsgs), lastMessages, time.Since(lastStateTs)))
+		bytesRate = c.resizeData(bytesRate, width, calculateRate(float64(vz.InBytes+vz.OutBytes), lastByes, time.Since(lastStateTs)))
 
 		lastMessages = float64(vz.InMsgs + vz.OutMsgs)
 		lastByes = float64(vz.InBytes + vz.OutBytes)
