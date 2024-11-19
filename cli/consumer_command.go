@@ -122,6 +122,7 @@ type consumerCmd struct {
 	pinnedTTL      time.Duration
 	overflowGroups []string
 	groupName      string
+	fPinned        bool
 }
 
 func configureConsumerCommand(app commandHost) {
@@ -221,6 +222,7 @@ func configureConsumerCommand(app commandHost) {
 	consFind.Flag("created", "Display consumers created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
 	consFind.Flag("replicas", "Display consumers with fewer or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
 	consFind.Flag("leader", "Display only clustered streams with a specific leader").PlaceHolder("SERVER").StringVar(&c.fLeader)
+	consFind.Flag("pinned", "Finds Pinned Client priority group consumers that are fully pinned").UnNegatableBoolVar(&c.fPinned)
 	consFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	consFind.Flag("expression", "Match consumers using an expression language").StringVar(&c.fExpression)
 
@@ -410,6 +412,9 @@ func (c *consumerCmd) findAction(_ *fisk.ParseContext) error {
 	}
 	if c.fLeader != "" {
 		opts = append(opts, jsm.ConsumerQueryLeaderServer(c.fLeader))
+	}
+	if c.fPinned {
+		opts = append(opts, jsm.ConsumerQueryIsPinned())
 	}
 
 	found, err := stream.QueryConsumers(opts...)
