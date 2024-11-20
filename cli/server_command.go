@@ -22,6 +22,7 @@ func configureServerCommand(app commandHost) {
 	configureServerClusterCommand(srv)
 	configureServerConfigCommand(srv)
 	configureServerGenerateCommand(srv)
+	configureServerGraphCommand(srv)
 	configureServerInfoCommand(srv)
 	configureServerListCommand(srv)
 	configureServerMappingCommand(srv)
@@ -31,6 +32,8 @@ func configureServerCommand(app commandHost) {
 	configureServerRequestCommand(srv)
 	configureServerRunCommand(srv)
 	configureServerWatchCommand(srv)
+	configureStreamCheckCommand(srv)
+	configureConsumerCheckCommand(srv)
 }
 
 func init() {

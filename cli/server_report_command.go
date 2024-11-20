@@ -192,18 +192,21 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	var (
 		names               []string
 		jszResponses        []*jszr
-		apiErr              uint64
+		apiErrTotal         uint64
 		apiTotal            uint64
-		memory              uint64
-		store               uint64
-		consumers           int
-		streams             int
-		bytes               uint64
-		msgs                uint64
+		pendingTotal        int
+		memoryTotal         uint64
+		storeTotal          uint64
+		consumersTotal      int
+		streamsTotal        int
+		bytesTotal          uint64
+		msgsTotal           uint64
 		cluster             *server.MetaClusterInfo
 		expectedClusterSize int
 	)
 
+	// TODO: remove after 2.12 is out
+	renderPending := iu.ServerMinVersion(nc, 2, 10, 21)
 	renderDomain := false
 	for _, r := range res {
 		response := jszr{}
@@ -278,11 +281,15 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		table = newTableWriter("JetStream Summary")
 	}
 
+	hdrs := []any{"Server", "Cluster"}
 	if renderDomain {
-		table.AddHeaders("Server", "Cluster", "Domain", "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "API Err")
-	} else {
-		table.AddHeaders("Server", "Cluster", "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "API Err")
+		hdrs = append(hdrs, "Domain")
 	}
+	hdrs = append(hdrs, "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "API Err")
+	if renderPending {
+		hdrs = append(hdrs, "Pending")
+	}
+	table.AddHeaders(hdrs...)
 
 	for i, js := range jszResponses {
 		jss := js.Data.JetStreamStats
@@ -295,11 +302,12 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			doAccountStats = true
 		}
 
-		apiErr += jss.API.Errors
+		apiErrTotal += jss.API.Errors
 		apiTotal += jss.API.Total
-		memory += jss.Memory
-		store += jss.Store
+		memoryTotal += jss.Memory
+		storeTotal += jss.Store
 
+		rPending := 0
 		rStreams := 0
 		rConsumers := 0
 		rMessages := uint64(0)
@@ -307,24 +315,24 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 
 		if doAccountStats {
 			rBytes = acc.Memory + acc.Store
-			bytes += rBytes
+			bytesTotal += rBytes
 			rStreams = len(acc.Streams)
-			streams += rStreams
+			streamsTotal += rStreams
 
 			for _, sd := range acc.Streams {
-				consumers += sd.State.Consumers
+				consumersTotal += sd.State.Consumers
 				rConsumers += sd.State.Consumers
-				msgs += sd.State.Msgs
+				msgsTotal += sd.State.Msgs
 				rMessages += sd.State.Msgs
 			}
 		} else {
-			consumers += js.Data.Consumers
+			consumersTotal += js.Data.Consumers
 			rConsumers = js.Data.Consumers
-			streams += js.Data.Streams
+			streamsTotal += js.Data.Streams
 			rStreams = js.Data.Streams
-			bytes += js.Data.Bytes
+			bytesTotal += js.Data.Bytes
 			rBytes = js.Data.Bytes
-			msgs += js.Data.Messages
+			msgsTotal += js.Data.Messages
 			rMessages = js.Data.Messages
 		}
 
@@ -337,6 +345,8 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			if expectedClusterSize < js.Data.Meta.Size {
 				expectedClusterSize = js.Data.Meta.Size
 			}
+			rPending = js.Data.Meta.Pending
+			pendingTotal += rPending
 		}
 
 		row := []any{cNames[i] + leader, js.Server.Cluster}
@@ -358,6 +368,9 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			f(jss.API.Total),
 			errCol,
 		)
+		if renderPending {
+			row = append(row, rPending)
+		}
 
 		table.AddRow(row...)
 	}
@@ -366,7 +379,10 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	if renderDomain {
 		row = append(row, "")
 	}
-	row = append(row, f(streams), f(consumers), f(msgs), humanize.IBytes(bytes), humanize.IBytes(memory), humanize.IBytes(store), f(apiTotal), f(apiErr))
+	row = append(row, f(streamsTotal), f(consumersTotal), f(msgsTotal), humanize.IBytes(bytesTotal), humanize.IBytes(memoryTotal), humanize.IBytes(storeTotal), f(apiTotal), f(apiErrTotal))
+	if renderPending {
+		row = append(row, pendingTotal)
+	}
 	table.AddFooter(row...)
 
 	fmt.Print(table.Render())

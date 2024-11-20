@@ -90,14 +90,28 @@ func (c *SrvWatchJSCmd) updateSizes() error {
 	return nil
 }
 
+func (c *SrvWatchJSCmd) prePing(nc *nats.Conn, h nats.MsgHandler) {
+	sub, err := nc.Subscribe(nc.NewRespInbox(), h)
+	if err != nil {
+		return
+	}
+
+	time.AfterFunc(2*time.Second, func() { sub.Unsubscribe() })
+
+	msg := nats.NewMsg("$SYS.REQ.SERVER.PING")
+	msg.Reply = sub.Subject
+	nc.PublishMsg(msg)
+}
+
 func (c *SrvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 
-	_, err = nc.Subscribe("$SYS.SERVER.*.STATSZ", c.handle)
+	c.prePing(nc, c.handle)
 
+	_, err = nc.Subscribe("$SYS.SERVER.*.STATSZ", c.handle)
 	if err != nil {
 		return err
 	}
@@ -106,10 +120,13 @@ func (c *SrvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
+	// TODO: remove after 2.12 is out
+	drawPending := iu.ServerMinVersion(nc, 2, 10, 21)
+
 	for {
 		select {
 		case <-tick.C:
-			err = c.redraw()
+			err = c.redraw(drawPending)
 			if err != nil {
 				return err
 			}
@@ -136,7 +153,7 @@ func (c *SrvWatchJSCmd) handle(msg *nats.Msg) {
 	c.mu.Unlock()
 }
 
-func (c *SrvWatchJSCmd) redraw() error {
+func (c *SrvWatchJSCmd) redraw(drawPending bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -146,12 +163,13 @@ func (c *SrvWatchJSCmd) redraw() error {
 	}
 
 	var (
-		servers  []*server.ServerStatsMsg
-		assets   int
-		mem      uint64
-		store    uint64
-		api      uint64
-		apiError uint64
+		servers    []*server.ServerStatsMsg
+		assets     int
+		mem        uint64
+		store      uint64
+		api        uint64
+		apiError   uint64
+		apiPending int
 	)
 
 	for _, srv := range c.servers {
@@ -166,6 +184,9 @@ func (c *SrvWatchJSCmd) redraw() error {
 		store += srv.Stats.JetStream.Stats.Store
 		api += srv.Stats.JetStream.Stats.API.Total
 		apiError += srv.Stats.JetStream.Stats.API.Errors
+		if srv.Stats.JetStream.Meta != nil {
+			apiPending += srv.Stats.JetStream.Meta.Pending
+		}
 	}
 
 	sort.Slice(servers, func(i, j int) bool {
@@ -192,7 +213,12 @@ func (c *SrvWatchJSCmd) redraw() error {
 	}
 
 	table := newTableWriter(fmt.Sprintf("Top %s Server activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime)))
-	table.AddHeaders("Server", "HA Assets", "Memory", "File", "API", "API Errors")
+
+	if drawPending {
+		table.AddHeaders("Server", "HA Assets", "Memory", "File", "API", "API Errors", "API Pending")
+	} else {
+		table.AddHeaders("Server", "HA Assets", "Memory", "File", "API", "API Errors")
+	}
 
 	var matched []*server.ServerStatsMsg
 	if len(servers) < c.topCount {
@@ -203,16 +229,35 @@ func (c *SrvWatchJSCmd) redraw() error {
 
 	for _, srv := range matched {
 		js := srv.Stats.JetStream.Stats
-		table.AddRow(
-			srv.Server.Name,
+		name := srv.Server.Name
+
+		pending := 0
+		if srv.Stats.JetStream.Meta != nil {
+			pending = srv.Stats.JetStream.Meta.Pending
+			if srv.Stats.JetStream.Meta.Leader == name {
+				name = name + "*"
+			}
+		}
+
+		row := []any{
+			name,
 			f(js.HAAssets),
 			fiBytes(js.Memory),
 			fiBytes(js.Store),
 			f(js.API.Total),
 			f(js.API.Errors),
-		)
+		}
+		if drawPending {
+			row = append(row, f(pending))
+		}
+
+		table.AddRow(row...)
 	}
-	table.AddFooter("Totals (All Servers)", f(assets), fiBytes(mem), fiBytes(store), f(api), f(apiError))
+	row := []any{fmt.Sprintf("Totals (%d Servers)", len(matched)), f(assets), fiBytes(mem), fiBytes(store), f(api), f(apiError)}
+	if drawPending {
+		row = append(row, f(apiPending))
+	}
+	table.AddFooter(row...)
 
 	iu.ClearScreen()
 	fmt.Print(table.Render())

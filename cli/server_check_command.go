@@ -62,6 +62,7 @@ type SrvCheckCmd struct {
 	consumerLastAckCriticalIsSet        bool
 	consumerRedeliveryCritical          int
 	consumerRedeliveryCriticalIsSet     bool
+	consumerPinned                      bool
 
 	raftExpect            int
 	raftExpectIsSet       bool
@@ -168,13 +169,14 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	consumer.Flag("last-delivery-critical", "Time to allow since the last delivery").Default("0s").IsSetByUser(&c.consumerLastDeliveryCriticalIsSet).DurationVar(&c.consumerLastDeliveryCritical)
 	consumer.Flag("last-ack-critical", "Time to allow since the last ack").Default("0s").IsSetByUser(&c.consumerLastAckCriticalIsSet).DurationVar(&c.consumerLastAckCritical)
 	consumer.Flag("redelivery-critical", "Maximum number of redeliveries to allow").Default("-1").IsSetByUser(&c.consumerRedeliveryCriticalIsSet).IntVar(&c.consumerRedeliveryCritical)
+	consumer.Flag("pinned", "Requires Pinned Client priority with all groups having a pinned client").UnNegatableBoolVar(&c.consumerPinned)
 
 	msg := check.Command("message", "Checks properties of a message stored in a stream").Action(c.checkMsg)
 	msg.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
 	msg.Flag("subject", "The subject to fetch a message from").Default(">").StringVar(&c.msgSubject)
 	msg.Flag("age-warn", "Warning threshold for message age as a duration").PlaceHolder("DURATION").DurationVar(&c.msgAgeWarn)
 	msg.Flag("age-critical", "Critical threshold for message age as a duration").PlaceHolder("DURATION").DurationVar(&c.msgAgeCrit)
-	msg.Flag("content", "Regular expression to check the content against").PlaceHolder("REGEX").RegexpVar(&c.msgRegexp)
+	msg.Flag("content", "Regular expression to check the content against").PlaceHolder("REGEX").Default(".").RegexpVar(&c.msgRegexp)
 	msg.Flag("body-timestamp", "Use message body as a unix timestamp instead of message metadata").UnNegatableBoolVar(&c.msgBodyAsTs)
 
 	meta := check.Command("meta", "Check JetStream cluster state").Alias("raft").Action(c.checkRaft)
@@ -253,7 +255,12 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: fmt.Sprintf("%s_%s", c.sourcesStream, c.consumerName), Check: "consumer", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
-	checkOpts := &monitor.ConsumerHealthCheckOptions{}
+	checkOpts := &monitor.ConsumerHealthCheckOptions{
+		StreamName:   c.sourcesStream,
+		ConsumerName: c.consumerName,
+		Pinned:       c.consumerPinned,
+	}
+
 	if c.consumerAckOutstandingCriticalIsSet {
 		checkOpts.AckOutstandingCritical = c.consumerAckOutstandingCritical
 	}

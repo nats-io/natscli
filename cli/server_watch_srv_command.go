@@ -95,11 +95,27 @@ func (c *SrvWatchServerCmd) updateSizes() error {
 
 	return nil
 }
+
+func (c *SrvWatchServerCmd) prePing(nc *nats.Conn, h nats.MsgHandler) {
+	sub, err := nc.Subscribe(nc.NewRespInbox(), h)
+	if err != nil {
+		return
+	}
+
+	time.AfterFunc(2*time.Second, func() { sub.Unsubscribe() })
+
+	msg := nats.NewMsg("$SYS.REQ.SERVER.PING")
+	msg.Reply = sub.Subject
+	nc.PublishMsg(msg)
+}
+
 func (c *SrvWatchServerCmd) serversAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
+
+	c.prePing(nc, c.handle)
 
 	_, err = nc.Subscribe("$SYS.SERVER.*.STATSZ", c.handle)
 

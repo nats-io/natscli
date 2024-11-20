@@ -36,6 +36,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/options"
 
 	iu "github.com/nats-io/natscli/internal/util"
@@ -376,7 +377,7 @@ func newNatsConn(servers string, copts ...nats.Option) (*nats.Conn, error) {
 	return newNatsConnUnlocked(servers, copts...)
 }
 
-func prepareJSHelper() (*nats.Conn, nats.JetStreamContext, error) {
+func prepareJSHelper() (*nats.Conn, jetstream.JetStream, error) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -394,12 +395,13 @@ func prepareJSHelper() (*nats.Conn, nats.JetStreamContext, error) {
 		return opts.Conn, opts.JSc, nil
 	}
 
-	opts.JSc, err = opts.Conn.JetStream(jsOpts()...)
+	opts.JSc, err = jetstream.New(opts.Conn)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return opts.Conn, opts.JSc, nil
+
 }
 
 func prepareHelper(servers string, copts ...nats.Option) (*nats.Conn, *jsm.Manager, error) {
@@ -782,6 +784,17 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	return f(compact)
 }
 
+// doReqAsyncWaitFullTimeoutInterval special value to be passed as `waitFor` argument of doReqAsync to turn off
+// "adaptive" timeout and wait for the full interval
+const doReqAsyncWaitFullTimeoutInterval = -1
+
+// doReqAsync serializes and sends a request to the given subject and handles multiple responses.
+// This function uses the value from `Timeout` CLI flag as upper limit for responses gathering.
+// The value of the `waitFor` may shorten the interval during which responses are gathered:
+//
+//	waitFor < 0  : listen for responses for the full timeout interval
+//	waitFor == 0 : (adaptive timeout), after each response, wait a short amount of time for more, then stop
+//	waitFor > 0  : stops listening before the timeout if the given number of responses are received
 func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte)) error {
 	jreq := []byte("{}")
 	var err error
@@ -808,10 +821,13 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 		finisher *time.Timer
 	)
 
+	// Set deadline, max amount of time this function waits for responses
 	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
 	defer cancel()
 
+	// Activate "adaptive timeout". Finisher may trigger early termination
 	if waitFor == 0 {
+		// First response can take up to Timeout to arrive
 		finisher = time.NewTimer(opts().Timeout)
 		go func() {
 			select {
@@ -852,7 +868,9 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 			}
 		}
 
+		// If adaptive timeout is active, set deadline for next response
 		if finisher != nil {
+			// Stop listening and return if no further responses arrive within this interval
 			finisher.Reset(300 * time.Millisecond)
 		}
 
@@ -864,6 +882,7 @@ func doReqAsync(req any, subj string, waitFor int, nc *nats.Conn, cb func([]byte
 		cb(data)
 		ctr++
 
+		// Stop listening if the requested number of responses have been received
 		if waitFor > 0 && ctr == waitFor {
 			cancel()
 		}
@@ -1209,4 +1228,13 @@ func currentActiveServers(nc *nats.Conn) (int, error) {
 	})
 
 	return expect, err
+}
+
+func calculateRate(new, last float64, since time.Duration) float64 {
+	// If new == 0 we have missed a data point from nats.
+	// Return the previous calculation so that it doesn't break graphs
+	if new == 0 {
+		return last
+	}
+	return (new - last) / since.Seconds()
 }

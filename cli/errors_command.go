@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"sort"
 	"strconv"
@@ -28,6 +27,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go/schemas"
 	"github.com/nats-io/nats-server/v2/server"
+	iu "github.com/nats-io/natscli/internal/util"
 )
 
 type errCmd struct {
@@ -122,10 +122,6 @@ func (c *errCmd) listAction(_ *fisk.ParseContext) error {
 }
 
 func (c *errCmd) editAction(pc *fisk.ParseContext) error {
-	if os.Getenv("EDITOR") == "" {
-		return fmt.Errorf("EDITOR variable is not set")
-	}
-
 	errs, err := c.loadErrors(nil)
 	if err != nil {
 		return err
@@ -162,15 +158,12 @@ func (c *errCmd) editAction(pc *fisk.ParseContext) error {
 	tfile.Write(fj)
 	tfile.Close()
 
-	for {
-		cmd := exec.Command(os.Getenv("EDITOR"), tfile.Name())
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+	fp := tfile.Name()
 
-		err = cmd.Run()
+	for {
+		err = iu.EditFile(fp)
 		if err != nil {
-			return fmt.Errorf("could not edit error: %s", err)
+			return err
 		}
 
 		eb, err := os.ReadFile(tfile.Name())

@@ -139,7 +139,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	healthz.Flag("details", "Include extended details about all failures").Default("true").BoolVar(&c.includeDetails)
 
 	profilez := req.Command("profile", "Run a profile").Action(c.profilez)
-	profilez.Arg("profile", "Specify the name of the profile to run (allocs, heap, goroutine, mutex, threadcreate, block, cpu)").StringVar(&c.profileName)
+	profilez.Arg("profile", "Specify the name of the profile to run (allocs, heap, goroutine, mutex, threadcreate, block, cpu)").Required().EnumVar(&c.profileName, "allocs", "heap", "goroutine", "mutex", "threadcreate", "block", "cpu")
 	profilez.Arg("dir", "Set the output directory for profile files").Default(".").ExistingDirVar(&c.profileDir)
 	profilez.Flag("level", "Set the debug level of the profile").IntVar(&c.profileDebug)
 

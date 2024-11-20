@@ -21,7 +21,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"sort"
@@ -31,7 +30,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/guptarohit/asciigraph"
+	"github.com/nats-io/natscli/internal/asciigraph"
 	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 
@@ -475,10 +474,14 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				width = 80
 			}
 			if width > 15 {
-				width -= 10
+				width -= 11
 			}
 			if height > 10 {
 				height -= 6
+			}
+
+			if width < 20 || height < 20 {
+				return fmt.Errorf("please increase terminal dimensions")
 			}
 
 			nfo, err := stream.State()
@@ -487,8 +490,8 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 			}
 
 			messagesStored = append(messagesStored, float64(nfo.Msgs))
-			messageRates = append(messageRates, float64(nfo.LastSeq-lastLastSeq)/time.Since(lastStateTs).Seconds())
-			limitedRates = append(limitedRates, float64(nfo.FirstSeq-lastFirstSeq)/time.Since(lastStateTs).Seconds())
+			messageRates = append(messageRates, calculateRate(float64(nfo.LastSeq), float64(lastLastSeq), time.Since(lastStateTs)))
+			limitedRates = append(limitedRates, calculateRate(float64(nfo.FirstSeq), float64(lastFirstSeq), time.Since(lastStateTs)))
 
 			lastStateTs = time.Now()
 			lastLastSeq = nfo.LastSeq
@@ -504,6 +507,7 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/3-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(fFloat2Int),
 			)
 
 			limitedRatePlot := asciigraph.Plot(limitedRates,
@@ -512,6 +516,7 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/3-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(f),
 			)
 
 			msgRatePlot := asciigraph.Plot(messageRates,
@@ -520,6 +525,7 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/3-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(f),
 			)
 
 			iu.ClearScreen()
@@ -1793,11 +1799,6 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 }
 
 func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, error) {
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		return api.StreamConfig{}, fmt.Errorf("set EDITOR environment variable to your chosen editor")
-	}
-
 	cj, err := decoratedYamlMarshal(cfg)
 	if err != nil {
 		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
@@ -1816,14 +1817,9 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 
 	tfile.Close()
 
-	cmd := exec.Command(editor, tfile.Name())
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err = cmd.Run()
+	err = iu.EditFile(tfile.Name())
 	if err != nil {
-		return api.StreamConfig{}, fmt.Errorf("could not create temporary file: %s", err)
+		return api.StreamConfig{}, err
 	}
 
 	nb, err := os.ReadFile(tfile.Name())
@@ -3039,7 +3035,7 @@ func (c *streamCmd) purgeAction(_ *fisk.ParseContext) (err error) {
 	var req *api.JSApiStreamPurgeRequest
 	if c.purgeKeep > 0 || c.purgeSubject != "" || c.purgeSequence > 0 {
 		if c.purgeSequence > 0 && c.purgeKeep > 0 {
-			return fmt.Errorf("sequence and keep cannot be combined when purghing")
+			return fmt.Errorf("sequence and keep cannot be combined when purging")
 		}
 
 		req = &api.JSApiStreamPurgeRequest{
