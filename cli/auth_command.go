@@ -15,11 +15,12 @@ package cli
 
 func configureAuthCommand(app commandHost) {
 	auth := app.Command("auth", "NATS Decentralized Authentication")
+	addCheat("auth", auth)
 
 	// todo:
 	//  - Improve maintaining pub/sub permissions for a user, perhaps allow interactive edits of yaml?
 
-	auth.HelpLong("WARNING: This is experimental and subject to massive change, do not use yet")
+	auth.HelpLong("WARNING: This is experimental and subject to change, do not use yet for production deployment. ")
 
 	configureAuthOperatorCommand(auth)
 	configureAuthAccountCommand(auth)
