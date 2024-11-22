@@ -1477,7 +1477,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 
 func (c *streamCmd) renderReplication(stats []streamStat) {
 	table := newTableWriter("Replication Report")
-	table.AddHeaders("Stream", "Kind", "API Prefix", "Source Stream", "Filters and Transforms", "Active", "Lag", "Error")
+	table.AddHeaders("Stream", "Kind", "API Prefix", "Source Stream", "Filters and Transforms", "Seen", "Lag", "Error")
 
 	for _, s := range stats {
 		if len(s.Sources) == 0 && s.Mirror == nil {
@@ -1496,9 +1496,9 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 			}
 
 			if c.reportRaw {
-				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, "", "", s.Mirror.Active, s.Mirror.Lag, apierr)
+				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, "", s.Mirror.Active, s.Mirror.Lag, apierr)
 			} else {
-				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, "", "", f(s.Mirror.Active), f(s.Mirror.Lag), apierr)
+				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, "", f(s.Mirror.Active), f(s.Mirror.Lag), apierr)
 			}
 		}
 
