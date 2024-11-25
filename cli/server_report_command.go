@@ -274,11 +274,11 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		cNames = names
 	}
 
-	var table *tbl
+	var table *iu.Table
 	if c.account != "" {
-		table = newTableWriter(fmt.Sprintf("JetStream Summary for Account %s", c.account))
+		table = iu.NewTableWriter(opts(), fmt.Sprintf("JetStream Summary for Account %s", c.account))
 	} else {
-		table = newTableWriter("JetStream Summary")
+		table = iu.NewTableWriter(opts(), "JetStream Summary")
 	}
 
 	hdrs := []any{"Server", "Cluster"}
@@ -418,7 +418,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			cNames = names
 		}
 
-		table := newTableWriter("RAFT Meta Group Information")
+		table := iu.NewTableWriter(opts(), "RAFT Meta Group Information")
 		table.AddHeaders("Connection Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
 		for i, replica := range cluster.Replicas {
 			leader := ""
@@ -516,7 +516,7 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := newTableWriter(fmt.Sprintf("%d Accounts Overview", len(accounts)))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("%d Accounts Overview", len(accounts)))
 	table.AddHeaders("Account", "Connections", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
 
 	for _, acct := range accounts {
@@ -634,7 +634,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		limit = c.topk
 	}
 
-	table := newTableWriter(fmt.Sprintf("Top %d Connections out of %s by %s", limit, f(total), c.sort))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("Top %d Connections out of %s by %s", limit, f(total), c.sort))
 	showReason := c.stateFilter == "closed" || c.stateFilter == "all"
 	headers := []any{"CID", "Name", "Server", "Cluster", "IP", "Account", "Uptime", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs"}
 	if showReason {
@@ -718,7 +718,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 			return servers[serverNames[i]].conns < servers[serverNames[j]].conns
 		})
 
-		table := newTableWriter("Connections per server")
+		table := iu.NewTableWriter(opts(), "Connections per server")
 		table.AddHeaders("Server", "Cluster", "Connections")
 		sort.Slice(serverNames, func(i, j int) bool {
 			return servers[serverNames[i]].conns < servers[serverNames[j]].conns

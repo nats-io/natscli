@@ -258,7 +258,7 @@ func (c *subCmd) startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, 
 				} else {
 					tableHeaderString = fmt.Sprintf("Top %d Active Subjects Report", subjCount)
 				}
-				table := newTableWriter(tableHeaderString)
+				table := iu.NewTableWriter(opts(), tableHeaderString)
 				table.AddHeaders("Subject", "Message Count", "Bytes")
 				table.AddFooter("Totals", f(totalCount), humanize.IBytes(uint64(totalBytes)))
 				for i := range subjectRows {

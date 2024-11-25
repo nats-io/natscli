@@ -15,16 +15,16 @@ package cli
 
 import (
 	"fmt"
+	iu "github.com/nats-io/natscli/internal/util"
 	"io"
 	"math"
 	"os"
 	"time"
 
 	"github.com/choria-io/fisk"
-	"github.com/gosuri/uiprogress"
+	"github.com/jedib0t/go-pretty/v6/progress"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
-	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 )
 
@@ -124,7 +124,7 @@ func (c *pubCmd) prepareMsg(body []byte, seq int) (*nats.Msg, error) {
 	return msg, parseStringsToMsgHeader(c.hdrs, seq, msg)
 }
 
-func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
+func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
 	logOutput := !c.raw && progress == nil
 
 	for i := 1; i <= c.cnt; i++ {
@@ -155,7 +155,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 		}
 
 		if progress != nil {
-			progress.Incr()
+			progress.Increment(1)
 		}
 
 		// loop through the reply count.
@@ -233,7 +233,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *uiprogress.Bar) error {
 	return nil
 }
 
-func (c *pubCmd) doJetstream(nc *nats.Conn, progress *uiprogress.Bar) error {
+func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 	for i := 1; i <= c.cnt; i++ {
 		start := time.Now()
 		body, err := pubReplyBodyTemplate(c.body, "", i)
@@ -263,7 +263,7 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *uiprogress.Bar) error {
 		}
 
 		if progress != nil {
-			progress.Incr()
+			progress.Increment(1)
 		}
 
 		fmt.Printf(">>> Stream: %s Sequence: %s", ack.Stream, f(ack.Sequence))
@@ -307,26 +307,29 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 		c.body = string(body)
 	}
 
-	var progress *uiprogress.Bar
-	if c.cnt > 20 && !c.raw {
-		progressFormat := fmt.Sprintf("%%%dd / %%d", len(fmt.Sprintf("%d", c.cnt)))
-		progress = uiprogress.AddBar(c.cnt).PrependFunc(func(b *uiprogress.Bar) string {
-			return fmt.Sprintf(progressFormat, b.Current(), c.cnt)
-		}).AppendElapsed()
-		progress.Width = iu.ProgressWidth()
+	var tracker *progress.Tracker
+	var progbar progress.Writer
 
-		fmt.Println()
-		uiprogress.Start()
-		uiprogress.RefreshInterval = 100 * time.Millisecond
-		defer func() { uiprogress.Stop(); fmt.Println() }()
+	if c.cnt > 20 && !c.raw {
+		progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+			Total: int64(c.cnt),
+		})
+		if err != nil {
+			return err
+		}
+
+		defer func() {
+			progbar.Stop()
+			time.Sleep(300 * time.Millisecond)
+		}()
 	}
 
 	if c.jetstream {
-		return c.doJetstream(nc, progress)
+		return c.doJetstream(nc, tracker)
 	}
 
 	if c.req || c.replyCount >= 1 {
-		return c.doReq(nc, progress)
+		return c.doReq(nc, tracker)
 	}
 
 	for i := 1; i <= c.cnt; i++ {
@@ -355,10 +358,10 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 			time.Sleep(c.sleep)
 		}
 
-		if progress == nil {
+		if progbar == nil {
 			log.Printf("Published %d bytes to %q\n", len(body), c.subject)
 		} else {
-			progress.Incr()
+			tracker.Increment(1)
 		}
 	}
 

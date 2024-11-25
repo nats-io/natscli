@@ -234,7 +234,7 @@ func (c *actCmd) reportServerStats(_ *fisk.ParseContext) error {
 		return fmt.Errorf("did not get results from any servers")
 	}
 
-	table := newTableWriter("Server Statistics")
+	table := iu.NewTableWriter(opts(), "Server Statistics")
 	table.AddHeaders("Server", "Cluster", "Version", "Tags", "Connections", "Subscriptions", "Leafnodes", "Sent Bytes", "Sent Messages", "Received Bytes", "Received Messages", "Slow Consumers")
 
 	var (

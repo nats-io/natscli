@@ -1,4 +1,4 @@
-// Copyright 2023 The NATS Authors
+// Copyright 2024 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,17 +11,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cli
+package util
 
 import (
 	"fmt"
-	"sort"
-
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
+	"github.com/mattn/go-isatty"
+	"github.com/nats-io/natscli/options"
+	"os"
+	"sort"
 )
 
-type tbl struct {
+type Table struct {
 	writer table.Writer
 }
 
@@ -63,22 +65,49 @@ func ValidStyles() []string {
 	return res
 }
 
-func (t *tbl) AddHeaders(items ...any) {
+func (t *Table) AddHeaders(items ...any) {
 	t.writer.AppendHeader(items)
 }
 
-func (t *tbl) AddFooter(items ...any) {
+func (t *Table) AddFooter(items ...any) {
 	t.writer.AppendFooter(items)
 }
 
-func (t *tbl) AddSeparator() {
+func (t *Table) AddSeparator() {
 	t.writer.AppendSeparator()
 }
 
-func (t *tbl) AddRow(items ...any) {
+func (t *Table) AddRow(items ...any) {
 	t.writer.AppendRow(items)
 }
 
-func (t *tbl) Render() string {
+func (t *Table) Render() string {
 	return fmt.Sprintln(t.writer.Render())
+}
+
+func NewTableWriter(opts *options.Options, format string, a ...any) *Table {
+	tbl := &Table{
+		writer: table.NewWriter(),
+	}
+
+	tbl.writer.SetStyle(styles["rounded"])
+
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		if opts.Config != nil {
+			style, ok := styles[opts.Config.ColorScheme()]
+			if ok {
+				tbl.writer.SetStyle(style)
+			}
+		}
+	}
+
+	tbl.writer.Style().Title.Align = text.AlignCenter
+	tbl.writer.Style().Format.Header = text.FormatDefault
+	tbl.writer.Style().Format.Footer = text.FormatDefault
+
+	if format != "" {
+		tbl.writer.SetTitle(fmt.Sprintf(format, a...))
+	}
+
+	return tbl
 }

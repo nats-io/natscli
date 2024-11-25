@@ -373,7 +373,7 @@ func (c *ctxCommand) renderListTable(current string, known []*natscontext.Contex
 		return
 	}
 
-	table := newTableWriter("Known Contexts")
+	table := iu.NewTableWriter(opts(), "Known Contexts")
 	table.AddHeaders("Name", "Description")
 
 	for _, nctx := range known {

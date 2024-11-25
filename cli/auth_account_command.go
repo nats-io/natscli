@@ -23,7 +23,7 @@ import (
 	"time"
 
 	au "github.com/nats-io/natscli/internal/auth"
-	"github.com/nats-io/natscli/internal/util"
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -492,7 +492,7 @@ func (c *authAccountCommand) skAddAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.skRole == "" {
-		err := util.AskOne(&survey.Input{
+		err := iu.AskOne(&survey.Input{
 			Message: "Role Name",
 			Help:    "The role to associate with this key",
 		}, &c.skRole, survey.WithValidator(survey.Required))
@@ -601,10 +601,10 @@ func (c *authAccountCommand) skListAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	var table *tbl
+	var table *iu.Table
 
 	if len(acct.ScopedSigningKeys().List()) > 0 {
-		table = newTableWriter("Scoped Signing Keys")
+		table = iu.NewTableWriter(opts(), "Scoped Signing Keys")
 		table.AddHeaders("Role", "Key", "Description", "Max Subscriptions", "Pub Perms", "Sub Perms")
 		for _, sk := range acct.ScopedSigningKeys().List() {
 			scope, _ := acct.ScopedSigningKeys().GetScope(sk)
@@ -765,7 +765,7 @@ func (c *authAccountCommand) lsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := newTableWriter("Accounts")
+	table := iu.NewTableWriter(opts(), "Accounts")
 	table.AddHeaders("Name", "Subject", "Users", "JetStream", "System")
 	for _, acct := range list {
 		system := ""
@@ -894,7 +894,7 @@ func (c *authAccountCommand) addAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.accountName == "" {
-		err := util.AskOne(&survey.Input{
+		err := iu.AskOne(&survey.Input{
 			Message: "Account Name",
 			Help:    "A unique name for the Account being added",
 		}, &c.accountName, survey.WithValidator(survey.Required))

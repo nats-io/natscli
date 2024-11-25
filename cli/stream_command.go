@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jedib0t/go-pretty/v6/progress"
 	"io"
 	"math"
 	"os"
@@ -39,7 +40,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/emicklei/dot"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -582,7 +582,9 @@ func (c *streamCmd) detectGaps(_ *fisk.ParseContext) error {
 		c.showProgress = false
 	}
 
-	var progress *uiprogress.Bar
+	var progbar progress.Writer
+	var tracker *progress.Tracker
+
 	var gaps [][2]uint64
 	var cnt int
 
@@ -590,18 +592,18 @@ func (c *streamCmd) detectGaps(_ *fisk.ParseContext) error {
 		if !c.showProgress {
 			return
 		}
-		if progress == nil {
-			progress = uiprogress.AddBar(int(pending)).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
-				return fmt.Sprintf("%s / %s", f(b.Current()), f(b.Total))
+		if tracker == nil {
+			progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+				Total: int64(pending),
 			})
-			uiprogress.Start()
 		}
 		cnt++
 
-		progress.Set(int(seq))
+		tracker.SetValue(int64(seq))
 
 		if pending == 0 {
-			progress.Set(progress.Total)
+			tracker.SetValue(tracker.Total)
+			tracker.MarkAsDone()
 		}
 	}
 
@@ -610,9 +612,9 @@ func (c *streamCmd) detectGaps(_ *fisk.ParseContext) error {
 	}
 
 	err = stream.DetectGaps(ctx, progressCb, gapCb)
-	if progress != nil {
+	if tracker != nil {
 		time.Sleep(250 * time.Millisecond) // let it draw
-		uiprogress.Stop()
+		progbar.Stop()
 		fmt.Println()
 	}
 	if err != nil {
@@ -629,11 +631,11 @@ func (c *streamCmd) detectGaps(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	var table *tbl
+	var table *iu.Table
 	if len(gaps) == 1 {
-		table = newTableWriter(fmt.Sprintf("1 gap found in Stream %s", c.stream))
+		table = iu.NewTableWriter(opts(), fmt.Sprintf("1 gap found in Stream %s", c.stream))
 	} else {
-		table = newTableWriter(fmt.Sprintf("%s gaps found in Stream %s", f(len(gaps)), c.stream))
+		table = iu.NewTableWriter(opts(), fmt.Sprintf("%s gaps found in Stream %s", f(len(gaps)), c.stream))
 	}
 
 	table.AddHeaders("First Message", "Last Message")
@@ -683,7 +685,7 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 
 	cols := 1
 	countWidth := len(f(most))
-	table := newTableWriter(fmt.Sprintf("%d Subjects in stream %s", len(names), c.stream))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("%d Subjects in stream %s", len(names), c.stream))
 
 	switch {
 	case longest+countWidth < 20:
@@ -1087,13 +1089,11 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 		fisk.Fatalf("Stream %q already exist", bm.Config.Name)
 	}
 
-	var progress *uiprogress.Bar
-	var bps uint64
+	var progbar progress.Writer
+	var tracker *progress.Tracker
 	var prevMsg time.Time
 
 	cb := func(p jsm.RestoreProgress) {
-		bps = p.BytesPerSecond()
-
 		if opts().Trace && (p.ChunksSent()%100 == 0 || time.Since(prevMsg) > 500*time.Millisecond) {
 			fmt.Printf("Sent %v chunk %v / %v at %v / s\n", fiBytes(uint64(p.ChunkSize())), p.ChunksSent(), p.ChunksToSend(), fiBytes(p.BytesPerSecond()))
 			return
@@ -1101,23 +1101,19 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 
 		prevMsg = time.Now()
 
-		if progress == nil {
-			progress = uiprogress.AddBar(p.ChunksToSend()).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
-				return humanize.IBytes(bps) + "/s"
+		if progbar == nil {
+			progbar, tracker, _ = iu.NewProgress(opts(), &progress.Tracker{
+				Total: int64(p.ChunksToSend() * p.ChunkSize()),
+				Units: progress.UnitsBytes,
 			})
-			progress.Width = iu.ProgressWidth()
 		}
 
-		progress.Set(int(p.ChunksSent()))
+		tracker.SetValue(int64(p.ChunksSent() * uint32(p.ChunkSize())))
 	}
 
 	var ropts []jsm.SnapshotOption
 
 	if c.showProgress {
-		if !opts().Trace {
-			uiprogress.Start()
-		}
-
 		ropts = append(ropts, jsm.RestoreNotify(cb))
 	} else {
 		ropts = append(ropts, jsm.SnapshotDebug())
@@ -1150,15 +1146,18 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 		cfg.Replicas = int(c.replicas)
 	}
 
-	ropts = append(ropts, jsm.RestoreConfiguration(*cfg))
+	if cfg != nil {
+		ropts = append(ropts, jsm.RestoreConfiguration(*cfg))
+	}
 
 	fmt.Printf("Starting restore of Stream %q from file %q\n\n", bm.Config.Name, c.backupDirectory)
 
 	fp, _, err := mgr.RestoreSnapshotFromDirectory(ctx, bm.Config.Name, c.backupDirectory, ropts...)
 	fisk.FatalIfError(err, "restore failed")
 	if c.showProgress {
-		progress.Set(int(fp.ChunksSent()))
-		uiprogress.Stop()
+		tracker.SetValue(int64(fp.ChunksSent() * uint32(fp.ChunkSize())))
+		time.Sleep(300 * time.Millisecond)
+		progbar.Stop()
 	}
 
 	fmt.Println()
@@ -1175,13 +1174,13 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 
 func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check bool, target string, chunkSize int) error {
 	first := true
-	inprogress := true
 	pmu := sync.Mutex{}
-	var bar *uiprogress.Bar
-	var bps uint64
-	var progress *uiprogress.Progress
 	expected := 1
 	timedOut := false
+
+	var progbar progress.Writer
+	var tracker *progress.Tracker
+	var err error
 	var prevMsg time.Time
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -1200,14 +1199,14 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 	var received uint32
 
 	cb := func(p jsm.SnapshotProgress) {
-		if bar == nil && showProgress {
+		if tracker == nil && showProgress {
 			if p.BytesExpected() > 0 {
 				expected = int(p.BytesExpected())
 			}
-			bar = progress.AddBar(expected).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
-				return humanize.IBytes(bps) + "/s"
+			progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+				Total: int64(expected),
+				Units: iu.ProgressUnitsIBytes,
 			})
-			bar.Width = iu.ProgressWidth()
 		}
 
 		if first {
@@ -1223,8 +1222,6 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 			first = false
 		}
 
-		bps = p.BytesPerSecond()
-
 		if opts().Trace {
 			if first {
 				fmt.Printf("Received %s chunk %s\n", fiBytes(uint64(p.ChunkSize())), f(p.ChunksReceived()))
@@ -1238,20 +1235,8 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 			received = p.ChunksReceived()
 		}
 
-		if showProgress {
-			bar.Set(int(p.BytesReceived()))
-		}
-
-		if p.Finished() {
-			pmu.Lock()
-			if inprogress {
-				if showProgress {
-					progress.Stop()
-				}
-
-				inprogress = false
-			}
-			pmu.Unlock()
+		if tracker != nil {
+			tracker.SetValue(int64(p.UncompressedBytesReceived()))
 		}
 
 		prevMsg = time.Now()
@@ -1259,6 +1244,7 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 
 	sopts := []jsm.SnapshotOption{
 		jsm.SnapshotChunkSize(chunkSize),
+		jsm.SnapshotNotify(cb),
 	}
 
 	if consumers {
@@ -1270,13 +1256,6 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 		showProgress = false
 	}
 
-	if showProgress {
-		progress = uiprogress.New()
-		progress.Start()
-	}
-
-	sopts = append(sopts, jsm.SnapshotNotify(cb))
-
 	if check {
 		sopts = append(sopts, jsm.SnapshotHealthCheck())
 	}
@@ -1287,10 +1266,11 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 	}
 
 	pmu.Lock()
-	if showProgress && inprogress {
-		bar.Set(int(fp.BytesReceived()))
-		uiprogress.Stop()
-		inprogress = false
+	if tracker != nil {
+		tracker.SetValue(int64(expected))
+		tracker.MarkAsDone()
+		time.Sleep(300 * time.Millisecond)
+		progbar.Stop()
 	}
 	pmu.Unlock()
 
@@ -1300,7 +1280,7 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 		return fmt.Errorf("backup timed out after receiving no data for a long period")
 	}
 
-	fmt.Printf("Received %s compressed data in %s chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), f(fp.ChunksReceived()), stream.Name(), fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), humanize.IBytes(fp.UncompressedBytesReceived()))
+	fmt.Printf("Received %s compressed data in %s chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), f(fp.ChunksReceived()), stream.Name(), fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), fiBytes(fp.UncompressedBytesReceived()))
 
 	return nil
 }
@@ -1476,8 +1456,8 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 }
 
 func (c *streamCmd) renderReplication(stats []streamStat) {
-	table := newTableWriter("Replication Report")
-	table.AddHeaders("Stream", "Kind", "API Prefix", "Source Stream", "Filters and Transforms", "Seen", "Lag", "Error")
+	table := iu.NewTableWriter(opts(), "Replication Report")
+	table.AddHeaders("Stream", "Kind", "API Prefix", "Source Stream", "Filters and Transforms", "Active", "Lag", "Error")
 
 	for _, s := range stats {
 		if len(s.Sources) == 0 && s.Mirror == nil {
@@ -1535,7 +1515,7 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 }
 
 func (c *streamCmd) renderStreams(stats []streamStat) {
-	table := newTableWriter("Stream Report")
+	table := iu.NewTableWriter(opts(), "Stream Report")
 	table.AddHeaders("Stream", "Storage", "Placement", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Replicas")
 
 	for _, s := range stats {
@@ -3150,11 +3130,11 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string
 	})
 
 	var out bytes.Buffer
-	var table *tbl
+	var table *iu.Table
 	if c.filterSubject == "" {
-		table = newTableWriter("Streams")
+		table = iu.NewTableWriter(opts(), "Streams")
 	} else {
-		table = newTableWriter(fmt.Sprintf("Streams matching %s", c.filterSubject))
+		table = iu.NewTableWriter(opts(), fmt.Sprintf("Streams matching %s", c.filterSubject))
 	}
 
 	table.AddHeaders("Name", "Description", "Created", "Messages", "Size", "Last Message")
@@ -3181,7 +3161,7 @@ func (c *streamCmd) renderMissing(out io.Writer, missing []string) {
 	if len(missing) > 0 {
 		fmt.Fprintln(out)
 		sort.Strings(missing)
-		table := newTableWriter("Inaccessible Streams")
+		table := iu.NewTableWriter(opts(), "Inaccessible Streams")
 		iu.SliceGroups(missing, 4, func(names []string) {
 			table.AddRow(toany(names)...)
 		})

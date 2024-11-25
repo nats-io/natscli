@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jedib0t/go-pretty/v6/progress"
 	"io"
 	"math"
 	"math/rand"
@@ -44,11 +45,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	"github.com/google/shlex"
-	"github.com/gosuri/uiprogress"
-	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/klauspost/compress/s2"
-	"github.com/mattn/go-isatty"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/natscontext"
@@ -945,7 +942,7 @@ type raftLeader struct {
 }
 
 func renderRaftLeaders(leaders map[string]*raftLeader, grpTitle string) {
-	table := newTableWriter("RAFT Leader Report")
+	table := iu.NewTableWriter(opts(), "RAFT Leader Report")
 	table.AddHeaders("Server", "Cluster", grpTitle, "Distribution")
 
 	var llist []*raftLeader
@@ -1032,33 +1029,6 @@ func compactStrings(source []string) []string {
 	return result
 }
 
-func newTableWriter(format string, a ...any) *tbl {
-	tbl := &tbl{
-		writer: table.NewWriter(),
-	}
-
-	tbl.writer.SetStyle(styles["rounded"])
-
-	if isatty.IsTerminal(os.Stdout.Fd()) {
-		if opts().Config != nil {
-			style, ok := styles[opts().Config.ColorScheme()]
-			if ok {
-				tbl.writer.SetStyle(style)
-			}
-		}
-	}
-
-	tbl.writer.Style().Title.Align = text.AlignCenter
-	tbl.writer.Style().Format.Header = text.FormatDefault
-	tbl.writer.Style().Format.Footer = text.FormatDefault
-
-	if format != "" {
-		tbl.writer.SetTitle(fmt.Sprintf(format, a...))
-	}
-
-	return tbl
-}
-
 func isPrintable(s string) bool {
 	for _, r := range s {
 		if r > unicode.MaxASCII || !unicode.IsPrint(r) {
@@ -1080,19 +1050,20 @@ func base64IfNotPrintable(val []byte) string {
 type progressRW struct {
 	r io.Reader
 	w io.Writer
-	p *uiprogress.Bar
+	p progress.Writer
+	t *progress.Tracker
 }
 
 func (pr *progressRW) Read(p []byte) (n int, err error) {
 	n, err = pr.r.Read(p)
-	pr.p.Set(pr.p.Current() + n)
+	pr.t.Increment(int64(n))
 
 	return n, err
 }
 
 func (pr *progressRW) Write(p []byte) (n int, err error) {
 	n, err = pr.w.Write(p)
-	pr.p.Set(pr.p.Current() + n)
+	pr.t.Increment(int64(n))
 	return n, err
 }
 

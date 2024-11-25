@@ -15,6 +15,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/nats-io/natscli/internal/util"
 	"sort"
 	"strings"
 	"time"
@@ -122,7 +123,7 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 
 	fmt.Printf("Streams: %d\n", len(keys))
 
-	table := newTableWriter("Streams")
+	table := util.NewTableWriter(opts(), "Streams")
 	if c.health {
 		table.AddHeaders("Stream Replica", "Raft", "Account", "Account ID", "Node", "Messages", "Bytes", "Subjects", "Deleted", "Consumers", "First", "Last", "Status", "Leader", "Peers", "Health")
 	} else {
