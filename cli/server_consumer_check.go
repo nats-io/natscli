@@ -15,6 +15,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/nats-io/natscli/internal/util"
 	"sort"
 	"strings"
 	"time"
@@ -174,7 +175,7 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 	sort.Strings(keys)
 	fmt.Printf("Consumers: %d\n", len(keys))
 
-	table := newTableWriter("Consumers")
+	table := util.NewTableWriter(opts(), "Consumers")
 
 	if c.health {
 		table.AddHeaders("Consumer", "Stream", "Raft", "Account", "Account ID", "Node", "Delivered (S,C)", "ACK Floor (S,C)", "Counters", "Status", "Leader", "Stream Cluster Leader", "Peers", "Health")

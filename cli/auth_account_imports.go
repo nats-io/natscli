@@ -176,7 +176,7 @@ func (c *authAccountCommand) importLsAction(_ *fisk.ParseContext) error {
 
 	imports := c.importsBySubject(acct)
 
-	tbl := newTableWriter("Imports for account %s", acct.Name())
+	tbl := util.NewTableWriter(opts(), "Imports for account %s", acct.Name())
 	tbl.AddHeaders("Name", "Kind", "Source", "Local Subject", "Remote Subject", "Allows Tracing", "Sharing Connection Info")
 
 	for _, i := range imports {

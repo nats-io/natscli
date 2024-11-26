@@ -321,7 +321,7 @@ func (c *serviceCmd) statsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := newTableWriter(fmt.Sprintf("%s Service Statistics", c.name))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("%s Service Statistics", c.name))
 	table.AddHeaders("ID", "Endpoint", "Requests", "Queue Group", "Errors", "Processing Time", "Average Time")
 
 	var requests, errors int
@@ -460,11 +460,11 @@ func (c *serviceCmd) listAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	var table *tbl
+	var table *iu.Table
 	if c.name == "" {
-		table = newTableWriter("All Services")
+		table = iu.NewTableWriter(opts(), "All Services")
 	} else {
-		table = newTableWriter(fmt.Sprintf("%s Service Instances", c.name))
+		table = iu.NewTableWriter(opts(), fmt.Sprintf("%s Service Instances", c.name))
 	}
 	table.AddHeaders("Name", "Version", "ID", "Description")
 	var pd, pv, pn string

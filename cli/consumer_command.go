@@ -946,7 +946,7 @@ func (c *consumerCmd) lsAction(pc *fisk.ParseContext) error {
 
 func (c *consumerCmd) renderConsumerAsTable(stream *jsm.Stream) (string, error) {
 	var out bytes.Buffer
-	table := newTableWriter("Consumers")
+	table := iu.NewTableWriter(opts(), "Consumers")
 	table.AddHeaders("Name", "Description", "Created", "Ack Pending", "Unprocessed", "Last Delivery")
 
 	missing, err := stream.EachConsumer(func(cons *jsm.Consumer) {
@@ -2305,7 +2305,7 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 
 	leaders := make(map[string]*raftLeader)
 
-	table := newTableWriter(fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, f(ss.Consumers)))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, f(ss.Consumers)))
 	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
 	missing, err := s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
@@ -2372,7 +2372,7 @@ func (c *consumerCmd) renderMissing(out io.Writer, missing []string) {
 	if len(missing) > 0 {
 		fmt.Fprintln(out)
 		sort.Strings(missing)
-		table := newTableWriter("Inaccessible Consumers")
+		table := iu.NewTableWriter(opts(), "Inaccessible Consumers")
 		iu.SliceGroups(missing, 4, func(names []string) {
 			table.AddRow(toany(names)...)
 		})

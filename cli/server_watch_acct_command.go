@@ -184,7 +184,7 @@ func (c *SrvWatchAccountCmd) redraw() error {
 		tc = fmt.Sprintf("%d / %d", c.topCount, len(accounts))
 	}
 
-	table := newTableWriter(fmt.Sprintf("Top %s Account activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime)))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("Top %s Account activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime)))
 	table.AddHeaders("Account", "Servers", "Connections", "Leafnodes", "Subscriptions", "Slow", "Sent", "Received")
 
 	var matched []*server.AccountStat
