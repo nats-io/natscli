@@ -327,8 +327,9 @@ func (c *objCommand) showBucketInfo(store jetstream.ObjectStore) error {
 	if status.BackingStore() == "JetStream" {
 		cols.AddRow("JetStream Stream", nfo.Config.Name)
 
-		if len(nfo.Config.Metadata) > 0 {
-			cols.AddMapStringsAsValue("Metadata", nfo.Config.Metadata)
+		meta := jsm.FilterServerMetadata(nfo.Config.Metadata)
+		if len(meta) > 0 {
+			cols.AddMapStringsAsValue("Metadata", meta)
 		}
 
 		if nfo.Cluster != nil {
