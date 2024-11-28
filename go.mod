@@ -15,15 +15,15 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gosuri/uiprogress v0.0.1
-	github.com/jedib0t/go-pretty/v6 v6.6.2
+	github.com/jedib0t/go-pretty/v6 v6.6.3
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.17.11
 	github.com/mattn/go-isatty v0.0.20
-	github.com/nats-io/jsm.go v0.1.1-0.20241126113501-b6095211b00b
+	github.com/nats-io/jsm.go v0.1.1-0.20241128091442-da16cd219f9b
 	github.com/nats-io/jwt/v2 v2.7.2
-	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20241126010352-fa50c751ab3c
+	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20241127165413-cfaad68e19db
 	github.com/nats-io/nats.go v1.37.0
-	github.com/nats-io/nkeys v0.4.7
+	github.com/nats-io/nkeys v0.4.8
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
