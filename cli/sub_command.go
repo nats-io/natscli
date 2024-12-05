@@ -79,7 +79,7 @@ func configureSubCommand(app commandHost) {
 	c := &subCmd{}
 
 	subHelp := `
-	Jetstream will be activated when related options like --stream, --durabled or --ack are supplied.
+	Jetstream will be activated when related options like --stream, --durable or --ack are supplied.
 
 		E.g. nats sub <subject that is bound to a stream> --all
 
