@@ -40,6 +40,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/balancer"
 	"github.com/nats-io/nats.go"
 
 	"github.com/nats-io/jsm.go"
@@ -297,6 +298,22 @@ func configureConsumerCommand(app commandHost) {
 	conClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterDown.Arg("consumer", "Consumer to act on").StringVar(&c.consumer)
 	conClusterDown.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
+	conClusterBalance := conCluster.Command("balance", "Balance consumer leaders").Action(c.balanceAction)
+	conClusterBalance.Arg("stream", "Stream to act on").StringVar(&c.stream)
+	conClusterBalance.Flag("pull", "Balance only pull based consumers").UnNegatableBoolVar(&c.fPull)
+	conClusterBalance.Flag("push", "Balance only push based consumers").UnNegatableBoolVar(&c.fPush)
+	conClusterBalance.Flag("bound", "Balance push-bound or pull consumers with waiting pulls").UnNegatableBoolVar(&c.fBound)
+	conClusterBalance.Flag("waiting", "Balance consumers with fewer waiting pulls").IntVar(&c.fWaiting)
+	conClusterBalance.Flag("ack-pending", "Balance consumers with fewer pending acks").IntVar(&c.fAckPending)
+	conClusterBalance.Flag("pending", "Balance consumers with fewer unprocessed messages").Uint64Var(&c.fPending)
+	conClusterBalance.Flag("idle", "Balance consumers with no new deliveries for a period").DurationVar(&c.fIdle)
+	conClusterBalance.Flag("created", "Balance consumers created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
+	conClusterBalance.Flag("replicas", "Balance consumers with fewer or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
+	conClusterBalance.Flag("leader", "Balance only clustered streams with a specific leader").PlaceHolder("SERVER").StringVar(&c.fLeader)
+	conClusterBalance.Flag("pinned", "Balance Pinned Client priority group consumers that are fully pinned").UnNegatableBoolVar(&c.fPinned)
+	conClusterBalance.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
+	conClusterBalance.Flag("expression", "Balance matching consumers using an expression language").StringVar(&c.fExpression)
+
 }
 
 func init() {
@@ -571,6 +588,85 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 			return nil
 		}
 	}
+}
+
+func (c *consumerCmd) balanceAction(_ *fisk.ParseContext) error {
+	var err error
+	var stream *jsm.Stream
+
+	c.connectAndSetup(true, false)
+
+	c.stream, stream, err = selectStream(c.mgr, c.stream, c.force, c.showAll)
+	if err != nil {
+		return err
+	}
+
+	if stream == nil {
+		return fmt.Errorf("no stream selected")
+	}
+
+	var opts []jsm.ConsumerQueryOpt
+	if c.fPush {
+		opts = append(opts, jsm.ConsumerQueryIsPush())
+	}
+	if c.fPull {
+		opts = append(opts, jsm.ConsumerQueryIsPull())
+	}
+	if c.fBound {
+		opts = append(opts, jsm.ConsumerQueryIsBound())
+	}
+	if c.fWaiting > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithFewerWaiting(c.fWaiting))
+	}
+	if c.fAckPending > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithFewerAckPending(c.fAckPending))
+	}
+	if c.fPending > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithFewerPending(c.fPending))
+	}
+	if c.fIdle > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithDeliverySince(c.fIdle))
+	}
+	if c.fCreated > 0 {
+		opts = append(opts, jsm.ConsumerQueryOlderThan(c.fCreated))
+	}
+	if c.fReplicas > 0 {
+		opts = append(opts, jsm.ConsumerQueryReplicas(c.fReplicas))
+	}
+	if c.fInvert {
+		opts = append(opts, jsm.ConsumerQueryInvert())
+	}
+	if c.fExpression != "" {
+		opts = append(opts, jsm.ConsumerQueryExpression(c.fExpression))
+	}
+	if c.fLeader != "" {
+		opts = append(opts, jsm.ConsumerQueryLeaderServer(c.fLeader))
+	}
+	if c.fPinned {
+		opts = append(opts, jsm.ConsumerQueryIsPinned())
+	}
+
+	consumers, err := stream.QueryConsumers(opts...)
+	if err != nil {
+		return err
+	}
+
+	if len(consumers) > 0 {
+		balancer, err := balancer.New(c.mgr.NatsConn(), api.NewDefaultLogger(api.InfoLevel))
+		if err != nil {
+			return err
+		}
+
+		balanced, err := balancer.BalanceConsumers(consumers)
+		if err != nil {
+			return fmt.Errorf("failed to balance consumers on %s - %s", c.stream, err)
+		}
+		fmt.Printf("Balanced %d consumers on %s\n", balanced, c.stream)
+
+	} else {
+		fmt.Printf("No consumers on %s\n", c.stream)
+	}
+	return nil
 }
 
 func (c *consumerCmd) leaderStandDownAction(_ *fisk.ParseContext) error {

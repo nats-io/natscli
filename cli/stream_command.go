@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jedib0t/go-pretty/v6/progress"
 	"io"
 	"math"
 	"os"
@@ -31,6 +30,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jedib0t/go-pretty/v6/progress"
+
 	"github.com/nats-io/natscli/internal/asciigraph"
 	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
@@ -42,6 +43,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/balancer"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/columns"
 	"gopkg.in/yaml.v3"
@@ -403,6 +405,20 @@ Finding streams with certain subjects configured:
 	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	strClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	strClusterDown.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
+	strClusterBalance := strCluster.Command("balance", "Balance stream leaders").Action(c.balanceAction)
+	strClusterBalance.Flag("server-name", "Balance streams present on a regular expression matched server").StringVar(&c.fServer)
+	strClusterBalance.Flag("cluster", "Balance streams present on a regular expression matched cluster").StringVar(&c.fCluster)
+	strClusterBalance.Flag("empty", "Balance streams with no messages").UnNegatableBoolVar(&c.fEmpty)
+	strClusterBalance.Flag("idle", "Balance streams with no new messages or consumer deliveries for a period").PlaceHolder("DURATION").DurationVar(&c.fIdle)
+	strClusterBalance.Flag("created", "Balance streams created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
+	strClusterBalance.Flag("consumers", "Balance streams with fewer consumers than threshold").PlaceHolder("THRESHOLD").Default("-1").IntVar(&c.fConsumers)
+	strClusterBalance.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard and balances them").StringVar(&c.filterSubject)
+	strClusterBalance.Flag("replicas", "Balance streams with fewer or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
+	strClusterBalance.Flag("sourced", "Balance that sources data from other streams").IsSetByUser(&c.fSourcedSet).UnNegatableBoolVar(&c.fSourced)
+	strClusterBalance.Flag("mirrored", "Balance that mirrors data from other streams").IsSetByUser(&c.fMirroredSet).UnNegatableBoolVar(&c.fMirrored)
+	strClusterBalance.Flag("leader", "Balance only clustered streams with a specific leader").PlaceHolder("SERVER").StringVar(&c.fLeader)
+	strClusterBalance.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
+	strClusterBalance.Flag("expression", "Balance matching streams using an expression language").StringVar(&c.fExpression)
 
 	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the Stream cluster").Alias("pr").Action(c.removePeer)
 	strClusterRemovePeer.Arg("stream", "The stream to act on").StringVar(&c.stream)
@@ -827,6 +843,77 @@ func (c *streamCmd) loadStream(stream string) (*jsm.Stream, error) {
 	}
 
 	return c.mgr.LoadStream(stream)
+}
+
+func (c *streamCmd) balanceAction(_ *fisk.ParseContext) error {
+	var err error
+
+	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
+	if err != nil {
+		return fmt.Errorf("setup failed: %v", err)
+	}
+
+	var opts []jsm.StreamQueryOpt
+	if c.fServer != "" {
+		opts = append(opts, jsm.StreamQueryServerName(c.fServer))
+	}
+	if c.fCluster != "" {
+		opts = append(opts, jsm.StreamQueryClusterName(c.fCluster))
+	}
+	if c.fEmpty {
+		opts = append(opts, jsm.StreamQueryWithoutMessages())
+	}
+	if c.fIdle > 0 {
+		opts = append(opts, jsm.StreamQueryIdleLongerThan(c.fIdle))
+	}
+	if c.fCreated > 0 {
+		opts = append(opts, jsm.StreamQueryOlderThan(c.fCreated))
+	}
+	if c.fConsumers >= 0 {
+		opts = append(opts, jsm.StreamQueryFewerConsumersThan(uint(c.fConsumers)))
+	}
+	if c.fInvert {
+		opts = append(opts, jsm.StreamQueryInvert())
+	}
+	if c.filterSubject != "" {
+		opts = append(opts, jsm.StreamQuerySubjectWildcard(c.filterSubject))
+	}
+	if c.fSourcedSet {
+		opts = append(opts, jsm.StreamQueryIsSourced())
+	}
+	if c.fMirroredSet {
+		opts = append(opts, jsm.StreamQueryIsMirror())
+	}
+	if c.fReplicas > 0 {
+		opts = append(opts, jsm.StreamQueryReplicas(c.fReplicas))
+	}
+	if c.fExpression != "" {
+		opts = append(opts, jsm.StreamQueryExpression(c.fExpression))
+	}
+	if c.fLeader != "" {
+		opts = append(opts, jsm.StreamQueryLeaderServer(c.fLeader))
+	}
+
+	found, err := c.mgr.QueryStreams(opts...)
+	if err != nil {
+		return err
+	}
+
+	if len(found) > 0 {
+		balancer, err := balancer.New(c.mgr.NatsConn(), api.NewDefaultLogger(api.InfoLevel))
+		if err != nil {
+			return err
+		}
+
+		balanced, err := balancer.BalanceStreams(found)
+		if err != nil {
+			return fmt.Errorf("failed to balance streams - %s", err)
+		}
+		fmt.Printf("Balanced %d streams.\n", balanced)
+
+	}
+
+	return nil
 }
 
 func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
