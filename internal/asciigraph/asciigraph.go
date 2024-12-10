@@ -134,7 +134,8 @@ func PlotMany(data [][]float64, options ...Option) string {
 		precision = 0
 	}
 
-	maxNumLength, minNumLength := 0, math.MaxInt64
+	// Beware that MaxInt64 will fail on supported 32-bit targets
+	maxNumLength, minNumLength := 0, math.MaxInt
 	var magnitudes []float64
 
 	if config.ValueFormatter == nil {
