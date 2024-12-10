@@ -845,7 +845,7 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 	var err2 error
 	for i := 0; i < c.numClients; i++ {
 		if err := <-errChan; err != nil {
-			log.Printf("Error from client %d: %v", i, err)
+			log.Printf("Fatal error from client %d: %v", i, err)
 			// only return the first error since only one error can be returned
 			if err2 == nil {
 				err2 = err
@@ -1649,7 +1649,7 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, msg []by
 					case <-futures[future].Ok():
 						i++
 					case err := <-futures[future].Err():
-						return fmt.Errorf("publish acknowledgement: %w", err)
+						fmt.Println(fmt.Errorf("publish acknowledgement is an error: %w (retrying)", err).Error())
 					}
 				}
 			case <-time.After(c.jsTimeout):
