@@ -379,10 +379,7 @@ func (c *consumerCmd) findAction(_ *fisk.ParseContext) error {
 	var err error
 	var stream *jsm.Stream
 
-	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
-	if err != nil {
-		return fmt.Errorf("setup failed: %v", err)
-	}
+	c.connectAndSetup(true, false)
 
 	c.stream, stream, err = selectStream(c.mgr, c.stream, c.force, c.showAll)
 	if err != nil {
