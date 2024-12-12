@@ -112,7 +112,7 @@ func configureBenchCommand(app commandHost) {
 
 	addJSCommonFlags := func(f *fisk.CmdClause) {
 		f.Flag("stream", "The name of the stream to create or use").Default(benchDefaultStreamName).StringVar(&c.streamOrBucketName)
-		f.Flag("sleep", "Sleep for the specified interval between publications").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
+		f.Flag("sleep", "Sleep for the specified interval between publications.").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
 		f.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
 		f.Flag("js-timeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	}
@@ -149,7 +149,7 @@ func configureBenchCommand(app commandHost) {
 
 	corePub := benchCommand.Command("pub", "Publish Core NATS messages").Action(c.pubAction)
 	corePub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
-	corePub.Flag("sleep", "Sleep for the specified interval between publications").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
+	corePub.Flag("sleep", `Sleep for the specified interval between publications, such as 300ms or 1m3s. Valid time units are "ns", "us", "ms", "s", "m", "h"`).Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
 	addCommonFlags(corePub)
 	addPubFlags(corePub)
 
