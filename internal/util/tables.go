@@ -15,12 +15,14 @@ package util
 
 import (
 	"fmt"
+	"os"
+	"sort"
+
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/mattn/go-isatty"
 	"github.com/nats-io/natscli/options"
-	"os"
-	"sort"
+	terminal "golang.org/x/term"
 )
 
 type Table struct {
@@ -90,6 +92,7 @@ func NewTableWriter(opts *options.Options, format string, a ...any) *Table {
 		writer: table.NewWriter(),
 	}
 
+	tbl.writer.SuppressTrailingSpaces()
 	tbl.writer.SetStyle(styles["rounded"])
 
 	if isatty.IsTerminal(os.Stdout.Fd()) {
@@ -98,6 +101,10 @@ func NewTableWriter(opts *options.Options, format string, a ...any) *Table {
 			if ok {
 				tbl.writer.SetStyle(style)
 			}
+		}
+		w, _, _ := terminal.GetSize(int(os.Stdout.Fd()))
+		if w > 0 {
+			tbl.writer.Style().Size.WidthMax = w
 		}
 	}
 

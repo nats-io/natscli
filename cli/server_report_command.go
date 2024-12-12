@@ -103,6 +103,10 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
 	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 
+	routes := report.Command("cluster", "Report on Cluster connections").Alias("route").Action(c.reportRoute)
+	routes.Flag("cluster", "Limits the report to a specific cluster").StringVar(&c.cluster)
+	routes.Flag("sort", "Sort by a specific property (server,cluster,name,account,subs,in-bytes,out-bytes)").EnumVar(&c.sort, "server", "cluster", "name", "account", "subs", "in-bytes", "out-bytes")
+
 	cpu := report.Command("cpu", "Reports on CPU uage").Action(c.reportCPU)
 	addFilterOpts(cpu)
 	cpu.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
@@ -110,6 +114,115 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	mem := report.Command("mem", "Reports on Memory usage").Action(c.reportMem)
 	addFilterOpts(mem)
 	mem.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+}
+
+func (c *SrvReportCmd) reportRoute(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	req := &server.RoutezEventOptions{EventFilterOptions: c.reqFilter()}
+	results, err := doReq(req, "$SYS.REQ.SERVER.PING.ROUTEZ", c.waitFor, nc)
+	if err != nil {
+		return err
+	}
+
+	type serverRoutezMsg struct {
+		Server server.ServerInfo `json:"server"`
+		Data   server.Routez     `json:"data"`
+		Error  *server.ApiError  `json:"error,omitempty"`
+	}
+
+	type routeData struct {
+		server server.ServerInfo
+		routes *server.RouteInfo
+	}
+
+	routes := []routeData{}
+	for _, result := range results {
+		r := &serverRoutezMsg{}
+		err := json.Unmarshal(result, r)
+		if err != nil {
+			return err
+		}
+
+		if r.Error != nil {
+			return fmt.Errorf("%v", r.Error.Error())
+		}
+
+		if len(r.Data.Routes) > 0 {
+			for _, route := range r.Data.Routes {
+				routes = append(routes, routeData{r.Server, route})
+			}
+		}
+	}
+
+	sort.Slice(routes, func(i, j int) bool {
+		switch c.sort {
+		case "cluster":
+			return c.boolReverse(routes[i].server.Cluster < routes[j].server.Cluster)
+		case "name":
+			return c.boolReverse(routes[i].routes.RemoteName < routes[j].routes.RemoteName)
+		case "account", "acct":
+			return c.boolReverse(routes[i].routes.Account < routes[j].routes.Account)
+		case "subs":
+			return c.boolReverse(routes[i].routes.NumSubs < routes[j].routes.NumSubs)
+		case "in-bytes":
+			return c.boolReverse(routes[i].routes.InBytes < routes[j].routes.InBytes)
+		case "out-bytes":
+			return c.boolReverse(routes[i].routes.OutBytes < routes[j].routes.OutBytes)
+		case "server":
+			return c.boolReverse(routes[i].server.Name < routes[j].server.Name)
+		}
+
+		return c.boolReverse(false)
+	})
+
+	tbl := iu.NewTableWriter(opts(), "Cluster Report")
+	tbl.AddHeaders("Server", "Cluster", "Name", "Account", "Address", "Uptime", "RTT", "Subs", "Bytes In", "Bytes Out")
+
+	var lastServer, lastCluster string
+	var subs, bytesIn, bytesOut int64
+
+	for _, route := range routes {
+		r := route.routes
+
+		uptime := route.server.Time.Sub(r.Start)
+		sname := route.server.Name
+		if sname == lastServer {
+			sname = ""
+		}
+		lastServer = route.server.Name
+
+		cname := route.server.Cluster
+		if cname == lastCluster {
+			cname = ""
+		}
+		lastCluster = route.server.Cluster
+
+		subs += int64(r.NumSubs)
+		bytesIn += r.InBytes
+		bytesOut += r.OutBytes
+
+		tbl.AddRow(
+			sname,
+			cname,
+			r.RemoteName,
+			r.Account,
+			fmt.Sprintf("%s:%d", r.IP, r.Port),
+			f(uptime),
+			f(r.RTT),
+			f(r.NumSubs),
+			fiBytes(uint64(r.InBytes)),
+			fiBytes(uint64(r.OutBytes)),
+		)
+	}
+
+	tbl.AddFooter("", "", "", "", "", "", "", f(subs), fiBytes(uint64(bytesIn)), fiBytes(uint64(bytesOut)))
+	fmt.Println(tbl.Render())
+
+	return nil
 }
 
 func (c *SrvReportCmd) reportMem(_ *fisk.ParseContext) error {
