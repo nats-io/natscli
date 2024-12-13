@@ -774,7 +774,7 @@ func (c *kvCommand) purgeAction(_ *fisk.ParseContext) error {
 }
 
 func (c *kvCommand) rmBucketAction(_ *fisk.ParseContext) error {
-	nc, js, err := prepareJSHelper()
+	nc, _, err := prepareJSHelper()
 	if err != nil {
 		return err
 	}
@@ -813,7 +813,7 @@ func (c *kvCommand) rmBucketAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	_, js, err = prepareJSHelper()
+	_, js, err := prepareJSHelper()
 	if err != nil {
 		return err
 	}
