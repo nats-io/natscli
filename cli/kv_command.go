@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
-	"github.com/nats-io/natscli/internal/util"
+	ui "github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -252,7 +252,7 @@ func (c *kvCommand) displayKeyInfo(kv jetstream.KeyValue, keys jetstream.KeyList
 		return found, errors.New("key value cannot be nil")
 	}
 
-	table := util.NewTableWriter(opts(), fmt.Sprintf("Contents for bucket '%s'", c.bucket))
+	table := ui.NewTableWriter(opts(), fmt.Sprintf("Contents for bucket '%s'", c.bucket))
 
 	if c.lsVerboseDisplayValue {
 		table.AddHeaders("Key", "Created", "Delta", "Revision", "Value")
@@ -325,7 +325,7 @@ func (c *kvCommand) lsBuckets() error {
 		return info.State.Bytes < jnfo.State.Bytes
 	})
 
-	table := util.NewTableWriter(opts(), "Key-Value Buckets")
+	table := ui.NewTableWriter(opts(), "Key-Value Buckets")
 	table.AddHeaders("Bucket", "Description", "Created", "Size", "Values", "Last Update")
 	for _, s := range found {
 		nfo, _ := s.LatestInformation()
@@ -400,7 +400,7 @@ func (c *kvCommand) historyAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	table := util.NewTableWriter(opts(), fmt.Sprintf("History for %s > %s", c.bucket, c.key))
+	table := ui.NewTableWriter(opts(), fmt.Sprintf("History for %s > %s", c.bucket, c.key))
 	table.AddHeaders("Key", "Revision", "Op", "Created", "Length", "Value")
 	for _, r := range history {
 		val := base64IfNotPrintable(r.Value())
@@ -668,10 +668,10 @@ func (c *kvCommand) loadBucket() (*nats.Conn, jetstream.JetStream, jetstream.Key
 			return nil, nil, nil, fmt.Errorf("no KV buckets found")
 		}
 
-		err = util.AskOne(&survey.Select{
+		err = ui.AskOne(&survey.Select{
 			Message:  "Select a Bucket",
 			Options:  known,
-			PageSize: util.SelectPageSize(len(known)),
+			PageSize: ui.SelectPageSize(len(known)),
 		}, &c.bucket)
 		if err != nil {
 			return nil, nil, nil, err
@@ -790,10 +790,10 @@ func (c *kvCommand) rmBucketAction(_ *fisk.ParseContext) error {
 				return fmt.Errorf("no KV buckets found")
 			}
 
-			err = askOne(&survey.Select{
+			err = ui.AskOne(&survey.Select{
 				Message:  "Select a Bucket",
 				Options:  known,
-				PageSize: selectPageSize(len(known)),
+				PageSize: ui.SelectPageSize(len(known)),
 			}, &c.bucket)
 			if err != nil {
 				return err
@@ -813,7 +813,7 @@ func (c *kvCommand) rmBucketAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	_, js, err := prepareJSHelper()
+	_, js, err = prepareJSHelper()
 	if err != nil {
 		return err
 	}
