@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"time"
 
 	iu "github.com/nats-io/natscli/internal/util"
 
@@ -49,6 +50,7 @@ type SrvReportCmd struct {
 	stateFilter             string
 	filterReason            string
 	skipDiscoverClusterSize bool
+	gatewayName             string
 }
 
 type srvReportAccountInfo struct {
@@ -103,9 +105,13 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
 	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 
-	routes := report.Command("cluster", "Report on Cluster connections").Alias("route").Action(c.reportRoute)
+	routes := report.Command("routes", "Report on Route (cluster) connections").Alias("route").Action(c.reportRoute)
 	routes.Flag("cluster", "Limits the report to a specific cluster").StringVar(&c.cluster)
 	routes.Flag("sort", "Sort by a specific property (server,cluster,name,account,subs,in-bytes,out-bytes)").EnumVar(&c.sort, "server", "cluster", "name", "account", "subs", "in-bytes", "out-bytes")
+
+	gateways := report.Command("gateways", "Repost on Gateway (super cluster) connections").Alias("super").Alias("gateway").Action(c.reportGateway)
+	gateways.Flag("filter-name", "Limits responses to a certain name").StringVar(&c.gatewayName)
+	gateways.Flag("sort", "Sorts by a specific property (server,cluster)").EnumVar(&c.sort, "server", "cluster")
 
 	cpu := report.Command("cpu", "Reports on CPU uage").Action(c.reportCPU)
 	addFilterOpts(cpu)
@@ -114,6 +120,147 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	mem := report.Command("mem", "Reports on Memory usage").Action(c.reportMem)
 	addFilterOpts(mem)
 	mem.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+}
+
+func (c *SrvReportCmd) parseRtt(rtt string, crit time.Duration) string {
+	d, err := time.ParseDuration(rtt)
+	if err != nil {
+		return rtt
+	}
+
+	if d < crit {
+		return f(d)
+	}
+
+	return color.RedString(f(d))
+}
+
+func (c *SrvReportCmd) reportGateway(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	req := &server.GatewayzOptions{Name: c.gatewayName, Accounts: true}
+	results, err := doReq(req, "$SYS.REQ.SERVER.PING.GATEWAYZ", c.waitFor, nc)
+	if err != nil {
+		return err
+	}
+
+	var gateways []server.ServerAPIGatewayzResponse
+	for _, result := range results {
+		g := &server.ServerAPIGatewayzResponse{}
+		err := json.Unmarshal(result, g)
+		if err != nil {
+			return err
+		}
+
+		if g.Error != nil {
+			return fmt.Errorf("%v", g.Error.Error())
+		}
+
+		gateways = append(gateways, *g)
+	}
+
+	// TODO: sort
+	sort.Slice(gateways, func(i, j int) bool {
+		switch c.sort {
+		case "server":
+			return c.boolReverse(gateways[i].Server.Name < gateways[j].Server.Name)
+		case "cluster":
+			return c.boolReverse(gateways[i].Server.Cluster < gateways[j].Server.Cluster)
+		}
+
+		return c.boolReverse(false)
+	})
+
+	tbl := iu.NewTableWriter(opts(), "Super Cluster Report")
+	tbl.AddHeaders("Server", "Name", "Port", "Kind", "Connection", "Uptime", "RTT", "Bytes", "Accounts")
+
+	var lastServer, lastName, lastDirection string
+	var totalBytes int64
+	var totalServers, totalGateways int
+
+	for _, g := range gateways {
+		sname := g.Server.Name
+		totalServers++
+
+		if sname == lastServer {
+			sname = ""
+		}
+		lastServer = g.Server.Name
+
+		cname := g.Server.Cluster
+		if cname == lastName {
+			cname = ""
+		}
+		lastName = g.Server.Name
+
+		tbl.AddRow(
+			sname,
+			cname,
+			g.Data.Port,
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+		)
+
+		for gname, conns := range g.Data.InboundGateways {
+			for _, conn := range conns {
+				totalGateways++
+				direction := ""
+				if direction == lastDirection {
+					direction = "Inbound"
+				}
+				lastDirection = direction
+
+				uptime := conn.Connection.Uptime
+				if d, err := time.ParseDuration(uptime); err == nil {
+					uptime = f(d)
+				}
+
+				totalBytes += conn.Connection.InBytes
+				tbl.AddRow(
+					"", "", "",
+					direction,
+					fmt.Sprintf("%s %s:%d", gname, conn.Connection.IP, conn.Connection.Port),
+					uptime,
+					c.parseRtt(conn.Connection.RTT, 300*time.Millisecond),
+					fiBytes(uint64(conn.Connection.InBytes)),
+					f(len(conn.Accounts)),
+				)
+			}
+		}
+
+		for gname, conn := range g.Data.OutboundGateways {
+			totalGateways++
+			direction := ""
+			if direction == lastDirection {
+				direction = "Outbound"
+			}
+			lastDirection = direction
+
+			totalBytes += conn.Connection.OutBytes
+			tbl.AddRow(
+				"", "", "",
+				direction,
+				fmt.Sprintf("%s %s:%d", gname, conn.Connection.IP, conn.Connection.Port),
+				conn.Connection.Uptime,
+				c.parseRtt(conn.Connection.RTT, 300*time.Millisecond),
+				fiBytes(uint64(conn.Connection.OutBytes)),
+				f(len(conn.Accounts)),
+			)
+		}
+	}
+
+	tbl.AddFooter(f(totalServers), "", "", "", f(totalGateways), "", "", fiBytes(uint64(totalBytes)), "")
+
+	fmt.Println(tbl.Render())
+
+	return nil
 }
 
 func (c *SrvReportCmd) reportRoute(_ *fisk.ParseContext) error {
@@ -128,20 +275,14 @@ func (c *SrvReportCmd) reportRoute(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	type serverRoutezMsg struct {
-		Server server.ServerInfo `json:"server"`
-		Data   server.Routez     `json:"data"`
-		Error  *server.ApiError  `json:"error,omitempty"`
-	}
-
 	type routeData struct {
-		server server.ServerInfo
+		server *server.ServerInfo
 		routes *server.RouteInfo
 	}
 
 	routes := []routeData{}
 	for _, result := range results {
-		r := &serverRoutezMsg{}
+		r := &server.ServerAPIRoutezResponse{}
 		err := json.Unmarshal(result, r)
 		if err != nil {
 			return err
@@ -212,7 +353,7 @@ func (c *SrvReportCmd) reportRoute(_ *fisk.ParseContext) error {
 			r.Account,
 			fmt.Sprintf("%s:%d", r.IP, r.Port),
 			f(uptime),
-			f(r.RTT),
+			c.parseRtt(r.RTT, 100*time.Millisecond),
 			f(r.NumSubs),
 			fiBytes(uint64(r.InBytes)),
 			fiBytes(uint64(r.OutBytes)),
@@ -297,14 +438,9 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	type jszr struct {
-		Data   server.JSInfo     `json:"data"`
-		Server server.ServerInfo `json:"server"`
-	}
-
 	var (
 		names               []string
-		jszResponses        []*jszr
+		jszResponses        []*server.ServerAPIJszResponse
 		apiErrTotal         uint64
 		apiTotal            uint64
 		pendingTotal        int
@@ -322,7 +458,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	renderPending := iu.ServerMinVersion(nc, 2, 10, 21)
 	renderDomain := false
 	for _, r := range res {
-		response := jszr{}
+		response := &server.ServerAPIJszResponse{}
 
 		err = json.Unmarshal(r, &response)
 		if err != nil {
@@ -333,7 +469,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			renderDomain = true
 		}
 
-		jszResponses = append(jszResponses, &response)
+		jszResponses = append(jszResponses, response)
 	}
 
 	sort.Slice(jszResponses, func(i, j int) bool {
