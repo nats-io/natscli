@@ -51,6 +51,10 @@ type SrvReportCmd struct {
 	filterReason            string
 	skipDiscoverClusterSize bool
 	gatewayName             string
+	jsEnabled               bool
+	jsServerOnly            bool
+	stream                  string
+	consumer                string
 }
 
 type srvReportAccountInfo struct {
@@ -106,6 +110,13 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	gateways.Flag("filter-name", "Limits responses to a certain name").StringVar(&c.gatewayName)
 	gateways.Flag("sort", "Sorts by a specific property (server,cluster)").Default("cluster").EnumVar(&c.sort, "server", "cluster")
 
+	health := report.Command("health", "Report on Server health").Action(c.reportHealth)
+	health.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
+	health.Flag("server-only", "Restricts the health check to the JetStream server only, do not check streams and consumers").Short('S').BoolVar(&c.jsServerOnly)
+	health.Flag("account", "Check only a specific Account").StringVar(&c.account)
+	health.Flag("stream", "Check only a specific Stream").StringVar(&c.stream)
+	health.Flag("consumer", "Check only a specific Consumer").StringVar(&c.consumer)
+
 	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.reportJetStream)
 	jsz.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(jsz)
@@ -135,13 +146,99 @@ func (c *SrvReportCmd) parseRtt(rtt string, crit time.Duration) string {
 	return color.RedString(f(d))
 }
 
+func (c *SrvReportCmd) reportHealth(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	req := server.HealthzEventOptions{
+		HealthzOptions: server.HealthzOptions{
+			JSEnabledOnly: c.jsEnabled,
+			JSServerOnly:  c.jsServerOnly,
+			Account:       c.account,
+			Stream:        c.stream,
+			Consumer:      c.consumer,
+			Details:       true,
+		},
+		EventFilterOptions: c.reqFilter(),
+	}
+	results, err := doReq(req, "$SYS.REQ.SERVER.PING.HEALTHZ", c.waitFor, nc)
+	if err != nil {
+		return err
+	}
+
+	var servers []server.ServerAPIHealthzResponse
+	for _, result := range results {
+		s := &server.ServerAPIHealthzResponse{}
+		err := json.Unmarshal(result, s)
+		if err != nil {
+			return err
+		}
+
+		if s.Error != nil {
+			return fmt.Errorf("%v", s.Error.Error())
+		}
+
+		servers = append(servers, *s)
+	}
+
+	sort.Slice(servers, func(i, j int) bool {
+		return c.boolReverse(servers[i].Server.Name < servers[j].Server.Name)
+	})
+
+	tbl := iu.NewTableWriter(opts(), "Health Report")
+	tbl.AddHeaders("Server", "Cluster", "Domain", "Status", "Type", "Error")
+
+	for _, srv := range servers {
+		tbl.AddRow(
+			srv.Server.Name,
+			srv.Server.Cluster,
+			srv.Server.Domain,
+			fmt.Sprintf("%s (%d)", srv.Data.Status, srv.Data.StatusCode),
+		)
+
+		ecnt := len(srv.Data.Errors)
+		if ecnt == 0 {
+			continue
+		}
+
+		show := ecnt
+		if ecnt > 10 {
+			show = 9
+		}
+
+		for _, errStatus := range srv.Data.Errors[0:show] {
+			tbl.AddRow(
+				"", "", "", "",
+				errStatus.Type.String(),
+				errStatus.Error,
+			)
+		}
+		if show != ecnt {
+			tbl.AddRow("", "", "", fmt.Sprintf("%d more errors", ecnt-show))
+		}
+	}
+
+	fmt.Println(tbl.Render())
+
+	return nil
+}
+
 func (c *SrvReportCmd) reportGateway(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 
-	req := &server.GatewayzOptions{Name: c.gatewayName, Accounts: true}
+	req := &server.GatewayzEventOptions{
+		EventFilterOptions: c.reqFilter(),
+		GatewayzOptions: server.GatewayzOptions{
+			Name:     c.gatewayName,
+			Accounts: true,
+		},
+	}
+
 	results, err := doReq(req, "$SYS.REQ.SERVER.PING.GATEWAYZ", c.waitFor, nc)
 	if err != nil {
 		return err
@@ -162,7 +259,6 @@ func (c *SrvReportCmd) reportGateway(_ *fisk.ParseContext) error {
 		gateways = append(gateways, *g)
 	}
 
-	// TODO: sort
 	sort.Slice(gateways, func(i, j int) bool {
 		switch c.sort {
 		case "server":
@@ -271,7 +367,9 @@ func (c *SrvReportCmd) reportRoute(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	req := &server.RoutezEventOptions{EventFilterOptions: c.reqFilter()}
+	req := &server.RoutezEventOptions{
+		EventFilterOptions: c.reqFilter(),
+	}
 	results, err := doReq(req, "$SYS.REQ.SERVER.PING.ROUTEZ", c.waitFor, nc)
 	if err != nil {
 		return err
