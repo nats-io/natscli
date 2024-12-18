@@ -14,12 +14,11 @@
 package main
 
 import (
+	iu "github.com/nats-io/natscli/internal/util"
 	"log"
 	"os"
 	"runtime"
 	"runtime/debug"
-
-	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/natscli/plugins"
