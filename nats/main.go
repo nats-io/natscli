@@ -14,11 +14,12 @@
 package main
 
 import (
-	iu "github.com/nats-io/natscli/internal/util"
 	"log"
 	"os"
 	"runtime"
 	"runtime/debug"
+
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/natscli/plugins"
@@ -46,7 +47,7 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	if err != nil {
 		return
 	}
-	cli.SetVersion(version)
+	cli.SetVersion(getVersion())
 
 	ncli.Flag("server", "NATS server urls").Short('s').Envar("NATS_URL").PlaceHolder("URL").StringVar(&opts.Servers)
 	ncli.Flag("user", "Username or Token").Envar("NATS_USER").PlaceHolder("USER").StringVar(&opts.Username)
