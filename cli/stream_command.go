@@ -395,7 +395,7 @@ Finding streams with certain subjects configured:
 	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	strBackup.Flag("check", "Checks the Stream for health prior to backup").UnNegatableBoolVar(&c.healthCheck)
 	strBackup.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
-	strBackup.Flag("chunk-size", "Sets a specific chunk size that the server will send").PlaceHolder("BYTES").Default("128KB").StringVar(&c.chunkSize)
+	strBackup.Flag("chunk-size", "Sets a specific chunk size that the server will send").Default("128KB").StringVar(&c.chunkSize)
 
 	strRestore := str.Command("restore", "Restore a Stream over the NATS network").Action(c.restoreAction)
 	strRestore.Arg("file", "The directory holding the backup to restore").Required().ExistingDirVar(&c.backupDirectory)

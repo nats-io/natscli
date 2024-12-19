@@ -132,7 +132,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("wait", "Unsubscribe after this amount of time without any traffic").DurationVar(&c.wait)
 	act.Flag("report-subjects", "Subscribes to subject patterns and builds a de-duplicated report of active subjects receiving data").UnNegatableBoolVar(&c.reportSubjects)
 	act.Flag("report-subscriptions", "Subscribes to subject patterns and builds a de-duplicated report of active subscriptions receiving data").UnNegatableBoolVar(&c.reportSub)
-	act.Flag("report-top", "Number of subjects to show when doing 'report-subjects'. Default is 10.").Default("10").IntVar(&c.reportSubjectsCount)
+	act.Flag("report-top", "Number of subjects to show when doing 'report-subjects'").Default("10").IntVar(&c.reportSubjectsCount)
 	act.Flag("timestamp", "Show timestamps in output").Short('t').UnNegatableBoolVar(&c.timeStamps)
 	act.Flag("delta-time", "Show time since start in output").Short('d').UnNegatableBoolVar(&c.deltaTimeStamps)
 	act.Flag("graph", "Graph the rate of messages received").UnNegatableBoolVar(&c.graphOnly)

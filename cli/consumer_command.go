@@ -137,9 +137,9 @@ func configureConsumerCommand(app commandHost) {
 			f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
 		}
 		f.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (none, linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear", "none")
-		f.Flag("backoff-steps", "Number of steps to use when creating the backoff policy").PlaceHolder("STEPS").Default("10").UintVar(&c.backoffSteps)
-		f.Flag("backoff-min", "The shortest backoff period that will be generated").PlaceHolder("MIN").Default("1m").DurationVar(&c.backoffMin)
-		f.Flag("backoff-max", "The longest backoff period that will be generated").PlaceHolder("MAX").Default("20m").DurationVar(&c.backoffMax)
+		f.Flag("backoff-steps", "Number of steps to use when creating the backoff policy").Default("10").UintVar(&c.backoffSteps)
+		f.Flag("backoff-min", "The shortest backoff period that will be generated").Default("1m").DurationVar(&c.backoffMin)
+		f.Flag("backoff-max", "The longest backoff period that will be generated").Default("20m").DurationVar(&c.backoffMax)
 		if !edit {
 			f.Flag("deliver", "Start policy (all, new, last, subject, 1h, msg sequence)").PlaceHolder("POLICY").StringVar(&c.startPolicy)
 			f.Flag("deliver-group", "Delivers push messages only to subscriptions matching this group").Default("_unset_").PlaceHolder("GROUP").StringVar(&c.deliveryGroup)
