@@ -112,7 +112,7 @@ func configureBenchCommand(app commandHost) {
 
 	addJSCommonFlags := func(f *fisk.CmdClause) {
 		f.Flag("stream", "The name of the stream to create or use").Default(benchDefaultStreamName).StringVar(&c.streamOrBucketName)
-		f.Flag("sleep", "Sleep for the specified interval between publications").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
+		f.Flag("sleep", "Sleep for the specified interval between publications").Default("0s").DurationVar(&c.sleep)
 		f.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
 		f.Flag("js-timeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	}
@@ -149,7 +149,7 @@ func configureBenchCommand(app commandHost) {
 
 	corePub := benchCommand.Command("pub", "Publish Core NATS messages").Action(c.pubAction)
 	corePub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
-	corePub.Flag("sleep", "Sleep for the specified interval between publications").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
+	corePub.Flag("sleep", "Sleep for the specified interval between publications").Default("0s").DurationVar(&c.sleep)
 	addCommonFlags(corePub)
 	addPubFlags(corePub)
 
@@ -159,7 +159,7 @@ func configureBenchCommand(app commandHost) {
 	addCommonFlags(coreSub)
 
 	microService := benchCommand.Command("service", "Micro-service mode")
-	microService.Flag("sleep", "Sleep for the specified interval between requests or before replying to the request").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
+	microService.Flag("sleep", "Sleep for the specified interval between requests or before replying to the request").Default("0s").DurationVar(&c.sleep)
 	addCommonFlags(microService)
 
 	request := microService.Command("request", "Send a request and wait for its reply").Action(c.requestAction)
@@ -191,7 +191,7 @@ func configureBenchCommand(app commandHost) {
 	kvCommand := benchCommand.Command("kv", "KV benchmark operations")
 	addCommonFlags(kvCommand)
 	kvCommand.Flag("bucket", "The bucket to use for the benchmark").Default(benchDefaultBucketName).StringVar(&c.streamOrBucketName)
-	kvCommand.Flag("sleep", "Sleep for the specified interval after putting each message").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
+	kvCommand.Flag("sleep", "Sleep for the specified interval after putting each message").Default("0s").DurationVar(&c.sleep)
 	kvCommand.Flag("js-timeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 
 	kvput := kvCommand.Command("put", "Put messages in a KV bucket").Action(c.kvPutAction)
