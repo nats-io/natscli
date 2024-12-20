@@ -15,11 +15,12 @@ package cli
 
 import (
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"io"
 	"math"
 	"os"
 	"time"
+
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
 	"github.com/jedib0t/go-pretty/v6/progress"
@@ -116,8 +117,8 @@ func init() {
 	registerCommand("pub", 11, configurePubCommand)
 }
 
-func (c *pubCmd) prepareMsg(body []byte, seq int) (*nats.Msg, error) {
-	msg := nats.NewMsg(c.subject)
+func (c *pubCmd) prepareMsg(subj string, body []byte, seq int) (*nats.Msg, error) {
+	msg := nats.NewMsg(subj)
 	msg.Reply = c.replyTo
 	msg.Data = body
 
@@ -137,7 +138,12 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
 			log.Printf("Could not parse body template: %s", err)
 		}
 
-		msg, err := c.prepareMsg(body, i)
+		subj, err := pubReplyBodyTemplate(c.subject, "", i)
+		if err != nil {
+			log.Printf("Could not parse subject template: %s", err)
+		}
+
+		msg, err := c.prepareMsg(string(subj), body, i)
 		if err != nil {
 			return err
 		}
@@ -241,12 +247,17 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 			log.Printf("Could not parse body template: %s", err)
 		}
 
-		msg, err := c.prepareMsg(body, i)
+		subj, err := pubReplyBodyTemplate(c.subject, "", i)
+		if err != nil {
+			log.Printf("Could not parse subject template: %s", err)
+		}
+
+		msg, err := c.prepareMsg(string(subj), body, i)
 		if err != nil {
 			return err
 		}
 
-		msg.Subject = c.subject
+		msg.Subject = string(subj)
 
 		resp, err := nc.RequestMsg(msg, opts().Timeout)
 		if err != nil {
@@ -264,16 +275,16 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 
 		if progress != nil {
 			progress.Increment(1)
+		} else {
+			fmt.Printf(">>> Stream: %s Sequence: %s", ack.Stream, f(ack.Sequence))
+			if ack.Domain != "" {
+				fmt.Printf(" Domain: %q", ack.Domain)
+			}
+			if ack.Duplicate {
+				fmt.Printf(" Duplicate: true")
+			}
+			fmt.Println()
 		}
-
-		fmt.Printf(">>> Stream: %s Sequence: %s", ack.Stream, f(ack.Sequence))
-		if ack.Domain != "" {
-			fmt.Printf(" Domain: %q", ack.Domain)
-		}
-		if ack.Duplicate {
-			fmt.Printf(" Duplicate: true")
-		}
-		fmt.Println()
 
 		// If applicable, account for the wait duration in a publish sleep.
 		if c.cnt > 1 && c.sleep > 0 {
@@ -338,7 +349,12 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 			log.Printf("Could not parse body template: %s", err)
 		}
 
-		msg, err := c.prepareMsg(body, i)
+		subj, err := pubReplyBodyTemplate(c.subject, "", i)
+		if err != nil {
+			log.Printf("Could not parse subject template: %s", err)
+		}
+
+		msg, err := c.prepareMsg(string(subj), body, i)
 		if err != nil {
 			return err
 		}
