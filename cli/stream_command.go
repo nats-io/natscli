@@ -152,11 +152,12 @@ type streamCmd struct {
 	vwTranslate  string
 	vwSubject    string
 
-	dryRun         bool
-	selectedStream *jsm.Stream
-	nc             *nats.Conn
-	mgr            *jsm.Manager
-	chunkSize      string
+	dryRun             bool
+	selectedStream     *jsm.Stream
+	nc                 *nats.Conn
+	mgr                *jsm.Manager
+	chunkSize          string
+	placementPreferred string
 }
 
 type streamStat struct {
@@ -404,7 +405,9 @@ Finding streams with certain subjects configured:
 	strCluster := str.Command("cluster", "Manages a clustered Stream").Alias("c")
 	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	strClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
+	strClusterDown.Arg("preferred", "Prefer placing the leader on a specific host").StringVar(&c.placementPreferred)
 	strClusterDown.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
+
 	strClusterBalance := strCluster.Command("balance", "Balance stream leaders").Action(c.balanceAction)
 	strClusterBalance.Flag("server-name", "Balance streams present on a regular expression matched server").StringVar(&c.fServer)
 	strClusterBalance.Flag("cluster", "Balance streams present on a regular expression matched cluster").StringVar(&c.fCluster)
@@ -940,8 +943,18 @@ func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 		leader = "<unknown>"
 	}
 
+	var p *api.Placement
+	if c.placementPreferred != "" {
+		err = iu.RequireAPILevel(c.mgr, 1, "placement hints during step-down requires NATS Server 2.11")
+		if err != nil {
+			return err
+		}
+
+		p.Preferred = c.placementPreferred
+	}
+
 	log.Printf("Requesting leader step down of %q for stream %q in a %d peer cluster group", leader, stream.Name(), len(info.Cluster.Replicas)+1)
-	err = stream.LeaderStepDown()
+	err = stream.LeaderStepDown(p)
 	if err != nil {
 		return err
 	}

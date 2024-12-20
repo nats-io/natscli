@@ -102,28 +102,29 @@ type consumerCmd struct {
 	metadata            map[string]string
 	pauseUntil          string
 
-	dryRun         bool
-	mgr            *jsm.Manager
-	nc             *nats.Conn
-	nak            bool
-	fPull          bool
-	fPush          bool
-	fBound         bool
-	fWaiting       int
-	fAckPending    int
-	fPending       uint64
-	fIdle          time.Duration
-	fCreated       time.Duration
-	fReplicas      uint
-	fInvert        bool
-	fExpression    string
-	fLeader        string
-	interactive    bool
-	pinnedGroups   []string
-	pinnedTTL      time.Duration
-	overflowGroups []string
-	groupName      string
-	fPinned        bool
+	dryRun             bool
+	mgr                *jsm.Manager
+	nc                 *nats.Conn
+	nak                bool
+	fPull              bool
+	fPush              bool
+	fBound             bool
+	fWaiting           int
+	fAckPending        int
+	fPending           uint64
+	fIdle              time.Duration
+	fCreated           time.Duration
+	fReplicas          uint
+	fInvert            bool
+	fExpression        string
+	fLeader            string
+	interactive        bool
+	pinnedGroups       []string
+	pinnedTTL          time.Duration
+	overflowGroups     []string
+	groupName          string
+	fPinned            bool
+	placementPreferred string
 }
 
 func configureConsumerCommand(app commandHost) {
@@ -297,7 +298,9 @@ func configureConsumerCommand(app commandHost) {
 	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDownAction)
 	conClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterDown.Arg("consumer", "Consumer to act on").StringVar(&c.consumer)
+	conClusterDown.Arg("preferred", "Prefer placing the leader on a specific host").StringVar(&c.placementPreferred)
 	conClusterDown.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
+
 	conClusterBalance := conCluster.Command("balance", "Balance consumer leaders").Action(c.balanceAction)
 	conClusterBalance.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterBalance.Flag("pull", "Balance only pull based consumers").UnNegatableBoolVar(&c.fPull)
@@ -690,8 +693,18 @@ func (c *consumerCmd) leaderStandDownAction(_ *fisk.ParseContext) error {
 		leader = "<unknown>"
 	}
 
+	var p *api.Placement
+	if c.placementPreferred != "" {
+		err = iu.RequireAPILevel(c.mgr, 1, "placement hints during step-down requires NATS Server 2.11")
+		if err != nil {
+			return err
+		}
+
+		p.Preferred = c.placementPreferred
+	}
+
 	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(info.Cluster.Replicas)+1)
-	err = consumer.LeaderStepDown()
+	err = consumer.LeaderStepDown(p)
 	if err != nil {
 		return err
 	}
