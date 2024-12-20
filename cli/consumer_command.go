@@ -298,7 +298,7 @@ func configureConsumerCommand(app commandHost) {
 	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDownAction)
 	conClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterDown.Arg("consumer", "Consumer to act on").StringVar(&c.consumer)
-	conClusterDown.Arg("preferred", "Prefer placing the leader on a specific host").StringVar(&c.placementPreferred)
+	conClusterDown.Flag("preferred", "Prefer placing the leader on a specific host").StringVar(&c.placementPreferred)
 	conClusterDown.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
 
 	conClusterBalance := conCluster.Command("balance", "Balance consumer leaders").Action(c.balanceAction)
@@ -700,7 +700,7 @@ func (c *consumerCmd) leaderStandDownAction(_ *fisk.ParseContext) error {
 			return err
 		}
 
-		p.Preferred = c.placementPreferred
+		p = &api.Placement{Preferred: c.placementPreferred}
 	}
 
 	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(info.Cluster.Replicas)+1)
