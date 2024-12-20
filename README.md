@@ -21,7 +21,7 @@ and support full JetStream management.
 
 ### Installation
 
-Releases are [published to GitHub](https://github.com/nats-io/natscli/releases/) where zip, rpm and debs for various
+Releases are [published to GitHub](https://github.com/nats-io/natscli/releases/) where Zip, RPMs and DEBs for various
 operating systems can be found.
 
 #### Installation via go install
@@ -41,11 +41,17 @@ go install github.com/nats-io/natscli/nats@v0.0.33
 
 #### macOS installation via Homebrew
 
-For macOS `brew` can be used to install the latest version:
+For macOS `brew` can be used to install the latest released version:
 
 ```nohighlight
 brew tap nats-io/nats-tools
 brew install nats-io/nats-tools/nats
+```
+#### Windows installation via scoop
+On Windows, [scoop](https://scoop.sh) has the latest released version:
+```
+scoop bucket add extras
+scoop install extras/natscli
 ```
 
 #### Arch Linux installation via yay
@@ -58,7 +64,7 @@ yay natscli
 
 #### Installation from the shell
 
-The following script will install the latest version of the nats cli on Linux and macOS:
+The following script will install the latest released version of the nats cli on Linux and macOS:
 
 ```nohighlight
 curl -sf https://binaries.nats.dev/nats-io/natscli/nats@latest | sh
