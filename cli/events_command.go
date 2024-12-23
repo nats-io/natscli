@@ -61,8 +61,8 @@ func configureEventsCommand(app commandHost) {
 	events.Flag("js-advisory", "Shows advisory events (false)").UnNegatableBoolVar(&c.showJsAdvisories)
 	events.Flag("srv-advisory", "Shows NATS Server advisories (true)").Default("true").BoolVar(&c.showServerAdvisories)
 	events.Flag("subjects", "Show Advisories and Metrics received on specific subjects").PlaceHolder("SUBJECTS").StringsVar(&c.extraSubjects)
-	events.Flag("stream", "Reads events from a Stream").StringVar(&c.stream)
-	events.Flag("since", "When reading a stream reads from a certain duration ago").PlaceHolder("DURATION").DurationVar(&c.since)
+	events.Flag("stream", "Reads events from a Stream only").StringVar(&c.stream)
+	events.Flag("since", "When reading a Stream reads from a certain duration ago").PlaceHolder("DURATION").DurationVar(&c.since)
 }
 
 func init() {
@@ -153,8 +153,12 @@ func (c *eventsCmd) eventsAction(_ *fisk.ParseContext) error {
 	c.bodyFRe, err = regexp.Compile(strings.ToUpper(c.bodyF))
 	fisk.FatalIfError(err, "invalid body regular expression")
 
-	if !c.showAll && !c.showJsAdvisories && !c.showJsMetrics && !c.showServerAdvisories && len(c.extraSubjects) == 0 && c.stream == "" {
+	hasSubjectSelect := c.showAll || c.showJsAdvisories || c.showJsMetrics || len(c.extraSubjects) > 0
+	if !hasSubjectSelect && !c.showServerAdvisories && c.stream == "" {
 		return fmt.Errorf("no events were chosen")
+	}
+	if hasSubjectSelect && c.stream != "" {
+		return fmt.Errorf("cannot specify both Stream and specific advisories or extra subjects")
 	}
 
 	if c.stream != "" {
