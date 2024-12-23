@@ -346,7 +346,7 @@ func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkRaft(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: "JetStream Meta Cluster", Check: "meta"}
+	check := &monitor.Result{Name: "JetStream Meta Cluster", Check: "meta", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
 	defer check.GenericExit()
 
 	return monitor.CheckJetstreamMeta(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckMetaOptions{
