@@ -1,4 +1,5 @@
 project_name: natscli
+version: 2
 
 release:
   github:
@@ -6,9 +7,10 @@ release:
     name: natscli
   name_template: "Release {{.Version}}"
   draft: true
+  prerelease: auto
 
 changelog:
-  skip: true
+  disable: true
 
 builds:
   - main: ./nats
@@ -53,14 +55,15 @@ checksum:
 
 brews:
   - name: nats
-    folder: Formula
+    directory: Formula
     repository:
       owner: nats-io
       name: homebrew-nats-tools
+      token: "{{ .Env.GITHUB_APP_TOKEN }}"
     url_template: "https://github.com/nats-io/natscli/releases/download/{{ .Tag }}/nats-{{.Version}}-{{ .Os }}-{{ .Arch }}{{if .Arm}}{{.Arm}}{{end}}.zip"
-    homepage: "https://github.com/nats-io/nats"
+    homepage: "https://github.com/nats-io/natscli"
     description: "NATS utility"
-    skip_upload: false
+    skip_upload: auto
     test: |
       system "#{bin}/nats --version"
     install: |

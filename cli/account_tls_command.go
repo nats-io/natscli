@@ -65,7 +65,7 @@ func (c *ActTLSCmd) showTLS(_ *fisk.ParseContext) error {
 
 	var showingOCSP bool
 	if c.wantOCSP {
-		if t.OCSPResponse != nil && len(t.OCSPResponse) > 0 {
+		if len(t.OCSPResponse) > 0 {
 			showingOCSP = true
 		} else {
 			fmt.Printf("# No OCSP Response found in TLS connection\n\n")
