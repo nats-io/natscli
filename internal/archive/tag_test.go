@@ -18,7 +18,6 @@ import (
 )
 
 func Test_CreateFilenameFromTags(t *testing.T) {
-
 	tests := []struct {
 		name      string
 		tags      []*Tag

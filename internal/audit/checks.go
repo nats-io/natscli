@@ -15,6 +15,7 @@ package audit
 
 import (
 	"fmt"
+
 	"github.com/nats-io/natscli/internal/archive"
 )
 
@@ -67,7 +68,6 @@ func (o Outcome) String() string {
 
 // GetDefaultChecks creates the default list of check using default parameters
 func GetDefaultChecks() []Check {
-
 	// Defaults
 	const (
 		cpuThreshold             = 0.9       // >90% CPU usage

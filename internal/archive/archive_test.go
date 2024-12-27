@@ -26,8 +26,7 @@ import (
 )
 
 func Test_CreateThenReadArchive(t *testing.T) {
-	const SEED = 123456
-	rng := rand.New(rand.NewSource(SEED))
+	rng := rand.New(rand.NewSource(123456))
 
 	archivePath := filepath.Join(t.TempDir(), "archive.zip")
 	aw, err := NewWriter(archivePath)
@@ -80,7 +79,6 @@ func Test_CreateThenReadArchive(t *testing.T) {
 	}
 
 	for fileName, fileContent := range files {
-
 		fileReader, size, err := ar.getFileReader(fileName)
 		if err != nil {
 			t.Fatalf("Failed to get file: %s: %s", fileName, err)
@@ -105,8 +103,7 @@ func Test_CreateThenReadArchive(t *testing.T) {
 }
 
 func Test_CreateThenReadArchiveUsingTags(t *testing.T) {
-	const SEED = 123456
-	rng := rand.New(rand.NewSource(SEED))
+	rng := rand.New(rand.NewSource(123456))
 
 	archivePath := filepath.Join(t.TempDir(), "archive.zip")
 	aw, err := NewWriter(archivePath)
@@ -408,8 +405,7 @@ func Test_CreateThenReadArchiveUsingTags(t *testing.T) {
 }
 
 func Test_IterateResourcesUsingTags(t *testing.T) {
-	const SEED = 123456
-	rng := rand.New(rand.NewSource(SEED))
+	rng := rand.New(rand.NewSource(123456))
 
 	dummyArtifact := struct {
 		x int

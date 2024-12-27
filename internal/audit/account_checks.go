@@ -16,6 +16,7 @@ package audit
 import (
 	"errors"
 	"fmt"
+
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/internal/archive"
 )
@@ -30,6 +31,7 @@ func makeCheckAccountLimits(connectionsThreshold, subscriptionsThreshold float64
 				// Limit not set
 				return
 			}
+
 			threshold := int64(float64(limit) * percentThreshold)
 			if value > threshold {
 				examples.add(
@@ -48,11 +50,13 @@ func makeCheckAccountLimits(connectionsThreshold, subscriptionsThreshold float64
 		accountDetailsTag := archive.TagAccountInfo()
 		for _, clusterName := range r.GetClusterNames() {
 			clusterTag := archive.TagCluster(clusterName)
+
 			for _, serverName := range r.GetClusterServerNames(clusterName) {
 				serverTag := archive.TagServer(serverName)
 
 				var accountz server.Accountz
-				if err := r.Load(&accountz, clusterTag, serverTag, accountsTag); errors.Is(err, archive.ErrNoMatches) {
+				err := r.Load(&accountz, clusterTag, serverTag, accountsTag)
+				if errors.Is(err, archive.ErrNoMatches) {
 					logWarning("Artifact 'ACCOUNTZ' is missing for server %s cluster %s", serverName, clusterName)
 					continue
 				} else if err != nil {
@@ -63,16 +67,12 @@ func makeCheckAccountLimits(connectionsThreshold, subscriptionsThreshold float64
 					accountTag := archive.TagAccount(accountName)
 
 					var accountInfo server.AccountInfo
-					if err := r.Load(&accountInfo, serverTag, accountTag, accountDetailsTag); errors.Is(err, archive.ErrNoMatches) {
+					err := r.Load(&accountInfo, serverTag, accountTag, accountDetailsTag)
+					if errors.Is(err, archive.ErrNoMatches) {
 						logWarning("Account details is missing for account %s, server %s", accountName, serverName)
 						continue
 					} else if err != nil {
-						return Skipped, fmt.Errorf(
-							"failed to load Account details from server %s for account %s, error: %w",
-							serverTag.Value,
-							accountName,
-							err,
-						)
+						return Skipped, fmt.Errorf("failed to load Account details from server %s for account %s, error: %w", serverTag.Value, accountName, err)
 					}
 
 					if accountInfo.Claim == nil {
