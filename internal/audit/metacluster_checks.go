@@ -16,6 +16,7 @@ package audit
 import (
 	"errors"
 	"fmt"
+
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/internal/archive"
 )
@@ -33,7 +34,8 @@ func checkMetaClusterLeader(r *archive.Reader, examples *ExamplesCollection) (Ou
 			serverTag := archive.TagServer(serverName)
 
 			var jetStreamInfo server.JSInfo
-			if err := r.Load(&jetStreamInfo, clusterTag, serverTag, jsTag); errors.Is(err, archive.ErrNoMatches) {
+			err := r.Load(&jetStreamInfo, clusterTag, serverTag, jsTag)
+			if errors.Is(err, archive.ErrNoMatches) {
 				logWarning("Artifact 'JSZ' is missing for server %s cluster %s", serverName, clusterName)
 				continue
 			} else if err != nil {
@@ -45,7 +47,8 @@ func checkMetaClusterLeader(r *archive.Reader, examples *ExamplesCollection) (Ou
 			}
 
 			var serverVarz server.Varz
-			if err := r.Load(&serverVarz, clusterTag, serverTag, serverVarsTag); errors.Is(err, archive.ErrNoMatches) {
+			err = r.Load(&serverVarz, clusterTag, serverTag, serverVarsTag)
+			if errors.Is(err, archive.ErrNoMatches) {
 				logWarning("Artifact 'VARZ' is missing for server %s cluster %s", serverName, clusterName)
 				continue
 			} else if err != nil {
@@ -94,7 +97,8 @@ func checkMetaClusterOfflineReplicas(r *archive.Reader, examples *ExamplesCollec
 			serverTag := archive.TagServer(serverName)
 
 			var jetStreamInfo server.JSInfo
-			if err := r.Load(&jetStreamInfo, clusterTag, serverTag, jsTag); errors.Is(err, archive.ErrNoMatches) {
+			err := r.Load(&jetStreamInfo, clusterTag, serverTag, jsTag)
+			if errors.Is(err, archive.ErrNoMatches) {
 				logWarning("Artifact 'JSZ' is missing for server %s cluster %s", serverName, clusterName)
 				continue
 			} else if err != nil {
@@ -106,7 +110,8 @@ func checkMetaClusterOfflineReplicas(r *archive.Reader, examples *ExamplesCollec
 			}
 
 			var serverVarz server.Varz
-			if err := r.Load(&serverVarz, clusterTag, serverTag, serverVarsTag); errors.Is(err, archive.ErrNoMatches) {
+			err = r.Load(&serverVarz, clusterTag, serverTag, serverVarsTag)
+			if errors.Is(err, archive.ErrNoMatches) {
 				logWarning("Artifact 'VARZ' is missing for server %s cluster %s", serverName, clusterName)
 				continue
 			} else if err != nil {

@@ -86,6 +86,7 @@ func createCheckClusterMemoryUsageOutliers(outlierThreshold float64) checkFunc {
 			)
 			return PassWithIssues, nil
 		}
+
 		return Pass, nil
 	}
 }
@@ -103,7 +104,8 @@ func checkClusterUniformGatewayConfig(r *archive.Reader, examples *ExamplesColle
 			serverTag := archive.TagServer(serverName)
 
 			var gateways server.Gatewayz
-			if err := r.Load(&gateways, clusterTag, serverTag, archive.TagServerGateways()); errors.Is(err, archive.ErrNoMatches) {
+			err := r.Load(&gateways, clusterTag, serverTag, archive.TagServerGateways())
+			if errors.Is(err, archive.ErrNoMatches) {
 				logWarning("Artifact 'GATEWAYZ' is missing for server %s cluster %s", serverName, clusterName)
 			} else if err != nil {
 				return Skipped, fmt.Errorf("failed to load GATEWAYZ for server %s: %w", serverName, err)
@@ -196,7 +198,8 @@ func makeCheckClusterHighHAAssets(haAssetsThreshold int) checkFunc {
 				serverTag := archive.TagServer(serverName)
 
 				var serverJSInfo server.JSInfo
-				if err := r.Load(&serverJSInfo, clusterTag, serverTag, jsTag); errors.Is(err, archive.ErrNoMatches) {
+				err := r.Load(&serverJSInfo, clusterTag, serverTag, jsTag)
+				if errors.Is(err, archive.ErrNoMatches) {
 					logWarning("Artifact 'JSZ' is missing for server %s cluster %s", serverName, clusterName)
 					continue
 				} else if err != nil {
@@ -219,7 +222,6 @@ func makeCheckClusterHighHAAssets(haAssetsThreshold int) checkFunc {
 }
 
 func checkClusterNamesForWhitespace(reader *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
-
 	for _, clusterName := range reader.GetClusterNames() {
 		if strings.ContainsAny(clusterName, " \n") {
 			examples.add("Cluster: %s", clusterName)
@@ -235,7 +237,6 @@ func checkClusterNamesForWhitespace(reader *archive.Reader, examples *ExamplesCo
 }
 
 func checkLeafnodeServerNamesForWhitespace(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
-
 	for _, clusterName := range r.GetClusterNames() {
 		clusterTag := archive.TagCluster(clusterName)
 

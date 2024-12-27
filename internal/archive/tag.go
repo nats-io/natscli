@@ -82,7 +82,9 @@ var dimensionTagsNames = map[TagLabel]any{
 func createFilenameFromTags(extension string, tags []*Tag) (string, error) {
 	if len(tags) < 1 {
 		return "", fmt.Errorf("at least one tag is required")
-	} else if len(tags) == 1 && tags[0].Name == specialTagLabel {
+	}
+
+	if len(tags) == 1 && tags[0].Name == specialTagLabel {
 		// Special-tagged go into a special subdirectory
 		return path.Join(
 			rootDirectory,
@@ -100,7 +102,6 @@ func createFilenameFromTags(extension string, tags []*Tag) (string, error) {
 	otherTags := make([]*Tag, 0, len(tags))
 
 	for _, tag := range tags {
-
 		// The 'special' tags should not be mixed with the rest
 		if tag.Name == specialTagLabel {
 			return "", fmt.Errorf("special tag (value: '%s') should not be combined with other tags", tag.Value)
@@ -157,8 +158,9 @@ func createFilenameFromTags(extension string, tags []*Tag) (string, error) {
 			clusterTag.Value+separator+serverTag.Value,
 			typeTag.Value+"."+extension,
 		), nil
+	}
 
-	} else if hasAccountTag {
+	if hasAccountTag {
 		// Account artifact (but not a stream)
 		if !hasClusterTag {
 			return "", fmt.Errorf("account artifact is missing cluster tag")
@@ -171,8 +173,9 @@ func createFilenameFromTags(extension string, tags []*Tag) (string, error) {
 			clusterTag.Value+separator+serverTag.Value,
 			typeTag.Value+"."+extension,
 		), nil
+	}
 
-	} else if hasServerTag {
+	if hasServerTag {
 		// Server artifact
 		clusterName := noCluster
 		if hasClusterTag {
@@ -201,11 +204,10 @@ func createFilenameFromTags(extension string, tags []*Tag) (string, error) {
 				typeTag.Value+"."+extension,
 			), nil
 		}
-
-	} else {
-		// May add more cases later, for now bomb if none of the above applies
-		return "", fmt.Errorf("unhandled tags combination: %+v", dimensionTagsMap)
 	}
+
+	// May add more cases later, for now bomb if none of the above applies
+	return "", fmt.Errorf("unhandled tags combination: %+v", dimensionTagsMap)
 }
 
 func TagArtifactType(artifactType string) *Tag {

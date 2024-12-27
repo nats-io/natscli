@@ -64,8 +64,10 @@ func (c *ExamplesCollection) String() string {
 	for _, example := range c.examples {
 		b.WriteString(fmt.Sprintf(" - %s\n", example))
 	}
+
 	if c.omitted > 0 {
 		b.WriteString(fmt.Sprintf(" - ... and %d more ...\n", c.omitted))
 	}
+
 	return b.String()
 }

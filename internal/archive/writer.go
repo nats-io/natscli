@@ -14,13 +14,12 @@
 package archive
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-
-	"archive/zip"
 )
 
 // Writer encapsulates a zip writer for the underlying archive file, but also tracks metadata used by the Reader to
@@ -69,10 +68,12 @@ func (w *Writer) addArtifact(name string, content *bytes.Reader) error {
 	if err != nil {
 		return err
 	}
+
 	_, err = io.Copy(f, content)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 

@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/natscli/internal/archive"
-	audit2 "github.com/nats-io/natscli/internal/audit"
+	"github.com/nats-io/natscli/internal/audit"
 )
 
 type auditAnalyzeCmd struct {
@@ -25,12 +25,12 @@ type auditAnalyzeCmd struct {
 	examplesLimit uint
 	verbose       bool
 	quiet         bool
-	checks        []audit2.Check
+	checks        []audit.Check
 }
 
 func configureAuditAnalyzeCommand(srv *fisk.CmdClause) {
 	c := &auditAnalyzeCmd{
-		checks: audit2.GetDefaultChecks(),
+		checks: audit.GetDefaultChecks(),
 	}
 
 	analyze := srv.Command("analyze", "perform checks against an archive created by the 'gather' subcommand").Action(c.analyze)
@@ -44,9 +44,9 @@ func configureAuditAnalyzeCommand(srv *fisk.CmdClause) {
 func (cmd *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 	// Adjust log levels
 	if cmd.quiet {
-		audit2.LogQuiet()
+		audit.LogQuiet()
 	} else if cmd.verbose {
-		audit2.LogVerbose()
+		audit.LogVerbose()
 	}
 
 	// Open archive
@@ -62,15 +62,15 @@ func (cmd *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 	}()
 
 	// Table that groups checks based on their outcome
-	summaryTable := make(map[audit2.Outcome][]audit2.Check)
-	for _, outcome := range audit2.Outcomes {
-		summaryTable[outcome] = make([]audit2.Check, 0)
+	summaryTable := make(map[audit.Outcome][]audit.Check)
+	for _, outcome := range audit.Outcomes {
+		summaryTable[outcome] = make([]audit.Check, 0)
 	}
 
 	// Run all checks
 	fmt.Printf("Running %d checks against archive: %s\n", len(cmd.checks), cmd.archivePath)
 	for _, check := range cmd.checks {
-		outcome, examples := audit2.RunCheck(check, ar, cmd.examplesLimit)
+		outcome, examples := audit.RunCheck(check, ar, cmd.examplesLimit)
 		fmt.Printf("[%s] %s (%s)\n%s\n", outcome, check.Name, check.Description, examples)
 
 		summaryTable[outcome] = append(summaryTable[outcome], check)

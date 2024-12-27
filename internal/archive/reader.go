@@ -126,7 +126,8 @@ manifestSearchLoop:
 
 	if len(matchedFileNames) < 1 {
 		return ErrNoMatches
-	} else if len(matchedFileNames) > 1 {
+	}
+	if len(matchedFileNames) > 1 {
 		return ErrMultipleMatches
 	}
 
@@ -192,13 +193,9 @@ func NewReader(archivePath string) (*Reader, error) {
 		return nil, fmt.Errorf("failed to compose expected manifest path: %w", err)
 	}
 	for filePath := range filesMap {
-		switch filePath {
-		case manifestFilePath:
-			// Manifest is not present in manifest
-		default:
-			if _, present := manifestMap[filePath]; !present {
-				fmt.Printf("Warning: archive file %s is not present in manifest\n", filePath)
-			}
+		_, present := manifestMap[filePath]
+		if filePath != manifestFilePath && !present {
+			fmt.Printf("Warning: archive file %s is not present in manifest\n", filePath)
 		}
 	}
 

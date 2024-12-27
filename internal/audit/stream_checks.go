@@ -16,6 +16,7 @@ package audit
 import (
 	"errors"
 	"fmt"
+
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/internal/archive"
 )
@@ -24,7 +25,6 @@ import (
 // far behind the most up to date (based on stream last sequence)
 func makeCheckStreamLaggingReplicas(lastSequenceLagThreshold float64) checkFunc {
 	return func(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
-
 		typeTag := archive.TagStreamInfo()
 		accountNames := r.GetAccountNames()
 
@@ -160,7 +160,8 @@ func makeCheckStreamHighCardinality(numSubjectsThreshold int) checkFunc {
 					serverTag := archive.TagServer(serverName)
 
 					var streamDetails server.StreamDetail
-					if err := r.Load(&streamDetails, serverTag, accountTag, streamTag, streamDetailsTag); errors.Is(err, archive.ErrNoMatches) {
+					err := r.Load(&streamDetails, serverTag, accountTag, streamTag, streamDetailsTag)
+					if errors.Is(err, archive.ErrNoMatches) {
 						logWarning("Artifact 'STREAM_DETAILS' is missing for stream %s in account %s", streamName, accountName)
 						continue
 					} else if err != nil {
@@ -223,7 +224,8 @@ func makeCheckStreamLimits(messagesThreshold, bytesThreshold, consumersThreshold
 					serverTag := archive.TagServer(serverName)
 
 					var streamDetails server.StreamDetail
-					if err := r.Load(&streamDetails, serverTag, accountTag, streamTag, streamDetailsTag); errors.Is(err, archive.ErrNoMatches) {
+					err := r.Load(&streamDetails, serverTag, accountTag, streamTag, streamDetailsTag)
+					if errors.Is(err, archive.ErrNoMatches) {
 						logWarning("Artifact 'STREAM_DETAILS' is missing for stream %s in account %s", streamName, accountName)
 						continue
 					} else if err != nil {

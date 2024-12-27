@@ -17,13 +17,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/nats-io/natscli/internal/archive"
 	"io"
 	"os"
 	"os/user"
 	"path/filepath"
 	"reflect"
 	"time"
+
+	"github.com/nats-io/natscli/internal/archive"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
@@ -158,7 +159,6 @@ func configureAuditGatherCommand(srv *fisk.CmdClause) {
 const auditServerProfilesFileExtension = "prof"
 
 func (c *auditGatherCmd) gather(_ *fisk.ParseContext) error {
-
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
@@ -573,7 +573,6 @@ func (c *auditGatherCmd) captureAccountEndpoints(nc *nats.Conn, serverInfoMap ma
 
 // Discover streams in given account, and capture info for each one
 func (c *auditGatherCmd) captureAccountStreams(nc *nats.Conn, serverInfoMap map[string]*server.ServerInfo, accountId string, numServers int, aw *archive.Writer) error {
-
 	jszOptions := server.JSzOptions{
 		Account:    accountId,
 		Streams:    true,
@@ -673,29 +672,28 @@ func (c *auditGatherCmd) captureAccountStreams(nc *nats.Conn, serverInfoMap map[
 
 // Capture runtime information about the capture
 func (c *auditGatherCmd) captureMetadata(nc *nats.Conn, aw *archive.Writer) error {
-	{
-		username := "?"
-		currentUser, err := user.Current()
-		if err != nil {
-			c.logWarning("Failed to capture username: %s", err)
-		} else {
-			username = fmt.Sprintf("%s (%s)", currentUser.Username, currentUser.Name)
-		}
-
-		metadata := &auditMetadata{
-			Timestamp:              time.Now(),
-			ConnectedServerName:    nc.ConnectedServerName(),
-			ConnectedServerVersion: nc.ConnectedServerVersion(),
-			ConnectURL:             nc.ConnectedUrl(),
-			UserName:               username,
-			CLIVersion:             Version,
-		}
-
-		err = aw.Add(&metadata, archive.TagSpecial("audit_gather_metadata"))
-		if err != nil {
-			return fmt.Errorf("failed to save metadata: %w", err)
-		}
+	username := "?"
+	currentUser, err := user.Current()
+	if err != nil {
+		c.logWarning("Failed to capture username: %s", err)
+	} else {
+		username = fmt.Sprintf("%s (%s)", currentUser.Username, currentUser.Name)
 	}
+
+	metadata := &auditMetadata{
+		Timestamp:              time.Now(),
+		ConnectedServerName:    nc.ConnectedServerName(),
+		ConnectedServerVersion: nc.ConnectedServerVersion(),
+		ConnectURL:             nc.ConnectedUrl(),
+		UserName:               username,
+		CLIVersion:             Version,
+	}
+
+	err = aw.Add(&metadata, archive.TagSpecial("audit_gather_metadata"))
+	if err != nil {
+		return fmt.Errorf("failed to save metadata: %w", err)
+	}
+
 	return nil
 }
 

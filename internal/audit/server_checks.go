@@ -122,7 +122,8 @@ func makeCheckServerCPUUsage(cpuThreshold float64) checkFunc {
 			for _, serverName := range r.GetClusterServerNames(clusterName) {
 				serverTag := archive.TagServer(serverName)
 				var serverVarz server.Varz
-				if err := r.Load(&serverVarz, serverTag, clusterTag, severVarsTag); errors.Is(err, archive.ErrNoMatches) {
+				err := r.Load(&serverVarz, serverTag, clusterTag, severVarsTag)
+				if errors.Is(err, archive.ErrNoMatches) {
 					logWarning("Artifact 'VARZ' is missing for server %s", serverName)
 					continue
 				} else if err != nil {
@@ -191,7 +192,8 @@ func makeCheckServerResourceLimits(memoryUsageThreshold, storeUsageThreshold flo
 				serverTag := archive.TagServer(serverName)
 
 				var serverJSInfo server.JSInfo
-				if err := r.Load(&serverJSInfo, clusterTag, serverTag, jsTag); errors.Is(err, archive.ErrNoMatches) {
+				err := r.Load(&serverJSInfo, clusterTag, serverTag, jsTag)
+				if errors.Is(err, archive.ErrNoMatches) {
 					logWarning("Artifact 'JSZ' is missing for server %s cluster %s", serverName, clusterName)
 					continue
 				} else if err != nil {
@@ -234,7 +236,6 @@ func makeCheckServerResourceLimits(memoryUsageThreshold, storeUsageThreshold flo
 }
 
 func checkJetStreamDomainsForWhitespace(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
-
 	for _, clusterName := range r.GetClusterNames() {
 		clusterTag := archive.TagCluster(clusterName)
 
