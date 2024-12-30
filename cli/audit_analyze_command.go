@@ -15,6 +15,7 @@ package cli
 
 import (
 	"fmt"
+
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/natscli/internal/archive"
 	"github.com/nats-io/natscli/internal/audit"
@@ -28,15 +29,16 @@ type auditAnalyzeCmd struct {
 	checks        []audit.Check
 }
 
-func configureAuditAnalyzeCommand(srv *fisk.CmdClause) {
+func configureAuditAnalyzeCommand(app *fisk.CmdClause) {
 	c := &auditAnalyzeCmd{
 		checks: audit.GetDefaultChecks(),
 	}
 
-	analyze := srv.Command("analyze", "perform checks against an archive created by the 'gather' subcommand").Action(c.analyze)
+	analyze := app.Command("analyze", "perform checks against an archive created by the 'gather' subcommand").Action(c.analyze)
 	analyze.Arg("archive", "path to input archive to analyze").Required().ExistingFileVar(&c.archivePath)
 	analyze.Flag("max-examples", "How many example issues to display for each failed check (0 for unlimited)").Default("5").UintVar(&c.examplesLimit)
 	analyze.Flag("quiet", "Disable info and warning messages during analysis").BoolVar(&c.quiet)
+
 	// Hidden flags
 	analyze.Flag("verbose", "Enable debug console messages during analysis").Hidden().BoolVar(&c.verbose)
 }

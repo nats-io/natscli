@@ -15,17 +15,108 @@ package audit
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
 
+	"github.com/choria-io/fisk"
+	"github.com/nats-io/natscli/columns"
 	"github.com/nats-io/natscli/internal/archive"
 )
 
-type checkFunc func(reader *archive.Reader, examples *ExamplesCollection) (Outcome, error)
+type checkFunc func(check Check, reader *archive.Reader, examples *ExamplesCollection) (Outcome, error)
+
+type CheckConfiguration struct {
+	Key         string   `json:"key"`
+	Check       string   `json:"check"`
+	Description string   `json:"description"`
+	Default     float64  `json:"default"`
+	SetValue    *float64 `json:"set_value,omitempty"`
+}
+
+func (c *CheckConfiguration) Value() float64 {
+	if c.SetValue != nil {
+		return *c.SetValue
+	}
+
+	return c.Default
+}
+
+func (c *CheckConfiguration) String() string {
+	return columns.F(c.Value())
+}
+
+// Set supports fisk
+func (c *CheckConfiguration) Set(v string) error {
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return err
+	}
+	c.SetValue = &f
+
+	return nil
+}
+
+// SetVal supports fisk
+func (c *CheckConfiguration) SetVal(s fisk.Settings) {
+	s.SetValue(c)
+}
 
 // Check is the basic unit of analysis that is run against a data archive
 type Check struct {
-	Name        string
-	Description string
-	fun         checkFunc
+	Code          string                         `json:"code"`
+	Name          string                         `json:"name"`
+	Description   string                         `json:"description"`
+	Configuration map[string]*CheckConfiguration `json:"configuration"`
+	Handler       checkFunc                      `json:"-"`
+}
+
+var registeredChecks = map[string]Check{}
+var checksConfiguration = map[string]*CheckConfiguration{}
+var registeredChecksMu sync.Mutex
+
+// MustRegisterCheck allows a new check to be registered as a plugin
+func MustRegisterCheck(checks ...Check) {
+	registeredChecksMu.Lock()
+	defer registeredChecksMu.Unlock()
+
+	for _, check := range checks {
+		if check.Code == "" {
+			panic("check code is required")
+		}
+		if check.Name == "" {
+			panic("check name is required")
+		}
+		if check.Description == "" {
+			panic("check description is required")
+		}
+		if check.Handler == nil {
+			panic("check implementation is required")
+		}
+
+		if _, ok := registeredChecks[check.Name]; ok {
+			panic(fmt.Sprintf("check %q already registered", check.Name))
+		}
+
+		for _, cfg := range check.Configuration {
+			if cfg.Key == "" {
+				panic("configuration key is required")
+			}
+			if cfg.Description == "" {
+				panic("configuration description is required")
+			}
+
+			cfg.Check = check.Code
+			checksConfiguration[configItemKey(check.Code, cfg.Key)] = cfg
+		}
+
+		registeredChecks[check.Name] = check
+	}
+}
+
+func configItemKey(code string, key string) string {
+	return fmt.Sprintf("%s_%s", strings.ToLower(code), key)
 }
 
 // Outcome of running a check against the data gathered into an archive
@@ -68,116 +159,51 @@ func (o Outcome) String() string {
 
 // GetDefaultChecks creates the default list of check using default parameters
 func GetDefaultChecks() []Check {
-	// Defaults
-	const (
-		cpuThreshold             = 0.9       // >90% CPU usage
-		memoryOutlierThreshold   = 1.5       // Memory usage is >1.5X the average
-		lastSequenceLagThreshold = 0.1       // Replica is >10% behind highest known lastSeq
-		numSubjectsThreshold     = 1_000_000 // Stream has >1M unique subjects
-		haAssetsThreshold        = 1000      // Server has more than 1000 HA assets
-		messagesLimitThreshold   = 0.9       // Messages count is >90% of configured limit
-		bytesLimitThreshold      = 0.9       // Bytes amount is >90% of configured limit
-		consumersLimitThreshold  = 0.9       // Number of consumers is >90% of configured limit
-		memoryUsageThreshold     = 0.90      // Memory usage is 90% of configured limit
-		storeUsageThreshold      = 0.90      // Store disk usage is 90% of configured limit
-		connectionsThreshold     = 0.9       // Number of connections is >90% of configured limit
-		subscriptionsThreshold   = 0.9       // Number of subscriptions is 90% of configured limit
+	var res []Check
 
-	)
+	registeredChecksMu.Lock()
+	defer registeredChecksMu.Unlock()
 
-	return []Check{
-		{
-			Name:        "Server Health",
-			Description: "Verify that all known nodes are healthy",
-			fun:         checkServerHealth,
-		},
-		{
-			Name:        "Server Version",
-			Description: "Verify that all known nodes are running the same software version",
-			fun:         checkServerVersion,
-		},
-		{
-			Name:        "Server CPU Usage",
-			Description: "Verify that CPU usage for all known nodes is below a given threshold",
-			fun:         makeCheckServerCPUUsage(cpuThreshold),
-		},
-		{
-			Name:        "Server Slow Consumers",
-			Description: "Verify that no node is reporting slow consumers",
-			fun:         checkSlowConsumers,
-		},
-		{
-			Name:        "Server Resources Limits ",
-			Description: "Verify that resource are below a given threshold compared to the configured limit",
-			fun:         makeCheckServerResourceLimits(memoryUsageThreshold, storeUsageThreshold),
-		},
-		{
-			Name:        "Cluster Memory Usage Outliers",
-			Description: "Verify memory usage is uniform across nodes in a cluster",
-			fun:         createCheckClusterMemoryUsageOutliers(memoryOutlierThreshold),
-		},
-		{
-			Name:        "Cluster Uniform Gateways",
-			Description: "Verify all nodes in a cluster share the same gateways configuration",
-			fun:         checkClusterUniformGatewayConfig,
-		},
-		{
-			Name:        "Cluster High HA Assets",
-			Description: "Verify that the number of HA assets is below a given threshold",
-			fun:         makeCheckClusterHighHAAssets(haAssetsThreshold),
-		},
-		{
-			Name:        "Stream Lagging Replicas",
-			Description: "Verify that all replicas of a stream are keeping up",
-			fun:         makeCheckStreamLaggingReplicas(lastSequenceLagThreshold),
-		},
-		{
-			Name:        "Stream High Cardinality",
-			Description: "Verify that streams unique subjects do not exceed a given threshold",
-			fun:         makeCheckStreamHighCardinality(numSubjectsThreshold),
-		},
-		{
-			Name:        "Stream Limits",
-			Description: "Verify that streams usage is below the configured limits (messages, bytes, consumers)",
-			fun:         makeCheckStreamLimits(messagesLimitThreshold, bytesLimitThreshold, consumersLimitThreshold),
-		},
-		{
-			Name:        "Account Limits",
-			Description: "Verify that account usage is below the configured limits (connections, subscriptions)",
-			fun:         makeCheckAccountLimits(connectionsThreshold, subscriptionsThreshold),
-		},
-		{
-			Name:        "Meta cluster offline replicas",
-			Description: "Verify that all nodes part of the meta group are online",
-			fun:         checkMetaClusterOfflineReplicas,
-		},
-		{
-			Name:        "Meta cluster leader",
-			Description: "Verify that all nodes part of the meta group agree on the meta cluster leader",
-			fun:         checkMetaClusterLeader,
-		},
-		{
-			Name:        "Whitespace in leafnode server names",
-			Description: "Verify that no leafnode contains whitespace in its name",
-			fun:         checkLeafnodeServerNamesForWhitespace,
-		},
-		{
-			Name:        "Whitespace in JetStream domains",
-			Description: "Verify that no JetStream server is configured with whitespace in its domain",
-			fun:         checkJetStreamDomainsForWhitespace,
-		},
-		{
-			Name:        "Whitespace in cluster name",
-			Description: "Verify that no cluster name contains whitespace",
-			fun:         checkClusterNamesForWhitespace,
-		},
+	for _, check := range registeredChecks {
+		res = append(res, check)
 	}
+
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Code < res[j].Code
+	})
+
+	return res
+}
+
+// GetConfigurationItems loads a list of config items sorted by check
+//
+// Use in fisk applications like:
+//
+//	 cfg := audit.GetConfigurationItems()
+//	 for _, v := range cfg {
+//		v.SetVal(analyze.Flag(fmt.Sprintf("%s_%s", strings.ToLower(v.Check), v.Key), v.Description).Default(fmt.Sprintf("%.2f", v.Default)))
+//	 }
+func GetConfigurationItems() []CheckConfiguration {
+	var res []CheckConfiguration
+
+	registeredChecksMu.Lock()
+	defer registeredChecksMu.Unlock()
+
+	for _, check := range checksConfiguration {
+		res = append(res, *check)
+	}
+
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Key < res[j].Key
+	})
+
+	return res
 }
 
 // RunCheck is a wrapper to run a check, handling setup and errors
 func RunCheck(check Check, ar *archive.Reader, limit uint) (Outcome, *ExamplesCollection) {
 	examples := newExamplesCollection(limit)
-	outcome, err := check.fun(ar, examples)
+	outcome, err := check.Handler(check, ar, examples)
 	if err != nil {
 		// If a check throws an error, mark it as skipped
 		fmt.Printf("Check %s failed: %s\n", check.Name, err)

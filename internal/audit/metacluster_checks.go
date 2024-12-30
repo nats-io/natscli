@@ -21,8 +21,25 @@ import (
 	"github.com/nats-io/natscli/internal/archive"
 )
 
+func init() {
+	MustRegisterCheck(
+		Check{
+			Code:        "META_001",
+			Name:        "Meta cluster offline replicas",
+			Description: "All nodes part of the meta group are online",
+			Handler:     checkMetaClusterOfflineReplicas,
+		},
+		Check{
+			Code:        "META_002",
+			Name:        "Meta cluster leader",
+			Description: "All nodes part of the meta group agree on the meta cluster leader",
+			Handler:     checkMetaClusterLeader,
+		},
+	)
+}
+
 // checkMetaClusterLeader verify that all server agree on the same meta group leader in each known cluster
-func checkMetaClusterLeader(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+func checkMetaClusterLeader(_ Check, r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
 	serverVarsTag := archive.TagServerVars()
 	jsTag := archive.TagServerJetStream()
 
@@ -86,7 +103,7 @@ func checkMetaClusterLeader(r *archive.Reader, examples *ExamplesCollection) (Ou
 }
 
 // checkMetaClusterOfflineReplicas verify that all meta-cluster replicas are online for each known cluster
-func checkMetaClusterOfflineReplicas(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+func checkMetaClusterOfflineReplicas(_ Check, r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
 	serverVarsTag := archive.TagServerVars()
 	jsTag := archive.TagServerJetStream()
 

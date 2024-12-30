@@ -18,10 +18,11 @@ import (
 )
 
 func configureAuditCommand(app commandHost) {
-	srv := app.Command("audit", "Audit a NATS deployment").Hidden()
+	audit := app.Command("audit", "Audit a NATS deployment").Hidden()
 
-	configureAuditGatherCommand(srv)
-	configureAuditAnalyzeCommand(srv)
+	configureAuditGatherCommand(audit)
+	configureAuditAnalyzeCommand(audit)
+	configureAuditChecksCommand(audit)
 }
 
 func init() {

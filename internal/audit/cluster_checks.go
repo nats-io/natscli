@@ -23,76 +23,116 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/internal/archive"
-	"golang.org/x/exp/maps"
 )
 
-// checkClusterMemoryUsageOutliers creates a parametrized check to verify the memory usage of any given node in a
-// cluster is not significantly higher than its peers
-func createCheckClusterMemoryUsageOutliers(outlierThreshold float64) checkFunc {
-	return func(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
-		typeTag := archive.TagServerVars()
-		clusterNames := r.GetClusterNames()
+func init() {
+	MustRegisterCheck(
+		Check{
+			Code:        "CLUSTER_001",
+			Name:        "Cluster Memory Usage Outliers",
+			Description: "Memory usage is uniform across nodes in a cluster",
+			Configuration: map[string]*CheckConfiguration{
+				"memory": {
+					Key:         "memory",
+					Description: "Threshold of memory usage above average",
+					Default:     1.5,
+				},
+			},
+			Handler: checkClusterMemoryUsageOutliers,
+		},
+		Check{
+			Code:        "CLUSTER_002",
+			Name:        "Cluster Uniform Gateways",
+			Description: "All nodes in a cluster share the same gateways configuration",
+			Handler:     checkClusterUniformGatewayConfig,
+		},
+		Check{
+			Code:        "CLUSTER_003",
+			Name:        "Cluster High HA Assets",
+			Description: "Number of HA assets is below a given threshold",
+			Configuration: map[string]*CheckConfiguration{
+				"assets": {
+					Key:         "assets",
+					Description: "Number of HA assets per server",
+					Default:     1000,
+				},
+			},
+			Handler: checkClusterHighHAAssets,
+		},
+		Check{
+			Code:        "CLUSTER_004",
+			Name:        "Whitespace in cluster name",
+			Description: "No cluster name contains whitespace",
+			Handler:     checkClusterNamesForWhitespace,
+		},
+	)
+}
 
-		clustersWithIssuesMap := make(map[string]any, len(clusterNames))
+// checkClusterMemoryUsageOutliers verifies the memory usage of any given node in a cluster is not significantly higher than its peers
+func checkClusterMemoryUsageOutliers(check Check, r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+	typeTag := archive.TagServerVars()
+	clusterNames := r.GetClusterNames()
+	outlierThreshold := check.Configuration["memory"].Value()
 
-		for _, clusterName := range clusterNames {
-			clusterTag := archive.TagCluster(clusterName)
+	clustersWithIssuesMap := make(map[string]any, len(clusterNames))
 
-			serverNames := r.GetClusterServerNames(clusterName)
-			clusterMemoryUsageMap := make(map[string]float64, len(serverNames))
-			clusterMemoryUsageTotal := float64(0)
-			numServers := 0 // cannot use len(serverNames) as some artifacts may be missing
+	for _, clusterName := range clusterNames {
+		clusterTag := archive.TagCluster(clusterName)
 
-			for _, serverName := range serverNames {
-				serverTag := archive.TagServer(serverName)
+		serverNames := r.GetClusterServerNames(clusterName)
+		clusterMemoryUsageMap := make(map[string]float64, len(serverNames))
+		clusterMemoryUsageTotal := float64(0)
+		numServers := 0 // cannot use len(serverNames) as some artifacts may be missing
 
-				var serverVarz server.Varz
-				err := r.Load(&serverVarz, clusterTag, serverTag, typeTag)
-				if errors.Is(err, archive.ErrNoMatches) {
-					logWarning("Artifact 'VARZ' is missing for server %s in cluster %s", serverName, clusterName)
-					continue
-				} else if err != nil {
-					return Skipped, fmt.Errorf("failed to load VARZ for server %s in cluster %s: %w", serverName, clusterName, err)
-				}
+		for _, serverName := range serverNames {
+			serverTag := archive.TagServer(serverName)
 
-				numServers += 1
-				clusterMemoryUsageMap[serverTag.Value] = float64(serverVarz.Mem)
-				clusterMemoryUsageTotal += float64(serverVarz.Mem)
+			var serverVarz server.Varz
+			err := r.Load(&serverVarz, clusterTag, serverTag, typeTag)
+			if errors.Is(err, archive.ErrNoMatches) {
+				logWarning("Artifact 'VARZ' is missing for server %s in cluster %s", serverName, clusterName)
+				continue
+			} else if err != nil {
+				return Skipped, fmt.Errorf("failed to load VARZ for server %s in cluster %s: %w", serverName, clusterName, err)
 			}
 
-			clusterMemoryUsageMean := clusterMemoryUsageTotal / float64(numServers)
-			threshold := clusterMemoryUsageMean * outlierThreshold
+			numServers += 1
+			clusterMemoryUsageMap[serverTag.Value] = float64(serverVarz.Mem)
+			clusterMemoryUsageTotal += float64(serverVarz.Mem)
+		}
 
-			for serverName, serverMemoryUsage := range clusterMemoryUsageMap {
-				if serverMemoryUsage > threshold {
-					examples.add(
-						"Cluster %s avg: %s, server %s: %s",
-						clusterName,
-						humanize.IBytes(uint64(clusterMemoryUsageMean)),
-						serverName,
-						humanize.IBytes(uint64(serverMemoryUsage)),
-					)
-					clustersWithIssuesMap[clusterName] = nil
-				}
+		clusterMemoryUsageMean := clusterMemoryUsageTotal / float64(numServers)
+		threshold := clusterMemoryUsageMean * outlierThreshold
+
+		for serverName, serverMemoryUsage := range clusterMemoryUsageMap {
+			if serverMemoryUsage > threshold {
+				examples.add(
+					"Cluster %s avg: %s, server %s: %s",
+					clusterName,
+					humanize.IBytes(uint64(clusterMemoryUsageMean)),
+					serverName,
+					humanize.IBytes(uint64(serverMemoryUsage)),
+				)
+				clustersWithIssuesMap[clusterName] = nil
 			}
 		}
-
-		if len(clustersWithIssuesMap) > 0 {
-			logCritical(
-				"Servers with memory usage above %.1fX the cluster average: %d in %d clusters",
-				outlierThreshold,
-				examples.Count(),
-				len(clustersWithIssuesMap),
-			)
-			return PassWithIssues, nil
-		}
-
-		return Pass, nil
 	}
+
+	if len(clustersWithIssuesMap) > 0 {
+		logCritical(
+			"Servers with memory usage above %.1fX the cluster average: %d in %d clusters",
+			outlierThreshold,
+			examples.Count(),
+			len(clustersWithIssuesMap),
+		)
+		return PassWithIssues, nil
+	}
+
+	return Pass, nil
 }
 
 // checkClusterUniformGatewayConfig verify that gateways configuration matches for all nodes in each cluster
-func checkClusterUniformGatewayConfig(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+func checkClusterUniformGatewayConfig(_ Check, r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
 	for _, clusterName := range r.GetClusterNames() {
 		clusterTag := archive.TagCluster(clusterName)
 
@@ -186,42 +226,40 @@ func checkClusterUniformGatewayConfig(r *archive.Reader, examples *ExamplesColle
 	return Pass, nil
 }
 
-// makeCheckClusterHighHAAssets create a parametrized check to verify the number of HA assets is below some the given
-// number for each known server in each known cluster
-func makeCheckClusterHighHAAssets(haAssetsThreshold int) checkFunc {
-	return func(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
-		jsTag := archive.TagServerJetStream()
+// checkClusterHighHAAssets verifies the number of HA assets is below some the given number for each known server in each known cluster
+func checkClusterHighHAAssets(check Check, r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+	jsTag := archive.TagServerJetStream()
+	haAssetsThreshold := check.Configuration["assets"].Value()
 
-		for _, clusterName := range r.GetClusterNames() {
-			clusterTag := archive.TagCluster(clusterName)
-			for _, serverName := range r.GetClusterServerNames(clusterName) {
-				serverTag := archive.TagServer(serverName)
+	for _, clusterName := range r.GetClusterNames() {
+		clusterTag := archive.TagCluster(clusterName)
+		for _, serverName := range r.GetClusterServerNames(clusterName) {
+			serverTag := archive.TagServer(serverName)
 
-				var serverJSInfo server.JSInfo
-				err := r.Load(&serverJSInfo, clusterTag, serverTag, jsTag)
-				if errors.Is(err, archive.ErrNoMatches) {
-					logWarning("Artifact 'JSZ' is missing for server %s cluster %s", serverName, clusterName)
-					continue
-				} else if err != nil {
-					return Skipped, fmt.Errorf("failed to load JSZ for server %s: %w", serverName, err)
-				}
+			var serverJSInfo server.JSInfo
+			err := r.Load(&serverJSInfo, clusterTag, serverTag, jsTag)
+			if errors.Is(err, archive.ErrNoMatches) {
+				logWarning("Artifact 'JSZ' is missing for server %s cluster %s", serverName, clusterName)
+				continue
+			} else if err != nil {
+				return Skipped, fmt.Errorf("failed to load JSZ for server %s: %w", serverName, err)
+			}
 
-				if serverJSInfo.HAAssets > haAssetsThreshold {
-					examples.add("%s: %d HA assets", serverName, serverJSInfo.HAAssets)
-				}
+			if float64(serverJSInfo.HAAssets) > haAssetsThreshold {
+				examples.add("%s: %d HA assets", serverName, serverJSInfo.HAAssets)
 			}
 		}
-
-		if examples.Count() > 0 {
-			logCritical("Found %d servers with >%d HA assets", examples.Count(), haAssetsThreshold)
-			return PassWithIssues, nil
-		}
-
-		return Pass, nil
 	}
+
+	if examples.Count() > 0 {
+		logCritical("Found %d servers with >%d HA assets", examples.Count(), haAssetsThreshold)
+		return PassWithIssues, nil
+	}
+
+	return Pass, nil
 }
 
-func checkClusterNamesForWhitespace(reader *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+func checkClusterNamesForWhitespace(_ Check, reader *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
 	for _, clusterName := range reader.GetClusterNames() {
 		if strings.ContainsAny(clusterName, " \n") {
 			examples.add("Cluster: %s", clusterName)
@@ -230,43 +268,6 @@ func checkClusterNamesForWhitespace(reader *archive.Reader, examples *ExamplesCo
 
 	if examples.Count() > 0 {
 		logCritical("Found %d clusters with names containing whitespace", examples.Count())
-		return Fail, nil
-	}
-
-	return Pass, nil
-}
-
-func checkLeafnodeServerNamesForWhitespace(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
-	for _, clusterName := range r.GetClusterNames() {
-		clusterTag := archive.TagCluster(clusterName)
-
-		leafnodesWithWhitespace := map[string]struct{}{}
-
-		for _, serverName := range r.GetClusterServerNames(clusterName) {
-			serverTag := archive.TagServer(serverName)
-
-			var serverLeafz server.Leafz
-			err := r.Load(&serverLeafz, clusterTag, serverTag, archive.TagServerLeafs())
-			if err != nil {
-				logWarning("Artifact 'LEAFZ' is missing for server %s", serverName)
-				continue
-			}
-
-			for _, leaf := range serverLeafz.Leafs {
-				// check if leafnode name contains whitespace
-				if strings.ContainsAny(leaf.Name, " \n") {
-					leafnodesWithWhitespace[leaf.Name] = struct{}{}
-				}
-			}
-		}
-
-		if len(leafnodesWithWhitespace) > 0 {
-			examples.add("Cluster %s: %v", clusterName, maps.Keys(leafnodesWithWhitespace))
-		}
-	}
-
-	if examples.Count() > 0 {
-		logCritical("Found %d clusters with leafnode names containing whitespace", examples.Count())
 		return Fail, nil
 	}
 
