@@ -15,18 +15,22 @@ package audit
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/natscli/columns"
 	"github.com/nats-io/natscli/internal/archive"
 )
 
-type checkFunc func(check Check, reader *archive.Reader, examples *ExamplesCollection) (Outcome, error)
+// CheckFunc implements a check over gathered audit
+type CheckFunc func(check Check, reader *archive.Reader, examples *ExamplesCollection) (Outcome, error)
 
+// CheckConfiguration describes and holds the configuration for a check
 type CheckConfiguration struct {
 	Key         string   `json:"key"`
 	Check       string   `json:"check"`
@@ -35,6 +39,7 @@ type CheckConfiguration struct {
 	SetValue    *float64 `json:"set_value,omitempty"`
 }
 
+// Value retrieves the set value or default value
 func (c *CheckConfiguration) Value() float64 {
 	if c.SetValue != nil {
 		return *c.SetValue
@@ -69,14 +74,14 @@ type Check struct {
 	Name          string                         `json:"name"`
 	Description   string                         `json:"description"`
 	Configuration map[string]*CheckConfiguration `json:"configuration"`
-	Handler       checkFunc                      `json:"-"`
+	Handler       CheckFunc                      `json:"-"`
 }
 
 var registeredChecks = map[string]Check{}
 var checksConfiguration = map[string]*CheckConfiguration{}
 var registeredChecksMu sync.Mutex
 
-// MustRegisterCheck allows a new check to be registered as a plugin
+// MustRegisterCheck allows a new check to be registered as a plugin, panics on error
 func MustRegisterCheck(checks ...Check) {
 	registeredChecksMu.Lock()
 	defer registeredChecksMu.Unlock()
@@ -210,4 +215,68 @@ func RunCheck(check Check, ar *archive.Reader, limit uint) (Outcome, *ExamplesCo
 		return Skipped, examples
 	}
 	return outcome, examples
+}
+
+// CheckResult is a outcome of a single check
+type CheckResult struct {
+	Check         Check               `json:"check"`
+	Outcome       Outcome             `json:"outcome"`
+	OutcomeString string              `json:"outcome_string"`
+	Examples      *ExamplesCollection `json:"examples"`
+}
+
+// Analyzes represents the result of an entire analysis
+type Analyzes struct {
+	Type     string         `json:"type"`
+	Time     time.Time      `json:"time"`
+	Skipped  []string       `json:"skipped"`
+	Results  []CheckResult  `json:"checks"`
+	Outcomes map[string]int `json:"outcomes"`
+}
+
+// RunChecks runs all the checks
+func RunChecks(checks []Check, ar *archive.Reader, limit uint, skip []string, progress func(res CheckResult)) *Analyzes {
+	result := &Analyzes{
+		Type:     "io.nats.audit.v1.analysis",
+		Time:     time.Now().UTC(),
+		Skipped:  skip,
+		Results:  []CheckResult{},
+		Outcomes: make(map[string]int),
+	}
+
+	for _, outcome := range Outcomes {
+		result.Outcomes[outcome.String()] = 0
+	}
+
+	for _, check := range checks {
+		should := !slices.ContainsFunc(skip, func(s string) bool {
+			return strings.EqualFold(check.Code, s)
+		})
+
+		var res CheckResult
+		if should {
+			outcome, examples := RunCheck(check, ar, limit)
+			res = CheckResult{
+				Check:   check,
+				Outcome: outcome,
+			}
+
+			if examples != nil && len(examples.Examples) > 0 {
+				res.Examples = examples
+			}
+		} else {
+			res = CheckResult{
+				Check:   check,
+				Outcome: Skipped,
+			}
+		}
+
+		res.OutcomeString = res.Outcome.String()
+
+		progress(res)
+		result.Results = append(result.Results, res)
+		result.Outcomes[res.Outcome.String()]++
+	}
+
+	return result
 }

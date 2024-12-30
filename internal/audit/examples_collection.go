@@ -22,51 +22,55 @@ import (
 // A limit can be passed to avoid accumulating hundreds of example.
 // After the limit is reached, further examples are just counted but not stored.
 type ExamplesCollection struct {
-	examples []string
-	omitted  int
-	limit    uint
+	Examples []string `json:"examples,omitempty"`
+	Limit    uint     `json:"-"`
 }
 
 // newExamplesCollection creates a new empty collection of examples.
 // Use 0 as limit to store unlimited examples.
 func newExamplesCollection(limit uint) *ExamplesCollection {
 	return &ExamplesCollection{
-		limit:    limit,
-		examples: make([]string, 0, limit),
-		omitted:  0,
+		Limit:    limit,
+		Examples: []string{},
 	}
 }
 
 func (c *ExamplesCollection) add(format string, a ...any) {
-	// Add example if still below limit (or if unlimited)
-	if c.limit == 0 || len(c.examples) < int(c.limit) {
-		c.examples = append(c.examples, fmt.Sprintf(format, a...))
-	} else {
-		c.omitted += 1
-	}
+	c.Examples = append(c.Examples, fmt.Sprintf(format, a...))
 }
 
 func (c *ExamplesCollection) clear() {
-	c.examples = make([]string, 0, c.limit)
-	c.omitted = 0
+	c.Examples = []string{}
 }
 
 // Count the number of examples added to this collection (including the omitted ones)
 func (c *ExamplesCollection) Count() int {
-	return len(c.examples) + c.omitted
+	if c == nil {
+		return 0
+	}
+
+	return len(c.Examples)
 }
 
 // String produces a multi-line string with one example per line.
 // If more examples were added than the limit, an extra line is printed with the number of omitted examples.
 func (c *ExamplesCollection) String() string {
 	//create a string builder and append each example as string
+
+	examples := c.Examples[:]
+	omitted := 0
+	if len(c.Examples) > int(c.Limit) {
+		examples = examples[:c.Limit]
+		omitted = len(c.Examples) - len(examples)
+	}
+
 	b := &strings.Builder{}
-	for _, example := range c.examples {
+	for _, example := range examples {
 		b.WriteString(fmt.Sprintf(" - %s\n", example))
 	}
 
-	if c.omitted > 0 {
-		b.WriteString(fmt.Sprintf(" - ... and %d more ...\n", c.omitted))
+	if omitted > 0 {
+		b.WriteString(fmt.Sprintf(" - ... and %d more ...\n", omitted))
 	}
 
 	return b.String()
