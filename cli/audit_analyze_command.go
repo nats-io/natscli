@@ -14,7 +14,9 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/natscli/internal/archive"
@@ -30,6 +32,9 @@ type auditAnalyzeCmd struct {
 	checks        []audit.Check
 	block         []string
 	json          bool
+	writePath     string
+	loadPath      string
+	force         bool
 }
 
 func configureAuditAnalyzeCommand(app *fisk.CmdClause) {
@@ -38,26 +43,41 @@ func configureAuditAnalyzeCommand(app *fisk.CmdClause) {
 	}
 
 	analyze := app.Command("analyze", "perform checks against an archive created by the 'gather' subcommand").Action(c.analyze)
-	analyze.Arg("archive", "path to input archive to analyze").Required().ExistingFileVar(&c.archivePath)
+	analyze.Arg("archive", "path to input archive to analyze").ExistingFileVar(&c.archivePath)
 	analyze.Flag("max-examples", "How many example issues to display for each failed check (0 for unlimited)").Default("5").UintVar(&c.examplesLimit)
-	analyze.Flag("quiet", "Disable info and warning messages during analysis").BoolVar(&c.quiet)
+	analyze.Flag("quiet", "Disable info and warning messages during analysis").UnNegatableBoolVar(&c.quiet)
 	analyze.Flag("skip", "Prevents checks from running by check code").PlaceHolder("CODE").StringsVar(&c.block)
+	analyze.Flag("load", "Loads a saved report").PlaceHolder("FILE").StringVar(&c.loadPath)
+	analyze.Flag("save", "Stores the analyze result to a file").PlaceHolder("FILE").StringVar(&c.writePath)
+	analyze.Flag("force", "Force overwriting existing report files").Short('f').UnNegatableBoolVar(&c.force)
 	analyze.Flag("json", "Output JSON format").Short('j').BoolVar(&c.json)
 
 	// Hidden flags
 	analyze.Flag("verbose", "Enable debug console messages during analysis").Hidden().BoolVar(&c.verbose)
 }
 
-func (cmd *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
+func (c *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
+	if c.loadPath != "" {
+		return c.loadAndRender()
+	}
+
 	// Adjust log levels
-	if cmd.quiet || cmd.json {
+	if c.quiet || c.json {
 		audit.LogQuiet()
-	} else if cmd.verbose {
+	} else if c.verbose {
 		audit.LogVerbose()
 	}
 
+	if c.writePath != "" && iu.FileExists(c.writePath) && !c.force {
+		return fmt.Errorf("result file %q already exist, use --force to overwrite", c.writePath)
+	}
+
+	if c.archivePath == "" {
+		return fmt.Errorf("archive path is required")
+	}
+
 	// Open archive
-	ar, err := archive.NewReader(cmd.archivePath)
+	ar, err := archive.NewReader(c.archivePath)
 	if err != nil {
 		return fmt.Errorf("failed to open archive: %w", err)
 	}
@@ -68,31 +88,59 @@ func (cmd *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 		}
 	}()
 
-	// Run all checks
-	if !cmd.json {
-		fmt.Printf("Running %d checks against archive: %s\n", len(cmd.checks), cmd.archivePath)
+	if !c.json {
+		fmt.Printf("Running %d checks against archive: %s\n", len(c.checks), c.archivePath)
+	}
+	analyzes := audit.RunChecks(c.checks, ar, c.examplesLimit, c.block)
+
+	err = c.renderReport(analyzes)
+	if err != nil {
+		return err
 	}
 
-	analyzes := audit.RunChecks(cmd.checks, ar, cmd.examplesLimit, cmd.block, func(res audit.CheckResult) {
-		if cmd.json {
-			return
+	if c.writePath != "" {
+		j, err := json.MarshalIndent(analyzes, "", "  ")
+		if err != nil {
+			return err
 		}
 
-		if res.Examples.Count() > 0 {
-			fmt.Printf("[%s] [%s] %s\n%s\n", res.Outcome, res.Check.Code, res.Check.Description, res.Examples)
-		} else {
-			fmt.Printf("[%s] [%s] %s\n", res.Outcome, res.Check.Code, res.Check.Description)
-		}
-	})
+		return os.WriteFile(c.writePath, j, 0644)
+	}
 
-	if cmd.json {
+	return nil
+}
+
+func (c *auditAnalyzeCmd) loadAndRender() error {
+	ab, err := os.ReadFile(c.loadPath)
+	if err != nil {
+		return err
+	}
+
+	analyzes := audit.Analyzes{}
+	err = json.Unmarshal(ab, &analyzes)
+	if err != nil {
+		return err
+	}
+
+	return c.renderReport(&analyzes)
+}
+
+func (c *auditAnalyzeCmd) renderReport(analyzes *audit.Analyzes) error {
+	if c.json {
 		return iu.PrintJSON(analyzes)
 	}
 
-	// Print summary of checks
+	for _, res := range analyzes.Results {
+		fmt.Printf("[%s] [%s] %s\n", res.Outcome, res.Check.Code, res.Check.Description)
+		if res.Examples.Count() > 0 {
+			res.Examples.Limit = c.examplesLimit
+			fmt.Println(res.Examples.String())
+		}
+	}
+
 	fmt.Printf("\nSummary of checks:\n")
 	for outcome, checks := range analyzes.Outcomes {
-		fmt.Printf("%s: %s\n", outcome, f(checks))
+		fmt.Printf("\t%s: %s\n", outcome, f(checks))
 	}
 
 	return nil
