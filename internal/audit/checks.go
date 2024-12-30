@@ -100,6 +100,10 @@ func MustRegisterCheck(checks ...Check) {
 			panic("check implementation is required")
 		}
 
+		if check.Configuration == nil {
+			check.Configuration = make(map[string]*CheckConfiguration)
+		}
+
 		if _, ok := registeredChecks[check.Name]; ok {
 			panic(fmt.Sprintf("check %q already registered", check.Name))
 		}
@@ -210,8 +214,7 @@ func RunCheck(check Check, ar *archive.Reader, limit uint) (Outcome, *ExamplesCo
 	examples := newExamplesCollection(limit)
 	outcome, err := check.Handler(check, ar, examples)
 	if err != nil {
-		// If a check throws an error, mark it as skipped
-		fmt.Printf("Check %s failed: %s\n", check.Name, err)
+		examples.Error = err.Error()
 		return Skipped, examples
 	}
 	return outcome, examples
@@ -219,10 +222,10 @@ func RunCheck(check Check, ar *archive.Reader, limit uint) (Outcome, *ExamplesCo
 
 // CheckResult is a outcome of a single check
 type CheckResult struct {
-	Check         Check               `json:"check"`
-	Outcome       Outcome             `json:"outcome"`
-	OutcomeString string              `json:"outcome_string"`
-	Examples      *ExamplesCollection `json:"examples"`
+	Check         Check              `json:"check"`
+	Outcome       Outcome            `json:"outcome"`
+	OutcomeString string             `json:"outcome_string"`
+	Examples      ExamplesCollection `json:"examples"`
 }
 
 // Analyzes represents the result of an entire analysis
@@ -235,13 +238,17 @@ type Analyzes struct {
 }
 
 // RunChecks runs all the checks
-func RunChecks(checks []Check, ar *archive.Reader, limit uint, skip []string, progress func(res CheckResult)) *Analyzes {
+func RunChecks(checks []Check, ar *archive.Reader, limit uint, skip []string) *Analyzes {
 	result := &Analyzes{
 		Type:     "io.nats.audit.v1.analysis",
 		Time:     time.Now().UTC(),
 		Skipped:  skip,
 		Results:  []CheckResult{},
 		Outcomes: make(map[string]int),
+	}
+
+	if result.Skipped == nil {
+		result.Skipped = []string{}
 	}
 
 	for _, outcome := range Outcomes {
@@ -262,7 +269,7 @@ func RunChecks(checks []Check, ar *archive.Reader, limit uint, skip []string, pr
 			}
 
 			if examples != nil && len(examples.Examples) > 0 {
-				res.Examples = examples
+				res.Examples = *examples
 			}
 		} else {
 			res = CheckResult{
@@ -273,7 +280,6 @@ func RunChecks(checks []Check, ar *archive.Reader, limit uint, skip []string, pr
 
 		res.OutcomeString = res.Outcome.String()
 
-		progress(res)
 		result.Results = append(result.Results, res)
 		result.Outcomes[res.Outcome.String()]++
 	}

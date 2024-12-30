@@ -23,6 +23,7 @@ import (
 // After the limit is reached, further examples are just counted but not stored.
 type ExamplesCollection struct {
 	Examples []string `json:"examples,omitempty"`
+	Error    string   `json:"error"`
 	Limit    uint     `json:"-"`
 }
 
@@ -55,8 +56,6 @@ func (c *ExamplesCollection) Count() int {
 // String produces a multi-line string with one example per line.
 // If more examples were added than the limit, an extra line is printed with the number of omitted examples.
 func (c *ExamplesCollection) String() string {
-	//create a string builder and append each example as string
-
 	examples := c.Examples[:]
 	omitted := 0
 	if len(c.Examples) > int(c.Limit) {
