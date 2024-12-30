@@ -63,7 +63,7 @@ type serverAPIResponseNoData struct {
 	Error  *server.ApiError   `json:"error,omitempty"`
 }
 
-func configureAuditGatherCommand(srv *fisk.CmdClause) {
+func configureAuditGatherCommand(app *fisk.CmdClause) {
 	c := &auditGatherCmd{
 		serverEndpointConfigs: []auditEndpointCaptureConfig{
 			{
@@ -146,7 +146,7 @@ func configureAuditGatherCommand(srv *fisk.CmdClause) {
 		},
 	}
 
-	gather := srv.Command("gather", "capture a variety of data from a deployment into an archive file").Action(c.gather)
+	gather := app.Command("gather", "capture a variety of data from a deployment into an archive file").Action(c.gather)
 	gather.Flag("output", "output file path of generated archive").Short('o').StringVar(&c.archiveFilePath)
 	gather.Flag("progress", "Display progress messages during gathering").Default("true").BoolVar(&c.progress)
 	gather.Flag("server-endpoints", "Capture monitoring endpoints for each server").Default("true").BoolVar(&c.include.serverEndpoints)

@@ -23,8 +23,68 @@ import (
 	"github.com/nats-io/natscli/internal/archive"
 )
 
+func init() {
+	MustRegisterCheck(
+		Check{
+			Code:        "SERVER_001",
+			Name:        "Server Health",
+			Description: "All known nodes are healthy",
+			Handler:     checkServerHealth,
+		},
+		Check{
+			Code:        "SERVER_002",
+			Name:        "Server Version",
+			Description: "All known nodes are running the same software version",
+			Handler:     checkServerVersion,
+		},
+		Check{
+			Code:        "SERVER_003",
+			Name:        "Server CPU Usage",
+			Description: "CPU usage for all known nodes is below a given threshold",
+			Configuration: map[string]*CheckConfiguration{
+				"cpu": {
+					Key:         "cpu",
+					Description: "CPU Limit Threshold",
+					Default:     0.9,
+				},
+			},
+			Handler: checkServerCPUUsage,
+		},
+		Check{
+			Code:        "SERVER_004",
+			Name:        "Server Slow Consumers",
+			Description: "No node is reporting slow consumers",
+			Handler:     checkSlowConsumers,
+		},
+		Check{
+			Code:        "SERVER_005",
+			Name:        "Server Resources Limits ",
+			Description: "Resource are below a given threshold compared to the configured limit",
+			Configuration: map[string]*CheckConfiguration{
+				"memory": {
+					Key:         "memory",
+					Description: "Threshold for memory usage",
+					Default:     0.9,
+				},
+				"store": {
+					Key:         "store",
+					Description: "Threshold for store usage",
+					Default:     0.9,
+				},
+			},
+			Handler: checkServerResourceLimits,
+		},
+		Check{
+			Code:        "SERVER_006",
+			Name:        "Whitespace in JetStream domains",
+			Description: "No JetStream server is configured with whitespace in its domain",
+			Handler:     checkJetStreamDomainsForWhitespace,
+		},
+	)
+}
+
 // checkServerHealth verify all known servers are reporting healthy
-func checkServerHealth(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+func checkServerHealth(_ Check, r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
 	notHealthy, healthy := 0, 0
 
 	for _, clusterName := range r.GetClusterNames() {
@@ -62,7 +122,7 @@ func checkServerHealth(r *archive.Reader, examples *ExamplesCollection) (Outcome
 }
 
 // checkServerVersions verify all known servers are running the same version
-func checkServerVersion(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+func checkServerVersion(_ Check, r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
 	versionsToServersMap := make(map[string][]string)
 
 	var lastVersionSeen string
@@ -112,44 +172,43 @@ func checkServerVersion(r *archive.Reader, examples *ExamplesCollection) (Outcom
 	return Pass, nil
 }
 
-// makeCheckServerCPUUsage create a parametrized check to verify CPU usage is below the given threshold for each server
-func makeCheckServerCPUUsage(cpuThreshold float64) checkFunc {
-	return func(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
-		severVarsTag := archive.TagServerVars()
+// checkServerCPUUsage verify CPU usage is below the given threshold for each server
+func checkServerCPUUsage(check Check, r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+	severVarsTag := archive.TagServerVars()
+	cpuThreshold := check.Configuration["cpu"].Value()
 
-		for _, clusterName := range r.GetClusterNames() {
-			clusterTag := archive.TagCluster(clusterName)
-			for _, serverName := range r.GetClusterServerNames(clusterName) {
-				serverTag := archive.TagServer(serverName)
-				var serverVarz server.Varz
-				err := r.Load(&serverVarz, serverTag, clusterTag, severVarsTag)
-				if errors.Is(err, archive.ErrNoMatches) {
-					logWarning("Artifact 'VARZ' is missing for server %s", serverName)
-					continue
-				} else if err != nil {
-					return Skipped, fmt.Errorf("failed to load VARZ for server %s: %w", serverName, err)
-				}
+	for _, clusterName := range r.GetClusterNames() {
+		clusterTag := archive.TagCluster(clusterName)
+		for _, serverName := range r.GetClusterServerNames(clusterName) {
+			serverTag := archive.TagServer(serverName)
+			var serverVarz server.Varz
+			err := r.Load(&serverVarz, serverTag, clusterTag, severVarsTag)
+			if errors.Is(err, archive.ErrNoMatches) {
+				logWarning("Artifact 'VARZ' is missing for server %s", serverName)
+				continue
+			} else if err != nil {
+				return Skipped, fmt.Errorf("failed to load VARZ for server %s: %w", serverName, err)
+			}
 
-				// Example: 350% usage with 4 cores => 87.5% averaged
-				averageCpuUtilization := serverVarz.CPU / float64(serverVarz.Cores)
+			// Example: 350% usage with 4 cores => 87.5% averaged
+			averageCpuUtilization := serverVarz.CPU / float64(serverVarz.Cores)
 
-				if averageCpuUtilization > cpuThreshold {
-					examples.add("%s - %s: %.1f%%", clusterName, serverName, averageCpuUtilization)
-				}
+			if averageCpuUtilization > cpuThreshold {
+				examples.add("%s - %s: %.1f%%", clusterName, serverName, averageCpuUtilization)
 			}
 		}
-
-		if examples.Count() > 0 {
-			logCritical("Found %d servers with >%.0f%% CPU usage", examples.Count(), cpuThreshold)
-			return Fail, nil
-		}
-
-		return Pass, nil
 	}
+
+	if examples.Count() > 0 {
+		logCritical("Found %d servers with >%.0f%% CPU usage", examples.Count(), cpuThreshold)
+		return Fail, nil
+	}
+
+	return Pass, nil
 }
 
 // checkSlowConsumers verify that no server is reporting slow consumers
-func checkSlowConsumers(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+func checkSlowConsumers(_ Check, r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
 	totalSlowConsumers := int64(0)
 
 	for _, clusterName := range r.GetClusterNames() {
@@ -180,62 +239,62 @@ func checkSlowConsumers(r *archive.Reader, examples *ExamplesCollection) (Outcom
 	return Pass, nil
 }
 
-// makeCheckServerResourceLimits create a parametrized check to verify that the resource usage of memory and store is
-// not approaching the reserved amount for each known server
-func makeCheckServerResourceLimits(memoryUsageThreshold, storeUsageThreshold float64) checkFunc {
-	return func(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
-		jsTag := archive.TagServerJetStream()
+// checkServerResourceLimits verifies that the resource usage of memory and store is not approaching the reserved amount for each known server
+func checkServerResourceLimits(check Check, r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+	jsTag := archive.TagServerJetStream()
 
-		for _, clusterName := range r.GetClusterNames() {
-			clusterTag := archive.TagCluster(clusterName)
-			for _, serverName := range r.GetClusterServerNames(clusterName) {
-				serverTag := archive.TagServer(serverName)
+	memoryUsageThreshold := check.Configuration["memory"].Value()
+	storeUsageThreshold := check.Configuration["store"].Value()
 
-				var serverJSInfo server.JSInfo
-				err := r.Load(&serverJSInfo, clusterTag, serverTag, jsTag)
-				if errors.Is(err, archive.ErrNoMatches) {
-					logWarning("Artifact 'JSZ' is missing for server %s cluster %s", serverName, clusterName)
-					continue
-				} else if err != nil {
-					return Skipped, fmt.Errorf("failed to load JSZ for server %s: %w", serverName, err)
+	for _, clusterName := range r.GetClusterNames() {
+		clusterTag := archive.TagCluster(clusterName)
+		for _, serverName := range r.GetClusterServerNames(clusterName) {
+			serverTag := archive.TagServer(serverName)
+
+			var serverJSInfo server.JSInfo
+			err := r.Load(&serverJSInfo, clusterTag, serverTag, jsTag)
+			if errors.Is(err, archive.ErrNoMatches) {
+				logWarning("Artifact 'JSZ' is missing for server %s cluster %s", serverName, clusterName)
+				continue
+			} else if err != nil {
+				return Skipped, fmt.Errorf("failed to load JSZ for server %s: %w", serverName, err)
+			}
+
+			if serverJSInfo.ReservedMemory > 0 {
+				threshold := uint64(float64(serverJSInfo.ReservedMemory) * memoryUsageThreshold)
+				if serverJSInfo.Memory > threshold {
+					examples.add(
+						"%s memory usage: %s of %s",
+						serverName,
+						humanize.IBytes(serverJSInfo.Memory),
+						humanize.IBytes(serverJSInfo.ReservedMemory),
+					)
 				}
+			}
 
-				if serverJSInfo.ReservedMemory > 0 {
-					threshold := uint64(float64(serverJSInfo.ReservedMemory) * memoryUsageThreshold)
-					if serverJSInfo.Memory > threshold {
-						examples.add(
-							"%s memory usage: %s of %s",
-							serverName,
-							humanize.IBytes(serverJSInfo.Memory),
-							humanize.IBytes(serverJSInfo.ReservedMemory),
-						)
-					}
-				}
-
-				if serverJSInfo.ReservedStore > 0 {
-					threshold := uint64(float64(serverJSInfo.ReservedStore) * storeUsageThreshold)
-					if serverJSInfo.Store > threshold {
-						examples.add(
-							"%s store usage: %s of %s",
-							serverName,
-							humanize.IBytes(serverJSInfo.Store),
-							humanize.IBytes(serverJSInfo.ReservedStore),
-						)
-					}
+			if serverJSInfo.ReservedStore > 0 {
+				threshold := uint64(float64(serverJSInfo.ReservedStore) * storeUsageThreshold)
+				if serverJSInfo.Store > threshold {
+					examples.add(
+						"%s store usage: %s of %s",
+						serverName,
+						humanize.IBytes(serverJSInfo.Store),
+						humanize.IBytes(serverJSInfo.ReservedStore),
+					)
 				}
 			}
 		}
-
-		if examples.Count() > 0 {
-			logCritical("Found %d instances of servers approaching reserved usage limit", examples.Count())
-			return PassWithIssues, nil
-		}
-
-		return Pass, nil
 	}
+
+	if examples.Count() > 0 {
+		logCritical("Found %d instances of servers approaching reserved usage limit", examples.Count())
+		return PassWithIssues, nil
+	}
+
+	return Pass, nil
 }
 
-func checkJetStreamDomainsForWhitespace(r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
+func checkJetStreamDomainsForWhitespace(_ Check, r *archive.Reader, examples *ExamplesCollection) (Outcome, error) {
 	for _, clusterName := range r.GetClusterNames() {
 		clusterTag := archive.TagCluster(clusterName)
 
