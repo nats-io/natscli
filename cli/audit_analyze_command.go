@@ -19,6 +19,7 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/natscli/internal/archive"
 	"github.com/nats-io/natscli/internal/audit"
+	iu "github.com/nats-io/natscli/internal/util"
 )
 
 type auditAnalyzeCmd struct {
@@ -27,6 +28,8 @@ type auditAnalyzeCmd struct {
 	verbose       bool
 	quiet         bool
 	checks        []audit.Check
+	block         []string
+	json          bool
 }
 
 func configureAuditAnalyzeCommand(app *fisk.CmdClause) {
@@ -38,6 +41,8 @@ func configureAuditAnalyzeCommand(app *fisk.CmdClause) {
 	analyze.Arg("archive", "path to input archive to analyze").Required().ExistingFileVar(&c.archivePath)
 	analyze.Flag("max-examples", "How many example issues to display for each failed check (0 for unlimited)").Default("5").UintVar(&c.examplesLimit)
 	analyze.Flag("quiet", "Disable info and warning messages during analysis").BoolVar(&c.quiet)
+	analyze.Flag("skip", "Prevents checks from running by check code").PlaceHolder("CODE").StringsVar(&c.block)
+	analyze.Flag("json", "Output JSON format").Short('j').BoolVar(&c.json)
 
 	// Hidden flags
 	analyze.Flag("verbose", "Enable debug console messages during analysis").Hidden().BoolVar(&c.verbose)
@@ -45,7 +50,7 @@ func configureAuditAnalyzeCommand(app *fisk.CmdClause) {
 
 func (cmd *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 	// Adjust log levels
-	if cmd.quiet {
+	if cmd.quiet || cmd.json {
 		audit.LogQuiet()
 	} else if cmd.verbose {
 		audit.LogVerbose()
@@ -63,25 +68,31 @@ func (cmd *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 		}
 	}()
 
-	// Table that groups checks based on their outcome
-	summaryTable := make(map[audit.Outcome][]audit.Check)
-	for _, outcome := range audit.Outcomes {
-		summaryTable[outcome] = make([]audit.Check, 0)
+	// Run all checks
+	if !cmd.json {
+		fmt.Printf("Running %d checks against archive: %s\n", len(cmd.checks), cmd.archivePath)
 	}
 
-	// Run all checks
-	fmt.Printf("Running %d checks against archive: %s\n", len(cmd.checks), cmd.archivePath)
-	for _, check := range cmd.checks {
-		outcome, examples := audit.RunCheck(check, ar, cmd.examplesLimit)
-		fmt.Printf("[%s] %s (%s)\n%s\n", outcome, check.Name, check.Description, examples)
+	analyzes := audit.RunChecks(cmd.checks, ar, cmd.examplesLimit, cmd.block, func(res audit.CheckResult) {
+		if cmd.json {
+			return
+		}
 
-		summaryTable[outcome] = append(summaryTable[outcome], check)
+		if res.Examples.Count() > 0 {
+			fmt.Printf("[%s] [%s] %s\n%s\n", res.Outcome, res.Check.Code, res.Check.Description, res.Examples)
+		} else {
+			fmt.Printf("[%s] [%s] %s\n", res.Outcome, res.Check.Code, res.Check.Description)
+		}
+	})
+
+	if cmd.json {
+		return iu.PrintJSON(analyzes)
 	}
 
 	// Print summary of checks
 	fmt.Printf("\nSummary of checks:\n")
-	for outcome, checks := range summaryTable {
-		fmt.Printf("%s: %d\n", outcome, len(checks))
+	for outcome, checks := range analyzes.Outcomes {
+		fmt.Printf("%s: %s\n", outcome, f(checks))
 	}
 
 	return nil
