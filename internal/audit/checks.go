@@ -268,12 +268,12 @@ type CheckResult struct {
 
 // Analysis represents the result of an entire analysis
 type Analysis struct {
-	Type        string         `json:"type"`
-	Time        time.Time      `json:"time"`
-	ArchiveTime time.Time      `json:"archive_time"`
-	Skipped     []string       `json:"skipped"`
-	Results     []CheckResult  `json:"checks"`
-	Outcomes    map[string]int `json:"outcomes"`
+	Type     string                `json:"type"`
+	Time     time.Time             `json:"time"`
+	Metadata archive.AuditMetadata `json:"metadata"`
+	Skipped  []string              `json:"skipped"`
+	Results  []CheckResult         `json:"checks"`
+	Outcomes map[string]int        `json:"outcomes"`
 }
 
 // LoadAnalysis loads an analysis report from a file
@@ -295,13 +295,14 @@ func LoadAnalysis(path string) (*Analysis, error) {
 // RunChecks runs all the checks
 func RunChecks(checks []Check, ar *archive.Reader, limit uint, skip []string) *Analysis {
 	result := &Analysis{
-		Type:        "io.nats.audit.v1.analysis",
-		Time:        time.Now().UTC(),
-		ArchiveTime: ar.TimeStamp(),
-		Skipped:     skip,
-		Results:     []CheckResult{},
-		Outcomes:    make(map[string]int),
+		Type:     "io.nats.audit.v1.analysis",
+		Time:     time.Now().UTC(),
+		Skipped:  skip,
+		Results:  []CheckResult{},
+		Outcomes: make(map[string]int),
 	}
+
+	ar.Load(&result.Metadata, archive.TagSpecial("audit_gather_metadata"))
 
 	if result.Skipped == nil {
 		result.Skipped = []string{}
