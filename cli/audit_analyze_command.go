@@ -137,7 +137,7 @@ func (c *auditAnalyzeCmd) renderReport(report *audit.Analysis) error {
 		return iu.PrintJSON(report)
 	}
 
-	fmt.Printf("NATS Audit Report %q captured at %s\n\n", c.archivePath, f(report.ArchiveTime))
+	fmt.Printf("NATS Audit Report %q captured at %s\n\n", c.archivePath, f(report.Metadata.Timestamp))
 
 	for _, res := range report.Results {
 		fmt.Printf("[%s] [%s] %s\n", c.outcomeWithColor(res.Outcome), res.Check.Code, res.Check.Description)
@@ -150,10 +150,14 @@ func (c *auditAnalyzeCmd) renderReport(report *audit.Analysis) error {
 		}
 	}
 
-	fmt.Printf("\nSummary of checks:\n\n")
-	for outcome, checks := range report.Outcomes {
-		fmt.Printf("\t%s: %s\n", outcome, f(checks))
-	}
+	cols := newColumns("Report Summary")
+	cols.AddSectionTitle("Archive Connection Information")
+	cols.AddRow("Connection Server", report.Metadata.ConnectURL)
+	cols.AddRow("Server Version", report.Metadata.ConnectedServerVersion)
+	cols.AddRow("User", report.Metadata.UserName)
+	cols.AddSectionTitle("Summary of Checks")
+	cols.AddMapInts(report.Outcomes, true, false)
+	cols.Frender(os.Stdout)
 
 	return nil
 }

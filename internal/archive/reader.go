@@ -43,6 +43,15 @@ type Reader struct {
 	ts                  *time.Time
 }
 
+type AuditMetadata struct {
+	Timestamp              time.Time `json:"capture_timestamp"`
+	ConnectedServerName    string    `json:"connected_server_name"`
+	ConnectedServerVersion string    `json:"connected_server_version"`
+	ConnectURL             string    `json:"connect_url"`
+	UserName               string    `json:"user_name"`
+	CLIVersion             string    `json:"cli_version"`
+}
+
 func (r *Reader) rawFilesCount() int {
 	return len(r.archiveReader.File)
 }
@@ -347,15 +356,6 @@ func (r *Reader) GetStreamServerNames(accountName, streamName string) []string {
 		return slices.Clone(servers)
 	}
 	return make([]string, 0)
-}
-
-// TimeStamp is the time the archive was written, or now if unknown
-func (r *Reader) TimeStamp() time.Time {
-	if r.ts.IsZero() {
-		return time.Now().UTC()
-	}
-
-	return *r.ts
 }
 
 // shrinkMapOfSets utility method, given a map[string] of sets (map[string]any), return:

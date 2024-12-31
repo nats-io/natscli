@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jedib0t/go-pretty/v6/progress"
 	"io"
 	"math"
 	"math/rand"
@@ -36,6 +35,8 @@ import (
 	"text/template"
 	"time"
 	"unicode"
+
+	"github.com/jedib0t/go-pretty/v6/progress"
 
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/options"
@@ -780,10 +781,6 @@ func renderCluster(cluster *api.ClusterInfo) string {
 
 	return f(compact)
 }
-
-// doReqAsyncWaitFullTimeoutInterval special value to be passed as `waitFor` argument of doReqAsync to turn off
-// "adaptive" timeout and wait for the full interval
-const doReqAsyncWaitFullTimeoutInterval = -1
 
 // doReqAsync serializes and sends a request to the given subject and handles multiple responses.
 // This function uses the value from `Timeout` CLI flag as upper limit for responses gathering.
