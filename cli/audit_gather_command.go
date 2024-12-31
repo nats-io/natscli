@@ -165,9 +165,10 @@ func (c *auditGatherCmd) gather(_ *fisk.ParseContext) error {
 	}
 	defer nc.Close()
 
+	ts := time.Now().UTC()
 	// If no output path is specified, create one
 	if c.archiveFilePath == "" {
-		c.archiveFilePath = filepath.Join(os.TempDir(), "archive.zip")
+		c.archiveFilePath = filepath.Join(os.TempDir(), fmt.Sprintf("audit-archive-%d.zip", ts.Unix()))
 	}
 
 	// Gathering prints messages to stdout, but they are also written into this buffer.
@@ -196,6 +197,7 @@ func (c *auditGatherCmd) gather(_ *fisk.ParseContext) error {
 		}
 		fmt.Printf("Archive created at: %s\n", c.archiveFilePath)
 	}()
+	aw.SetTime(ts)
 
 	// Discover servers, create map with servers info
 	serverInfoMap, err := c.discoverServers(nc)

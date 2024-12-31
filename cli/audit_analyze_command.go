@@ -19,6 +19,7 @@ import (
 	"os"
 
 	"github.com/choria-io/fisk"
+	"github.com/fatih/color"
 	"github.com/nats-io/natscli/internal/archive"
 	"github.com/nats-io/natscli/internal/audit"
 	iu "github.com/nats-io/natscli/internal/util"
@@ -27,45 +28,43 @@ import (
 type auditAnalyzeCmd struct {
 	archivePath   string
 	examplesLimit uint
-	verbose       bool
-	quiet         bool
 	checks        []audit.Check
 	block         []string
 	json          bool
 	writePath     string
 	loadPath      string
 	force         bool
+	verbose       bool
+	isTerminal    bool
 }
 
 func configureAuditAnalyzeCommand(app *fisk.CmdClause) {
 	c := &auditAnalyzeCmd{
-		checks: audit.GetDefaultChecks(),
+		checks:     audit.GetDefaultChecks(),
+		isTerminal: iu.IsTerminal(),
 	}
 
 	analyze := app.Command("analyze", "perform checks against an archive created by the 'gather' subcommand").Action(c.analyze)
 	analyze.Arg("archive", "path to input archive to analyze").ExistingFileVar(&c.archivePath)
 	analyze.Flag("max-examples", "How many example issues to display for each failed check (0 for unlimited)").Default("5").UintVar(&c.examplesLimit)
-	analyze.Flag("quiet", "Disable info and warning messages during analysis").UnNegatableBoolVar(&c.quiet)
 	analyze.Flag("skip", "Prevents checks from running by check code").PlaceHolder("CODE").StringsVar(&c.block)
 	analyze.Flag("load", "Loads a saved report").PlaceHolder("FILE").StringVar(&c.loadPath)
 	analyze.Flag("save", "Stores the analyze result to a file").PlaceHolder("FILE").StringVar(&c.writePath)
 	analyze.Flag("force", "Force overwriting existing report files").Short('f').UnNegatableBoolVar(&c.force)
 	analyze.Flag("json", "Output JSON format").Short('j').BoolVar(&c.json)
-
-	// Hidden flags
-	analyze.Flag("verbose", "Enable debug console messages during analysis").Hidden().BoolVar(&c.verbose)
+	analyze.Flag("verbose", "Log verbosely").UnNegatableBoolVar(&c.verbose)
 }
 
 func (c *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
-	if c.loadPath != "" {
-		return c.loadAndRender()
+	switch {
+	case opts().Trace:
+		audit.LogVerbose()
+	case !c.verbose:
+		audit.LogQuiet()
 	}
 
-	// Adjust log levels
-	if c.quiet || c.json {
-		audit.LogQuiet()
-	} else if c.verbose {
-		audit.LogVerbose()
+	if c.loadPath != "" {
+		return c.loadAndRender()
 	}
 
 	if c.writePath != "" && iu.FileExists(c.writePath) && !c.force {
@@ -76,7 +75,6 @@ func (c *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 		return fmt.Errorf("archive path is required")
 	}
 
-	// Open archive
 	ar, err := archive.NewReader(c.archivePath)
 	if err != nil {
 		return fmt.Errorf("failed to open archive: %w", err)
@@ -88,18 +86,14 @@ func (c *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 		}
 	}()
 
-	if !c.json {
-		fmt.Printf("Running %d checks against archive: %s\n", len(c.checks), c.archivePath)
-	}
-	analyzes := audit.RunChecks(c.checks, ar, c.examplesLimit, c.block)
-
-	err = c.renderReport(analyzes)
+	report := audit.RunChecks(c.checks, ar, c.examplesLimit, c.block)
+	err = c.renderReport(report)
 	if err != nil {
 		return err
 	}
 
 	if c.writePath != "" {
-		j, err := json.MarshalIndent(analyzes, "", "  ")
+		j, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
 			return err
 		}
@@ -111,35 +105,53 @@ func (c *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 }
 
 func (c *auditAnalyzeCmd) loadAndRender() error {
-	ab, err := os.ReadFile(c.loadPath)
+	report, err := audit.LoadAnalysis(c.loadPath)
 	if err != nil {
 		return err
 	}
 
-	analyzes := audit.Analyzes{}
-	err = json.Unmarshal(ab, &analyzes)
-	if err != nil {
-		return err
-	}
-
-	return c.renderReport(&analyzes)
+	return c.renderReport(report)
 }
 
-func (c *auditAnalyzeCmd) renderReport(analyzes *audit.Analyzes) error {
-	if c.json {
-		return iu.PrintJSON(analyzes)
+func (c *auditAnalyzeCmd) outcomeWithColor(o audit.Outcome) string {
+	if !c.isTerminal {
+		return o.String()
 	}
 
-	for _, res := range analyzes.Results {
-		fmt.Printf("[%s] [%s] %s\n", res.Outcome, res.Check.Code, res.Check.Description)
+	switch o {
+	case audit.Pass:
+		return color.GreenString(o.String())
+	case audit.PassWithIssues:
+		return color.YellowString(o.String())
+	case audit.Skipped:
+		return o.String()
+	case audit.Fail:
+		return color.RedString(o.String())
+	default:
+		return o.String()
+	}
+}
+
+func (c *auditAnalyzeCmd) renderReport(report *audit.Analysis) error {
+	if c.json {
+		return iu.PrintJSON(report)
+	}
+
+	fmt.Printf("NATS Audit Report %q captured at %s\n\n", c.archivePath, f(report.ArchiveTime))
+
+	for _, res := range report.Results {
+		fmt.Printf("[%s] [%s] %s\n", c.outcomeWithColor(res.Outcome), res.Check.Code, res.Check.Description)
+		if res.Examples.Error != "" {
+			fmt.Printf("%s: %s\n", color.RedString("Error"), res.Examples.Error)
+		}
 		if res.Examples.Count() > 0 {
 			res.Examples.Limit = c.examplesLimit
 			fmt.Println(res.Examples.String())
 		}
 	}
 
-	fmt.Printf("\nSummary of checks:\n")
-	for outcome, checks := range analyzes.Outcomes {
+	fmt.Printf("\nSummary of checks:\n\n")
+	for outcome, checks := range report.Outcomes {
 		fmt.Printf("\t%s: %s\n", outcome, f(checks))
 	}
 

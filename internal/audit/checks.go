@@ -14,7 +14,9 @@
 package audit
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -32,12 +34,21 @@ type CheckFunc func(check Check, reader *archive.Reader, examples *ExamplesColle
 
 // CheckConfiguration describes and holds the configuration for a check
 type CheckConfiguration struct {
-	Key         string   `json:"key"`
-	Check       string   `json:"check"`
-	Description string   `json:"description"`
-	Default     float64  `json:"default"`
-	SetValue    *float64 `json:"set_value,omitempty"`
+	Key         string            `json:"key"`
+	Check       string            `json:"check"`
+	Description string            `json:"description"`
+	Default     float64           `json:"default"`
+	Unit        ConfigurationUnit `json:"unit"`
+	SetValue    *float64          `json:"set_value,omitempty"`
 }
+
+type ConfigurationUnit string
+
+const (
+	PercentageUnit ConfigurationUnit = "%"
+	IntUnit        ConfigurationUnit = "int"
+	UIntUnit       ConfigurationUnit = "uint"
+)
 
 // Value retrieves the set value or default value
 func (c *CheckConfiguration) Value() float64 {
@@ -54,10 +65,37 @@ func (c *CheckConfiguration) String() string {
 
 // Set supports fisk
 func (c *CheckConfiguration) Set(v string) error {
-	f, err := strconv.ParseFloat(v, 64)
-	if err != nil {
-		return err
+	var f float64
+	var err error
+
+	if c.Unit == PercentageUnit {
+		f, err = strconv.ParseFloat(strings.TrimRight(v, "%"), 64)
+		if err != nil {
+			return err
+		}
+		if f < 0 {
+			return fmt.Errorf("percentage values must be positive")
+		}
+		if f > 100 {
+			return fmt.Errorf("percentage values may not exceed 100")
+		}
+
+		if f > 1 {
+			f = f / 100
+		}
+	} else {
+		f, err = strconv.ParseFloat(v, 64)
+		if err != nil {
+			return err
+		}
+
+		if c.Unit == UIntUnit {
+			if f < 0 {
+				return fmt.Errorf("value must be positive")
+			}
+		}
 	}
+
 	c.SetValue = &f
 
 	return nil
@@ -228,23 +266,41 @@ type CheckResult struct {
 	Examples      ExamplesCollection `json:"examples"`
 }
 
-// Analyzes represents the result of an entire analysis
-type Analyzes struct {
-	Type     string         `json:"type"`
-	Time     time.Time      `json:"time"`
-	Skipped  []string       `json:"skipped"`
-	Results  []CheckResult  `json:"checks"`
-	Outcomes map[string]int `json:"outcomes"`
+// Analysis represents the result of an entire analysis
+type Analysis struct {
+	Type        string         `json:"type"`
+	Time        time.Time      `json:"time"`
+	ArchiveTime time.Time      `json:"archive_time"`
+	Skipped     []string       `json:"skipped"`
+	Results     []CheckResult  `json:"checks"`
+	Outcomes    map[string]int `json:"outcomes"`
+}
+
+// LoadAnalysis loads an analysis report from a file
+func LoadAnalysis(path string) (*Analysis, error) {
+	ab, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	analyzes := Analysis{}
+	err = json.Unmarshal(ab, &analyzes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &analyzes, nil
 }
 
 // RunChecks runs all the checks
-func RunChecks(checks []Check, ar *archive.Reader, limit uint, skip []string) *Analyzes {
-	result := &Analyzes{
-		Type:     "io.nats.audit.v1.analysis",
-		Time:     time.Now().UTC(),
-		Skipped:  skip,
-		Results:  []CheckResult{},
-		Outcomes: make(map[string]int),
+func RunChecks(checks []Check, ar *archive.Reader, limit uint, skip []string) *Analysis {
+	result := &Analysis{
+		Type:        "io.nats.audit.v1.analysis",
+		Time:        time.Now().UTC(),
+		ArchiveTime: ar.TimeStamp(),
+		Skipped:     skip,
+		Results:     []CheckResult{},
+		Outcomes:    make(map[string]int),
 	}
 
 	if result.Skipped == nil {

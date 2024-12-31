@@ -55,6 +55,7 @@ func init() {
 					Key:         "assets",
 					Description: "Number of HA assets per server",
 					Default:     1000,
+					Unit:        IntUnit,
 				},
 			},
 			Handler: checkClusterHighHAAssets,
