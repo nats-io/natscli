@@ -45,6 +45,7 @@ type subCmd struct {
 	jsAck                 bool
 	inbox                 bool
 	match                 bool
+	matchTimeout          time.Duration
 	dump                  string
 	limit                 uint
 	sseq                  uint64
@@ -110,6 +111,7 @@ func configureSubCommand(app commandHost) {
 	// To be done - check for streams with WorkQueue, then prompt with or allow with override --force=WorkQueueDelete
 	// act.Flag("ackPolicy", "Acknowledgment policy (none, all, explicit) (requires JetStream)").Default("none").EnumVar(&c.ackPolicy, "none", "all", "explicit")
 	act.Flag("match-replies", "Match replies to requests").UnNegatableBoolVar(&c.match)
+	act.Flag("match-replies-timeout", "Timeout after which messages without a reply are printed").PlaceHolder("TIMEOUT").DurationVar(&c.matchTimeout)
 	act.Flag("inbox", "Subscribes to a generate inbox").Short('i').UnNegatableBoolVar(&c.inbox)
 	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
 	act.Flag("dump", "Dump received messages to files, 1 file per message. Specify - for null terminated STDOUT for use with xargs -0").PlaceHolder("DIRECTORY").StringVar(&c.dump)
@@ -365,6 +367,21 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		defer t.Stop()
 	}
 
+	nomatchHandler := func(timeout time.Duration, reply string) {
+		time.Sleep(timeout)
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		request, ok := matchMap[reply]
+		if !ok {
+			return
+		}
+
+		c.printMsg(request, nil, true, ctr, startTime)
+		delete(matchMap, reply)
+	}
+
 	handler := func(m *nats.Msg) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -424,8 +441,11 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		default:
 			if c.match && m.Reply != "" {
 				matchMap[m.Reply] = m
+				if c.matchTimeout > 0 {
+					go nomatchHandler(c.matchTimeout, m.Reply)
+				}
 			} else {
-				c.printMsg(m, nil, ctr, startTime)
+				c.printMsg(m, nil, false, ctr, startTime)
 			}
 		}
 
@@ -457,7 +477,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 			return
 		}
 
-		c.printMsg(request, reply, ctr, startTime)
+		c.printMsg(request, reply, false, ctr, startTime)
 		delete(matchMap, reply.Subject)
 
 		// if reached limit and matched all requests
@@ -663,7 +683,7 @@ func (c *subCmd) firstSubject() string {
 	return c.subjects[0]
 }
 
-func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime time.Time) {
+func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, timedOut bool, ctr uint, startTime time.Time) {
 	var info *jsm.MsgInfo
 	if msg.Reply != "" {
 		info, _ = jsm.ParseJSMsgMetadata(msg)
@@ -715,7 +735,11 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 
 		if info == nil {
 			if msg.Reply != "" {
-				fmt.Printf("[#%d]%s Received on %q with reply %q\n", ctr, timeStamp, msg.Subject, msg.Reply)
+				if timedOut {
+					fmt.Printf("[#%d]%s Received on %q with no reply\n", ctr, timeStamp, msg.Subject)
+				} else {
+					fmt.Printf("[#%d]%s Received on %q with reply %q\n", ctr, timeStamp, msg.Subject, msg.Reply)
+				}
 			} else {
 				fmt.Printf("[#%d]%s Received on %q\n", ctr, timeStamp, msg.Subject)
 			}
