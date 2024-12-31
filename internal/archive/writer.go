@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 )
 
 // Writer encapsulates a zip writer for the underlying archive file, but also tracks metadata used by the Reader to
@@ -29,6 +30,7 @@ type Writer struct {
 	fileWriter  *os.File
 	zipWriter   *zip.Writer
 	manifestMap map[string][]*Tag
+	ts          *time.Time
 }
 
 // Close closes the writer
@@ -93,6 +95,11 @@ func (w *Writer) Add(artifact any, tags ...*Tag) error {
 	return w.AddRaw(bytes.NewReader(buf.Bytes()), "json", tags...)
 }
 
+// SetTime sets the timestamp files in the archive should have, otherwise current time is used
+func (w *Writer) SetTime(t time.Time) {
+	w.ts = &t
+}
+
 // AddRaw adds the given artifact to the archive similarly to Add.
 // The artifact is assumed to be already serialized and is copied as-is byte for byte.
 func (w *Writer) AddRaw(reader *bytes.Reader, extension string, tags ...*Tag) error {
@@ -112,8 +119,16 @@ func (w *Writer) AddRaw(reader *bytes.Reader, extension string, tags ...*Tag) er
 		return fmt.Errorf("artifact %s with identical tags is already present", name)
 	}
 
-	// Open a zip writer
-	f, err := w.zipWriter.Create(name)
+	// Open a zip
+	ts := time.Now().UTC()
+	if w.ts != nil {
+		ts = w.ts.UTC()
+	}
+
+	f, err := w.zipWriter.CreateHeader(&zip.FileHeader{
+		Name:     name,
+		Modified: ts,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create file in archive: %w", err)
 	}

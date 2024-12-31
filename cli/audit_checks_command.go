@@ -34,7 +34,14 @@ func (c *auditChecksCommand) checksAction(_ *fisk.ParseContext) error {
 	for _, check := range checks {
 		var cfgKeys []string
 		for _, cfg := range check.Configuration {
-			cfgKeys = append(cfgKeys, fmt.Sprintf("%s (%.2f)", cfg.Key, cfg.Default))
+			switch cfg.Unit {
+			case audit.PercentageUnit:
+				cfgKeys = append(cfgKeys, fmt.Sprintf("%s (%s%%)", cfg.Key, f(int(cfg.Default*100))))
+			case audit.IntUnit, audit.UIntUnit:
+				cfgKeys = append(cfgKeys, fmt.Sprintf("%s (%s)", cfg.Key, f(cfg.Default)))
+			default:
+				cfgKeys = append(cfgKeys, fmt.Sprintf("%s (%s)", cfg.Key, f(cfg.Default)))
+			}
 		}
 		sort.Strings(cfgKeys)
 

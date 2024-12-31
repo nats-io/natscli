@@ -30,11 +30,13 @@ func init() {
 			"connections": {
 				Key:         "connections",
 				Description: "Alerting threshold as a fraction of configured connections limit",
+				Unit:        PercentageUnit,
 				Default:     0.9,
 			},
 			"subscriptions": {
 				Key:         "subscriptions",
 				Description: "Alerting threshold as a fraction of configured subscriptions limit",
+				Unit:        PercentageUnit,
 				Default:     0.9,
 			},
 		},

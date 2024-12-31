@@ -21,6 +21,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 )
 
 // Reader encapsulates a reader for the actual underlying archive, and also provides indices for faster and
@@ -39,6 +40,7 @@ type Reader struct {
 	clustersServerNames map[string][]string
 	accountStreamNames  map[string][]string
 	streamServerNames   map[string][]string
+	ts                  *time.Time
 }
 
 func (r *Reader) rawFilesCount() int {
@@ -301,6 +303,7 @@ func NewReader(archivePath string) (*Reader, error) {
 		clustersServerNames: clusterServers,
 		accountStreamNames:  accountsStreams,
 		streamServerNames:   streamsServers,
+		ts:                  &manifestFile.Modified,
 	}, nil
 }
 
@@ -344,6 +347,15 @@ func (r *Reader) GetStreamServerNames(accountName, streamName string) []string {
 		return slices.Clone(servers)
 	}
 	return make([]string, 0)
+}
+
+// TimeStamp is the time the archive was written, or now if unknown
+func (r *Reader) TimeStamp() time.Time {
+	if r.ts.IsZero() {
+		return time.Now().UTC()
+	}
+
+	return *r.ts
 }
 
 // shrinkMapOfSets utility method, given a map[string] of sets (map[string]any), return:
