@@ -28,7 +28,7 @@ import (
 type auditAnalyzeCmd struct {
 	archivePath   string
 	examplesLimit uint
-	checks        []audit.Check
+	collection    *audit.CheckCollection
 	block         []string
 	json          bool
 	writePath     string
@@ -40,7 +40,6 @@ type auditAnalyzeCmd struct {
 
 func configureAuditAnalyzeCommand(app *fisk.CmdClause) {
 	c := &auditAnalyzeCmd{
-		checks:     audit.GetDefaultChecks(),
 		isTerminal: iu.IsTerminal(),
 	}
 
@@ -61,6 +60,12 @@ func (c *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 		audit.LogVerbose()
 	case !c.verbose:
 		audit.LogQuiet()
+	}
+
+	var err error
+	c.collection, err = audit.NewDefaultCheckCollection()
+	if err != nil {
+		return err
 	}
 
 	if c.loadPath != "" {
@@ -86,7 +91,7 @@ func (c *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 		}
 	}()
 
-	report := audit.RunChecks(c.checks, ar, c.examplesLimit, c.block)
+	report := c.collection.Run(ar, c.examplesLimit, c.block)
 	err = c.renderReport(report)
 	if err != nil {
 		return err
