@@ -22,16 +22,19 @@ func configureAuditChecksCommand(app *fisk.CmdClause) {
 }
 
 func (c *auditChecksCommand) checksAction(_ *fisk.ParseContext) error {
-	checks := audit.GetDefaultChecks()
+	collection, err := audit.NewDefaultCheckCollection()
+	if err != nil {
+		return err
+	}
 
 	if c.json {
-		return iu.PrintJSON(checks)
+		return iu.PrintJSON(collection.Checks())
 	}
 
 	tbl := iu.NewTableWriter(opts(), "Audit Checks")
 	tbl.AddHeaders("Code", "Description", "Configuration")
 
-	for _, check := range checks {
+	for _, check := range collection.Checks() {
 		var cfgKeys []string
 		for _, cfg := range check.Configuration {
 			switch cfg.Unit {

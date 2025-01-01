@@ -16,9 +16,9 @@ package cli
 func configureAuditCommand(app commandHost) {
 	audit := app.Command("audit", "Audit a NATS deployment")
 
-	configureAuditGatherCommand(audit)
 	configureAuditAnalyzeCommand(audit)
 	configureAuditChecksCommand(audit)
+	configureAuditGatherCommand(audit)
 }
 
 func init() {
