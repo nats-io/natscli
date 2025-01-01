@@ -20,8 +20,8 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/fatih/color"
-	"github.com/nats-io/natscli/internal/archive"
-	"github.com/nats-io/natscli/internal/audit"
+	"github.com/nats-io/jsm.go/audit"
+	"github.com/nats-io/jsm.go/audit/archive"
 	iu "github.com/nats-io/natscli/internal/util"
 )
 

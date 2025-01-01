@@ -15,7 +15,7 @@ package cli
 
 import (
 	"github.com/nats-io/jsm.go/api"
-	gatherer "github.com/nats-io/natscli/internal/gather"
+	gatherer "github.com/nats-io/jsm.go/audit/gather"
 
 	"github.com/choria-io/fisk"
 )
