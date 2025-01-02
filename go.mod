@@ -2,6 +2,8 @@ module github.com/nats-io/natscli
 
 go 1.22.0
 
+replace github.com/nats-io/jsm.go => ../jsm.go
+
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
@@ -19,7 +21,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.17.11
 	github.com/mattn/go-isatty v0.0.20
-	github.com/nats-io/jsm.go v0.1.1-0.20250102095716-88ee1ab90789
+	github.com/nats-io/jsm.go v0.1.1-0.20250102104620-2b2f801c64ce
 	github.com/nats-io/jwt/v2 v2.7.3
 	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20241219180704-470a7acda496
 	github.com/nats-io/nats.go v1.38.0
