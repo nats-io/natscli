@@ -68,7 +68,6 @@ brews:
       system "#{bin}/nats --version"
     install: |
       bin.install "nats"
-      (man1/"nats.1").write Utils.safe_popen_read(bin/"nats", "--help-man")
       generate_completions_from_executable(bin/"nats", shells: [:bash, :zsh], shell_parameter_format: "--completion-script-")
 
 nfpms:
