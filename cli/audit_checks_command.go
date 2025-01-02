@@ -27,14 +27,19 @@ func (c *auditChecksCommand) checksAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	var checks []*audit.Check
+	collection.EachCheck(func(c *audit.Check) {
+		checks = append(checks, c)
+	})
+
 	if c.json {
-		return iu.PrintJSON(collection.Checks())
+		return iu.PrintJSON(checks)
 	}
 
 	tbl := iu.NewTableWriter(opts(), "Audit Checks")
-	tbl.AddHeaders("Code", "Description", "Configuration")
+	tbl.AddHeaders("Suite", "Code", "Description", "Configuration")
 
-	for _, check := range collection.Checks() {
+	for _, check := range checks {
 		var cfgKeys []string
 		for _, cfg := range check.Configuration {
 			switch cfg.Unit {
@@ -48,7 +53,7 @@ func (c *auditChecksCommand) checksAction(_ *fisk.ParseContext) error {
 		}
 		sort.Strings(cfgKeys)
 
-		tbl.AddRow(check.Code, check.Description, strings.Join(cfgKeys, ", "))
+		tbl.AddRow(check.Suite, check.Code, check.Description, strings.Join(cfgKeys, ", "))
 	}
 
 	fmt.Println(tbl.Render())

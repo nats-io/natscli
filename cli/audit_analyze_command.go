@@ -20,6 +20,7 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/fatih/color"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/audit"
 	"github.com/nats-io/jsm.go/audit/archive"
 	iu "github.com/nats-io/natscli/internal/util"
@@ -55,11 +56,14 @@ func configureAuditAnalyzeCommand(app *fisk.CmdClause) {
 }
 
 func (c *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
+	var log api.Logger
 	switch {
 	case opts().Trace:
-		audit.LogVerbose()
+		log = api.NewDefaultLogger(api.TraceLevel)
 	case !c.verbose:
-		audit.LogQuiet()
+		log = api.NewDiscardLogger()
+	default:
+		log = api.NewDefaultLogger(api.InfoLevel)
 	}
 
 	var err error
@@ -91,7 +95,9 @@ func (c *auditAnalyzeCmd) analyze(_ *fisk.ParseContext) error {
 		}
 	}()
 
-	report := c.collection.Run(ar, c.examplesLimit, c.block)
+	c.collection.SkipChecks(c.block...)
+
+	report := c.collection.Run(ar, c.examplesLimit, log)
 	err = c.renderReport(report)
 	if err != nil {
 		return err
