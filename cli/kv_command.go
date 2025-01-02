@@ -65,6 +65,7 @@ type kvCommand struct {
 	mirrorDomain          string
 	sources               []string
 	compression           bool
+	update                bool
 }
 
 func configureKVCommand(app commandHost) {
@@ -97,6 +98,7 @@ for an indefinite period or a per-bucket configured TTL.
 	add.Flag("mirror", "Creates a mirror of a different bucket").StringVar(&c.mirror)
 	add.Flag("mirror-domain", "When mirroring find the bucket in a different domain").StringVar(&c.mirrorDomain)
 	add.Flag("source", "Source from a different bucket").PlaceHolder("BUCKET").StringsVar(&c.sources)
+	add.Flag("update", "If the KV Store Bucket already exists, update its settings").BoolVar(&c.update)
 
 	add.PreAction(c.parseLimitStrings)
 
@@ -524,7 +526,12 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
 	defer cancel()
 
-	store, err := js.CreateKeyValue(ctx, cfg)
+	var store jetstream.KeyValue
+	if c.update {
+		store, err = js.CreateOrUpdateKeyValue(ctx, cfg)
+	} else {
+		store, err = js.CreateKeyValue(ctx, cfg)
+	}
 	if err != nil {
 		return err
 	}
