@@ -147,7 +147,7 @@ func (c *auditAnalyzeCmd) outcomeWithColor(o audit.Outcome) string {
 }
 
 func (c *auditAnalyzeCmd) renderMarkdown(report *audit.Analysis) error {
-	out, err := report.ToMarkdown()
+	out, err := report.ToMarkdown(audit.MarkdownFormatTemplate, c.examplesLimit)
 	if err != nil {
 		return err
 	}
