@@ -66,8 +66,17 @@ brews:
     skip_upload: auto
     test: |
       system "#{bin}/nats --version"
+    custom_block: |
+      resource "zsh_completion" do
+        url "https://get-nats.io/zsh.complete.nats"
+        sha256 "2b0832b26b1644ff01a293dc1b91320fc24f818ad8e89dd416f9c83f23b4df59"
+      end
     install: |
       bin.install "nats"
+      (man1/"nats.1").write Utils.safe_popen_read(bin/"nats", "--help-man")
+      resource("zsh_completion").stage do
+        zsh_completion.install "zsh.complete.nats" => "_nats"
+      end
 
 nfpms:
   - file_name_template: 'nats-{{.Version}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
