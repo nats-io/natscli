@@ -68,6 +68,7 @@ brews:
       system "#{bin}/nats --version"
     install: |
       bin.install "nats"
+      generate_completions_from_executable(bin/"nats", shells: [:bash, :zsh], shell_parameter_format: "--completion-script-")
 
 nfpms:
   - file_name_template: 'nats-{{.Version}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
