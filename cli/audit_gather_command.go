@@ -30,7 +30,7 @@ func configureAuditGatherCommand(app *fisk.CmdClause) {
 		config: gatherer.NewCaptureConfiguration(),
 	}
 
-	gather := app.Command("gather", "capture a variety of data from a deployment into an archive file").Action(c.gather)
+	gather := app.Command("gather", "capture a variety of data from a deployment into an archive file").Alias("capture").Alias("cap").Action(c.gather)
 	gather.Flag("output", "output file path of generated archive").Short('o').StringVar(&c.config.TargetPath)
 	gather.Flag("progress", "Display progress messages during gathering").Default("true").BoolVar(&c.progress)
 	gather.Flag("server-endpoints", "Capture monitoring endpoints for each server").Default("true").BoolVar(&c.config.Include.ServerEndpoints)
