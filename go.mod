@@ -8,7 +8,7 @@ require (
 	github.com/choria-io/fisk v0.6.5-0.20250102173623-814c2a8e044d
 	github.com/choria-io/scaffold v0.0.2
 	github.com/dustin/go-humanize v1.0.1
-	github.com/emicklei/dot v1.6.3
+	github.com/emicklei/dot v1.6.4
 	github.com/expr-lang/expr v1.16.9
 	github.com/fatih/color v1.18.0
 	github.com/ghodss/yaml v1.0.0
@@ -54,7 +54,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nats-io/nsc/v2 v2.8.6-0.20231220104935-3f89317df670 // indirect
+	github.com/nats-io/nsc/v2 v2.8.6 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.61.0 // indirect
@@ -62,7 +62,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
-	go.uber.org/automaxprocs v1.6.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
