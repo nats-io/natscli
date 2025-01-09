@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -158,6 +158,8 @@ type streamCmd struct {
 	mgr                *jsm.Manager
 	chunkSize          string
 	placementPreferred string
+	allowMsgTTlSet     bool
+	allowMsgTTL        bool
 }
 
 type streamStat struct {
@@ -213,6 +215,9 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
 		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).Default("true").BoolVar(&c.allowDirect)
 		f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
+		if !edit {
+			f.Flag("allow-msg-ttl", "Allows per-message TTL handling").IsSetByUser(&c.allowMsgTTlSet).BoolVar(&c.allowMsgTTL)
+		}
 		f.Flag("transform-source", "Stream subject transform source").PlaceHolder("SOURCE").StringVar(&c.subjectTransformSource)
 		f.Flag("transform-destination", "Stream subject transform destination").PlaceHolder("DEST").StringVar(&c.subjectTransformDest)
 		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
@@ -1835,7 +1840,11 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 	}
 
 	if c.allowMirrorDirectSet {
-		cfg.MirrorDirect = c.allowMirrorDirectSet
+		cfg.MirrorDirect = c.allowMirrorDirect
+	}
+
+	if c.allowMsgTTL {
+		cfg.AllowMsgTTL = c.allowMsgTTL
 	}
 
 	if c.discardPerSubjSet {
@@ -2079,6 +2088,7 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRow("Allows Msg Delete", !cfg.DenyDelete)
 	cols.AddRow("Allows Purge", !cfg.DenyPurge)
 	cols.AddRow("Allows Rollups", cfg.RollupAllowed)
+	cols.AddRow("Allow Per-Msg TTL", cfg.AllowMsgTTL)
 
 	cols.AddSectionTitle("Limits")
 
@@ -2698,6 +2708,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		DenyPurge:     c.denyPurge,
 		DenyDelete:    c.denyDelete,
 		AllowDirect:   c.allowDirect,
+		AllowMsgTTL:   c.allowMsgTTL,
 		MirrorDirect:  c.allowMirrorDirectSet,
 		DiscardNewPer: c.discardPerSubj,
 	}

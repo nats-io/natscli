@@ -1,4 +1,4 @@
-// Copyright 2024 The NATS Authors
+// Copyright 2024-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -179,7 +179,11 @@ func (c *auditAnalyzeCmd) renderJSON(report *audit.Analysis) error {
 }
 
 func (c *auditAnalyzeCmd) renderConsole(report *audit.Analysis) error {
-	fmt.Printf("NATS Audit Report %q captured at %s\n\n", c.archivePath, f(report.Metadata.Timestamp))
+	if c.archivePath != "" {
+		fmt.Printf("NATS Audit Report %q captured at %s\n\n", c.archivePath, f(report.Metadata.Timestamp))
+	} else {
+		fmt.Printf("NATS Audit Report %q captured at %s\n\n", c.loadPath, f(report.Metadata.Timestamp))
+	}
 
 	for _, res := range report.Results {
 		fmt.Printf("[%s] [%s] %s\n", c.outcomeWithColor(res.Outcome), res.Check.Code, res.Check.Description)
