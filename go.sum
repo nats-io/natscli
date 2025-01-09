@@ -14,6 +14,8 @@ github.com/Masterminds/semver/v3 v3.3.1/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lpr
 github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2 h1:+vx7roKuyA63nhn5WAunQHLTznkw5W8b1Xc0dNjp83s=
 github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2/go.mod h1:HBCaDeC1lPdgDeDbhX8XFpy1jqjK0IBG8W5K+xYqA0w=
 github.com/ajstarks/svgo v0.0.0-20180226025133-644b8db467af/go.mod h1:K08gAheRH3/J6wwsYMMT4xOr94bZjxIelGM0+d/wbFw=
+github.com/antithesishq/antithesis-sdk-go v0.4.3-default-no-op h1:+OSa/t11TFhqfrX0EOSqQBDJ0YlpmK0rDSiB19dg9M0=
+github.com/antithesishq/antithesis-sdk-go v0.4.3-default-no-op/go.mod h1:IUpT2DPAKh6i/YhSbt6Gl3v2yvUZjmKncl7U91fup7E=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
@@ -104,12 +106,12 @@ github.com/mitchellh/reflectwalk v1.0.2 h1:G2LzWKi524PWgd3mLHV8Y5k7s6XUvT0Gef6zx
 github.com/mitchellh/reflectwalk v1.0.2/go.mod h1:mSTlrgnPZtwu0c4WaC2kGObEpuNDbx0jmZXqmk4esnw=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/nats-io/jsm.go v0.1.1-0.20250108101355-cc7334240f84 h1:vEpxRE5gPkIQkvDrm8m2q5ak1TPTcttJiCCLp6CIids=
-github.com/nats-io/jsm.go v0.1.1-0.20250108101355-cc7334240f84/go.mod h1:Jc9UoRvri/gs5Voj48SSLpKPvulyKW5jXfnnajlg7Yw=
+github.com/nats-io/jsm.go v0.1.1-0.20250109111631-f5cd8a22d093 h1:IquRh08t0kBwB2lSb6v+FGTKuNw2cu/T9M02Gm5dzbg=
+github.com/nats-io/jsm.go v0.1.1-0.20250109111631-f5cd8a22d093/go.mod h1:w/SA3/rNK5xl6ZsCqKLVgQzVLfxbYNScle8LcQ5gSBM=
 github.com/nats-io/jwt/v2 v2.7.3 h1:6bNPK+FXgBeAqdj4cYQ0F8ViHRbi7woQLq4W29nUAzE=
 github.com/nats-io/jwt/v2 v2.7.3/go.mod h1:GvkcbHhKquj3pkioy5put1wvPxs78UlZ7D/pY+BgZk4=
-github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20250107191420-519943fc978a h1:Z8XlUCYnAqGgw4ijut3jL1sN9vZGZVI3qxZ7jlX4j/g=
-github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20250107191420-519943fc978a/go.mod h1:skFpICXskKQmrPs+EqjiIdeBTq7FBYWfYAxyCdPdP+4=
+github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20250109022000-c0ae95d0be26 h1:mN0eraizaHih90T32ItWe58+l31eVjoD6JOu99WqdNc=
+github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20250109022000-c0ae95d0be26/go.mod h1:nXRZ6eQo2lmNpZLVNIMDNwKM7FgbHgPJ1pIRcPOpVuk=
 github.com/nats-io/nats.go v1.38.0 h1:A7P+g7Wjp4/NWqDOOP/K6hfhr54DvdDQUznt5JFg9XA=
 github.com/nats-io/nats.go v1.38.0/go.mod h1:IGUM++TwokGnXPs82/wCuiHS02/aKrdYUQkU8If6yjw=
 github.com/nats-io/nkeys v0.4.9 h1:qe9Faq2Gxwi6RZnZMXfmGMZkg3afLLOtrU+gDZJ35b0=
@@ -156,6 +158,8 @@ github.com/synadia-io/jwt-auth-builder.go v0.0.0-20240829124321-43722a8ce3ce/go.
 github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f h1:SGznmvCovewbaSgBsHgdThtWsLj5aCLX/3ZXMLd1UD0=
 github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f/go.mod h1:IY84XkhrEJTdHYLNy/zObs8mXuUAp9I65VyarbPSCCY=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
+go.uber.org/automaxprocs v1.6.0 h1:O3y2/QNTOdbF+e/dpXNNW7Rx2hZ4sTIPyybbxyNqTUs=
+go.uber.org/automaxprocs v1.6.0/go.mod h1:ifeIMSnPZuznNm6jmdzmU3/bfk01Fe2fotchwEFJ8r8=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20190510104115-cbcb75029529/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=
 golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
