@@ -216,7 +216,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).Default("true").BoolVar(&c.allowDirect)
 		f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
 		if !edit {
-			f.Flag("allow-msg-ttl", "Allows per-message TTL handling").IsSetByUser(&c.allowMsgTTlSet).BoolVar(&c.allowMsgTTL)
+			f.Flag("allow-msg-ttl", "Allows per-message TTL handling").IsSetByUser(&c.allowMsgTTlSet).UnNegatableBoolVar(&c.allowMsgTTL)
 		}
 		f.Flag("transform-source", "Stream subject transform source").PlaceHolder("SOURCE").StringVar(&c.subjectTransformSource)
 		f.Flag("transform-destination", "Stream subject transform destination").PlaceHolder("DEST").StringVar(&c.subjectTransformDest)
@@ -2077,7 +2077,6 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRow("Retention", cfg.Retention.String())
 	cols.AddRow("Acknowledgments", !cfg.NoAck)
 	dnp := cfg.Discard.String()
-
 	if cfg.DiscardNewPer {
 		dnp = "New Per Subject"
 	}
@@ -2087,8 +2086,8 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRowIf("Mirror Direct Get", cfg.MirrorDirect, cfg.MirrorDirect)
 	cols.AddRow("Allows Msg Delete", !cfg.DenyDelete)
 	cols.AddRow("Allows Purge", !cfg.DenyPurge)
+	cols.AddRow("Allows Per-Msg TTL", cfg.AllowMsgTTL)
 	cols.AddRow("Allows Rollups", cfg.RollupAllowed)
-	cols.AddRow("Allow Per-Msg TTL", cfg.AllowMsgTTL)
 
 	cols.AddSectionTitle("Limits")
 
