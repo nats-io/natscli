@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -557,6 +557,14 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 				bindDurable = true
 				c.jsAck = con.Config.AckPolicy != nats.AckNonePolicy
 				log.Printf("Subscribing to JetStream Stream %q using existing durable %q", c.stream, c.durable)
+				switch {
+				case len(con.Config.FilterSubjects) > 1:
+					return fmt.Errorf("cannot subscribe to multi filter consumers")
+				case len(con.Config.FilterSubjects) == 1:
+					c.subjects = con.Config.FilterSubjects
+				case con.Config.FilterSubject != "":
+					c.subjects = []string{con.Config.FilterSubject}
+				}
 			} else if errors.Is(err, nats.ErrConsumerNotFound) {
 				opts = append(opts, nats.Durable(c.durable))
 			} else {
@@ -608,7 +616,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 
 		if bindDurable {
-			sub, err := js.Subscribe("", handler, nats.Bind(c.stream, c.durable))
+			sub, err := js.Subscribe(c.firstSubject(), handler, nats.Bind(c.stream, c.durable))
 			if err != nil {
 				return err
 			}
