@@ -552,17 +552,27 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
 	defer cancel()
 
-	storage := jetstream.FileStorage
-	if strings.HasPrefix(c.storage, "m") {
-		storage = jetstream.MemoryStorage
-	}
-
 	var placement *jetstream.Placement
 	if c.placementCluster != "" || len(c.placementTags) > 0 {
 		placement = &jetstream.Placement{Cluster: c.placementCluster}
 		if len(c.placementTags) > 0 {
 			placement.Tags = c.placementTags
 		}
+	}
+
+	kv, err := js.KeyValue(ctx, c.bucket)
+	if err != nil {
+		return err
+	}
+	status, err := kv.Status(ctx)
+	if err != nil {
+		return err
+	}
+	var nfo *jetstream.StreamInfo
+	if status.BackingStore() == "JetStream" {
+		nfo = status.(*jetstream.KeyValueBucketStatus).StreamInfo()
+	} else {
+		return errors.New(c.bucket + " is not a JetStream bucket")
 	}
 
 	cfg := jetstream.KeyValueConfig{
@@ -572,7 +582,7 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 		History:      uint8(c.history),
 		TTL:          c.ttl,
 		MaxBytes:     c.maxBucketSize,
-		Storage:      storage,
+		Storage:      nfo.Config.Storage,
 		Replicas:     int(c.replicas),
 		Placement:    placement,
 		Compression:  c.compression,
