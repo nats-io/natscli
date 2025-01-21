@@ -315,8 +315,8 @@ func natsOpts() []nats.Option {
 func jsOpts() []nats.JSOpt {
 	opts := opts()
 	jso := []nats.JSOpt{
-		nats.Domain(opts.JsDomain),
-		nats.APIPrefix(opts.JsApiPrefix),
+		nats.Domain(opts.Config.JSDomain()),
+		nats.APIPrefix(opts.Config.JSAPIPrefix()),
 		nats.MaxWait(opts.Timeout),
 	}
 
