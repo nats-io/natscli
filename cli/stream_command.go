@@ -152,14 +152,18 @@ type streamCmd struct {
 	vwTranslate  string
 	vwSubject    string
 
-	dryRun             bool
-	selectedStream     *jsm.Stream
-	nc                 *nats.Conn
-	mgr                *jsm.Manager
-	chunkSize          string
-	placementPreferred string
-	allowMsgTTlSet     bool
-	allowMsgTTL        bool
+	dryRun                    bool
+	selectedStream            *jsm.Stream
+	nc                        *nats.Conn
+	mgr                       *jsm.Manager
+	chunkSize                 string
+	placementPreferred        string
+	allowMsgTTlSet            bool
+	allowMsgTTL               bool
+	subjectDeleteMarkersSet   bool
+	subjectDeleteMarkers      bool
+	subjectDeleteMarkerTTLSet bool
+	subjectDeleteMarkerTTL    string
 }
 
 type streamStat struct {
@@ -218,6 +222,8 @@ func configureStreamCommand(app commandHost) {
 		if !edit {
 			f.Flag("allow-msg-ttl", "Allows per-message TTL handling").IsSetByUser(&c.allowMsgTTlSet).UnNegatableBoolVar(&c.allowMsgTTL)
 		}
+		f.Flag("subject-del-markers", "Create subject delete markers").IsSetByUser(&c.subjectDeleteMarkersSet).BoolVar(&c.subjectDeleteMarkers)
+		f.Flag("subject-del-markers-ttl", "How long delete markers should persist in the Stream").Default("15m").IsSetByUser(&c.subjectDeleteMarkerTTLSet).StringVar(&c.subjectDeleteMarkerTTL)
 		f.Flag("transform-source", "Stream subject transform source").PlaceHolder("SOURCE").StringVar(&c.subjectTransformSource)
 		f.Flag("transform-destination", "Stream subject transform destination").PlaceHolder("DEST").StringVar(&c.subjectTransformDest)
 		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
@@ -436,6 +442,28 @@ Finding streams with certain subjects configured:
 
 func init() {
 	registerCommand("stream", 16, configureStreamCommand)
+}
+
+func (c *streamCmd) kvAbstractionWarn(stream string, prompt string) error {
+	fmt.Println("WARNING: Operating on the underlying stream of a Key-Value bucket is dangerous.")
+	fmt.Println()
+	fmt.Println("Key-Value stores are an abstraction above JetStream Streams and as such require particular")
+	fmt.Println("configuration to be set. Interacting with KV buckets outside of the 'nats kv' subcommand can lead")
+	fmt.Println("unexpected outcomes, data loss and, technically, will mean your KV bucket is no longer a KV bucket.")
+	fmt.Println()
+	fmt.Println("Continuing this operation is an unsupported action.")
+	fmt.Println()
+
+	ans, err := askConfirmation(prompt, false)
+	if err != nil {
+		return err
+	}
+
+	if !ans {
+		return fmt.Errorf("aborting Key-Value store operation")
+	}
+
+	return nil
 }
 
 func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
@@ -915,7 +943,7 @@ func (c *streamCmd) balanceAction(_ *fisk.ParseContext) error {
 
 		balanced, err := balancer.BalanceStreams(found)
 		if err != nil {
-			return fmt.Errorf("failed to balance streams - %s", err)
+			return fmt.Errorf("failed to balance streams: %s", err)
 		}
 		fmt.Printf("Balanced %d streams.\n", balanced)
 
@@ -1884,6 +1912,16 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		}
 	}
 
+	if c.subjectDeleteMarkersSet {
+		cfg.SubjectDeleteMarkers = c.subjectDeleteMarkers
+	}
+	if c.subjectDeleteMarkerTTLSet {
+		cfg.SubjectDeleteMarkerTTL = c.subjectDeleteMarkerTTL
+	}
+	if !cfg.SubjectDeleteMarkers {
+		cfg.SubjectDeleteMarkerTTL = ""
+	}
+
 	return cfg, nil
 }
 
@@ -1980,6 +2018,13 @@ func (c *streamCmd) editAction(pc *fisk.ParseContext) error {
 	fmt.Printf("Differences (-old +new):\n%s", diff)
 	if c.dryRun {
 		os.Exit(1)
+	}
+
+	if jsm.IsKVBucketStream(c.stream) {
+		err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
+		if err != nil {
+			return err
+		}
 	}
 
 	if !c.force {
@@ -2086,7 +2131,12 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRowIf("Mirror Direct Get", cfg.MirrorDirect, cfg.MirrorDirect)
 	cols.AddRow("Allows Msg Delete", !cfg.DenyDelete)
 	cols.AddRow("Allows Purge", !cfg.DenyPurge)
-	cols.AddRow("Allows Per-Msg TTL", cfg.AllowMsgTTL)
+	cols.AddRowIf("Subject Delete Markers", cfg.SubjectDeleteMarkers, cfg.AllowMsgTTL)
+	markerTTL := cfg.SubjectDeleteMarkerTTL
+	if cfg.SubjectDeleteMarkerTTL == "" {
+		markerTTL = "default"
+	}
+	cols.AddRowIf("Subject Delete Markers TTL", markerTTL, cfg.SubjectDeleteMarkers)
 	cols.AddRow("Allows Rollups", cfg.RollupAllowed)
 
 	cols.AddSectionTitle("Limits")
@@ -2686,30 +2736,36 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	cfg := api.StreamConfig{
-		Name:          c.stream,
-		Description:   c.description,
-		Subjects:      c.subjects,
-		MaxMsgs:       c.maxMsgLimit,
-		MaxMsgsPer:    c.maxMsgPerSubjectLimit,
-		MaxBytes:      c.maxBytesLimit,
-		MaxMsgSize:    int32(c.maxMsgSize),
-		Duplicates:    dupeWindow,
-		MaxAge:        maxAge,
-		Storage:       storage,
-		Compression:   compression,
-		FirstSeq:      c.firstSeq,
-		NoAck:         !c.ack,
-		Retention:     c.retentionPolicyFromString(),
-		Discard:       c.discardPolicyFromString(),
-		MaxConsumers:  c.maxConsumers,
-		Replicas:      int(c.replicas),
-		RollupAllowed: c.allowRollup,
-		DenyPurge:     c.denyPurge,
-		DenyDelete:    c.denyDelete,
-		AllowDirect:   c.allowDirect,
-		AllowMsgTTL:   c.allowMsgTTL,
-		MirrorDirect:  c.allowMirrorDirectSet,
-		DiscardNewPer: c.discardPerSubj,
+		Name:                   c.stream,
+		Description:            c.description,
+		Subjects:               c.subjects,
+		MaxMsgs:                c.maxMsgLimit,
+		MaxMsgsPer:             c.maxMsgPerSubjectLimit,
+		MaxBytes:               c.maxBytesLimit,
+		MaxMsgSize:             int32(c.maxMsgSize),
+		Duplicates:             dupeWindow,
+		MaxAge:                 maxAge,
+		Storage:                storage,
+		Compression:            compression,
+		FirstSeq:               c.firstSeq,
+		NoAck:                  !c.ack,
+		Retention:              c.retentionPolicyFromString(),
+		Discard:                c.discardPolicyFromString(),
+		MaxConsumers:           c.maxConsumers,
+		Replicas:               int(c.replicas),
+		RollupAllowed:          c.allowRollup,
+		DenyPurge:              c.denyPurge,
+		DenyDelete:             c.denyDelete,
+		AllowDirect:            c.allowDirect,
+		AllowMsgTTL:            c.allowMsgTTL,
+		SubjectDeleteMarkerTTL: c.subjectDeleteMarkerTTL,
+		SubjectDeleteMarkers:   c.subjectDeleteMarkers,
+		MirrorDirect:           c.allowMirrorDirectSet,
+		DiscardNewPer:          c.discardPerSubj,
+	}
+
+	if !cfg.SubjectDeleteMarkers {
+		cfg.SubjectDeleteMarkerTTL = ""
 	}
 
 	if c.limitInactiveThreshold > 0 {
@@ -3119,6 +3175,13 @@ func (c *streamCmd) purgeAction(_ *fisk.ParseContext) (err error) {
 		}
 	}
 
+	if jsm.IsKVBucketStream(c.stream) {
+		err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
+		if err != nil {
+			return err
+		}
+	}
+
 	stream, err := c.loadStream(c.stream)
 	fisk.FatalIfError(err, "could not purge Stream")
 
@@ -3301,6 +3364,13 @@ func (c *streamCmd) rmMsgAction(_ *fisk.ParseContext) (err error) {
 	stream, err := c.loadStream(c.stream)
 	fisk.FatalIfError(err, "could not load Stream %s", c.stream)
 
+	if jsm.IsKVBucketStream(c.stream) {
+		err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
+		if err != nil {
+			return err
+		}
+	}
+
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really remove message %d from Stream %s", c.msgID, c.stream), false)
 		fisk.FatalIfError(err, "could not obtain confirmation")
@@ -3355,7 +3425,7 @@ func (c *streamCmd) getAction(_ *fisk.ParseContext) (err error) {
 		return nil
 	}
 
-	fmt.Printf("Item: %s#%d received %v on Subject %s\n\n", c.stream, item.Sequence, item.Time, item.Subject)
+	fmt.Printf("Item: %s#%d received %v (%s) on Subject %s\n\n", c.stream, item.Sequence, item.Time, f(time.Since(item.Time)), item.Subject)
 
 	if len(item.Header) > 0 {
 		fmt.Println("Headers:")
