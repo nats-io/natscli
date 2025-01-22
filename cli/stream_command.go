@@ -1968,6 +1968,11 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 		ncfg.Metadata = nil
 	}
 
+	// coupled items
+	if !ncfg.SubjectDeleteMarkers {
+		ncfg.SubjectDeleteMarkerTTL = ""
+	}
+
 	return ncfg, nil
 }
 
