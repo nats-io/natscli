@@ -223,7 +223,7 @@ func configureStreamCommand(app commandHost) {
 			f.Flag("allow-msg-ttl", "Allows per-message TTL handling").IsSetByUser(&c.allowMsgTTlSet).UnNegatableBoolVar(&c.allowMsgTTL)
 		}
 		f.Flag("subject-del-markers", "Create subject delete markers").IsSetByUser(&c.subjectDeleteMarkersSet).BoolVar(&c.subjectDeleteMarkers)
-		f.Flag("subject-del-markers-ttl", "How long delete markers should persist in the Stream").Default("15m").IsSetByUser(&c.subjectDeleteMarkerTTLSet).StringVar(&c.subjectDeleteMarkerTTL)
+		f.Flag("subject-del-markers-ttl", "How long delete markers should persist in the Stream").IsSetByUser(&c.subjectDeleteMarkerTTLSet).StringVar(&c.subjectDeleteMarkerTTL)
 		f.Flag("transform-source", "Stream subject transform source").PlaceHolder("SOURCE").StringVar(&c.subjectTransformSource)
 		f.Flag("transform-destination", "Stream subject transform destination").PlaceHolder("DEST").StringVar(&c.subjectTransformDest)
 		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
