@@ -2131,12 +2131,10 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRowIf("Mirror Direct Get", cfg.MirrorDirect, cfg.MirrorDirect)
 	cols.AddRow("Allows Msg Delete", !cfg.DenyDelete)
 	cols.AddRow("Allows Purge", !cfg.DenyPurge)
-	cols.AddRowIf("Subject Delete Markers", cfg.SubjectDeleteMarkers, cfg.AllowMsgTTL)
-	markerTTL := cfg.SubjectDeleteMarkerTTL
-	if cfg.SubjectDeleteMarkerTTL == "" {
-		markerTTL = "default"
+	cols.AddRow("Allows Per-Message TTL", cfg.AllowMsgTTL)
+	if cfg.AllowMsgTTL && cfg.SubjectDeleteMarkers {
+		cols.AddRow("Subject Delete Markers TTL", cfg.SubjectDeleteMarkerTTL)
 	}
-	cols.AddRowIf("Subject Delete Markers TTL", markerTTL, cfg.SubjectDeleteMarkers)
 	cols.AddRow("Allows Rollups", cfg.RollupAllowed)
 
 	cols.AddSectionTitle("Limits")
