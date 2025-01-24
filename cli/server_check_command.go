@@ -152,8 +152,8 @@ When set these settings will be used, but can be overridden using --lag-critical
 	stream.Flag("peer-seen-critical", "Critical threshold for how long ago a cluster peer should have been seen").IsSetByUser(&c.raftSeenCriticalIsSet).Default("10s").DurationVar(&c.raftSeenCritical)
 	stream.Flag("msgs-warn", "Warn if there are fewer than this many messages in the stream").PlaceHolder("MSGS").IsSetByUser(&c.streamMessagesWarnIsSet).Uint64Var(&c.streamMessagesWarn)
 	stream.Flag("msgs-critical", "Critical if there are fewer than this many messages in the stream").PlaceHolder("MSGS").IsSetByUser(&c.streamMessagesCritIsSet).Uint64Var(&c.streamMessagesCrit)
-	stream.Flag("subjects-warn", "Critical threshold for subjects in the stream").Default("-1").IsSetByUser(&c.subjectsWarnIsSet).IntVar(&c.subjectsWarn)
-	stream.Flag("subjects-critical", "Warning threshold for subjects in the stream").Default("-1").IsSetByUser(&c.subjectsCritIsSet).IntVar(&c.subjectsCrit)
+	stream.Flag("subjects-warn", "Critical threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IsSetByUser(&c.subjectsWarnIsSet).IntVar(&c.subjectsWarn)
+	stream.Flag("subjects-critical", "Warning threshold for subjects in the stream").PlaceHolder("SUBJECTS").Default("-1").IsSetByUser(&c.subjectsCritIsSet).IntVar(&c.subjectsCrit)
 
 	consumer := check.Command("consumer", "Checks the health of a consumer").Action(c.checkConsumer)
 	consumer.HelpLong(`These settings can be set using Consumer Metadata in the following form:

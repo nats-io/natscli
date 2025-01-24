@@ -141,7 +141,7 @@ func configureConsumerCommand(app commandHost) {
 		f.Flag("backoff-max", "The longest backoff period that will be generated").Default("20m").DurationVar(&c.backoffMax)
 		if !edit {
 			f.Flag("deliver", "Start policy (all, new, last, subject, 1h, msg sequence)").PlaceHolder("POLICY").StringVar(&c.startPolicy)
-			f.Flag("deliver-group", "Delivers push messages only to subscriptions matching this group").Default("_unset_").StringVar(&c.deliveryGroup)
+			f.Flag("deliver-group", "Delivers push messages only to subscriptions matching this group").Default("_unset_").PlaceHolder("GROUP").StringVar(&c.deliveryGroup)
 		}
 		f.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
 		if !edit {

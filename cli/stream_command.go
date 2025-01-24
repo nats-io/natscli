@@ -309,7 +309,7 @@ Finding streams with certain subjects configured:
 	strFind.Flag("empty", "Display streams with no messages").UnNegatableBoolVar(&c.fEmpty)
 	strFind.Flag("idle", "Display streams with no new messages or consumer deliveries for a period").PlaceHolder("DURATION").DurationVar(&c.fIdle)
 	strFind.Flag("created", "Display streams created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
-	strFind.Flag("consumers", "Display streams with fewer consumers than threshold").Default("-1").IntVar(&c.fConsumers)
+	strFind.Flag("consumers", "Display streams with fewer consumers than threshold").PlaceHolder("THRESHOLD").Default("-1").IntVar(&c.fConsumers)
 	strFind.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
 	strFind.Flag("replicas", "Display streams with fewer or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
 	strFind.Flag("sourced", "Display that sources data from other streams").IsSetByUser(&c.fSourcedSet).UnNegatableBoolVar(&c.fSourced)
