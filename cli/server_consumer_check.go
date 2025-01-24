@@ -83,7 +83,7 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 	var err error
 	var nc *nats.Conn
 
-	if !c.csv {
+	if !c.stdin {
 		nc, _, err = prepareHelper(opts().Servers, natsOpts()...)
 		if err != nil {
 			return err
@@ -93,7 +93,7 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 
 	sys := sysclient.New(nc)
 
-	if !c.csv {
+	if !c.stdin {
 		if c.expected == 0 {
 			c.expected, err = currentActiveServers(nc)
 			if err != nil {
