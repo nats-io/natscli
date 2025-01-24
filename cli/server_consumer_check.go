@@ -15,10 +15,12 @@ package cli
 
 import (
 	"fmt"
-	"github.com/nats-io/natscli/internal/util"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
@@ -56,6 +58,7 @@ type (
 		expected       int
 		stdin          bool
 		readTimeout    int
+		csv            bool
 	}
 )
 
@@ -70,24 +73,32 @@ func configureConsumerCheckCommand(app commandHost) {
 	consumerCheck.Flag("unsynced", "Filter results by streams that are out of sync").UnNegatableBoolVar(&cc.unsyncedFilter)
 	consumerCheck.Flag("stdin", "Process the contents from STDIN").UnNegatableBoolVar(&cc.stdin)
 	consumerCheck.Flag("read-timeout", "Read timeout in seconds").Default("5").IntVar(&cc.readTimeout)
+	consumerCheck.Flag("csv", "Renders CSV format").UnNegatableBoolVar(&cc.csv)
 }
 
 func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
-	var err error
+
 	start := time.Now()
 
-	nc, _, err := prepareHelper(opts().Servers, natsOpts()...)
-	if err != nil {
-		return err
+	var err error
+	var nc *nats.Conn
+
+	if !c.csv {
+		nc, _, err = prepareHelper(opts().Servers, natsOpts()...)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Connected in %.3fs\n", time.Since(start).Seconds())
 	}
-	fmt.Printf("Connected in %.3fs\n", time.Since(start).Seconds())
 
 	sys := sysclient.New(nc)
 
-	if c.expected == 0 {
-		c.expected, err = currentActiveServers(nc)
-		if err != nil {
-			return fmt.Errorf("failed to get current active servers: %s", err)
+	if !c.csv {
+		if c.expected == 0 {
+			c.expected, err = currentActiveServers(nc)
+			if err != nil {
+				return fmt.Errorf("failed to get current active servers: %s", err)
+			}
 		}
 	}
 
@@ -96,8 +107,11 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 	if err != nil {
 		return fmt.Errorf("failed to find servers: %s", err)
 	}
-	fmt.Printf("Response took %.3fs\n", time.Since(start).Seconds())
-	fmt.Printf("Servers: %d\n", len(servers))
+
+	if !c.csv {
+		fmt.Printf("Response took %.3fs\n", time.Since(start).Seconds())
+		fmt.Printf("Servers: %d\n", len(servers))
+	}
 
 	streams := make(map[string]map[string]*streamDetail)
 	consumers := make(map[string]map[string]*ConsumerDetail)
@@ -173,9 +187,14 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 		}
 	}
 	sort.Strings(keys)
-	fmt.Printf("Consumers: %d\n", len(keys))
 
-	table := util.NewTableWriter(opts(), "Consumers")
+	title := ""
+	if !c.csv {
+		fmt.Printf("Consumers: %d\n", len(keys))
+		title = "Consumers"
+	}
+
+	table := util.NewTableWriter(opts(), title)
 
 	if c.health {
 		table.AddHeaders("Consumer", "Stream", "Raft", "Account", "Account ID", "Node", "Delivered (S,C)", "ACK Floor (S,C)", "Counters", "Status", "Leader", "Stream Cluster Leader", "Peers", "Health")
@@ -327,9 +346,14 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 			clusterLeader = replica.Cluster.Leader
 		}
 
-		table.AddRow(replica.ConsumerName, replica.StreamName, replica.RaftGroup, accountname, replica.AccountID, node, delivered, ackfloor, counters, status, clusterLeader, replica.StreamCluster.Leader, replicasInfo, healthStatus)
+		table.AddRow(replica.ConsumerName, replica.StreamName, replica.RaftGroup, accountname, replica.AccountID, node, delivered, ackfloor, counters, status, clusterLeader, replica.StreamCluster.Leader, strings.TrimSpace(replicasInfo), healthStatus)
 	}
 
-	fmt.Println(table.Render())
+	if c.csv {
+		fmt.Println(table.RenderCSV())
+	} else {
+		fmt.Println(table.Render())
+	}
+
 	return nil
 }
