@@ -164,6 +164,10 @@ func (s *SysClient) FindServers(stdin bool, expected int, timeout time.Duration,
 	if stdin {
 		reader := bufio.NewReader(os.Stdin)
 
+		if expected == 0 {
+			expected = 999
+		}
+
 		for i := 0; i < expected; i++ {
 			data, err := reader.ReadString('\n')
 			if err != nil && err != io.EOF {

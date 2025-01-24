@@ -87,6 +87,10 @@ func (t *Table) Render() string {
 	return fmt.Sprintln(t.writer.Render())
 }
 
+func (t *Table) RenderCSV() string {
+	return fmt.Sprintln(t.writer.RenderCSV())
+}
+
 func NewTableWriter(opts *options.Options, format string, a ...any) *Table {
 	tbl := &Table{
 		writer: table.NewWriter(),
