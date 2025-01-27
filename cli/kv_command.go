@@ -79,26 +79,37 @@ for an indefinite period or a per-bucket configured TTL.
 	kv := app.Command("kv", help)
 	addCheat("kv", kv)
 
-	add := kv.Command("add", "Adds a new KV Store Bucket").Alias("new").Action(c.addAction)
-	add.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	add.Flag("history", "How many historic values to keep per key").Default("1").Uint64Var(&c.history)
-	add.Flag("ttl", "How long to keep values for").DurationVar(&c.ttl)
-	add.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
-	add.Flag("max-value-size", "Maximum size for any single value").PlaceHolder("BYTES").StringVar(&c.maxValueSizeString)
-	add.Flag("max-bucket-size", "Maximum size for the bucket").PlaceHolder("BYTES").StringVar(&c.maxBucketSizeString)
-	add.Flag("description", "A description for the bucket").StringVar(&c.description)
-	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
-	add.Flag("compress", "Compress the bucket data").BoolVar(&c.compression)
-	add.Flag("tags", "Place the bucket on servers that has specific tags").StringsVar(&c.placementTags)
-	add.Flag("cluster", "Place the bucket on a specific cluster").StringVar(&c.placementCluster)
-	add.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SRC").StringVar(&c.repubSource)
-	add.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
-	add.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
-	add.Flag("mirror", "Creates a mirror of a different bucket").StringVar(&c.mirror)
-	add.Flag("mirror-domain", "When mirroring find the bucket in a different domain").StringVar(&c.mirrorDomain)
-	add.Flag("source", "Source from a different bucket").PlaceHolder("BUCKET").StringsVar(&c.sources)
+	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
+		f.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+		f.Flag("history", "How many historic values to keep per key").Default("1").Uint64Var(&c.history)
+		f.Flag("ttl", "How long to keep values for").DurationVar(&c.ttl)
+		f.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
+		f.Flag("max-value-size", "Maximum size for any single value").PlaceHolder("BYTES").StringVar(&c.maxValueSizeString)
+		f.Flag("max-bucket-size", "Maximum size for the bucket").PlaceHolder("BYTES").StringVar(&c.maxBucketSizeString)
+		f.Flag("description", "A description for the bucket").StringVar(&c.description)
+		if !edit {
+			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
+		}
+		f.Flag("compress", "Compress the bucket data").BoolVar(&c.compression)
+		f.Flag("tags", "Place the bucket on servers that has specific tags").StringsVar(&c.placementTags)
+		f.Flag("cluster", "Place the bucket on a specific cluster").StringVar(&c.placementCluster)
+		f.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SRC").StringVar(&c.repubSource)
+		f.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
+		f.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
+		if !edit {
+			f.Flag("mirror", "Creates a mirror of a different bucket").StringVar(&c.mirror)
+			f.Flag("mirror-domain", "When mirroring find the bucket in a different domain").StringVar(&c.mirrorDomain)
+		}
+		f.Flag("source", "Source from a different bucket").PlaceHolder("BUCKET").StringsVar(&c.sources)
+	}
 
+	add := kv.Command("add", "Adds a new KV Store Bucket").Alias("new").Action(c.addAction)
+	addCreateFlags(add, false)
 	add.PreAction(c.parseLimitStrings)
+
+	edit := kv.Command("edit", "Edits an existing KV Store Bucket").Action(c.editAction)
+	addCreateFlags(edit, true)
+	edit.PreAction(c.parseLimitStrings)
 
 	put := kv.Command("put", "Puts a value into a key").Action(c.putAction)
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -525,6 +536,73 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 	defer cancel()
 
 	store, err := js.CreateKeyValue(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	return c.showStatus(store)
+}
+
+func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
+	_, js, err := prepareJSHelper()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	var placement *jetstream.Placement
+	if c.placementCluster != "" || len(c.placementTags) > 0 {
+		placement = &jetstream.Placement{Cluster: c.placementCluster}
+		if len(c.placementTags) > 0 {
+			placement.Tags = c.placementTags
+		}
+	}
+
+	kv, err := js.KeyValue(ctx, c.bucket)
+	if err != nil {
+		return err
+	}
+	status, err := kv.Status(ctx)
+	if err != nil {
+		return err
+	}
+	var nfo *jetstream.StreamInfo
+	if status.BackingStore() == "JetStream" {
+		nfo = status.(*jetstream.KeyValueBucketStatus).StreamInfo()
+	} else {
+		return errors.New(c.bucket + " is not a JetStream bucket")
+	}
+
+	cfg := jetstream.KeyValueConfig{
+		Bucket:       c.bucket,
+		Description:  c.description,
+		MaxValueSize: int32(c.maxValueSize),
+		History:      uint8(c.history),
+		TTL:          c.ttl,
+		MaxBytes:     c.maxBucketSize,
+		Storage:      nfo.Config.Storage,
+		Replicas:     int(c.replicas),
+		Placement:    placement,
+		Compression:  c.compression,
+	}
+
+	if c.repubDest != "" {
+		cfg.RePublish = &jetstream.RePublish{
+			Source:      c.repubSource,
+			Destination: c.repubDest,
+			HeadersOnly: c.repubHeadersOnly,
+		}
+	}
+
+	for _, source := range c.sources {
+		cfg.Sources = append(cfg.Sources, &jetstream.StreamSource{
+			Name: source,
+		})
+	}
+
+	store, err := js.UpdateKeyValue(ctx, cfg)
 	if err != nil {
 		return err
 	}
