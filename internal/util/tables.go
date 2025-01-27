@@ -20,7 +20,6 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
-	"github.com/mattn/go-isatty"
 	"github.com/nats-io/natscli/options"
 	terminal "golang.org/x/term"
 )
@@ -99,7 +98,7 @@ func NewTableWriter(opts *options.Options, format string, a ...any) *Table {
 	tbl.writer.SuppressTrailingSpaces()
 	tbl.writer.SetStyle(styles["rounded"])
 
-	if isatty.IsTerminal(os.Stdout.Fd()) {
+	if terminal.IsTerminal(int(os.Stdout.Fd())) {
 		if opts.Config != nil {
 			style, ok := styles[opts.Config.ColorScheme()]
 			if ok {
