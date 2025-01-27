@@ -252,7 +252,7 @@ func (c *SrvCheckCmd) parseRenderFormat(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: fmt.Sprintf("%s_%s", c.sourcesStream, c.consumerName), Check: "consumer", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: fmt.Sprintf("%s_%s", c.sourcesStream, c.consumerName), Check: "consumer", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
 	checkOpts := &monitor.ConsumerHealthCheckOptions{
@@ -293,7 +293,7 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: c.kvBucket, Check: "kv", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: c.kvBucket, Check: "kv", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
 	return monitor.CheckKVBucketAndKey(opts().Config.ServerURL(), natsOpts(), check, monitor.KVCheckOptions{
@@ -305,7 +305,7 @@ func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: c.srvName, Check: "server", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: c.srvName, Check: "server", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
 	return monitor.CheckServer(opts().Config.ServerURL(), natsOpts(), check, opts().Timeout, monitor.ServerCheckOptions{
@@ -327,7 +327,7 @@ func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: "JetStream", Check: "jetstream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: "JetStream", Check: "jetstream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
 	return monitor.CheckJetStreamAccount(opts().Config.ServerURL(), natsOpts(), check, monitor.JetStreamAccountOptions{
@@ -346,7 +346,7 @@ func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkRaft(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: "JetStream Meta Cluster", Check: "meta", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: "JetStream Meta Cluster", Check: "meta", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
 	return monitor.CheckJetstreamMeta(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckMetaOptions{
@@ -357,7 +357,7 @@ func (c *SrvCheckCmd) checkRaft(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: c.sourcesStream, Check: "stream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: c.sourcesStream, Check: "stream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
 	checkOpts := &monitor.StreamHealthCheckOptions{
@@ -409,7 +409,7 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: "Stream Message", Check: "message", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: "Stream Message", Check: "message", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
 	return monitor.CheckStreamMessage(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckStreamMessageOptions{
@@ -423,7 +423,7 @@ func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: "Connection", Check: "connections", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: "Connection", Check: "connections", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
 	if opts().Config == nil {
@@ -444,7 +444,7 @@ func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvCheckCmd) checkCredentialAction(_ *fisk.ParseContext) error {
-	check := &monitor.Result{Name: "Credential", Check: "credential", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat}
+	check := &monitor.Result{Name: "Credential", Check: "credential", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
 	return monitor.CheckCredential(check, monitor.CredentialCheckOptions{
