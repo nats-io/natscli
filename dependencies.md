@@ -28,7 +28,6 @@ This file lists the dependencies used in this repository.
 | github.com/kballard/go-shellquote                | MIT License                             |
 | github.com/klauspost/compress                    | BSD 3-Clause "New" or "Revised" License |
 | github.com/mattn/go-colorable                    | MIT License                             |
-| github.com/mattn/go-isatty                       | MIT License                             |
 | github.com/mattn/go-runewidth                    | MIT License                             |
 | github.com/mgutz/ansi                            | MIT License                             |
 | github.com/minio/highwayhash                     | Apache License 2.0                      |
