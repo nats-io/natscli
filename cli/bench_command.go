@@ -463,7 +463,7 @@ func (c *benchCmd) getPublishSubject(number int) string {
 
 func (c *benchCmd) storageType() jetstream.StorageType {
 	if c.storage == "memory" {
-		return jetstream.FileStorage
+		return jetstream.MemoryStorage
 	} else {
 		return jetstream.FileStorage
 	}
