@@ -202,7 +202,8 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 		table.AddHeaders("Consumer", "Stream", "Raft", "Account", "Account ID", "Node", "Delivered (S,C)", "ACK Floor (S,C)", "Counters", "Status", "Leader", "Stream Cluster Leader", "Peers")
 	}
 
-	for _, k := range keys {
+	var prev, prevAccount string
+	for i, k := range keys {
 		var unsynced bool
 		av := strings.Split(k, "|")
 		accName := av[0]
@@ -345,6 +346,13 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 		if replica.Cluster != nil {
 			clusterLeader = replica.Cluster.Leader
 		}
+
+		if i > 0 && prev != replica.ConsumerName || prevAccount != accName {
+			table.AddSeparator()
+		}
+
+		prev = replica.ConsumerName
+		prevAccount = accName
 
 		table.AddRow(replica.ConsumerName, replica.StreamName, replica.RaftGroup, accountname, replica.AccountID, node, delivered, ackfloor, counters, status, clusterLeader, replica.StreamCluster.Leader, strings.TrimSpace(replicasInfo), healthStatus)
 	}
