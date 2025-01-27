@@ -145,7 +145,8 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 		table.AddHeaders("Stream Replica", "Raft", "Account", "Account ID", "Node", "Messages", "Bytes", "Subjects", "Deleted", "Consumers", "First", "Last", "Status", "Leader", "Peers")
 	}
 
-	for _, k := range keys {
+	var prev, prevAccount string
+	for i, k := range keys {
 		var unsynced bool
 		av := strings.Split(k, "|")
 		accName := av[0]
@@ -237,6 +238,13 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 				healthStatus = fmt.Sprintf(":%s:%s", hstatus.Healthz.Status, hstatus.Healthz.Error)
 			}
 		}
+
+		if i > 0 && prev != replica.StreamName || prevAccount != accName {
+			table.AddSeparator()
+		}
+
+		prev = replica.StreamName
+		prevAccount = accName
 
 		table.AddRow(replica.StreamName, replica.RaftGroup, account, replica.AccountID, fmt.Sprintf("%s%s", serverName, suffix), replica.State.Msgs, replica.State.Bytes, replica.State.NumSubjects, replica.State.NumDeleted, replica.State.Consumers, replica.State.FirstSeq,
 			replica.State.LastSeq, status, replica.Cluster.Leader, strings.TrimSpace(replicasInfo), healthStatus)
