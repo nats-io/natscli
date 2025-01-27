@@ -2143,7 +2143,6 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRow("Allows Rollups", cfg.RollupAllowed)
 
 	cols.AddSectionTitle("Limits")
-
 	if cfg.MaxMsgs == -1 {
 		cols.AddRow("Maximum Messages", "unlimited")
 	} else {
