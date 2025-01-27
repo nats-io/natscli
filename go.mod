@@ -19,15 +19,15 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.17.11
 	github.com/mattn/go-isatty v0.0.20
-	github.com/nats-io/jsm.go v0.1.1-0.20250123132505-562367622799
+	github.com/nats-io/jsm.go v0.1.1-0.20250127092329-6a11282c8e3a
 	github.com/nats-io/jwt/v2 v2.7.3
-	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20250123154454-257319cc03c6
+	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20250126014539-f2eb5650d200
 	github.com/nats-io/nats.go v1.38.0
 	github.com/nats-io/nkeys v0.4.9
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	github.com/synadia-io/jwt-auth-builder.go v0.0.2
+	github.com/synadia-io/jwt-auth-builder.go v0.0.3
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.32.0
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
@@ -66,6 +66,6 @@ require (
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
-	google.golang.org/protobuf v1.36.3 // indirect
+	google.golang.org/protobuf v1.36.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
