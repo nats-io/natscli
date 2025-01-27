@@ -190,6 +190,9 @@ func (c *SrvReportCmd) reportHealth(_ *fisk.ParseContext) error {
 	tbl := iu.NewTableWriter(opts(), "Health Report")
 	tbl.AddHeaders("Server", "Cluster", "Domain", "Status", "Type", "Error")
 
+	var ok, notok, totalErrors int
+	totalClusters := map[string]struct{}{}
+
 	for _, srv := range servers {
 		tbl.AddRow(
 			srv.Server.Name,
@@ -198,10 +201,20 @@ func (c *SrvReportCmd) reportHealth(_ *fisk.ParseContext) error {
 			fmt.Sprintf("%s (%d)", srv.Data.Status, srv.Data.StatusCode),
 		)
 
+		if srv.Data.StatusCode == 200 {
+			ok += 1
+		} else {
+			notok += 1
+		}
+
+		totalClusters[srv.Server.Cluster] = struct{}{}
+
 		ecnt := len(srv.Data.Errors)
 		if ecnt == 0 {
 			continue
 		}
+
+		totalErrors += ecnt
 
 		show := ecnt
 		if ecnt > 10 {
@@ -219,6 +232,9 @@ func (c *SrvReportCmd) reportHealth(_ *fisk.ParseContext) error {
 			tbl.AddRow("", "", "", fmt.Sprintf("%d more errors", ecnt-show))
 		}
 	}
+
+	//tbl.AddSeparator()
+	tbl.AddFooter(f(len(servers)), f(len(totalClusters)), "", f(fmt.Sprintf("ok: %d / err: %d", ok, notok)), "", f(totalErrors))
 
 	fmt.Println(tbl.Render())
 
