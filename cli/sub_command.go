@@ -719,7 +719,7 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 		}
 
 	} else {
-		// Output format 4: pretty
+		// Output format 3: pretty
 
 		if info == nil {
 			if msg.Reply != "" {
@@ -760,6 +760,15 @@ func (c *subCmd) dumpMsg(msg *nats.Msg, stdout bool, filepath string, ctr uint) 
 	serMsg.Header = msg.Header
 	serMsg.Data = msg.Data
 	serMsg.Reply = msg.Reply
+
+	if c.translate != "" {
+		data, err := filterDataThroughCmd(msg.Data, c.translate, "", "")
+		if err != nil {
+			log.Printf("%q\nError while translating msg body: %s\n\n", data, err.Error())
+			return
+		}
+		serMsg.Data = data
+	}
 
 	jm, err := json.Marshal(serMsg)
 	if err != nil {
