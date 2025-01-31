@@ -164,6 +164,7 @@ type streamCmd struct {
 	subjectDeleteMarkers      bool
 	subjectDeleteMarkerTTLSet bool
 	subjectDeleteMarkerTTL    time.Duration
+	marker                    bool
 }
 
 type streamStat struct {
@@ -357,6 +358,7 @@ Finding streams with certain subjects configured:
 	strPurge.Flag("subject", "Limits the purge to a specific subject").PlaceHolder("SUBJECT").StringVar(&c.purgeSubject)
 	strPurge.Flag("seq", "Purge up to but not including a specific message sequence").PlaceHolder("SEQUENCE").Uint64Var(&c.purgeSequence)
 	strPurge.Flag("keep", "Keeps a certain number of messages after the purge").PlaceHolder("MESSAGES").Uint64Var(&c.purgeKeep)
+	strPurge.Flag("marker", "Place a purge marker in compatible streams").Default("true").BoolVar(&c.marker)
 
 	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another, does not copy data").Alias("cp").Action(c.cpAction)
 	strCopy.Arg("source", "Source Stream to copy").Required().StringVar(&c.stream)
@@ -366,6 +368,7 @@ Finding streams with certain subjects configured:
 	strRmMsg := str.Command("rmm", "Securely removes an individual message from a Stream").Action(c.rmMsgAction)
 	strRmMsg.Arg("stream", "Stream name").StringVar(&c.stream)
 	strRmMsg.Arg("id", "Message Sequence to remove").Int64Var(&c.msgID)
+	strRmMsg.Flag("marker", "Place a purge marker in compatible streams").Default("true").BoolVar(&c.marker)
 	strRmMsg.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	strView := str.Command("view", "View messages in a stream").Action(c.viewAction)
@@ -1912,14 +1915,8 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		}
 	}
 
-	if c.subjectDeleteMarkersSet {
-		cfg.SubjectDeleteMarkers = c.subjectDeleteMarkers
-	}
 	if c.subjectDeleteMarkerTTLSet {
 		cfg.SubjectDeleteMarkerTTL = c.subjectDeleteMarkerTTL
-	}
-	if !cfg.SubjectDeleteMarkers {
-		cfg.SubjectDeleteMarkerTTL = 0
 	}
 
 	return cfg, nil
@@ -1966,11 +1963,6 @@ func (c *streamCmd) interactiveEdit(cfg api.StreamConfig) (api.StreamConfig, err
 	}
 	if len(ncfg.Metadata) == 0 {
 		ncfg.Metadata = nil
-	}
-
-	// coupled items
-	if !ncfg.SubjectDeleteMarkers {
-		ncfg.SubjectDeleteMarkerTTL = 0
 	}
 
 	return ncfg, nil
@@ -2137,7 +2129,7 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRow("Allows Msg Delete", !cfg.DenyDelete)
 	cols.AddRow("Allows Purge", !cfg.DenyPurge)
 	cols.AddRow("Allows Per-Message TTL", cfg.AllowMsgTTL)
-	if cfg.AllowMsgTTL && cfg.SubjectDeleteMarkers {
+	if cfg.AllowMsgTTL && cfg.SubjectDeleteMarkerTTL > 0 {
 		cols.AddRow("Subject Delete Markers TTL", cfg.SubjectDeleteMarkerTTL)
 	}
 	cols.AddRow("Allows Rollups", cfg.RollupAllowed)
@@ -2761,13 +2753,8 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		AllowDirect:            c.allowDirect,
 		AllowMsgTTL:            c.allowMsgTTL,
 		SubjectDeleteMarkerTTL: c.subjectDeleteMarkerTTL,
-		SubjectDeleteMarkers:   c.subjectDeleteMarkers,
 		MirrorDirect:           c.allowMirrorDirectSet,
 		DiscardNewPer:          c.discardPerSubj,
-	}
-
-	if !cfg.SubjectDeleteMarkers {
-		cfg.SubjectDeleteMarkerTTL = 0
 	}
 
 	if c.limitInactiveThreshold > 0 {
@@ -3197,6 +3184,7 @@ func (c *streamCmd) purgeAction(_ *fisk.ParseContext) (err error) {
 			Sequence: c.purgeSequence,
 			Subject:  c.purgeSubject,
 			Keep:     c.purgeKeep,
+			NoMarker: !c.marker,
 		}
 	}
 
@@ -3382,7 +3370,7 @@ func (c *streamCmd) rmMsgAction(_ *fisk.ParseContext) (err error) {
 		}
 	}
 
-	return stream.DeleteMessage(uint64(c.msgID))
+	return stream.DeleteMessageRequest(api.JSApiMsgDeleteRequest{Seq: uint64(c.msgID), NoMarker: !c.marker})
 }
 
 func (c *streamCmd) getAction(_ *fisk.ParseContext) (err error) {
