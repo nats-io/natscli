@@ -98,11 +98,16 @@ type SrvCheckCmd struct {
 	srvTLSRequired  bool
 	srvJSRequired   bool
 
-	msgSubject  string
-	msgAgeWarn  time.Duration
-	msgAgeCrit  time.Duration
-	msgRegexp   *regexp.Regexp
-	msgBodyAsTs bool
+	msgSubject      string
+	msgAgeWarn      time.Duration
+	msgAgeCrit      time.Duration
+	msgRegexp       *regexp.Regexp
+	msgBodyAsTs     bool
+	msgHeaders      map[string]string
+	msgHeadersMatch map[string]string
+	msgPayload      string
+	msgCrit         time.Duration
+	msgWarn         time.Duration
 
 	kvBucket                 string
 	kvValuesCrit             int64
@@ -120,7 +125,10 @@ type SrvCheckCmd struct {
 }
 
 func configureServerCheckCommand(srv *fisk.CmdClause) {
-	c := &SrvCheckCmd{}
+	c := &SrvCheckCmd{
+		msgHeaders:      make(map[string]string),
+		msgHeadersMatch: make(map[string]string),
+	}
 
 	check := srv.Command("check", "Health check for NATS servers")
 	check.Flag("format", "Render the check in a specific format (nagios, json, prometheus, text)").Default("nagios").EnumVar(&checkRenderFormatText, "nagios", "json", "prometheus", "text")
@@ -184,6 +192,15 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	meta.Flag("lag-critical", "Critical threshold to allow for lag").PlaceHolder("OPS").Required().Uint64Var(&c.raftLagCritical)
 	meta.Flag("seen-critical", "Critical threshold for how long ago a peer should have been seen").Required().PlaceHolder("DURATION").DurationVar(&c.raftSeenCritical)
 
+	req := check.Command("request", "Checks a request-reply service").Alias("req").Action(c.checkRequest)
+	req.Flag("subject", "The subject to send the request to").Required().StringVar(&c.msgSubject)
+	req.Flag("payload", "Payload to send in the request").StringVar(&c.msgPayload)
+	req.Flag("headers", "Headers to publish in the request").StringMapVar(&c.msgHeaders)
+	req.Flag("match-payload", "Regular expression the response should match").RegexpVar(&c.msgRegexp)
+	req.Flag("match-headers", "Headers to publish in the request").StringMapVar(&c.msgHeaders)
+	req.Flag("response-critical", "Critical threshold for response time").DurationVar(&c.msgCrit)
+	req.Flag("response-warn", "Warning threshold for response time").DurationVar(&c.msgWarn)
+
 	js := check.Command("jetstream", "Check JetStream account state").Alias("js").Action(c.checkJS)
 	js.Flag("mem-warn", "Warning threshold for memory storage, in percent").Default("75").IntVar(&c.jsMemWarn)
 	js.Flag("mem-critical", "Critical threshold for memory storage, in percent").Default("90").IntVar(&c.jsMemCritical)
@@ -246,6 +263,31 @@ func (c *SrvCheckCmd) parseRenderFormat(_ *fisk.ParseContext) error {
 		checkRenderFormat = monitor.TextFormat
 	case "json":
 		checkRenderFormat = monitor.JSONFormat
+	}
+
+	return nil
+}
+
+func (c *SrvCheckCmd) checkRequest(_ *fisk.ParseContext) error {
+	check := &monitor.Result{Name: c.msgSubject, Check: "request", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
+	defer check.GenericExit()
+
+	checkOpts := monitor.CheckRequestOptions{
+		Subject:              c.msgSubject,
+		Payload:              c.msgPayload,
+		Header:               c.msgHeaders,
+		HeaderMatch:          c.msgHeadersMatch,
+		ResponseTimeWarn:     c.msgWarn,
+		ResponseTimeCritical: c.msgCrit,
+	}
+
+	if c.msgRegexp != nil {
+		checkOpts.ResponseMatch = c.msgRegexp.String()
+	}
+
+	err := monitor.CheckRequest(opts().Config.ServerURL(), natsOpts(), check, opts().Timeout, checkOpts)
+	if err != nil {
+		return fmt.Errorf("health check failed: %v", err)
 	}
 
 	return nil
