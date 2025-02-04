@@ -117,6 +117,8 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			f = e.checkKv
 		case "credential":
 			f = e.checkCredential
+		case "request":
+			f = e.checkRequest
 		default:
 			log.Printf("Unknown check kind %s", check.Kind)
 			continue
@@ -139,6 +141,17 @@ func (e *Exporter) natsContext(check *Check) (*natscontext.Context, error) {
 	return natscontext.New(ctxName, true)
 }
 
+func (e *Exporter) checkRequest(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
+	copts := monitor.CheckRequestOptions{}
+	err := yaml.Unmarshal(check.Properties, &copts)
+	if result.CriticalIfErr(err, "invalid properties: %v", err) {
+		return
+	}
+
+	err = monitor.CheckRequest(servers, natsOpts, result, 5*time.Second, copts)
+	result.CriticalIfErr(err, "check failed: %v", err)
+}
+
 func (e *Exporter) checkCredential(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CredentialCheckOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
@@ -148,7 +161,6 @@ func (e *Exporter) checkCredential(servers string, natsOpts []nats.Option, check
 
 	err = monitor.CheckCredential(result, copts)
 	result.CriticalIfErr(err, "check failed: %v", err)
-
 }
 
 func (e *Exporter) checkServer(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
