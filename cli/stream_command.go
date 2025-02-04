@@ -125,6 +125,7 @@ type streamCmd struct {
 	metadata               map[string]string
 	metadataIsSet          bool
 	compression            string
+	compressionSet         bool
 	firstSeq               uint64
 	limitInactiveThreshold time.Duration
 	limitMaxAckPending     int
@@ -192,7 +193,7 @@ func configureStreamCommand(app commandHost) {
 		if !edit {
 			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		}
-		f.Flag("compression", "Compression algorithm to use (file storage only)").Default("none").EnumVar(&c.compression, "none", "s2")
+		f.Flag("compression", "Compression algorithm to use (file storage only)").IsSetByUser(&c.compressionSet).EnumVar(&c.compression, "none", "s2")
 		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
 		f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").IsSetByUser(&c.placementTagsSet).StringsVar(&c.placementTags)
 		f.Flag("tags", "Backward compatibility only, use --tag").Hidden().IsSetByUser(&c.placementTagsSet).StringsVar(&c.placementTags)
@@ -1886,8 +1887,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		cfg.Metadata = c.metadata
 	}
 
-	if err = cfg.Compression.UnmarshalJSON([]byte(fmt.Sprintf("%q", c.compression))); err != nil {
-		return cfg, fmt.Errorf("invalid compression algorithm")
+	if c.compressionSet {
+		if err = cfg.Compression.UnmarshalJSON([]byte(fmt.Sprintf("%q", c.compression))); err != nil {
+			return cfg, fmt.Errorf("invalid compression algorithm")
+		}
 	}
 
 	if !c.noRepub && c.repubSource != "" && c.repubDest != "" {
