@@ -338,7 +338,7 @@ func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.kvBucket, Check: "kv", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckKVBucketAndKey(opts().Config.ServerURL(), natsOpts(), check, monitor.KVCheckOptions{
+	return monitor.CheckKVBucketAndKey(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckKVBucketAndKeyOptions{
 		Bucket:         c.kvBucket,
 		Key:            c.kvKey,
 		ValuesCritical: c.kvValuesCrit,
@@ -350,7 +350,7 @@ func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.srvName, Check: "server", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckServer(opts().Config.ServerURL(), natsOpts(), check, opts().Timeout, monitor.ServerCheckOptions{
+	return monitor.CheckServer(opts().Config.ServerURL(), natsOpts(), check, opts().Timeout, monitor.CheckServerOptions{
 		Name:                   c.srvName,
 		CPUWarning:             c.srvCPUWarn,
 		CPUCritical:            c.srvCPUCrit,
@@ -372,7 +372,7 @@ func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "JetStream", Check: "jetstream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckJetStreamAccount(opts().Config.ServerURL(), natsOpts(), check, monitor.JetStreamAccountOptions{
+	return monitor.CheckJetStreamAccount(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckJetStreamAccountOptions{
 		MemoryWarning:       c.jsMemWarn,
 		MemoryCritical:      c.jsMemCritical,
 		FileWarning:         c.jsStoreWarn,
@@ -391,7 +391,7 @@ func (c *SrvCheckCmd) checkRaft(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "JetStream Meta Cluster", Check: "meta", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckJetstreamMeta(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckMetaOptions{
+	return monitor.CheckJetstreamMeta(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckJetstreamMetaOptions{
 		ExpectServers: c.raftExpect,
 		LagCritical:   c.raftLagCritical,
 		SeenCritical:  c.raftSeenCritical.Seconds(),
@@ -402,7 +402,7 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.sourcesStream, Check: "stream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	checkOpts := &monitor.StreamHealthCheckOptions{
+	checkOpts := &monitor.CheckStreamHealthOptions{
 		StreamName: c.sourcesStream,
 	}
 
@@ -444,7 +444,7 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	if opts().Trace {
 		logger = api.NewDefaultLogger(api.TraceLevel)
 	}
-	err := monitor.StreamHealthCheck(opts().Config.ServerURL(), natsOpts(), check, *checkOpts, logger)
+	err := monitor.CheckStreamHealth(opts().Config.ServerURL(), natsOpts(), check, *checkOpts, logger)
 	check.CriticalIfErr(err, "Healthcheck failed: %s", err)
 
 	return nil
@@ -475,7 +475,7 @@ func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 		}
 	}
 
-	return monitor.CheckConnection(opts().Config.ServerURL(), natsOpts(), opts().Timeout, check, monitor.ConnectionCheckOptions{
+	return monitor.CheckConnection(opts().Config.ServerURL(), natsOpts(), opts().Timeout, check, monitor.CheckConnectionOptions{
 		ConnectTimeWarning:  c.connectWarning.Seconds(),
 		ConnectTimeCritical: c.connectCritical.Seconds(),
 		ServerRttWarning:    c.rttWarning.Seconds(),
@@ -489,7 +489,7 @@ func (c *SrvCheckCmd) checkCredentialAction(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "Credential", Check: "credential", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckCredential(check, monitor.CredentialCheckOptions{
+	return monitor.CheckCredential(check, monitor.CheckCredentialOptions{
 		File:             c.credential,
 		ValidityWarning:  c.credentialValidityWarn.Seconds(),
 		ValidityCritical: c.credentialValidityCrit.Seconds(),
