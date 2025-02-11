@@ -45,7 +45,6 @@ type benchCmd struct {
 	msgSize              int
 	csvFile              string
 	progressBar          bool
-	jsTimeout            time.Duration
 	storage              string
 	streamOrBucketName   string
 	createStream         bool
@@ -114,7 +113,6 @@ func configureBenchCommand(app commandHost) {
 		f.Flag("stream", "The name of the stream to create or use").Default(benchDefaultStreamName).StringVar(&c.streamOrBucketName)
 		f.Flag("sleep", "Sleep for the specified interval between publications").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
 		f.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
-		f.Flag("js-timeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 	}
 
 	addJSConsumerFlags := func(f *fisk.CmdClause) {
@@ -192,7 +190,6 @@ func configureBenchCommand(app commandHost) {
 	addCommonFlags(kvCommand)
 	kvCommand.Flag("bucket", "The bucket to use for the benchmark").Default(benchDefaultBucketName).StringVar(&c.streamOrBucketName)
 	kvCommand.Flag("sleep", "Sleep for the specified interval after putting each message").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
-	kvCommand.Flag("js-timeout", "Timeout for JS operations").Default("30s").DurationVar(&c.jsTimeout)
 
 	kvput := kvCommand.Command("put", "Put messages in a KV bucket").Action(c.kvPutAction)
 	// TODO: support randomized payload data
@@ -786,8 +783,7 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, c.jsTimeout)
-	defer cancel()
+	ctx := context.Background()
 
 	js, err := c.getJS(nc)
 	if err != nil {
@@ -1347,7 +1343,7 @@ func (c *benchCmd) oldjsPushAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	js, err := nc.JetStream(append(jsOpts(), nats.MaxWait(c.jsTimeout))...)
+	js, err := nc.JetStream(append(jsOpts(), nats.MaxWait(opts().Timeout))...)
 	if err != nil {
 		return err
 	}
@@ -1461,7 +1457,7 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("connecting: %w", err)
 	}
 
-	js, err := nc.JetStream(append(jsOpts(), nats.MaxWait(c.jsTimeout))...)
+	js, err := nc.JetStream(append(jsOpts(), nats.MaxWait(opts().Timeout))...)
 	if err != nil {
 		return fmt.Errorf("getting the JetStream context: %w", err)
 	}
@@ -1585,7 +1581,7 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, ms
 			progress.Incr()
 		}
 
-		m, err := nc.Request(c.getPublishSubject(i+offset), msg, time.Second)
+		m, err := nc.Request(c.getPublishSubject(i+offset), msg, opts().Timeout)
 		if err != nil {
 			return fmt.Errorf("requesting: %w", err)
 		}
@@ -1652,7 +1648,7 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, msg []by
 						fmt.Println(fmt.Errorf("publish acknowledgement is an error: %w (retrying)", err).Error())
 					}
 				}
-			case <-time.After(c.jsTimeout):
+			case <-time.After(opts().Timeout):
 				return fmt.Errorf("JS PubAsync ack timeout (pending=%d)", js.PublishAsyncPending())
 			}
 		}
@@ -1681,8 +1677,7 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, msg []by
 }
 
 func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) error {
-	ctx, cancel := context.WithTimeout(ctx, c.jsTimeout)
-	defer cancel()
+	ctx := context.Background()
 
 	js, err := c.getJS(nc)
 	if err != nil {
@@ -2058,8 +2053,7 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 	var consumer jetstream.Consumer
 	var err error
 
-	ctx, cancel := context.WithTimeout(ctx, c.jsTimeout)
-	defer cancel()
+	ctx := context.Background()
 
 	js, err := c.getJS(nc)
 	if err != nil {
@@ -2254,8 +2248,7 @@ func (c *benchCmd) runKVGetter(bm *bench.Benchmark, errChan chan error, nc *nats
 
 	// create the subscriber
 
-	ctx, cancel := context.WithTimeout(ctx, c.jsTimeout)
-	defer cancel()
+	ctx := context.Background()
 
 	js, err := c.getJS(nc)
 	if err != nil {
@@ -2484,7 +2477,7 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, errChan chan error, n
 				state = "Pulling   "
 			}
 
-			msgs, err := sub.Fetch(batchSize, nats.MaxWait(c.jsTimeout))
+			msgs, err := sub.Fetch(batchSize, nats.MaxWait(opts().Timeout))
 			if err == nil {
 				if progress != nil {
 					state = "Handling  "
