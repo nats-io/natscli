@@ -502,7 +502,7 @@ func (c *authAccountCommand) skAddAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.maxPayloadString != "" {
-		c.maxPayload, err = parseStringAsBytes(c.maxPayloadString)
+		c.maxPayload, err = iu.ParseStringAsBytes(c.maxPayloadString)
 		if err != nil {
 			return err
 		}
@@ -837,7 +837,7 @@ func (c *authAccountCommand) parseStringOptions() error {
 	var err error
 
 	if c.maxPayloadString != "" {
-		c.maxPayload, err = parseStringAsBytes(c.maxPayloadString)
+		c.maxPayload, err = iu.ParseStringAsBytes(c.maxPayloadString)
 		if err != nil {
 			return err
 		}
@@ -858,26 +858,26 @@ func (c *authAccountCommand) parseStringOptions() error {
 		}
 
 		if c.storeMaxString != "" {
-			c.storeMax, err = parseStringAsBytes(c.storeMaxString)
+			c.storeMax, err = iu.ParseStringAsBytes(c.storeMaxString)
 			if err != nil {
 				return err
 			}
 		}
 		if c.memMaxString != "" {
-			c.memMax, err = parseStringAsBytes(c.memMaxString)
+			c.memMax, err = iu.ParseStringAsBytes(c.memMaxString)
 			if err != nil {
 				return err
 			}
 		}
 
 		if c.memMaxStreamString != "-1" {
-			c.memMaxStream, err = parseStringAsBytes(c.memMaxStreamString)
+			c.memMaxStream, err = iu.ParseStringAsBytes(c.memMaxStreamString)
 			if err != nil {
 				return err
 			}
 		}
 		if c.storeMaxStreamString != "-1" {
-			c.storeMaxStream, err = parseStringAsBytes(c.storeMaxStreamString)
+			c.storeMaxStream, err = iu.ParseStringAsBytes(c.storeMaxStreamString)
 			if err != nil {
 				return err
 			}

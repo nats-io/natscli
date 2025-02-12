@@ -728,7 +728,7 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 				fmt.Printf("[#%d]%s Received on %q\n", ctr, timeStamp, msg.Subject)
 			}
 		} else if c.jetStream {
-			fmt.Printf("[#%d] Received JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, info.Stream(), info.StreamSequence(), msg.Subject, info.TimeStamp().Format(time.RFC3339))
+			fmt.Printf("[#%d] Received JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, info.Stream(), info.StreamSequence(), msg.Subject, info.TimeStamp().UTC().Format(time.RFC3339))
 		} else {
 			fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, info.Stream(), info.Consumer(), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
 		}
