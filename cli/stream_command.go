@@ -1771,7 +1771,7 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 	}
 
 	if len(c.subjects) > 0 {
-		cfg.Subjects = splitCLISubjects(c.subjects)
+		cfg.Subjects = iu.SplitCLISubjects(c.subjects)
 	}
 
 	if c.storage != "" {
@@ -2538,10 +2538,10 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 			}, &subjects, survey.WithValidator(survey.Required))
 			fisk.FatalIfError(err, "invalid input")
 
-			c.subjects = splitString(subjects)
+			c.subjects = iu.SplitString(subjects)
 		}
 
-		c.subjects = splitCLISubjects(c.subjects)
+		c.subjects = iu.SplitCLISubjects(c.subjects)
 	}
 
 	if c.mirror != "" && len(c.subjects) > 0 {
@@ -2780,7 +2780,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	if c.mirror != "" {
-		if isJsonString(c.mirror) {
+		if iu.IsJsonObjectString(c.mirror) {
 			cfg.Mirror, err = c.parseStreamSource(c.mirror)
 			fisk.FatalIfError(err, "invalid mirror")
 		} else {
@@ -2791,7 +2791,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	for _, source := range c.sources {
-		if isJsonString(source) {
+		if iu.IsJsonObjectString(source) {
 			ss, err := c.parseStreamSource(source)
 			fisk.FatalIfError(err, "invalid source")
 			cfg.Sources = append(cfg.Sources, ss)
@@ -3034,7 +3034,7 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 func (c *streamCmd) parseStreamSource(source string) (*api.StreamSource, error) {
 	ss := &api.StreamSource{}
 
-	if isJsonString(source) {
+	if iu.IsJsonObjectString(source) {
 		err := json.Unmarshal([]byte(source), ss)
 		if err != nil {
 			return nil, err

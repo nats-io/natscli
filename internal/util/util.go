@@ -1,4 +1,4 @@
-// Copyright 2024 The NATS Authors
+// Copyright 2024-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,6 +15,7 @@ package util
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
@@ -226,6 +228,26 @@ func StructWithoutOmitEmpty(s any) any {
 func FileExists(f string) bool {
 	_, err := os.Stat(f)
 	return !os.IsNotExist(err)
+}
+
+// IsFileAccessible checks if f is a file and accessible, errors for non file arguments
+func IsFileAccessible(f string) (bool, error) {
+	stat, err := os.Stat(f)
+	if err != nil {
+		return false, err
+	}
+
+	if stat.IsDir() {
+		return false, fmt.Errorf("is a directory")
+	}
+
+	file, err := os.Open(f)
+	if err != nil {
+		return false, err
+	}
+	file.Close()
+
+	return true, nil
 }
 
 // IsDirectory returns true when path is a directory
@@ -433,7 +455,7 @@ func JSONString(s string) string {
 	return "\"" + s + "\""
 }
 
-// Split the string into a command and its arguments.
+// SplitCommand Split the string into a command and its arguments.
 func SplitCommand(s string) (string, []string, error) {
 	cmdAndArgs, err := shlex.Split(s)
 	if err != nil {
@@ -445,7 +467,7 @@ func SplitCommand(s string) (string, []string, error) {
 	return cmd, args, nil
 }
 
-// Edit the file at filepath f using the environment variable EDITOR command.
+// EditFile edits the file at filepath f using the environment variable EDITOR command.
 func EditFile(f string) error {
 	rawEditor := os.Getenv("EDITOR")
 	if rawEditor == "" {
@@ -469,4 +491,105 @@ func EditFile(f string) error {
 	}
 
 	return nil
+}
+
+// SplitString splits a string by unicode space or comma
+func SplitString(s string) []string {
+	return strings.FieldsFunc(s, func(c rune) bool {
+		if unicode.IsSpace(c) {
+			return true
+		}
+
+		if c == ',' {
+			return true
+		}
+
+		return false
+	})
+}
+
+// SplitCLISubjects splits a subject list by comma, tab, space, unicode space etc
+func SplitCLISubjects(subjects []string) []string {
+	res := []string{}
+
+	re := regexp.MustCompile(`,|\t|\s`)
+	for _, s := range subjects {
+		if re.MatchString(s) {
+			res = append(res, SplitString(s)...)
+		} else {
+			res = append(res, s)
+		}
+	}
+
+	return res
+}
+
+// IsJsonObjectString checks if a string is a JSON document starting and ending with {}
+func IsJsonObjectString(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	return strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}")
+}
+
+// CompactStrings looks through a list of strings like hostnames and chops off the common parts like domains
+func CompactStrings(source []string) []string {
+	if len(source) == 0 {
+		return source
+	}
+
+	hnParts := make([][]string, len(source))
+	shortest := math.MaxInt32
+
+	for i, name := range source {
+		hnParts[i] = strings.Split(name, ".")
+		if len(hnParts[i]) < shortest {
+			shortest = len(hnParts[i])
+		}
+	}
+
+	toRemove := ""
+
+	// we dont chop the 0 item off
+	for i := shortest - 1; i > 0; i-- {
+		s := hnParts[0][i]
+
+		remove := true
+		for _, name := range hnParts {
+			if name[i] != s {
+				remove = false
+				break
+			}
+		}
+
+		if remove {
+			toRemove = "." + s + toRemove
+		} else {
+			break
+		}
+	}
+
+	result := make([]string, len(source))
+	for i, name := range source {
+		result[i] = strings.TrimSuffix(name, toRemove)
+	}
+
+	return result
+}
+
+// IsPrintable checks if a string is made of only printable characters
+func IsPrintable(s string) bool {
+	for _, r := range s {
+		if r > unicode.MaxASCII || !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// Base64IfNotPrintable returns the bytes are all printable else a b64 encoded version
+func Base64IfNotPrintable(val []byte) string {
+	if IsPrintable(string(val)) {
+		return string(val)
+	}
+
+	return base64.StdEncoding.EncodeToString(val)
 }

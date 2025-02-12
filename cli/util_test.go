@@ -1,4 +1,4 @@
-// Copyright 2019-2022 The NATS Authors
+// Copyright 2019-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,7 +17,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/nats-io/jsm.go/api"
 )
 
@@ -71,50 +70,6 @@ func TestParseStringAsBytes(t *testing.T) {
 	}
 }
 
-func TestSplitString(t *testing.T) {
-	for _, s := range []string{"x y", "x	y", "x  y", "x,y", "x, y"} {
-		parts := splitString(s)
-		if parts[0] != "x" && parts[1] != "y" {
-			t.Fatalf("Expected x and y from %s, got %v", s, parts)
-		}
-	}
-
-	parts := splitString("x foo.*")
-	if parts[0] != "x" && parts[1] != "y" {
-		t.Fatalf("Expected x and foo.* from 'x foo.*', got %v", parts)
-	}
-}
-
-func TestRandomString(t *testing.T) {
-	for i := 0; i < 1000; i++ {
-		if len(randomString(1024, 1024)) != 1024 {
-			t.Fatalf("got a !1024 length string")
-		}
-	}
-
-	for i := 0; i < 1000; i++ {
-		n := randomString(2024, 1024)
-		if len(n) > 2024 {
-			t.Fatalf("got a > 2024 length string")
-		}
-
-		if len(n) < 1024 {
-			t.Fatalf("got a < 1024 length string (%d)", len(n))
-		}
-	}
-
-	for i := 0; i < 1000; i++ {
-		n := randomString(1024, 2024)
-		if len(n) > 2024 {
-			t.Fatalf("got a > 2024 length string")
-		}
-
-		if len(n) < 1024 {
-			t.Fatalf("got a < 1024 length string (%d)", len(n))
-		}
-	}
-}
-
 func TestRenderCluster(t *testing.T) {
 	cluster := &api.ClusterInfo{
 		Name:   "test",
@@ -131,38 +86,5 @@ func TestRenderCluster(t *testing.T) {
 
 	if result := renderCluster(&api.ClusterInfo{Name: "test"}); result != "" {
 		t.Fatalf("invalid result: %q", result)
-	}
-}
-
-func TestHostnameCompactor(t *testing.T) {
-	names := []string{
-		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local",
-		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local",
-		"broker-broker-1.broker-broker-ss.choria.svc.cluster.local",
-	}
-
-	result := compactStrings(names)
-	if !cmp.Equal(result, []string{"broker-broker-2", "broker-broker-0", "broker-broker-1"}) {
-		t.Fatalf("Recevied %#v", result)
-	}
-
-	names = []string{
-		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local1",
-		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local2",
-		"broker-broker-1.broker-broker-ss.choria.svc.cluster.local3",
-	}
-	result = compactStrings(names)
-	if !cmp.Equal(result, names) {
-		t.Fatalf("Recevied %#v", result)
-	}
-
-	names = []string{
-		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local",
-		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local",
-		"broker-broker-1.broker-broker-ss.other.svc.cluster.local",
-	}
-	result = compactStrings(names)
-	if !cmp.Equal(result, []string{"broker-broker-2.broker-broker-ss.choria", "broker-broker-0.broker-broker-ss.choria", "broker-broker-1.broker-broker-ss.other"}) {
-		t.Fatalf("Recevied %#v", result)
 	}
 }

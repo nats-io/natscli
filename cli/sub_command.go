@@ -321,7 +321,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		subjMu         = sync.Mutex{}
 		dump           = c.dump != ""
 		ctr            = uint(0)
-		ignoreSubjects = splitCLISubjects(c.ignoreSubjects)
+		ignoreSubjects = iu.SplitCLISubjects(c.ignoreSubjects)
 		ctx, cancel    = context.WithCancel(ctx)
 
 		replySub *nats.Subscription
