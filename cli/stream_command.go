@@ -793,14 +793,14 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 
 func (c *streamCmd) parseLimitStrings(_ *fisk.ParseContext) (err error) {
 	if c.maxBytesLimitString != "" {
-		c.maxBytesLimit, err = parseStringAsBytes(c.maxBytesLimitString)
+		c.maxBytesLimit, err = iu.ParseStringAsBytes(c.maxBytesLimitString)
 		if err != nil {
 			return err
 		}
 	}
 
 	if c.maxMsgSizeString != "" {
-		c.maxMsgSize, err = parseStringAsBytes(c.maxMsgSizeString)
+		c.maxMsgSize, err = iu.ParseStringAsBytes(c.maxMsgSizeString)
 		if err != nil {
 			return err
 		}
@@ -1435,7 +1435,7 @@ func (c *streamCmd) backupAction(_ *fisk.ParseContext) error {
 
 	chunkSize := int64(128 * 1024)
 	if c.chunkSize != "" {
-		chunkSize, err = parseStringAsBytes(c.chunkSize)
+		chunkSize, err = iu.ParseStringAsBytes(c.chunkSize)
 		if err != nil {
 			return err
 		}
@@ -3422,7 +3422,7 @@ func (c *streamCmd) getAction(_ *fisk.ParseContext) (err error) {
 
 	if len(item.Header) > 0 {
 		fmt.Println("Headers:")
-		hdrs, err := decodeHeadersMsg(item.Header)
+		hdrs, err := iu.DecodeHeadersMsg(item.Header)
 		if err == nil {
 			for k, vals := range hdrs {
 				for _, val := range vals {

@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -23,21 +22,14 @@ import (
 	"github.com/jedib0t/go-pretty/v6/progress"
 	"io"
 	"math"
-	"net/textproto"
 	"os"
 	"os/exec"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
-
-	"github.com/nats-io/nats.go/jetstream"
-	"github.com/nats-io/natscli/options"
-
-	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -48,7 +40,9 @@ import (
 	"github.com/nats-io/jsm.go/natscontext"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nuid"
+	"github.com/nats-io/nats.go/jetstream"
+	iu "github.com/nats-io/natscli/internal/util"
+	"github.com/nats-io/natscli/options"
 )
 
 func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool) (string, *jsm.Consumer, error) {
@@ -193,7 +187,7 @@ func askOneBytes(prompt string, dflt string, help string, required string) (int6
 			val = "0"
 		}
 
-		i, err := parseStringAsBytes(val)
+		i, err := iu.ParseStringAsBytes(val)
 		if err != nil {
 			return 0, err
 		}
@@ -431,167 +425,6 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 	}
 
 	return opts.Conn, opts.Mgr, err
-}
-
-const (
-	hdrLine   = "NATS/1.0\r\n"
-	crlf      = "\r\n"
-	hdrPreEnd = len(hdrLine) - len(crlf)
-	statusLen = 3
-	statusHdr = "Status"
-	descrHdr  = "Description"
-)
-
-// copied from nats.go
-func decodeHeadersMsg(data []byte) (nats.Header, error) {
-	tp := textproto.NewReader(bufio.NewReader(bytes.NewReader(data)))
-	l, err := tp.ReadLine()
-	if err != nil || len(l) < hdrPreEnd || l[:hdrPreEnd] != hdrLine[:hdrPreEnd] {
-		return nil, nats.ErrBadHeaderMsg
-	}
-
-	mh, err := readMIMEHeader(tp)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if we have an inlined status.
-	if len(l) > hdrPreEnd {
-		var description string
-		status := strings.TrimSpace(l[hdrPreEnd:])
-		if len(status) != statusLen {
-			description = strings.TrimSpace(status[statusLen:])
-			status = status[:statusLen]
-		}
-		mh.Add(statusHdr, status)
-		if len(description) > 0 {
-			mh.Add(descrHdr, description)
-		}
-	}
-	return nats.Header(mh), nil
-}
-
-// copied from nats.go
-func readMIMEHeader(tp *textproto.Reader) (textproto.MIMEHeader, error) {
-	m := make(textproto.MIMEHeader)
-	for {
-		kv, err := tp.ReadLine()
-		if len(kv) == 0 {
-			return m, err
-		}
-
-		// Process key fetching original case.
-		i := bytes.IndexByte([]byte(kv), ':')
-		if i < 0 {
-			return nil, nats.ErrBadHeaderMsg
-		}
-		key := kv[:i]
-		if key == "" {
-			// Skip empty keys.
-			continue
-		}
-		i++
-		for i < len(kv) && (kv[i] == ' ' || kv[i] == '\t') {
-			i++
-		}
-		value := string(kv[i:])
-		m[key] = append(m[key], value)
-		if err != nil {
-			return m, err
-		}
-	}
-}
-
-type pubData struct {
-	Cnt       int
-	Count     int
-	Unix      int64
-	UnixNano  int64
-	TimeStamp string
-	Time      string
-	Request   string
-}
-
-func (p *pubData) ID() string {
-	return nuid.Next()
-}
-
-func pubReplyBodyTemplate(body string, request string, ctr int) ([]byte, error) {
-	now := time.Now()
-	funcMap := template.FuncMap{
-		"Random":    iu.RandomString,
-		"Count":     func() int { return ctr },
-		"Cnt":       func() int { return ctr },
-		"Unix":      func() int64 { return now.Unix() },
-		"UnixNano":  func() int64 { return now.UnixNano() },
-		"TimeStamp": func() string { return now.Format(time.RFC3339) },
-		"Time":      func() string { return now.Format(time.Kitchen) },
-		"ID":        func() string { return nuid.Next() },
-	}
-
-	if request != "" {
-		funcMap["Request"] = func() string { return request }
-	}
-
-	templ, err := template.New("body").Funcs(funcMap).Parse(body)
-	if err != nil {
-		return []byte(body), err
-	}
-
-	var b bytes.Buffer
-	err = templ.Execute(&b, &pubData{
-		Cnt:       ctr,
-		Count:     ctr,
-		Unix:      now.Unix(),
-		UnixNano:  now.UnixNano(),
-		TimeStamp: now.Format(time.RFC3339),
-		Time:      now.Format(time.Kitchen),
-		Request:   request,
-	})
-	if err != nil {
-		return []byte(body), err
-	}
-
-	return b.Bytes(), nil
-}
-
-func parseStringsToHeader(hdrs []string, seq int) (nats.Header, error) {
-	res := nats.Header{}
-
-	for _, hdr := range hdrs {
-		parts := strings.SplitN(hdr, ":", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid header %q", hdr)
-		}
-
-		val, err := pubReplyBodyTemplate(strings.TrimSpace(parts[1]), "", seq)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse Header template for %s: %s", parts[0], err)
-		}
-
-		res.Add(strings.TrimSpace(parts[0]), string(val))
-	}
-
-	return res, nil
-}
-
-func parseStringsToMsgHeader(hdrs []string, seq int, msg *nats.Msg) error {
-	for _, hdr := range hdrs {
-		parts := strings.SplitN(hdr, ":", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid header %q", hdr)
-		}
-
-		val, err := pubReplyBodyTemplate(strings.TrimSpace(parts[1]), "", seq)
-		if err != nil {
-			log.Printf("Failed to parse Header template for %s: %s", parts[0], err)
-			continue
-		}
-
-		msg.Header.Add(strings.TrimSpace(parts[0]), string(val))
-	}
-
-	return nil
 }
 
 func loadContext(softFail bool) error {
@@ -906,54 +739,6 @@ func (pr *progressRW) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-var bytesUnitSplitter = regexp.MustCompile(`^(\d+)(\w+)`)
-var errInvalidByteString = errors.New("bytes must end in K, KB, M, MB, G, GB, T or TB")
-
-// nats-server derived string parse, empty string and any negative is -1,
-// others are parsed as 1024 based bytes
-func parseStringAsBytes(s string) (int64, error) {
-	if s == "" {
-		return -1, nil
-	}
-
-	s = strings.TrimSpace(s)
-
-	if strings.HasPrefix(s, "-") {
-		return -1, nil
-	}
-
-	// first we try just parsing it to handle numbers without units
-	num, err := strconv.ParseInt(s, 10, 64)
-	if err == nil {
-		if num < 0 {
-			return -1, nil
-		}
-		return num, nil
-	}
-
-	matches := bytesUnitSplitter.FindStringSubmatch(s)
-
-	if len(matches) == 0 {
-		return 0, fmt.Errorf("invalid bytes specification %v: %w", s, errInvalidByteString)
-	}
-
-	num, err = strconv.ParseInt(matches[1], 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	suffix := matches[2]
-	suffixMap := map[string]int64{"K": 10, "KB": 10, "KIB": 10, "M": 20, "MB": 20, "MIB": 20, "G": 30, "GB": 30, "GIB": 30, "T": 40, "TB": 40, "TIB": 40}
-
-	mult, ok := suffixMap[strings.ToUpper(suffix)]
-	if !ok {
-		return 0, fmt.Errorf("invalid bytes specification %v: %w", s, errInvalidByteString)
-	}
-	num *= 1 << mult
-
-	return num, nil
-}
-
 func outPutMSGBodyCompact(data []byte, filter string, subject string, stream string) (string, error) {
 	if len(data) == 0 {
 		fmt.Println("nil body")
@@ -1046,5 +831,6 @@ func calculateRate(new, last float64, since time.Duration) float64 {
 	if new == 0 {
 		return last
 	}
+
 	return (new - last) / since.Seconds()
 }

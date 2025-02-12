@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -261,7 +261,7 @@ func (c *benchCmd) processActionArgs() error {
 
 	// for pubs/request/and put only
 	if c.msgSizeString != "" {
-		msgSize, err := parseStringAsBytes(c.msgSizeString)
+		msgSize, err := iu.ParseStringAsBytes(c.msgSizeString)
 		if err != nil || msgSize <= 0 || msgSize > math.MaxInt {
 			return fmt.Errorf("can not parse or invalid the value specified for the message size: %s", c.msgSizeString)
 		} else {
@@ -274,7 +274,7 @@ func (c *benchCmd) processActionArgs() error {
 	}
 
 	if c.streamMaxBytesString != "" {
-		size, err := parseStringAsBytes(c.streamMaxBytesString)
+		size, err := iu.ParseStringAsBytes(c.streamMaxBytesString)
 		if err != nil || size <= 0 {
 			return fmt.Errorf("can not parse or invalid the value specified for the max stream/bucket size: %s", c.streamMaxBytesString)
 		}

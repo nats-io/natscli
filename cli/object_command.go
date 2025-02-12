@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -130,7 +130,7 @@ func init() {
 
 func (c *objCommand) parseLimitStrings(_ *fisk.ParseContext) (err error) {
 	if c.maxBucketSizeString != "" {
-		c.maxBucketSize, err = parseStringAsBytes(c.maxBucketSizeString)
+		c.maxBucketSize, err = iu.ParseStringAsBytes(c.maxBucketSizeString)
 		if err != nil {
 			return err
 		}
@@ -488,7 +488,7 @@ func (c *objCommand) putAction(_ *fisk.ParseContext) error {
 		fmt.Println()
 	}
 
-	hdr, err := parseStringsToHeader(c.hdrs, 0)
+	hdr, err := iu.ParseStringsToHeader(c.hdrs, 0)
 	if err != nil {
 		return err
 	}
