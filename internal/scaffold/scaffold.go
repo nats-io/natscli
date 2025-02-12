@@ -1,4 +1,4 @@
-// Copyright 2024 The NATS Authors
+// Copyright 2024-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -102,30 +102,7 @@ func FromFs(f fs.FS, dir string) (*Bundle, error) {
 		return nil, err
 	}
 
-	err = fs.WalkDir(f, dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() {
-			err = os.MkdirAll(filepath.Join(tf, path), 0700)
-			if err != nil {
-				return err
-			}
-		} else {
-			f, err := fs.ReadFile(f, path)
-			if err != nil {
-				return err
-			}
-
-			err = os.WriteFile(filepath.Join(tf, path), f, 0600)
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
+	err = os.CopyFS(tf, f)
 	if err != nil {
 		return nil, err
 	}

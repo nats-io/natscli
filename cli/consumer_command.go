@@ -1,4 +1,4 @@
-// Copyright 2019-2024 The NATS Authors
+// Copyright 2019-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -1726,7 +1726,7 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 			Help:    "Consumers can filter messages from the stream, this is a space or comma separated list that can include wildcards. Settable using --filter",
 		}, &sub)
 		fisk.FatalIfError(err, "could not ask for filtering subject")
-		c.filterSubjects = splitString(sub)
+		c.filterSubjects = iu.SplitString(sub)
 	}
 
 	switch {

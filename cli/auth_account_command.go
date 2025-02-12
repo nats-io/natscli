@@ -1,4 +1,4 @@
-// Copyright 2023-2024 The NATS Authors
+// Copyright 2023-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -151,10 +151,10 @@ func configureAuthAccountCommand(auth commandHost) {
 	ls.Arg("operator", "Operator to act on").StringVar(&c.operatorName)
 	ls.Flag("names", "Show just the Account names").UnNegatableBoolVar(&c.listNames)
 
-	rm := acct.Command("rm", "Removes an Account").Action(c.rmAction)
-	rm.Arg("name", "Account to view").StringVar(&c.accountName)
-	rm.Flag("operator", "Operator hosting the Account").StringVar(&c.operatorName)
-	rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
+	//rm := acct.Command("rm", "Removes an Account").Action(c.rmAction)
+	//rm.Arg("name", "Account to view").StringVar(&c.accountName)
+	//rm.Flag("operator", "Operator hosting the Account").StringVar(&c.operatorName)
+	//rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	push := acct.Command("push", "Push the Account to the NATS Resolver").Action(c.pushAction)
 	push.Arg("name", "Account to act on").StringVar(&c.accountName)
@@ -712,39 +712,39 @@ func (c *authAccountCommand) editAction(_ *fisk.ParseContext) error {
 	return c.fShowAccount(os.Stdout, operator, acct)
 }
 
-func (c *authAccountCommand) rmAction(_ *fisk.ParseContext) error {
-	fmt.Println("WARNING: At present deleting is not supported by the nsc store")
-	fmt.Println()
-
-	auth, operator, account, err := c.selectAccount(true)
-	if err != nil {
-		return err
-	}
-
-	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Really remove the Accouint %s", c.accountName), false)
-		if err != nil {
-			return err
-		}
-
-		if !ok {
-			return nil
-		}
-	}
-
-	err = operator.Accounts().Delete(account.Name())
-	if err != nil {
-		return err
-	}
-
-	err = auth.Commit()
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Removed account %s\n", account.Name())
-	return nil
-}
+//func (c *authAccountCommand) rmAction(_ *fisk.ParseContext) error {
+//	fmt.Println("WARNING: At present deleting is not supported by the nsc store")
+//	fmt.Println()
+//
+//	auth, operator, account, err := c.selectAccount(true)
+//	if err != nil {
+//		return err
+//	}
+//
+//	if !c.force {
+//		ok, err := askConfirmation(fmt.Sprintf("Really remove the Accouint %s", c.accountName), false)
+//		if err != nil {
+//			return err
+//		}
+//
+//		if !ok {
+//			return nil
+//		}
+//	}
+//
+//	err = operator.Accounts().Delete(account.Name())
+//	if err != nil {
+//		return err
+//	}
+//
+//	err = auth.Commit()
+//	if err != nil {
+//		return err
+//	}
+//
+//	fmt.Printf("Removed account %s\n", account.Name())
+//	return nil
+//}
 
 func (c *authAccountCommand) lsAction(_ *fisk.ParseContext) error {
 	_, operator, err := c.selectOperator(true)

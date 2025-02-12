@@ -1,4 +1,4 @@
-// Copyright 2024 The NATS Authors
+// Copyright 2024-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -14,12 +14,92 @@
 package util
 
 import (
+	"github.com/google/go-cmp/cmp"
 	"io"
 	"os"
 	"slices"
 	"strings"
 	"testing"
 )
+
+func TestIsJsonObjectString(t *testing.T) {
+	if !IsJsonObjectString("{}") {
+		t.Fatalf("Expected {} to be an object")
+	}
+	if !IsJsonObjectString(`{"test":test""}`) {
+		t.Fatalf("Expected {} to be an object")
+	}
+	if IsJsonObjectString("[]") {
+		t.Fatalf("Expected [] to not be an object")
+	}
+}
+
+func TestSplitString(t *testing.T) {
+	res := SplitString("test test test") // string has a EMSP unicode space
+	if !cmp.Equal(res, []string{"test", "test", "test"}) {
+		t.Fatalf("invalid split result: %#v", res)
+	}
+}
+
+func TestCompactStrings(t *testing.T) {
+	names := []string{
+		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local",
+		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local",
+		"broker-broker-1.broker-broker-ss.choria.svc.cluster.local",
+	}
+
+	result := CompactStrings(names)
+	if !cmp.Equal(result, []string{"broker-broker-2", "broker-broker-0", "broker-broker-1"}) {
+		t.Fatalf("Recevied %#v", result)
+	}
+
+	names = []string{
+		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local1",
+		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local2",
+		"broker-broker-1.broker-broker-ss.choria.svc.cluster.local3",
+	}
+	result = CompactStrings(names)
+	if !cmp.Equal(result, names) {
+		t.Fatalf("Recevied %#v", result)
+	}
+
+	names = []string{
+		"broker-broker-2.broker-broker-ss.choria.svc.cluster.local",
+		"broker-broker-0.broker-broker-ss.choria.svc.cluster.local",
+		"broker-broker-1.broker-broker-ss.other.svc.cluster.local",
+	}
+	result = CompactStrings(names)
+	if !cmp.Equal(result, []string{"broker-broker-2.broker-broker-ss.choria", "broker-broker-0.broker-broker-ss.choria", "broker-broker-1.broker-broker-ss.other"}) {
+		t.Fatalf("Recevied %#v", result)
+	}
+}
+
+func TestSplitCLISubjects(t *testing.T) {
+	res := SplitCLISubjects([]string{"one two three	four,five", "six,seven"}) // string has a EMSP unicode space
+	if !cmp.Equal(res, []string{"one", "two", "three", "four", "five", "six", "seven"}) {
+		t.Fatalf("invalid split result: %#v", res)
+	}
+}
+
+func TestIsPrintable(t *testing.T) {
+	if !IsPrintable("test") {
+		t.Fatalf("Expected 'test' to be printable")
+	}
+
+	if IsPrintable(" ") { // string has a EMSP unicode space
+		t.Fatalf("Expected emsp to be unprintable")
+	}
+}
+
+func TestBase64IfNotPrintable(t *testing.T) {
+	if Base64IfNotPrintable([]byte("test")) != "test" {
+		t.Fatalf("Expected 'test' returned verbatim")
+	}
+
+	if Base64IfNotPrintable([]byte("test test")) != "dGVzdOKAg3Rlc3Q=" { // string has a EMSP unicode space
+		t.Fatalf("Expected non printable text to be base64 encoded")
+	}
+}
 
 func TestMultipleSort(t *testing.T) {
 	if SortMultiSort(1, 1, "b", "a") {

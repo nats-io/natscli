@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -24,16 +24,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nats-io/nats.go/jetstream"
-	"github.com/nats-io/natscli/internal/util"
-
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/columns"
+	iu "github.com/nats-io/natscli/internal/util"
 	"golang.org/x/term"
 )
 
@@ -263,7 +262,7 @@ func (c *kvCommand) displayKeyInfo(kv jetstream.KeyValue, keys jetstream.KeyList
 		return found, errors.New("key value cannot be nil")
 	}
 
-	table := util.NewTableWriter(opts(), fmt.Sprintf("Contents for bucket '%s'", c.bucket))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("Contents for bucket '%s'", c.bucket))
 
 	if c.lsVerboseDisplayValue {
 		table.AddHeaders("Key", "Created", "Delta", "Revision", "Value")
@@ -336,7 +335,7 @@ func (c *kvCommand) lsBuckets() error {
 		return info.State.Bytes < jnfo.State.Bytes
 	})
 
-	table := util.NewTableWriter(opts(), "Key-Value Buckets")
+	table := iu.NewTableWriter(opts(), "Key-Value Buckets")
 	table.AddHeaders("Bucket", "Description", "Created", "Size", "Values", "Last Update")
 	for _, s := range found {
 		nfo, _ := s.LatestInformation()
@@ -373,7 +372,7 @@ func (c *kvCommand) revertAction(pc *fisk.ParseContext) error {
 	}
 
 	if !c.force {
-		val := base64IfNotPrintable(rev.Value())
+		val := iu.Base64IfNotPrintable(rev.Value())
 		if len(val) > 40 {
 			val = fmt.Sprintf("%s...%s", val[0:15], val[len(val)-15:])
 		}
@@ -411,10 +410,10 @@ func (c *kvCommand) historyAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	table := util.NewTableWriter(opts(), fmt.Sprintf("History for %s > %s", c.bucket, c.key))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("History for %s > %s", c.bucket, c.key))
 	table.AddHeaders("Key", "Revision", "Op", "Created", "Length", "Value")
 	for _, r := range history {
-		val := base64IfNotPrintable(r.Value())
+		val := iu.Base64IfNotPrintable(r.Value())
 		if len(val) > 40 {
 			val = fmt.Sprintf("%s...%s", val[0:15], val[len(val)-15:])
 		}
@@ -636,13 +635,13 @@ func (c *kvCommand) getAction(_ *fisk.ParseContext) error {
 
 	fmt.Printf("%s > %s revision: %d created @ %s\n", res.Bucket(), res.Key(), res.Revision(), res.Created().Format(time.RFC822))
 	fmt.Println()
-	pv := base64IfNotPrintable(res.Value())
+	pv := iu.Base64IfNotPrintable(res.Value())
 	lpv := len(pv)
 	if len(pv) > 120 {
 		fmt.Printf("Showing first 120 bytes of %s, use --raw for full data\n\n", f(lpv))
 		fmt.Println(pv[:120])
 	} else {
-		fmt.Println(base64IfNotPrintable(res.Value()))
+		fmt.Println(iu.Base64IfNotPrintable(res.Value()))
 	}
 
 	fmt.Println()
@@ -746,10 +745,10 @@ func (c *kvCommand) loadBucket() (*nats.Conn, jetstream.JetStream, jetstream.Key
 			return nil, nil, nil, fmt.Errorf("no KV buckets found")
 		}
 
-		err = util.AskOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message:  "Select a Bucket",
 			Options:  known,
-			PageSize: util.SelectPageSize(len(known)),
+			PageSize: iu.SelectPageSize(len(known)),
 		}, &c.bucket)
 		if err != nil {
 			return nil, nil, nil, err

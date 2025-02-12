@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -655,7 +655,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	}
 	var cNames []string
 	if c.compact {
-		cNames = compactStrings(names)
+		cNames = iu.CompactStrings(names)
 	} else {
 		cNames = names
 	}
@@ -799,7 +799,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			names = append(names, r.Name)
 		}
 		if c.compact {
-			cNames = compactStrings(names)
+			cNames = iu.CompactStrings(names)
 		} else {
 			cNames = names
 		}

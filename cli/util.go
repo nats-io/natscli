@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,13 +17,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jedib0t/go-pretty/v6/progress"
 	"io"
 	"math"
-	"math/rand"
 	"net/textproto"
 	"os"
 	"os/exec"
@@ -34,9 +33,6 @@ import (
 	"sync"
 	"text/template"
 	"time"
-	"unicode"
-
-	"github.com/jedib0t/go-pretty/v6/progress"
 
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/options"
@@ -53,10 +49,6 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
-)
-
-var (
-	rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
 func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool) (string, *jsm.Consumer, error) {
@@ -236,35 +228,6 @@ func askOneInt(prompt string, dflt string, help string) (int64, error) {
 	}
 
 	return int64(i), nil
-}
-
-func splitString(s string) []string {
-	return strings.FieldsFunc(s, func(c rune) bool {
-		if unicode.IsSpace(c) {
-			return true
-		}
-
-		if c == ',' {
-			return true
-		}
-
-		return false
-	})
-}
-
-func splitCLISubjects(subjects []string) []string {
-	new := []string{}
-
-	re := regexp.MustCompile(`,|\t|\s`)
-	for _, s := range subjects {
-		if re.MatchString(s) {
-			new = append(new, splitString(s)...)
-		} else {
-			new = append(new, s)
-		}
-	}
-
-	return new
 }
 
 func natsOpts() []nats.Option {
@@ -556,7 +519,7 @@ func (p *pubData) ID() string {
 func pubReplyBodyTemplate(body string, request string, ctr int) ([]byte, error) {
 	now := time.Now()
 	funcMap := template.FuncMap{
-		"Random":    randomString,
+		"Random":    iu.RandomString,
 		"Count":     func() int { return ctr },
 		"Cnt":       func() int { return ctr },
 		"Unix":      func() int64 { return now.Unix() },
@@ -590,42 +553,6 @@ func pubReplyBodyTemplate(body string, request string, ctr int) ([]byte, error) 
 	}
 
 	return b.Bytes(), nil
-}
-
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-var passwordRunes = append(letterRunes, []rune("@#_-%^&()")...)
-
-func randomPassword(length int) string {
-	b := make([]rune, length)
-	for i := range b {
-		b[i] = passwordRunes[rng.Intn(len(passwordRunes))]
-	}
-
-	return string(b)
-}
-
-func randomString(shortest uint, longest uint) string {
-	if shortest > longest {
-		shortest, longest = longest, shortest
-	}
-
-	var desired int
-
-	switch {
-	case int(longest)-int(shortest) < 0:
-		desired = int(shortest) + rng.Intn(int(longest))
-	case longest == shortest:
-		desired = int(shortest)
-	default:
-		desired = int(shortest) + rng.Intn(int(longest-shortest))
-	}
-
-	b := make([]rune, desired)
-	for i := range b {
-		b[i] = letterRunes[rng.Intn(len(letterRunes))]
-	}
-
-	return string(b)
 }
 
 func parseStringsToHeader(hdrs []string, seq int) (nats.Header, error) {
@@ -701,7 +628,7 @@ func loadContext(softFail bool) error {
 
 	var err error
 
-	exist, _ := fileAccessible(opts.CfgCtx)
+	exist, _ := iu.IsFileAccessible(opts.CfgCtx)
 
 	if exist && strings.HasSuffix(opts.CfgCtx, ".json") {
 		opts.Config, err = natscontext.NewFromFile(opts.CfgCtx, ctxOpts...)
@@ -714,30 +641,6 @@ func loadContext(softFail bool) error {
 	}
 
 	return err
-}
-
-func fileAccessible(f string) (bool, error) {
-	stat, err := os.Stat(f)
-	if err != nil {
-		return false, err
-	}
-
-	if stat.IsDir() {
-		return false, fmt.Errorf("is a directory")
-	}
-
-	file, err := os.Open(f)
-	if err != nil {
-		return false, err
-	}
-	file.Close()
-
-	return true, nil
-}
-
-func isJsonString(s string) bool {
-	trimmed := strings.TrimSpace(s)
-	return strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}")
 }
 
 func renderCluster(cluster *api.ClusterInfo) string {
@@ -770,7 +673,7 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	}
 
 	// now we compact that list of hostnames and apply styling * and ! to the leader and down ones
-	compact := compactStrings(peers)
+	compact := iu.CompactStrings(peers)
 	if leader != -1 {
 		compact[0] = compact[0] + "*"
 	}
@@ -980,67 +883,6 @@ func renderRaftLeaders(leaders map[string]*raftLeader, grpTitle string) {
 		table.AddRow(l.name, l.cluster, f(l.groups), strings.Repeat("*", dots))
 	}
 	fmt.Println(table.Render())
-}
-
-func compactStrings(source []string) []string {
-	if len(source) == 0 {
-		return source
-	}
-
-	hnParts := make([][]string, len(source))
-	shortest := math.MaxInt8
-
-	for i, name := range source {
-		hnParts[i] = strings.Split(name, ".")
-		if len(hnParts[i]) < shortest {
-			shortest = len(hnParts[i])
-		}
-	}
-
-	toRemove := ""
-
-	// we dont chop the 0 item off
-	for i := shortest - 1; i > 0; i-- {
-		s := hnParts[0][i]
-
-		remove := true
-		for _, name := range hnParts {
-			if name[i] != s {
-				remove = false
-				break
-			}
-		}
-
-		if remove {
-			toRemove = "." + s + toRemove
-		} else {
-			break
-		}
-	}
-
-	result := make([]string, len(source))
-	for i, name := range source {
-		result[i] = strings.TrimSuffix(name, toRemove)
-	}
-
-	return result
-}
-
-func isPrintable(s string) bool {
-	for _, r := range s {
-		if r > unicode.MaxASCII || !unicode.IsPrint(r) {
-			return false
-		}
-	}
-	return true
-}
-
-func base64IfNotPrintable(val []byte) string {
-	if isPrintable(string(val)) {
-		return string(val)
-	}
-
-	return base64.StdEncoding.EncodeToString(val)
 }
 
 // io.Reader / io.Writer that updates progress bar
