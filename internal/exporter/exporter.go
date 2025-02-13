@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/monitor"
 	"github.com/nats-io/jsm.go/natscontext"
@@ -77,7 +78,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect implements prometheus.Collector
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	callCheck := func(check *Check, f func(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result)) {
+	callCheck := func(check *Check, f func(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result)) {
 		result := &monitor.Result{Name: check.Name, Check: check.Kind, NameSpace: e.ns, RenderFormat: monitor.NagiosFormat}
 		defer result.Collect(ch)
 
@@ -91,12 +92,17 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			return
 		}
 
-		f(nctx.ServerURL(), opts, check, result)
+		jsmopts, err := nctx.JSMOptions()
+		if result.CriticalIfErr(err, "could not load jetstream options: %v", err) {
+			return
+		}
+
+		f(nctx.ServerURL(), opts, jsmopts, check, result)
 		log.Print(result)
 	}
 
 	for _, check := range e.config.Checks {
-		var f func(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result)
+		var f func(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result)
 
 		switch check.Kind {
 		case "connection":
@@ -141,7 +147,7 @@ func (e *Exporter) natsContext(check *Check) (*natscontext.Context, error) {
 	return natscontext.New(ctxName, true)
 }
 
-func (e *Exporter) checkRequest(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
+func (e *Exporter) checkRequest(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckRequestOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
 	if result.CriticalIfErr(err, "invalid properties: %v", err) {
@@ -152,7 +158,7 @@ func (e *Exporter) checkRequest(servers string, natsOpts []nats.Option, check *C
 	result.CriticalIfErr(err, "check failed: %v", err)
 }
 
-func (e *Exporter) checkCredential(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
+func (e *Exporter) checkCredential(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckCredentialOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
 	if result.CriticalIfErr(err, "invalid properties: %v", err) {
@@ -163,7 +169,7 @@ func (e *Exporter) checkCredential(servers string, natsOpts []nats.Option, check
 	result.CriticalIfErr(err, "check failed: %v", err)
 }
 
-func (e *Exporter) checkServer(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
+func (e *Exporter) checkServer(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckServerOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
 	if result.CriticalIfErr(err, "invalid properties: %v", err) {
@@ -174,7 +180,7 @@ func (e *Exporter) checkServer(servers string, natsOpts []nats.Option, check *Ch
 	result.CriticalIfErr(err, "check failed: %v", err)
 }
 
-func (e *Exporter) checkJetStream(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
+func (e *Exporter) checkJetStream(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckJetStreamAccountOptions{
 		MemoryCritical:    -1,
 		MemoryWarning:     -1,
@@ -190,11 +196,11 @@ func (e *Exporter) checkJetStream(servers string, natsOpts []nats.Option, check 
 		return
 	}
 
-	err = monitor.CheckJetStreamAccount(servers, natsOpts, result, copts)
+	err = monitor.CheckJetStreamAccount(servers, natsOpts, jsmOpts, result, copts)
 	result.CriticalIfErr(err, "check failed: %v", err)
 }
 
-func (e *Exporter) checkMeta(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
+func (e *Exporter) checkMeta(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckJetstreamMetaOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
 	if result.CriticalIfErr(err, "invalid properties: %v", err) {
@@ -205,18 +211,18 @@ func (e *Exporter) checkMeta(servers string, natsOpts []nats.Option, check *Chec
 	result.CriticalIfErr(err, "check failed: %v", err)
 }
 
-func (e *Exporter) checkMessage(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
+func (e *Exporter) checkMessage(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckStreamMessageOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
 	if result.CriticalIfErr(err, "invalid properties: %v", err) {
 		return
 	}
 
-	err = monitor.CheckStreamMessage(servers, natsOpts, result, copts)
+	err = monitor.CheckStreamMessage(servers, natsOpts, jsmOpts, result, copts)
 	result.CriticalIfErr(err, "check failed: %v", err)
 }
 
-func (e *Exporter) checkKv(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
+func (e *Exporter) checkKv(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckKVBucketAndKeyOptions{
 		ValuesWarning:  -1,
 		ValuesCritical: -1,
@@ -230,29 +236,29 @@ func (e *Exporter) checkKv(servers string, natsOpts []nats.Option, check *Check,
 	result.CriticalIfErr(err, "check failed: %v", err)
 }
 
-func (e *Exporter) checkConsumer(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
+func (e *Exporter) checkConsumer(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.ConsumerHealthCheckOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
 	if result.CriticalIfErr(err, "invalid properties: %v", err) {
 		return
 	}
 
-	err = monitor.ConsumerHealthCheck(servers, natsOpts, result, copts, api.NewDiscardLogger())
+	err = monitor.ConsumerHealthCheck(servers, natsOpts, jsmOpts, result, copts, api.NewDiscardLogger())
 	result.CriticalIfErr(err, "check failed: %v", err)
 }
 
-func (e *Exporter) checkStream(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
+func (e *Exporter) checkStream(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckStreamHealthOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
 	if result.CriticalIfErr(err, "invalid properties: %v", err) {
 		return
 	}
 
-	err = monitor.CheckStreamHealth(servers, natsOpts, result, copts, api.NewDiscardLogger())
+	err = monitor.CheckStreamHealth(servers, natsOpts, jsmOpts, result, copts, api.NewDiscardLogger())
 	result.CriticalIfErr(err, "check failed: %v", err)
 }
 
-func (e *Exporter) checkConnection(servers string, natsOpts []nats.Option, check *Check, result *monitor.Result) {
+func (e *Exporter) checkConnection(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckConnectionOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
 	if result.CriticalIfErr(err, "invalid properties: %v", err) {
