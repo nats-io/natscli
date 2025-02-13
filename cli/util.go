@@ -752,7 +752,7 @@ func (pr *progressRW) Write(p []byte) (n int, err error) {
 }
 
 func outPutMSGBodyCompact(data []byte, filter string, subject string, stream string) (string, error) {
-	if len(data) == 0 {
+	if len(data) == 0 && filter == "" {
 		fmt.Println("nil body")
 		return "", nil
 	}
