@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jedib0t/go-pretty/v6/progress"
 	"io"
 	"math"
 	"os"
@@ -30,6 +29,8 @@ import (
 	"sync"
 	"text/template"
 	"time"
+
+	"github.com/jedib0t/go-pretty/v6/progress"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -378,6 +379,33 @@ func validator() *SchemaValidator {
 	return nil
 }
 
+func jsmOpts() []jsm.Option {
+	opts := opts()
+
+	if opts.Config == nil {
+		return []jsm.Option{}
+	}
+
+	jsopts, err := opts.Config.JSMOptions()
+	if err != nil {
+		return nil
+	}
+
+	if os.Getenv("NOVALIDATE") == "" {
+		jsopts = append(jsopts, jsm.WithAPIValidation(validator()))
+	}
+
+	if opts.Timeout != 0 {
+		jsopts = append(jsopts, jsm.WithTimeout(opts.Timeout))
+	}
+
+	if opts.Trace {
+		jsopts = append(jsopts, jsm.WithTrace())
+	}
+
+	return jsopts
+}
+
 func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *jsm.Manager, error) {
 	var err error
 
@@ -401,23 +429,7 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 		return opts.Conn, opts.Mgr, nil
 	}
 
-	jsopts := []jsm.Option{
-		jsm.WithAPIPrefix(opts.Config.JSAPIPrefix()),
-		jsm.WithEventPrefix(opts.Config.JSEventPrefix()),
-		jsm.WithDomain(opts.Config.JSDomain()),
-	}
-
-	if os.Getenv("NOVALIDATE") == "" {
-		jsopts = append(jsopts, jsm.WithAPIValidation(validator()))
-	}
-
-	if opts.Timeout != 0 {
-		jsopts = append(jsopts, jsm.WithTimeout(opts.Timeout))
-	}
-
-	if opts.Trace {
-		jsopts = append(jsopts, jsm.WithTrace())
-	}
+	jsopts := jsmOpts()
 
 	opts.Mgr, err = jsm.New(opts.Conn, jsopts...)
 	if err != nil {

@@ -326,7 +326,7 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	if opts().Trace {
 		logger = api.NewDefaultLogger(api.TraceLevel)
 	}
-	err := monitor.ConsumerHealthCheck(opts().Config.ServerURL(), natsOpts(), check, *checkOpts, logger)
+	err := monitor.ConsumerHealthCheck(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, *checkOpts, logger)
 	if err != nil {
 		return fmt.Errorf("health check failed: %v", err)
 	}
@@ -372,7 +372,7 @@ func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "JetStream", Check: "jetstream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckJetStreamAccount(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckJetStreamAccountOptions{
+	return monitor.CheckJetStreamAccount(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, monitor.CheckJetStreamAccountOptions{
 		MemoryWarning:       c.jsMemWarn,
 		MemoryCritical:      c.jsMemCritical,
 		FileWarning:         c.jsStoreWarn,
@@ -444,7 +444,7 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	if opts().Trace {
 		logger = api.NewDefaultLogger(api.TraceLevel)
 	}
-	err := monitor.CheckStreamHealth(opts().Config.ServerURL(), natsOpts(), check, *checkOpts, logger)
+	err := monitor.CheckStreamHealth(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, *checkOpts, logger)
 	check.CriticalIfErr(err, "Healthcheck failed: %s", err)
 
 	return nil
@@ -454,7 +454,7 @@ func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "Stream Message", Check: "message", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckStreamMessage(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckStreamMessageOptions{
+	return monitor.CheckStreamMessage(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, monitor.CheckStreamMessageOptions{
 		StreamName:      c.sourcesStream,
 		Subject:         c.msgSubject,
 		AgeWarning:      c.msgAgeWarn.Seconds(),
