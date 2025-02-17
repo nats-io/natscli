@@ -270,6 +270,27 @@ func natsOpts() []nats.Option {
 	}...)
 }
 
+// for new jetstream package
+func jetstreamOpts() []jetstream.JetStreamOpt {
+	opts := opts()
+
+	res := []jetstream.JetStreamOpt{}
+
+	if opts.Trace {
+		ct := &jetstream.ClientTrace{
+			RequestSent: func(subj string, payload []byte) {
+				log.Printf(">>> %s\n%s\n\n", subj, string(payload))
+			},
+			ResponseReceived: func(subj string, payload []byte, hdr nats.Header) {
+				log.Printf("<<< %s: %s", subj, string(payload))
+			},
+		}
+		res = append(res, jetstream.WithClientTrace(ct))
+	}
+
+	return res
+}
+
 func jsOpts() []nats.JSOpt {
 	opts := opts()
 	jso := []nats.JSOpt{
@@ -340,6 +361,7 @@ func prepareJSHelper() (*nats.Conn, jetstream.JetStream, error) {
 	var err error
 	opts := options.DefaultOptions
 
+	jsOpts()
 	if opts.Conn == nil {
 		opts.Conn, _, err = prepareHelperUnlocked("", natsOpts()...)
 		if err != nil {
@@ -351,13 +373,20 @@ func prepareJSHelper() (*nats.Conn, jetstream.JetStream, error) {
 		return opts.Conn, opts.JSc, nil
 	}
 
-	opts.JSc, err = jetstream.New(opts.Conn)
+	switch {
+	case opts.Config.JSDomain() != "":
+		opts.JSc, err = jetstream.NewWithDomain(opts.Conn, opts.Config.JSDomain(), jetstreamOpts()...)
+	case opts.Config.JSAPIPrefix() != "":
+		opts.JSc, err = jetstream.NewWithAPIPrefix(opts.Conn, opts.Config.JSAPIPrefix(), jetstreamOpts()...)
+	default:
+		opts.JSc, err = jetstream.New(opts.Conn, jetstreamOpts()...)
+	}
+
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return opts.Conn, opts.JSc, nil
-
 }
 
 func prepareHelper(servers string, copts ...nats.Option) (*nats.Conn, *jsm.Manager, error) {
