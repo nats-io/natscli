@@ -20,7 +20,7 @@ require (
 	github.com/klauspost/compress v1.17.11
 	github.com/nats-io/jsm.go v0.1.1-0.20250213110753-19c36a3b25c7
 	github.com/nats-io/jwt/v2 v2.7.3
-	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20250212011304-b848ef11daa4
+	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20250215015430-3c575bf046e1
 	github.com/nats-io/nats.go v1.39.0
 	github.com/nats-io/nkeys v0.4.10
 	github.com/nats-io/nuid v1.0.1
@@ -29,7 +29,7 @@ require (
 	github.com/synadia-io/jwt-auth-builder.go v0.0.4
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.33.0
-	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac
+	golang.org/x/exp v0.0.0-20250215185904-eff6e970281f
 	golang.org/x/term v0.29.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v3 v3.0.1
