@@ -67,7 +67,6 @@ func configureObjectCommand(app commandHost) {
 The JetStream Object store uses streams to store large objects
 for an indefinite period or a per-bucket configured TTL.
 
-NOTE: This is an experimental feature.
 `
 
 	obj := app.Command("object", help).Alias("obj")
