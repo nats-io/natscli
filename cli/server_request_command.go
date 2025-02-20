@@ -51,14 +51,15 @@ type SrvRequestCmd struct {
 	includeAll        bool
 	includeDetails    bool
 
-	detail        bool
-	sortOpt       string
-	cidFilter     uint64
-	stateFilter   string
-	userFilter    string
-	accountFilter string
-	subjectFilter string
-	nameFilter    string
+	detail               bool
+	sortOpt              string
+	cidFilter            uint64
+	stateFilter          string
+	userFilter           string
+	accountFilter        string
+	subjectFilter        string
+	nameFilter           string
+	accountSubscriptions bool
 
 	jsServerOnly bool
 	jsEnabled    bool
@@ -100,6 +101,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	gwyz.Arg("filter-name", "Filter results on gateway name").PlaceHolder("NAME").StringVar(&c.nameFilter)
 	gwyz.Flag("filter-account", "Show only a certain account in account detail").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
 	gwyz.Flag("accounts", "Show account detail").UnNegatableBoolVar(&c.detail)
+	gwyz.Flag("subscriptions", "Show subscription details").Default("true").BoolVar(&c.accountSubscriptions)
 
 	healthz := req.Command("jetstream-health", "Request JetStream health status").Alias("healthz").Action(c.healthz)
 	healthz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
@@ -395,6 +397,11 @@ func (c *SrvRequestCmd) gwyz(_ *fisk.ParseContext) error {
 			AccountName: c.accountFilter,
 		},
 		EventFilterOptions: c.reqFilter(),
+	}
+
+	if c.accountFilter != "" && c.detail {
+		opts.GatewayzOptions.AccountSubscriptions = c.accountSubscriptions
+		opts.GatewayzOptions.AccountSubscriptionsDetail = c.accountSubscriptions
 	}
 
 	res, err := c.doReq("GATEWAYZ", &opts, nc)
