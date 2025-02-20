@@ -1,6 +1,6 @@
 module github.com/nats-io/natscli
 
-go 1.23.0
+go 1.23.6
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -17,19 +17,18 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/jedib0t/go-pretty/v6 v6.6.6
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.17.11
-	github.com/nats-io/jsm.go v0.1.1-0.20250213110753-19c36a3b25c7
+	github.com/klauspost/compress v1.18.0
+	github.com/nats-io/jsm.go v0.1.1-0.20250220111643-ccd9863e0621
 	github.com/nats-io/jwt/v2 v2.7.3
-	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20250215015430-3c575bf046e1
-	github.com/nats-io/nats.go v1.39.0
+	github.com/nats-io/nats-server/v2 v2.11.0-dev.0.20250220020605-cad5114b5064
+	github.com/nats-io/nats.go v1.39.1
 	github.com/nats-io/nkeys v0.4.10
 	github.com/nats-io/nuid v1.0.1
-	github.com/prometheus/client_golang v1.20.5
+	github.com/prometheus/client_golang v1.21.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/synadia-io/jwt-auth-builder.go v0.0.4
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.33.0
-	golang.org/x/exp v0.0.0-20250215185904-eff6e970281f
 	golang.org/x/term v0.29.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v3 v3.0.1
@@ -62,6 +61,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
+	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect

@@ -15,6 +15,7 @@ package util
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -37,8 +38,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/internal/asciigraph"
 	"github.com/nats-io/natscli/options"
-	"golang.org/x/exp/constraints"
-
 	"github.com/nats-io/nkeys"
 	terminal "golang.org/x/term"
 )
@@ -326,7 +325,7 @@ func SurveyColors() []survey.AskOpt {
 	}
 }
 
-func SortMultiSort[V constraints.Ordered, S string | constraints.Ordered](i1 V, j1 V, i2 S, j2 S) bool {
+func SortMultiSort[V cmp.Ordered, S string | cmp.Ordered](i1 V, j1 V, i2 S, j2 S) bool {
 	if i1 == j1 {
 		return i2 < j2
 	}
