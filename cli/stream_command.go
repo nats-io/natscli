@@ -165,7 +165,6 @@ type streamCmd struct {
 	subjectDeleteMarkers      bool
 	subjectDeleteMarkerTTLSet bool
 	subjectDeleteMarkerTTL    time.Duration
-	marker                    bool
 }
 
 type streamStat struct {
@@ -359,7 +358,6 @@ Finding streams with certain subjects configured:
 	strPurge.Flag("subject", "Limits the purge to a specific subject").PlaceHolder("SUBJECT").StringVar(&c.purgeSubject)
 	strPurge.Flag("seq", "Purge up to but not including a specific message sequence").PlaceHolder("SEQUENCE").Uint64Var(&c.purgeSequence)
 	strPurge.Flag("keep", "Keeps a certain number of messages after the purge").PlaceHolder("MESSAGES").Uint64Var(&c.purgeKeep)
-	strPurge.Flag("marker", "Place a purge marker in compatible streams").Default("true").BoolVar(&c.marker)
 
 	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another, does not copy data").Alias("cp").Action(c.cpAction)
 	strCopy.Arg("source", "Source Stream to copy").Required().StringVar(&c.stream)
@@ -369,7 +367,6 @@ Finding streams with certain subjects configured:
 	strRmMsg := str.Command("rmm", "Securely removes an individual message from a Stream").Action(c.rmMsgAction)
 	strRmMsg.Arg("stream", "Stream name").StringVar(&c.stream)
 	strRmMsg.Arg("id", "Message Sequence to remove").Int64Var(&c.msgID)
-	strRmMsg.Flag("marker", "Place a purge marker in compatible streams").Default("true").BoolVar(&c.marker)
 	strRmMsg.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	strView := str.Command("view", "View messages in a stream").Action(c.viewAction)
@@ -3187,7 +3184,6 @@ func (c *streamCmd) purgeAction(_ *fisk.ParseContext) (err error) {
 			Sequence: c.purgeSequence,
 			Subject:  c.purgeSubject,
 			Keep:     c.purgeKeep,
-			NoMarker: !c.marker,
 		}
 	}
 
@@ -3373,7 +3369,7 @@ func (c *streamCmd) rmMsgAction(_ *fisk.ParseContext) (err error) {
 		}
 	}
 
-	return stream.DeleteMessageRequest(api.JSApiMsgDeleteRequest{Seq: uint64(c.msgID), NoMarker: !c.marker})
+	return stream.DeleteMessageRequest(api.JSApiMsgDeleteRequest{Seq: uint64(c.msgID)})
 }
 
 func (c *streamCmd) getAction(_ *fisk.ParseContext) (err error) {

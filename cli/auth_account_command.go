@@ -250,7 +250,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	sk := acct.Command("keys", "Manage Scoped Signing Keys").Alias("sk").Alias("s")
 
 	skadd := sk.Command("add", "Adds a signing key").Alias("new").Alias("a").Alias("n").Action(c.skAddAction)
-	skadd.Arg("name", "Account to act on").StringVar(&c.accountName)
+	skadd.Arg("account", "Account to act on").StringVar(&c.accountName)
 	skadd.Arg("role", "The role to add a key for").StringVar(&c.skRole)
 	skadd.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	skadd.Flag("description", "Description for the signing key").StringVar(&c.description)
@@ -265,16 +265,16 @@ func configureAuthAccountCommand(auth commandHost) {
 	skadd.Flag("sub-deny", "Sets subjects where subscribing is allowed").StringsVar(&c.subDeny)
 
 	skInfo := sk.Command("info", "Show information for a Scoped Signing Key").Alias("i").Alias("show").Alias("view").Action(c.skInfoAction)
-	skInfo.Arg("name", "Account to view").StringVar(&c.accountName)
+	skInfo.Arg("account", "Account to view").StringVar(&c.accountName)
 	skInfo.Arg("key", "The role or key to view").StringVar(&c.skRole)
 	skInfo.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	skls := sk.Command("ls", "List Scoped Signing Keys").Alias("list").Action(c.skListAction)
-	skls.Arg("name", "Account to act on").StringVar(&c.accountName)
+	skls.Arg("account", "Account to act on").StringVar(&c.accountName)
 	skls.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	skrm := sk.Command("rm", "Remove a scoped signing key").Action(c.skRmAction)
-	skrm.Arg("name", "Account to act on").StringVar(&c.accountName)
+	skrm.Arg("account", "Account to act on").StringVar(&c.accountName)
 	skrm.Flag("key", "The key to remove").StringVar(&c.skRole)
 	skrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
