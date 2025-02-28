@@ -50,6 +50,7 @@ type subCmd struct {
 	sseq                  uint64
 	deliverAll            bool
 	deliverNew            bool
+	replayPolicy          string
 	reportSubjects        bool
 	reportSubjectsCount   int
 	reportSub             bool
@@ -121,7 +122,8 @@ func configureSubCommand(app commandHost) {
 	act.Flag("last", "Delivers the most recent and all future messages (requires JetStream)").UnNegatableBoolVar(&c.deliverLast)
 	act.Flag("since", "Delivers messages received since a duration like 1d3h5m2s(requires JetStream)").PlaceHolder("DURATION").StringVar(&c.deliverSince)
 	act.Flag("last-per-subject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
-	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
+	act.Flag("replay", "Replay Policy (instant, original) (requires Jetstream)").PlaceHolder("POLICY").EnumVar(&c.replayPolicy, "instant", "original")
+	act.Flag("stream", "Subscribe to a specific stream (requires JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
 	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
 	act.Flag("wait", "Unsubscribe after this amount of time without any traffic").DurationVar(&c.wait)
 	act.Flag("report-subjects", "Subscribes to subject patterns and builds a de-duplicated report of active subjects receiving data").UnNegatableBoolVar(&c.reportSubjects)
@@ -277,7 +279,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 	defer nc.Close()
 
-	c.jetStream = c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.stream != ""
+	c.jetStream = c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.replayPolicy != "" || c.stream != ""
 
 	switch {
 	case len(c.subjects) == 0 && c.inbox:
@@ -613,6 +615,14 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		case c.deliverLastPerSubject:
 			log.Printf("Subscribing to JetStream Stream holding messages with subject %s for the last messages for each subject in the Stream %s", subMsg, ignoredSubjInfo)
 			opts = append(opts, nats.DeliverLastPerSubject())
+		}
+
+		if c.replayPolicy != "" {
+			if c.replayPolicy == "instant" {
+				opts = append(opts, nats.ReplayInstant())
+			} else if c.replayPolicy == "original" {
+				opts = append(opts, nats.ReplayOriginal())
+			}
 		}
 
 		if bindDurable {
