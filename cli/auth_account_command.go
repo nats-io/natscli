@@ -773,7 +773,7 @@ func (c *authAccountCommand) lsAction(_ *fisk.ParseContext) error {
 		system := ""
 		js := ""
 		sa, err := operator.SystemAccount()
-		if err == nil && acct.Subject() == sa.Subject() {
+		if err == nil && sa != nil && acct.Subject() == sa.Subject() {
 			system = "true"
 		}
 		if acct.Limits().JetStream().IsJetStreamEnabled() {
