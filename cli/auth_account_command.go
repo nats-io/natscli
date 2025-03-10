@@ -101,6 +101,7 @@ type authAccountCommand struct {
 	prefix                  string
 	tags                    []string
 	rmTags                  []string
+	signingKey              string
 }
 
 func configureAuthAccountCommand(auth commandHost) {
@@ -135,6 +136,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	add := acct.Command("add", "Adds a new Account").Alias("create").Alias("new").Action(c.addAction)
 	add.Arg("name", "Unique name for this Account").StringVar(&c.accountName)
 	add.Flag("operator", "Operator to add the account to").StringVar(&c.operatorName)
+	add.Flag("key", "The public key to use when signing the user").StringVar(&c.signingKey)
 	addCreateFlags(add, false)
 	add.Flag("defaults", "Accept default values without prompting").UnNegatableBoolVar(&c.defaults)
 
@@ -910,6 +912,21 @@ func (c *authAccountCommand) addAction(_ *fisk.ParseContext) error {
 	acct, err := operator.Accounts().Add(c.accountName)
 	if err != nil {
 		return err
+	}
+
+	if c.signingKey != "" {
+		sk, err := au.SelectSigningKey(acct, c.signingKey)
+		if err != nil {
+			return err
+		}
+		c.signingKey = sk.Key()
+	}
+
+	if c.signingKey != "" {
+		err = acct.SetIssuer(c.signingKey)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = au.UpdateTags(acct.Tags(), c.tags, c.rmTags)
