@@ -64,6 +64,9 @@ type kvCommand struct {
 	mirrorDomain          string
 	sources               []string
 	compression           bool
+	includeHistory        bool
+	includeDeletes        bool
+	updatesOnly           bool
 }
 
 func configureKVCommand(app commandHost) {
@@ -158,6 +161,10 @@ for an indefinite period or a per-bucket configured TTL.
 	watch := kv.Command("watch", "Watch the bucket or a specific key for updated").Action(c.watchAction)
 	watch.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	watch.Arg("key", "The key to act on").Default(">").StringVar(&c.key)
+	watch.Flag("history", "Includes historic values").UnNegatableBoolVar(&c.includeHistory)
+	watch.Flag("deletes", "Includes deletes in watched values").Default("true").BoolVar(&c.includeDeletes)
+	watch.Flag("updates", "Only show new values written").UnNegatableBoolVar(&c.updatesOnly)
+	watch.Flag("revision", "Starts from a certain revision").Uint64Var(&c.revision)
 
 	ls := kv.Command("ls", "List available buckets or the keys in a bucket").Alias("list").Action(c.lsAction)
 	ls.Arg("bucket", "The bucket to list the keys").StringVar(&c.bucket)
@@ -804,7 +811,21 @@ func (c *kvCommand) watchAction(_ *fisk.ParseContext) error {
 
 	ctx := context.Background()
 
-	watch, err := store.Watch(ctx, c.key)
+	var opts []jetstream.WatchOpt
+	if !c.includeDeletes {
+		opts = append(opts, jetstream.IgnoreDeletes())
+	}
+	if c.includeHistory {
+		opts = append(opts, jetstream.IncludeHistory())
+	}
+	if c.updatesOnly {
+		opts = append(opts, jetstream.UpdatesOnly())
+	}
+	if c.revision > 0 {
+		opts = append(opts, jetstream.ResumeFromRevision(c.revision))
+	}
+
+	watch, err := store.Watch(ctx, c.key, opts...)
 	if err != nil {
 		return err
 	}
