@@ -137,12 +137,12 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	check.PreAction(c.parseRenderFormat)
 
 	conn := check.Command("connection", "Checks basic server connection").Alias("conn").Action(c.checkConnection)
-	conn.Flag("connect-warn", "Warning threshold to allow for establishing connections").Default("500ms").PlaceHolder("DURATION").DurationVar(&c.connectWarning)
-	conn.Flag("connect-critical", "Critical threshold to allow for establishing connections").Default("1s").PlaceHolder("DURATION").DurationVar(&c.connectCritical)
-	conn.Flag("rtt-warn", "Warning threshold to allow for server RTT").Default("500ms").PlaceHolder("DURATION").DurationVar(&c.rttWarning)
-	conn.Flag("rtt-critical", "Critical threshold to allow for server RTT").Default("1s").PlaceHolder("DURATION").DurationVar(&c.rttCritical)
-	conn.Flag("req-warn", "Warning threshold to allow for full round trip test").PlaceHolder("DURATION").Default("500ms").DurationVar(&c.reqWarning)
-	conn.Flag("req-critical", "Critical threshold to allow for full round trip test").PlaceHolder("DURATION").Default("1s").DurationVar(&c.reqCritical)
+	conn.Flag("connect-warn", "Warning threshold to allow for establishing connections").Default("500ms").DurationVar(&c.connectWarning)
+	conn.Flag("connect-critical", "Critical threshold to allow for establishing connections").Default("1s").DurationVar(&c.connectCritical)
+	conn.Flag("rtt-warn", "Warning threshold to allow for server RTT").Default("500ms").DurationVar(&c.rttWarning)
+	conn.Flag("rtt-critical", "Critical threshold to allow for server RTT").Default("1s").DurationVar(&c.rttCritical)
+	conn.Flag("req-warn", "Warning threshold to allow for full round trip test").Default("500ms").DurationVar(&c.reqWarning)
+	conn.Flag("req-critical", "Critical threshold to allow for full round trip test").Default("1s").DurationVar(&c.reqCritical)
 
 	stream := check.Command("stream", "Checks the health of mirrored streams, streams with sources or clustered streams").Action(c.checkStream)
 	stream.HelpLong(`These settings can be set using Stream Metadata in the following form:
@@ -184,7 +184,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	msg.Flag("subject", "The subject to fetch a message from").Default(">").StringVar(&c.msgSubject)
 	msg.Flag("age-warn", "Warning threshold for message age as a duration").PlaceHolder("DURATION").DurationVar(&c.msgAgeWarn)
 	msg.Flag("age-critical", "Critical threshold for message age as a duration").PlaceHolder("DURATION").DurationVar(&c.msgAgeCrit)
-	msg.Flag("content", "Regular expression to check the content against").PlaceHolder("REGEX").Default(".").RegexpVar(&c.msgRegexp)
+	msg.Flag("content", "Regular expression to check the content against").Default(".").RegexpVar(&c.msgRegexp)
 	msg.Flag("body-timestamp", "Use message body as a unix timestamp instead of message metadata").UnNegatableBoolVar(&c.msgBodyAsTs)
 
 	meta := check.Command("meta", "Check JetStream cluster state").Alias("raft").Action(c.checkRaft)
