@@ -66,6 +66,8 @@ type benchCmd struct {
 	deDuplicationWindow  time.Duration
 	ack                  bool
 	randomizeGets        int
+	payloadFilename      string
+	hdrs                 []string
 }
 
 const (
@@ -107,6 +109,8 @@ func configureBenchCommand(app commandHost) {
 	addPubFlags := func(f *fisk.CmdClause) {
 		f.Flag("multisubject", "Multi-subject mode, each message is published on a subject that includes the publisher's message sequence number as a token").UnNegatableBoolVar(&c.multiSubject)
 		f.Flag("multisubjectmax", "The maximum number of subjects to use in multi-subject mode (0 means no max)").Default("100000").IntVar(&c.multiSubjectMax)
+		f.Flag("payload", "File containing a message payload to send").ExistingFileVar(&c.payloadFilename)
+		f.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
 	}
 
 	addJSCommonFlags := func(f *fisk.CmdClause) {
@@ -163,6 +167,8 @@ func configureBenchCommand(app commandHost) {
 	request := microService.Command("request", "Send a request and wait for its reply").Action(c.requestAction)
 	request.Help("Send a request and wait for a reply")
 	request.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
+	request.Flag("payload", "File containing the payload to send").ExistingFileVar(&c.payloadFilename)
+	request.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
 	// TODO: support randomized payload data
 
 	reply := microService.Command("serve", "Service requests").Action(c.serveAction)
@@ -1534,8 +1540,35 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) error {
+func (c benchCmd) getPayload(msgSize int) ([]byte, error) {
+	if len(c.payloadFilename) > 0 {
+
+		buffer, err := os.ReadFile(c.payloadFilename)
+		if err != nil {
+			return nil, fmt.Errorf("reading the payload file: %w", err)
+		}
+
+		return buffer, nil
+	}
+
+	buffer := make([]byte, msgSize)
+	return buffer, nil
+}
+
+func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadSize int, numMsg int, offset int) error {
 	state := "Publishing"
+
+	payload, err := c.getPayload(payloadSize)
+	if err != nil {
+		return err
+	}
+
+	headers, err := iu.ParseStringsToHeader(c.hdrs, 0)
+	if err != nil {
+		return err
+	}
+
+	message := nats.Msg{Data: payload, Header: headers}
 
 	if progress != nil {
 		progress.PrependFunc(func(b *uiprogress.Bar) string {
@@ -1550,7 +1583,8 @@ func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, ms
 			progress.Incr()
 		}
 
-		err := nc.Publish(c.getPublishSubject(i+offset), msg)
+		message.Subject = c.getPublishSubject(i + offset)
+		err := nc.PublishMsg(&message)
 		if err != nil {
 			return fmt.Errorf("publishing: %w", err)
 		}
@@ -1562,11 +1596,22 @@ func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, ms
 	return nil
 }
 
-func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) error {
+func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, payloadSize int, numMsg int, offset int) error {
 	errBytes := []byte("error")
 	minusByte := byte('-')
 
 	state := "Requesting"
+	payload, err := c.getPayload(payloadSize)
+	if err != nil {
+		return err
+	}
+
+	headers, err := iu.ParseStringsToHeader(c.hdrs, 0)
+	if err != nil {
+		return err
+	}
+
+	message := nats.Msg{Data: payload, Header: headers}
 
 	if progress != nil {
 		progress.PrependFunc(func(b *uiprogress.Bar) string {
@@ -1581,7 +1626,9 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, ms
 			progress.Incr()
 		}
 
-		m, err := nc.Request(c.getPublishSubject(i+offset), msg, opts().Timeout)
+		message.Subject = c.getPublishSubject(i + offset)
+
+		m, err := nc.RequestMsg(&message, opts().Timeout)
 		if err != nil {
 			return fmt.Errorf("requesting: %w", err)
 		}
@@ -1597,13 +1644,24 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, ms
 	return nil
 }
 
-func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, idPrefix string, pubNumber string, offset int) error {
+func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadSize int, numMsg int, idPrefix string, pubNumber string, offset int) error {
 	js, err := c.getJS(nc)
 	if err != nil {
 		return err
 	}
 
 	var state string
+	payload, err := c.getPayload(payloadSize)
+	if err != nil {
+		return err
+	}
+
+	headers, err := iu.ParseStringsToHeader(c.hdrs, 0)
+	if err != nil {
+		return err
+	}
+
+	message := nats.Msg{Data: payload, Header: headers}
 
 	if progress != nil {
 		progress.PrependFunc(func(b *uiprogress.Bar) string {
@@ -1619,19 +1677,20 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, msg []by
 			futures := make([]jetstream.PubAckFuture, min(c.batchSize, numMsg-i))
 			for j := 0; j < c.batchSize && (i+j) < numMsg; j++ {
 				if c.deDuplication {
-					header := nats.Header{}
-					header.Set(nats.MsgIdHdr, idPrefix+"-"+pubNumber+"-"+strconv.Itoa(i+j+offset))
-					message := nats.Msg{Data: msg, Header: header, Subject: c.getPublishSubject(i + j + offset)}
-					futures[j], err = js.PublishMsgAsync(&message)
-				} else {
-					futures[j], err = js.PublishAsync(c.getPublishSubject(i+j+offset), msg)
+					message.Header.Set(nats.MsgIdHdr, idPrefix+"-"+pubNumber+"-"+strconv.Itoa(i+j+offset))
 				}
+
+				message.Subject = c.getPublishSubject(i + j + offset)
+
+				futures[j], err = js.PublishMsgAsync(&message)
 				if err != nil {
 					return fmt.Errorf("publishing asynchronously: %w", err)
 				}
+
 				if progress != nil {
 					progress.Incr()
 				}
+
 				time.Sleep(c.sleep)
 			}
 
@@ -1659,14 +1718,14 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, msg []by
 			if progress != nil {
 				progress.Incr()
 			}
+
 			if c.deDuplication {
-				header := nats.Header{}
-				header.Set(nats.MsgIdHdr, idPrefix+"-"+pubNumber+"-"+strconv.Itoa(i+offset))
-				message := nats.Msg{Data: msg, Header: header, Subject: c.getPublishSubject(i + offset)}
-				_, err = js.PublishMsg(ctx, &message)
-			} else {
-				_, err = js.Publish(ctx, c.getPublishSubject(i+offset), msg)
+				message.Header.Set(nats.MsgIdHdr, idPrefix+"-"+pubNumber+"-"+strconv.Itoa(i+offset))
 			}
+
+			message.Subject = c.getPublishSubject(i + offset)
+
+			_, err = js.PublishMsg(ctx, &message)
 			if err != nil {
 				return fmt.Errorf("publishing synchronously: %w", err)
 			}
@@ -1742,11 +1801,6 @@ func (c *benchCmd) runCorePublisher(bm *bench.Benchmark, errChan chan error, nc 
 		return
 	}
 
-	var msg []byte
-	if c.msgSize > 0 {
-		msg = make([]byte, c.msgSize)
-	}
-
 	<-trigger
 
 	// introduces some jitter between the publishers if sleep is set and more than one publisher
@@ -1756,7 +1810,7 @@ func (c *benchCmd) runCorePublisher(bm *bench.Benchmark, errChan chan error, nc 
 	}
 
 	start := time.Now()
-	err := c.coreNATSPublisher(nc, progress, msg, numMsg, offset)
+	err := c.coreNATSPublisher(nc, progress, c.msgSize, numMsg, offset)
 	if err != nil {
 		errChan <- fmt.Errorf("publishing: %w", err)
 		donewg.Done()
@@ -1862,11 +1916,6 @@ func (c *benchCmd) runCoreRequester(bm *bench.Benchmark, errChan chan error, nc 
 		progress.Width = iu.ProgressWidth()
 	}
 
-	var msg []byte
-	if c.msgSize > 0 {
-		msg = make([]byte, c.msgSize)
-	}
-
 	<-trigger
 
 	// introduces some jitter between the publishers if sleep is set and more than one publisher
@@ -1876,7 +1925,7 @@ func (c *benchCmd) runCoreRequester(bm *bench.Benchmark, errChan chan error, nc 
 	}
 
 	start := time.Now()
-	err := c.coreNATSRequester(nc, progress, msg, numMsg, offset)
+	err := c.coreNATSRequester(nc, progress, c.msgSize, numMsg, offset)
 	if err != nil {
 		errChan <- fmt.Errorf("requesting: %w", err)
 		donewg.Done()
@@ -1955,11 +2004,6 @@ func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *n
 		progress.Width = iu.ProgressWidth()
 	}
 
-	var msg []byte
-	if c.msgSize > 0 {
-		msg = make([]byte, c.msgSize)
-	}
-
 	<-trigger
 
 	// introduces some jitter between the publishers if sleep is set and more than one publisher
@@ -1969,7 +2013,7 @@ func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *n
 	}
 
 	start := time.Now()
-	err := c.jsPublisher(nc, progress, msg, numMsg, idPrefix, pubNumber, offset)
+	err := c.jsPublisher(nc, progress, c.msgSize, numMsg, idPrefix, pubNumber, offset)
 	if err != nil {
 		errChan <- fmt.Errorf("publishing: %w", err)
 		donewg.Done()
