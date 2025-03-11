@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -177,6 +177,9 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 
 	cols.AddSectionTitle("Statistics")
 	cols.AddRowf("CPU Cores", "%d %.2f%%", varz.Cores, varz.CPU)
+	if varz.MaxProcs > 0 {
+		cols.AddRowf("GOMAXPROCS", "%d", varz.MaxProcs)
+	}
 	cols.AddRow("Memory", humanize.IBytes(uint64(varz.Mem)))
 	cols.AddRow("Connections", varz.Connections)
 	cols.AddRow("Subscriptions", varz.Subscriptions)
