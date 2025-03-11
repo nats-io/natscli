@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -79,6 +79,8 @@ func (c *SrvMappingCmd) mappingAction(_ *fisk.ParseContext) error {
 	}
 
 	fmt.Println("Enter subjects to test, empty subject terminates.")
+	fmt.Println()
+	fmt.Println("NOTE: This only tests mappings, it does not add them to the server")
 	fmt.Println()
 
 	for {
