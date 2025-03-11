@@ -1,4 +1,4 @@
-// Copyright 2024 The NATS Authors
+// Copyright 2024-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -113,6 +113,7 @@ func (c *serverGenerateCmd) pickEmbedded() error {
 	list := map[string]string{
 		"Development Super Cluster using Docker Compose": "fs:///natsbuilder",
 		"'nats auth' managed NATS Server configuration":  "fs:///operator",
+		"'nats auth' managed NATS Cluster in Kubernetes": "fs:///operatork8s",
 		"Synadia Cloud Leafnode Configuration":           "fs:///ngsleafnodeconfig",
 	}
 

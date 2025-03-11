@@ -1,0 +1,25 @@
+natsBox:
+  enabled: false
+
+config:
+  cluster:
+    enabled: true
+    replicas: {{ .replicas }}
+  resolver:
+    enabled: true
+    merge:
+      type: full
+      interval: 2m
+      timeout: 1.9s
+{{ if .jetstream }}
+  jetstream:
+      enabled: true
+      fileStore:
+        pvc:
+          size: {{ .jetstream.storage }}
+  {{ end }}
+  merge:
+    operator: {{ .Requirements.Operator.JWT }}
+    system_account: {{ .Requirements.Operator.SystemAccount.Subject }}
+    resolver_preload:
+      SYS_ACCOUNT_ID: {{ .Requirements.Operator.SystemAccount.JWT }}
