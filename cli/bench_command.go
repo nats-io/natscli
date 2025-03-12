@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"math"
 	"math/rand"
 	"os"
@@ -1543,15 +1542,8 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 
 func (c benchCmd) getPayload(msgSize int) ([]byte, error) {
 	if len(c.payloadFilename) > 0 {
-		// open the file
-		file, err := os.Open(c.payloadFilename)
-		if err != nil {
-			return nil, fmt.Errorf("opening the payload file: %w", err)
-		}
-		defer file.Close()
 
-		// read the file into the message payload
-		buffer, err := io.ReadAll(file)
+		buffer, err := os.ReadFile(c.payloadFilename)
 		if err != nil {
 			return nil, fmt.Errorf("reading the payload file: %w", err)
 		}
