@@ -31,11 +31,11 @@ import (
 )
 
 type Check struct {
-	Name       string          `yaml:"name"`
-	Kind       string          `yaml:"kind"`
-	Context    string          `yaml:"context"`
-	Properties json.RawMessage `yaml:"properties"`
-	ReuseConn  bool            `yaml:"reuse_connection"`
+	Name       string          `json:"name" yaml:"name"`
+	Kind       string          `json:"kind" yaml:"kind"`
+	Context    string          `json:"context" yaml:"context"`
+	ReuseConn  bool            `json:"reuse_connection" yaml:"reuse_connection"`
+	Properties json.RawMessage `json:"properties" yaml:"properties"`
 	nc         *nats.Conn
 	mu         sync.Mutex
 }
