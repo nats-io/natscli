@@ -24,6 +24,7 @@ import (
 
 	au "github.com/nats-io/natscli/internal/auth"
 	iu "github.com/nats-io/natscli/internal/util"
+	"gopkg.in/yaml.v3"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -102,6 +103,11 @@ type authAccountCommand struct {
 	tags                    []string
 	rmTags                  []string
 	signingKey              string
+	mapSource               string
+	mapTarget               string
+	mapWeight               uint
+	mapCluster              string
+	inputFile               string
 }
 
 func configureAuthAccountCommand(auth commandHost) {
@@ -280,6 +286,31 @@ func configureAuthAccountCommand(auth commandHost) {
 	skrm.Flag("key", "The key to remove").StringVar(&c.skRole)
 	skrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
+
+	mappings := acct.Command("mappings", "Manage account level subject mapping and partitioning").Alias("m")
+
+	mappingsaAdd := mappings.Command("add", "Add a new mapping").Alias("new").Alias("a").Action(c.mappingAddAction)
+	mappingsaAdd.Arg("account", "Account to create the mappings on").StringVar(&c.accountName)
+	mappingsaAdd.Arg("source", "The source subject of the mapping").StringVar(&c.mapSource)
+	mappingsaAdd.Arg("target", "The target subject of the mapping").StringVar(&c.mapTarget)
+	mappingsaAdd.Arg("weight", "The weight (%) of the mapping").Default("100").UintVar(&c.mapWeight)
+	mappingsaAdd.Arg("cluster", "Limit the mappings to a specific cluster").StringVar(&c.mapCluster)
+	mappingsaAdd.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
+	mappingsaAdd.Flag("config", "json or yaml file to read configuration from").ExistingFileVar(&c.inputFile)
+
+	mappingsls := mappings.Command("ls", "List mappings").Alias("list").Action(c.mappingListAction)
+	mappingsls.Arg("account", "Account to list the mappings from").StringVar(&c.accountName)
+	mappingsls.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
+
+	mappingsrm := mappings.Command("rm", "Remove a mapping").Action(c.mappingRmAction)
+	mappingsrm.Arg("account", "Account to remove the mappings from").StringVar(&c.accountName)
+	mappingsrm.Arg("source", "The source subject of the mapping").StringVar(&c.mapSource)
+	mappingsrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
+
+	mappingsinfo := mappings.Command("info", "Show information about a mapping").Alias("i").Alias("show").Alias("view").Action(c.mappingInfoAction)
+	mappingsinfo.Arg("account", "Account to inspect the mappings from").StringVar(&c.accountName)
+	mappingsinfo.Arg("source", "The source subject of the mapping").StringVar(&c.mapSource)
+	mappingsinfo.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 }
 
 func (c *authAccountCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator, ab.Account, error) {
@@ -1100,4 +1131,214 @@ func (c *authAccountCommand) validTiers(acct ab.Account) []int8 {
 	}
 
 	return tiers
+}
+
+func (c *authAccountCommand) loadMappingsConfig() (map[string][]ab.Mapping, error) {
+	if c.inputFile != "" {
+		f, err := os.ReadFile(c.inputFile)
+		if err != nil {
+			return nil, err
+		}
+
+		var mappings map[string][]ab.Mapping
+		err = yaml.Unmarshal(f, &mappings)
+		if err != nil {
+			return nil, fmt.Errorf("unable to load config file: %s", err)
+		}
+		return mappings, nil
+	}
+	return nil, nil
+
+}
+
+func (c *authAccountCommand) mappingAddAction(_ *fisk.ParseContext) error {
+	var err error
+	mappings := map[string][]ab.Mapping{}
+	if c.inputFile != "" {
+		mappings, err = c.loadMappingsConfig()
+		if err != nil {
+			return err
+		}
+	}
+
+	auth, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	if c.inputFile == "" {
+		if c.mapSource == "" {
+			err := iu.AskOne(&survey.Input{
+				Message: "Source subject",
+				Help:    "The source subject of the mapping",
+			}, &c.mapSource, survey.WithValidator(survey.Required))
+			if err != nil {
+				return err
+			}
+		}
+
+		if c.mapTarget == "" {
+			err := iu.AskOne(&survey.Input{
+				Message: "Target subject",
+				Help:    "The target subject of the mapping",
+			}, &c.mapTarget, survey.WithValidator(survey.Required))
+			if err != nil {
+				return err
+			}
+		}
+
+		mapping := ab.Mapping{Subject: c.mapTarget, Weight: uint8(c.mapWeight)}
+		if c.mapCluster != "" {
+			mapping.Cluster = c.mapCluster
+		}
+		// check if there are mappings already set for the source
+		currentMappings := acct.SubjectMappings().Get(c.mapSource)
+		if len(currentMappings) > 0 {
+			// Check that we don't overwrite the current mapping
+			for _, m := range currentMappings {
+				if m.Subject == c.mapTarget {
+					return fmt.Errorf("mapping %s -> %s already exists", c.mapSource, c.mapTarget)
+				}
+			}
+		}
+		currentMappings = append(currentMappings, mapping)
+		mappings[c.mapSource] = currentMappings
+	}
+
+	for subject, m := range mappings {
+		err = acct.SubjectMappings().Set(subject, m...)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = auth.Commit()
+	if err != nil {
+		return err
+	}
+
+	return c.fShowMappings(os.Stdout, mappings)
+}
+
+func (c *authAccountCommand) mappingInfoAction(_ *fisk.ParseContext) error {
+	_, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	accountMappings := acct.SubjectMappings().List()
+	if len(accountMappings) == 0 {
+		fmt.Println("No mappings defined")
+		return nil
+	}
+
+	if c.mapSource == "" {
+		err = iu.AskOne(&survey.Select{
+			Message:  "Select a mapping to inspect",
+			Options:  accountMappings,
+			PageSize: iu.SelectPageSize(len(accountMappings)),
+		}, &c.mapSource)
+		if err != nil {
+			return err
+		}
+	}
+
+	mappings := map[string][]ab.Mapping{
+		c.mapSource: acct.SubjectMappings().Get(c.mapSource),
+	}
+
+	return c.fShowMappings(os.Stdout, mappings)
+}
+
+func (c *authAccountCommand) mappingListAction(_ *fisk.ParseContext) error {
+	_, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	mappings := acct.SubjectMappings().List()
+	if len(mappings) == 0 {
+		fmt.Println("No mappings defined")
+		return nil
+	}
+
+	tbl := iu.NewTableWriter(opts(), "Subject mappings for account %s", acct.Name())
+	tbl.AddHeaders("Source Subject", "Target Subject", "Weight", "Cluster")
+
+	for _, fromMapping := range acct.SubjectMappings().List() {
+		subjectMaps := acct.SubjectMappings().Get(fromMapping)
+		for _, m := range subjectMaps {
+			tbl.AddRow(fromMapping, m.Subject, m.Weight, m.Cluster)
+		}
+	}
+
+	fmt.Println(tbl.Render())
+	return nil
+}
+
+func (c *authAccountCommand) mappingRmAction(_ *fisk.ParseContext) error {
+	auth, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	mappings := acct.SubjectMappings().List()
+	if len(mappings) == 0 {
+		fmt.Println("No mappings defined")
+		return nil
+	}
+
+	if c.mapSource == "" {
+		err = iu.AskOne(&survey.Select{
+			Message:  "Select a mapping to delete",
+			Options:  mappings,
+			PageSize: iu.SelectPageSize(len(mappings)),
+		}, &c.mapSource)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = acct.SubjectMappings().Delete(c.mapSource)
+	if err != nil {
+		return err
+	}
+
+	err = auth.Commit()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Deleted mapping {%s}\n", c.mapSource)
+	return nil
+}
+
+func (c *authAccountCommand) fShowMappings(w io.Writer, mappings map[string][]ab.Mapping) error {
+	out, err := c.showMappings(mappings)
+	if err != nil {
+		return err
+	}
+
+	_, err = fmt.Fprintln(w, out)
+	return err
+}
+
+func (c *authAccountCommand) showMappings(mappings map[string][]ab.Mapping) (string, error) {
+	cols := newColumns("Subject mappings")
+	cols.AddSectionTitle("Configuration")
+	for source, m := range mappings {
+		totalWeight := 0
+		for _, wm := range m {
+			cols.AddRow("Source", source)
+			cols.AddRow("Target", wm.Subject)
+			cols.AddRow("Weight", wm.Weight)
+			cols.AddRow("Cluster", wm.Cluster)
+			cols.AddRow("", "")
+			totalWeight += int(wm.Weight)
+		}
+		cols.AddRow("Total weight:", totalWeight)
+		cols.AddRow("", "")
+	}
+
+	return cols.Render()
 }
