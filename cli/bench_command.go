@@ -109,7 +109,7 @@ func configureBenchCommand(app commandHost) {
 	addPubFlags := func(f *fisk.CmdClause) {
 		f.Flag("multisubject", "Multi-subject mode, each message is published on a subject that includes the publisher's message sequence number as a token").UnNegatableBoolVar(&c.multiSubject)
 		f.Flag("multisubjectmax", "The maximum number of subjects to use in multi-subject mode (0 means no max)").Default("100000").IntVar(&c.multiSubjectMax)
-		f.Flag("payload", "File containing a message payload to send").StringVar(&c.payloadFilename)
+		f.Flag("payload", "File containing a message payload to send").ExistingFileVar(&c.payloadFilename)
 		f.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
 	}
 
@@ -167,7 +167,7 @@ func configureBenchCommand(app commandHost) {
 	request := microService.Command("request", "Send a request and wait for its reply").Action(c.requestAction)
 	request.Help("Send a request and wait for a reply")
 	request.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
-	request.Flag("payload", "File containing the payload to send").StringVar(&c.payloadFilename)
+	request.Flag("payload", "File containing the payload to send").ExistingFileVar(&c.payloadFilename)
 	request.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
 	// TODO: support randomized payload data
 
