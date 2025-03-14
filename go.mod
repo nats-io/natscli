@@ -56,7 +56,7 @@ require (
 	github.com/nats-io/nsc/v2 v2.10.3-0.20250110165315-eeda721ecff6 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/prometheus/common v0.62.0 // indirect
+	github.com/prometheus/common v0.63.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
