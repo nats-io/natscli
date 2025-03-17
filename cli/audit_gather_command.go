@@ -38,6 +38,7 @@ func configureAuditGatherCommand(app *fisk.CmdClause) {
 	gather.Flag("account-endpoints", "Capture monitoring endpoints for each account").Default("true").BoolVar(&c.config.Include.AccountEndpoints)
 	gather.Flag("streams", "Capture state of each stream").Default("true").BoolVar(&c.config.Include.Streams)
 	gather.Flag("consumers", "Capture state of each stream consumers").Default("true").BoolVar(&c.config.Include.Consumers)
+	gather.Flag("details", "Capture detailed server information from the audit").Default("true").BoolVar(&c.config.Detailed)
 }
 
 func (c *auditGatherCmd) gather(_ *fisk.ParseContext) error {
