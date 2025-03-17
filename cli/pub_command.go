@@ -259,6 +259,8 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 
 		msg.Subject = string(subj)
 
+		log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+
 		resp, err := nc.RequestMsg(msg, opts().Timeout)
 		if err != nil {
 			return err
@@ -276,14 +278,14 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 		if progress != nil {
 			progress.Increment(1)
 		} else {
-			fmt.Printf(">>> Stream: %s Sequence: %s", ack.Stream, f(ack.Sequence))
+			msg := fmt.Sprintf("Stored in Stream: %s Sequence: %s", ack.Stream, f(ack.Sequence))
 			if ack.Domain != "" {
-				fmt.Printf(" Domain: %q", ack.Domain)
+				msg += fmt.Sprintf(" Domain: %q", ack.Domain)
 			}
 			if ack.Duplicate {
-				fmt.Printf(" Duplicate: true")
+				msg += " Duplicate: true"
 			}
-			fmt.Println()
+			log.Printf(msg)
 		}
 
 		// If applicable, account for the wait duration in a publish sleep.
