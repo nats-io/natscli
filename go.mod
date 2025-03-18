@@ -9,7 +9,7 @@ require (
 	github.com/choria-io/scaffold v0.0.2
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.8.0
-	github.com/expr-lang/expr v1.16.9
+	github.com/expr-lang/expr v1.17.0
 	github.com/fatih/color v1.18.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.7.0
@@ -26,7 +26,7 @@ require (
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.21.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	github.com/synadia-io/jwt-auth-builder.go v0.0.7-0.20250307212657-0e3f1ee00864
+	github.com/synadia-io/jwt-auth-builder.go v0.0.7
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.36.0
 	golang.org/x/term v0.30.0
