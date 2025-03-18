@@ -57,5 +57,7 @@ func (c *auditGatherCmd) gather(_ *fisk.ParseContext) error {
 		c.config.LogLevel = api.ErrorLevel
 	}
 
+	c.config.Timeout = opts().Timeout
+
 	return gatherer.Gather(nc, c.config)
 }
