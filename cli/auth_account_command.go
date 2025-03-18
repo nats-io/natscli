@@ -108,6 +108,8 @@ type authAccountCommand struct {
 	mapWeight               uint
 	mapCluster              string
 	inputFile               string
+	clusterTraffic          string
+	clusterTrafficIsSet     bool
 }
 
 func configureAuthAccountCommand(auth commandHost) {
@@ -130,6 +132,7 @@ func configureAuthAccountCommand(auth commandHost) {
 		f.Flag("js-memory-stream", "Sets the maximum size a Memory Storage stream may be").PlaceHolder("BYTES").Default("-1").StringVar(&c.memMaxStreamString)
 		f.Flag("js-stream-size-required", "Requires Streams to have a maximum size declared").IsSetByUser(&c.streamSizeRequiredIsSet).UnNegatableBoolVar(&c.streamSizeRequired)
 		f.Flag("js-streams", "Sets the maximum Streams the account can have").Default("-1").IsSetByUser(&c.maxStreamsIsSet).Int64Var(&c.maxStreams)
+		f.Flag("js-cluster-traffic", "Sets the account used for JetStream cluster traffic").PlaceHolder("ACCOUNT").IsSetByUser(&c.clusterTrafficIsSet).EnumVar(&c.clusterTraffic, "owner", "system")
 		f.Flag("leafnodes", "Maximum allowed Leafnode connections").Default("-1").IsSetByUser(&c.maxLeafNodesIsSet).Int64Var(&c.maxLeafnodes)
 		f.Flag("payload", "Maximum allowed payload").PlaceHolder("BYTES").Default("-1").StringVar(&c.maxPayloadString)
 		f.Flag("subscriptions", "Maximum allowed subscriptions").Default("-1").IsSetByUser(&c.maxSubIsSet).Int64Var(&c.maxSubs)
@@ -731,7 +734,6 @@ func (c *authAccountCommand) editAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	fmt.Printf("jsIsSet: %t enabled: %t\n", c.jetStreamIsSet, jsEnabled)
 	err = c.updateAccount(acct, c.jetStreamIsSet || jsEnabled)
 	if err != nil {
 		return err
@@ -858,6 +860,13 @@ func (c *authAccountCommand) updateAccount(acct ab.Account, js bool) error {
 
 	if c.expiry > 0 {
 		err = acct.SetExpiry(time.Now().Add(c.expiry).Unix())
+		if err != nil {
+			return err
+		}
+	}
+
+	if c.clusterTrafficIsSet {
+		err = acct.SetClusterTraffic(c.clusterTraffic)
 		if err != nil {
 			return err
 		}
@@ -1068,7 +1077,13 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 
 	if js.IsJetStreamEnabled() {
 		cols.Indent(2)
-		cols.AddSectionTitle("JetStream Limits")
+		cols.AddSectionTitle("JetStream Settings")
+
+		traffic := acct.ClusterTraffic()
+		if traffic == "" {
+			traffic = "system"
+		}
+		cols.AddRow("Cluster Traffic", traffic)
 
 		tiers := c.validTiers(acct)
 
