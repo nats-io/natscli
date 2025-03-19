@@ -5,11 +5,11 @@ go 1.23.6
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
-	github.com/choria-io/fisk v0.6.5-0.20250211084745-e47f4036cf7f
+	github.com/choria-io/fisk v0.6.6
 	github.com/choria-io/scaffold v0.0.2
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.8.0
-	github.com/expr-lang/expr v1.17.0
+	github.com/expr-lang/expr v1.17.1
 	github.com/fatih/color v1.18.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.7.0
@@ -57,7 +57,7 @@ require (
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.63.0 // indirect
-	github.com/prometheus/procfs v0.15.1 // indirect
+	github.com/prometheus/procfs v0.16.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
