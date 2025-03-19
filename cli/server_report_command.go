@@ -103,15 +103,18 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	cpu := report.Command("cpu", "Report on CPU usage").Action(c.reportCPU)
+	cpu.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(cpu)
 	cpu.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	gateways := report.Command("gateways", "Repost on Gateway (Super Cluster) connections").Alias("super").Alias("gateway").Action(c.reportGateway)
+	gateways.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	gateways.Flag("filter-name", "Limits responses to a certain name").StringVar(&c.gatewayName)
 	gateways.Flag("sort", "Sorts by a specific property (server,cluster)").Default("cluster").EnumVar(&c.sort, "server", "cluster")
 	addFilterOpts(gateways)
 
 	health := report.Command("health", "Report on Server health").Action(c.reportHealth)
+	health.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	health.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
 	health.Flag("server-only", "Restricts the health check to the JetStream server only, do not check streams and consumers").Short('S').BoolVar(&c.jsServerOnly)
 	health.Flag("account", "Check only a specific Account").StringVar(&c.account)
@@ -127,15 +130,18 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	addFilterOpts(jsz)
 
 	leafs := report.Command("leafnodes", "Report on Leafnode connections").Alias("leaf").Alias("leafz").Action(c.reportLeafs)
+	leafs.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	leafs.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
 	leafs.Flag("sort", "Sort by a specific property (server,name,account,subs,in-bytes,out-bytes,in-msgs,out-msgs)").EnumVar(&c.sort, "server", "name", "account", "subs", "in-bytes", "out-bytes", "in-msgs", "out-msgs")
 	addFilterOpts(leafs)
 
 	mem := report.Command("mem", "Report on Memory usage").Action(c.reportMem)
+	mem.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(mem)
 	mem.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	routes := report.Command("routes", "Report on Route (Cluster) connections").Alias("route").Action(c.reportRoute)
+	routes.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	routes.Flag("sort", "Sort by a specific property (server,cluster,name,account,subs,in-bytes,out-bytes)").EnumVar(&c.sort, "server", "cluster", "name", "account", "subs", "in-bytes", "out-bytes")
 	addFilterOpts(routes)
 }
