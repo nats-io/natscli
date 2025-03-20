@@ -116,6 +116,7 @@ type SrvCheckCmd struct {
 	credentialValidityCrit   time.Duration
 	credentialValidityWarn   time.Duration
 	credentialRequiresExpire bool
+	credentialFromContext    bool
 	credential               string
 
 	exporterConfigFile  string
@@ -237,10 +238,11 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	kv.Flag("key", "Requires a key to have any non-delete value set").StringVar(&c.kvKey)
 
 	cred := check.Command("credential", "Checks the validity of a NATS credential file").Action(c.checkCredentialAction)
-	cred.Flag("credential", "The file holding the NATS credential").Required().StringVar(&c.credential)
+	cred.Flag("credential", "The file holding the NATS credential").StringVar(&c.credential)
 	cred.Flag("validity-warn", "Warning threshold for time before expiry").DurationVar(&c.credentialValidityWarn)
 	cred.Flag("validity-critical", "Critical threshold for time before expiry").DurationVar(&c.credentialValidityCrit)
 	cred.Flag("require-expiry", "Requires the credential to have expiry set").Default("true").BoolVar(&c.credentialRequiresExpire)
+	cred.Flag("context-credential", "Use the credential file from the context").BoolVar(&c.credentialFromContext)
 
 	exporter := check.Command("exporter", "Prometheus exporter for server checks").Hidden().Action(c.exporterAction)
 	exporter.Flag("config", "Exporter configuration").Required().ExistingFileVar(&c.exporterConfigFile)
@@ -488,6 +490,25 @@ func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 func (c *SrvCheckCmd) checkCredentialAction(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "Credential", Check: "credential", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
+
+	if c.credentialFromContext {
+		if c.credential == "" {
+			err := loadContext(false)
+			if check.CriticalIfErr(err, "loading context failed: %v", err) {
+				return nil
+			}
+			c.credential = opts().Config.Creds()
+			if c.credential == "" {
+				check.CriticalExit("--context-credential failed to load a credential")
+				return nil
+			}
+		}
+	} else {
+		if c.credential == "" {
+			check.CriticalExit("neither --credential nor --context-credential given")
+			return nil
+		}
+	}
 
 	return monitor.CheckCredential(check, monitor.CheckCredentialOptions{
 		File:             c.credential,
