@@ -2056,6 +2056,7 @@ func (c *consumerCmd) validateCfg(cfg *api.ConsumerConfig) (bool, []byte, []stri
 }
 
 func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
+	c.connectAndSetup(true, false)
 	cfg, err := c.prepareConfig()
 	if err != nil {
 		return err
@@ -2085,8 +2086,6 @@ func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
 
 		return os.WriteFile(c.outFile, j, 0600)
 	}
-
-	c.connectAndSetup(true, false)
 
 	err = c.checkConfigLevel(cfg)
 	if err != nil {
