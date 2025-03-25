@@ -143,18 +143,18 @@ func configureAuthAccountCommand(auth commandHost) {
 	}
 
 	add := acct.Command("add", "Adds a new Account").Alias("create").Alias("new").Action(c.addAction)
-	add.Arg("name", "Unique name for this Account").StringVar(&c.accountName)
+	add.Arg("account", "Unique name for this Account").StringVar(&c.accountName)
 	add.Flag("operator", "Operator to add the account to").StringVar(&c.operatorName)
 	add.Flag("key", "The public key to use when signing the user").StringVar(&c.signingKey)
 	addCreateFlags(add, false)
 	add.Flag("defaults", "Accept default values without prompting").UnNegatableBoolVar(&c.defaults)
 
 	info := acct.Command("info", "Show Account information").Alias("i").Alias("show").Alias("view").Action(c.infoAction)
-	info.Arg("name", "Account to view").StringVar(&c.accountName)
+	info.Arg("account", "Account to view").StringVar(&c.accountName)
 	info.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 
 	edit := acct.Command("edit", "Edit Account settings").Alias("update").Action(c.editAction)
-	edit.Arg("name", "Unique name for this Account").StringVar(&c.accountName)
+	edit.Arg("account", "Unique name for this Account").StringVar(&c.accountName)
 	edit.Flag("operator", "Operator to add the account to").StringVar(&c.operatorName)
 	addCreateFlags(edit, false)
 
@@ -168,12 +168,12 @@ func configureAuthAccountCommand(auth commandHost) {
 	//rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	push := acct.Command("push", "Push the Account to the NATS Resolver").Action(c.pushAction)
-	push.Arg("name", "Account to act on").StringVar(&c.accountName)
+	push.Arg("account", "Account to act on").StringVar(&c.accountName)
 	push.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	push.Flag("show", "Show the Account JWT before pushing").UnNegatableBoolVar(&c.showJWT)
 
 	query := acct.Command("query", "Pull the Account from the NATS Resolver and view it").Alias("pull").Action(c.queryAction)
-	query.Arg("name", "Account to act on").Required().StringVar(&c.accountName)
+	query.Arg("account", "Account to act on").Required().StringVar(&c.accountName)
 	query.Arg("output", "Saves the JWT to a file").StringVar(&c.output)
 	query.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
@@ -290,7 +290,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	skrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	mappings := acct.Command("mappings", "Manage account level subject mapping and partitioning").Alias("m")
+	mappings := acct.Command("mappings", "Manage account level subject mapping and partitioning").Alias("m").Alias("mapping").Alias("map")
 
 	mappingsaAdd := mappings.Command("add", "Add a new mapping").Alias("new").Alias("a").Action(c.mappingAddAction)
 	mappingsaAdd.Arg("account", "Account to create the mappings on").StringVar(&c.accountName)
