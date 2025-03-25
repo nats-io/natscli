@@ -465,6 +465,10 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 		return nil, nil, err
 	}
 
+	if !opts.Mgr.IsJetStreamEnabled() {
+		return nil, nil, nats.ErrJetStreamNotEnabled
+	}
+
 	return opts.Conn, opts.Mgr, err
 }
 
