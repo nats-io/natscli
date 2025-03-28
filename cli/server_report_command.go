@@ -18,7 +18,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"sort"
+	"syscall"
 	"time"
 
 	iu "github.com/nats-io/natscli/internal/util"
@@ -55,6 +57,7 @@ type SrvReportCmd struct {
 	jsServerOnly            bool
 	stream                  string
 	consumer                string
+	watchInterval           int
 }
 
 type srvReportAccountInfo struct {
@@ -79,9 +82,10 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 		cmd.Flag("host", "Limit the report to a specific NATS server").StringVar(&c.server)
 		cmd.Flag("cluster", "Limit the report to a specific Cluster").StringVar(&c.cluster)
 		cmd.Flag("tags", "Limit the report to nodes matching certain tags").StringsVar(&c.tags)
+		cmd.Flag("watch", "Display the results and update it every (WATCH) seconds").IntVar(&c.watchInterval)
 	}
 
-	acct := report.Command("accounts", "Report on account activity").Alias("acct").Action(c.reportAccount)
+	acct := report.Command("accounts", "Report on account activity").Alias("acct").Action(c.withWatcher(c.reportAccount))
 	acct.Arg("account", "Account to produce a report for").StringVar(&c.account)
 	acct.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs")
@@ -89,7 +93,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	addFilterOpts(acct)
 	acct.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
-	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnections)
+	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.withWatcher(c.reportConnections))
 	conns.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	conns.Flag("account", "Limit report to a specific account").StringVar(&c.account)
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
@@ -102,18 +106,18 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	addFilterOpts(conns)
 	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
-	cpu := report.Command("cpu", "Report on CPU usage").Action(c.reportCPU)
+	cpu := report.Command("cpu", "Report on CPU usage").Action(c.withWatcher(c.reportCPU))
 	cpu.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(cpu)
 	cpu.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
-	gateways := report.Command("gateways", "Repost on Gateway (Super Cluster) connections").Alias("super").Alias("gateway").Action(c.reportGateway)
+	gateways := report.Command("gateways", "Repost on Gateway (Super Cluster) connections").Alias("super").Alias("gateway").Action(c.withWatcher(c.reportGateway))
 	gateways.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	gateways.Flag("filter-name", "Limits responses to a certain name").StringVar(&c.gatewayName)
 	gateways.Flag("sort", "Sorts by a specific property (server,cluster)").Default("cluster").EnumVar(&c.sort, "server", "cluster")
 	addFilterOpts(gateways)
 
-	health := report.Command("health", "Report on Server health").Action(c.reportHealth)
+	health := report.Command("health", "Report on Server health").Action(c.withWatcher(c.reportHealth))
 	health.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	health.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
 	health.Flag("server-only", "Restricts the health check to the JetStream server only, do not check streams and consumers").Short('S').BoolVar(&c.jsServerOnly)
@@ -122,28 +126,53 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	health.Flag("consumer", "Check only a specific Consumer").StringVar(&c.consumer)
 	addFilterOpts(health)
 
-	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.reportJetStream)
+	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.withWatcher(c.reportJetStream))
 	jsz.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	jsz.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
 	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
 	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 	addFilterOpts(jsz)
 
-	leafs := report.Command("leafnodes", "Report on Leafnode connections").Alias("leaf").Alias("leafz").Action(c.reportLeafs)
+	leafs := report.Command("leafnodes", "Report on Leafnode connections").Alias("leaf").Alias("leafz").Action(c.withWatcher(c.reportLeafs))
 	leafs.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	leafs.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
 	leafs.Flag("sort", "Sort by a specific property (server,name,account,subs,in-bytes,out-bytes,in-msgs,out-msgs)").EnumVar(&c.sort, "server", "name", "account", "subs", "in-bytes", "out-bytes", "in-msgs", "out-msgs")
 	addFilterOpts(leafs)
 
-	mem := report.Command("mem", "Report on Memory usage").Action(c.reportMem)
+	mem := report.Command("mem", "Report on Memory usage").Action(c.withWatcher(c.reportMem))
 	mem.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(mem)
 	mem.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
-	routes := report.Command("routes", "Report on Route (Cluster) connections").Alias("route").Action(c.reportRoute)
+	routes := report.Command("routes", "Report on Route (Cluster) connections").Alias("route").Action(c.withWatcher(c.reportRoute))
 	routes.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	routes.Flag("sort", "Sort by a specific property (server,cluster,name,account,subs,in-bytes,out-bytes)").EnumVar(&c.sort, "server", "cluster", "name", "account", "subs", "in-bytes", "out-bytes")
 	addFilterOpts(routes)
+}
+
+func (c *SrvReportCmd) withWatcher(fn func(*fisk.ParseContext) error) func(*fisk.ParseContext) error {
+	return func(fctx *fisk.ParseContext) error {
+		if c.watchInterval <= 0 {
+			return fn(fctx)
+		}
+
+		tick := time.NewTicker(time.Second * time.Duration(c.watchInterval))
+		ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
+		defer cancel()
+
+		iu.ClearScreen()
+		fn(fctx)
+
+		for {
+			select {
+			case <-tick.C:
+				iu.ClearScreen()
+				fn(fctx)
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
 }
 
 func (c *SrvReportCmd) reportLeafs(_ *fisk.ParseContext) error {
@@ -384,13 +413,24 @@ func (c *SrvReportCmd) reportGateway(_ *fisk.ParseContext) error {
 
 	sort.Slice(gateways, func(i, j int) bool {
 		switch c.sort {
-		case "server":
-			return c.boolReverse(gateways[i].Server.Name < gateways[j].Server.Name)
 		case "cluster":
+			if gateways[i].Server.Cluster == gateways[j].Server.Cluster {
+				return c.boolReverse(gateways[i].Server.Name < gateways[j].Server.Name)
+			}
 			return c.boolReverse(gateways[i].Server.Cluster < gateways[j].Server.Cluster)
-		}
 
-		return c.boolReverse(false)
+		case "server":
+			if gateways[i].Server.Name == gateways[j].Server.Name {
+				return c.boolReverse(gateways[i].Server.Cluster < gateways[j].Server.Cluster)
+			}
+			return c.boolReverse(gateways[i].Server.Name < gateways[j].Server.Name)
+
+		default:
+			if gateways[i].Server.Name == gateways[j].Server.Name {
+				return c.boolReverse(gateways[i].Server.Cluster < gateways[j].Server.Cluster)
+			}
+			return c.boolReverse(gateways[i].Server.Name < gateways[j].Server.Name)
+		}
 	})
 
 	tbl := iu.NewTableWriter(opts(), "Super Cluster Report")
@@ -523,24 +563,59 @@ func (c *SrvReportCmd) reportRoute(_ *fisk.ParseContext) error {
 	}
 
 	sort.Slice(routes, func(i, j int) bool {
+		a, b := routes[i], routes[j]
+
+		var wasSorted bool
 		switch c.sort {
 		case "cluster":
-			return c.boolReverse(routes[i].server.Cluster < routes[j].server.Cluster)
+			if a.server.Cluster != b.server.Cluster {
+				wasSorted = a.server.Cluster < b.server.Cluster
+			}
 		case "name":
-			return c.boolReverse(routes[i].routes.RemoteName < routes[j].routes.RemoteName)
+			if a.routes.RemoteName != b.routes.RemoteName {
+				wasSorted = a.routes.RemoteName < b.routes.RemoteName
+			}
 		case "account", "acct":
-			return c.boolReverse(routes[i].routes.Account < routes[j].routes.Account)
+			if a.routes.Account != b.routes.Account {
+				wasSorted = a.routes.Account < b.routes.Account
+			}
 		case "subs":
-			return c.boolReverse(routes[i].routes.NumSubs < routes[j].routes.NumSubs)
+			if a.routes.NumSubs != b.routes.NumSubs {
+				wasSorted = a.routes.NumSubs < b.routes.NumSubs
+			}
 		case "in-bytes":
-			return c.boolReverse(routes[i].routes.InBytes < routes[j].routes.InBytes)
+			if a.routes.InBytes != b.routes.InBytes {
+				wasSorted = a.routes.InBytes < b.routes.InBytes
+			}
 		case "out-bytes":
-			return c.boolReverse(routes[i].routes.OutBytes < routes[j].routes.OutBytes)
+			if a.routes.OutBytes != b.routes.OutBytes {
+				wasSorted = a.routes.OutBytes < b.routes.OutBytes
+			}
 		case "server":
-			return c.boolReverse(routes[i].server.Name < routes[j].server.Name)
+			if a.server.Name != b.server.Name {
+				wasSorted = a.server.Name < b.server.Name
+			}
+		default:
+			if a.server.Name != b.server.Name {
+				wasSorted = a.server.Name < b.server.Name
+			}
 		}
 
-		return c.boolReverse(false)
+		// Enforce consistent ordering when primary values are equal
+		if !wasSorted && !c.boolReverse(wasSorted) {
+			switch {
+			case a.server.Name != b.server.Name:
+				wasSorted = a.server.Name < b.server.Name
+			case a.server.Cluster != b.server.Cluster:
+				wasSorted = a.server.Cluster < b.server.Cluster
+			case a.routes.RemoteName != b.routes.RemoteName:
+				wasSorted = a.routes.RemoteName < b.routes.RemoteName
+			default:
+				wasSorted = a.routes.Account < b.routes.Account
+			}
+		}
+
+		return c.boolReverse(wasSorted)
 	})
 
 	tbl := iu.NewTableWriter(opts(), "Cluster Report")
