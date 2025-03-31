@@ -387,145 +387,116 @@ NATS Configuration Context "localhost"
   Server URLs: nats://127.0.0.1:4222
 ```
 
-We can benchmark core NATS publishing performance, here we publish 10 million messages from 5 concurrent publishers. By
-default messages are published as quick as possible without any acknowledgement or confirmations:
+We can benchmark core NATS publishing performance, here we publish 10 million messages from 2 concurrent publishers. By default, messages are published as quick as possible without any acknowledgement or confirmations:
 
 ```
-nats bench test --msgs=10000000 --pub 5 
+nats bench pub test --msgs 10000000 --clients 2 --no-progress
 ```
 Output
-```                                                                                                                                                                                                                                                                                                                                                                         <13:03:30
-01:30:14 Starting benchmark [msgs=10,000,000, msgsize=128 B, pubs=5, subs=0, js=false, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
-Finished      0s [================================================] 100%
-Finished      0s [================================================] 100%
-Finished      0s [================================================] 100%
-Finished      0s [================================================] 100%
-Finished      0s [================================================] 100%
+```
+15:21:29 Starting Core NATS publish benchmark [clients=2, msg-size=128 B, msgs=10,000,000, multi-subject=false, multi-subject-max=100,000, sleep=0s, subject=test]
+15:21:29 Starting publisher, publishing 5,000,000 messages
+15:21:29 Starting publisher, publishing 5,000,000 messages
 
-Pub stats: 14,047,987 msgs/sec ~ 1.67 GB/sec
- [1] 3,300,540 msgs/sec ~ 402.90 MB/sec (2000000 msgs)
- [2] 3,306,601 msgs/sec ~ 403.64 MB/sec (2000000 msgs)
- [3] 3,296,538 msgs/sec ~ 402.41 MB/sec (2000000 msgs)
- [4] 2,813,752 msgs/sec ~ 343.48 MB/sec (2000000 msgs)
- [5] 2,811,227 msgs/sec ~ 343.17 MB/sec (2000000 msgs)
- min 2,811,227 | avg 3,105,731 | max 3,306,601 | stddev 239,453 msgs
+Pub stats: 5,577,271 msgs/sec ~ 680.82 MB/sec
+ [1] 2,794,891 msgs/sec ~ 341.17 MB/sec (5000000 msgs)
+ [2] 2,788,663 msgs/sec ~ 340.41 MB/sec (5000000 msgs)
+ min 2,788,663 | avg 2,791,777 | max 2,794,891 | stddev 3,114 msgs
 ```
 
-Adding `--sub 2` will start two subscribers on the same subject and measure the rate of messages:
+Run a `nats bench sub` instance with two concurrent subscribers on the same subject (so a fan out of 1 to 2) while publishing messages to measure the rate of messages being delivered:
 
 ```
-nats bench test --msgs=10000000 --pub 5 --sub 2 
+nats bench sub test --msgs 10000000 --clients 2 --no-progress & nats bench pub test --msgs 10000000 --clients 2 --no-progress
 ```
 Output
 ```
 ...
-01:30:52 Starting benchmark [msgs=10,000,000, msgsize=128 B, pubs=5, subs=2, js=false, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
-01:30:52 Starting subscriber, expecting 10,000,000 messages
-01:30:52 Starting subscriber, expecting 10,000,000 messages
-Finished      6s [================================================] 100%
-Finished      6s [================================================] 100%
-Finished      6s [================================================] 100%
-Finished      6s [================================================] 100%
-Finished      6s [================================================] 100%
-Finished      6s [================================================] 100%
-Finished      6s [================================================] 100%
+15:28:02 Starting Core NATS publish benchmark [clients=2, msg-size=128 B, msgs=10,000,000, multi-subject=false, multi-subject-max=100,000, sleep=0s, subject=test]
+15:28:02 Starting Core NATS subscribe benchmark [clients=2, msg-size=128 B, msgs=10,000,000, multi-subject=false, subject=test]
+15:28:02 Starting publisher, publishing 5,000,000 messages
+15:28:02 Starting publisher, publishing 5,000,000 messages
 
-NATS Pub/Sub stats: 4,906,104 msgs/sec ~ 598.89 MB/sec
- Pub stats: 1,635,428 msgs/sec ~ 199.64 MB/sec
-  [1] 328,573 msgs/sec ~ 40.11 MB/sec (2000000 msgs)
-  [2] 328,147 msgs/sec ~ 40.06 MB/sec (2000000 msgs)
-  [3] 327,411 msgs/sec ~ 39.97 MB/sec (2000000 msgs)
-  [4] 327,318 msgs/sec ~ 39.96 MB/sec (2000000 msgs)
-  [5] 327,283 msgs/sec ~ 39.95 MB/sec (2000000 msgs)
-  min 327,283 | avg 327,746 | max 328,573 | stddev 520 msgs
- Sub stats: 3,271,233 msgs/sec ~ 399.32 MB/sec
-  [1] 1,635,682 msgs/sec ~ 199.67 MB/sec (10000000 msgs)
-  [2] 1,635,616 msgs/sec ~ 199.66 MB/sec (10000000 msgs)
-  min 1,635,616 | avg 1,635,649 | max 1,635,682 | stddev 33 msgs
+
+Pub stats: 1,174,233 msgs/sec ~ 143.34 MB/sec
+ [1] 587,522 msgs/sec ~ 71.72 MB/sec (5000000 msgs)
+ [2] 587,116 msgs/sec ~ 71.67 MB/sec (5000000 msgs)
+ min 587,116 | avg 587,319 | max 587,522 | stddev 203 msgs
+
+Sub stats: 2,348,602 msgs/sec ~ 286.69 MB/sec
+ [1] 1,174,312 msgs/sec ~ 143.35 MB/sec (10000000 msgs)
+ [2] 1,174,301 msgs/sec ~ 143.35 MB/sec (10000000 msgs)
+ min 1,174,301 | avg 1,174,306 | max 1,174,312 | stddev 5 msgs
 ```
 
-JetStream testing can be done by adding the `--js` flag. You can for example measure first the speed of publishing into a stream
+JetStream testing can be done by using the `nats bench js` command. You can for example measure first the speed of publishing into a stream (that gets created first).
 
 ```
-nats bench js.bench --js --pub 2 --msgs 1000000 --purge 
+nats bench js pub js.bench --clients 2 --msgs 1000000 --no-progress --create
 ```
 Output
 ```
-01:37:36 Starting benchmark [msgs=1,000,000, msgsize=128 B, pubs=2, subs=0, js=true, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=true]
-01:37:36 Purging the stream
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
+15:32:41 Starting JetStream publish benchmark [batch=500, clients=2, dedup-window=2m0s, deduplication=false, max-bytes=1,073,741,824, msg-size=128 B, msgs=1,000,000, multi-subject=false, multi-subject-max=100,000, purge=false, replicas=1, sleep=0s, storage=file, stream=benchstream, subject=js.bench]
+15:32:41 Starting JS publisher, publishing 500,000 messages
+15:32:41 Starting JS publisher, publishing 500,000 messages
 
-Pub stats: 415,097 msgs/sec ~ 50.67 MB/sec
- [1] 207,907 msgs/sec ~ 25.38 MB/sec (500000 msgs)
- [2] 207,572 msgs/sec ~ 25.34 MB/sec (500000 msgs)
- min 207,572 | avg 207,739 | max 207,907 | stddev 167 msgs
+Pub stats: 230,967 msgs/sec ~ 28.19 MB/sec
+ [1] 116,246 msgs/sec ~ 14.19 MB/sec (500000 msgs)
+ [2] 115,483 msgs/sec ~ 14.10 MB/sec (500000 msgs)
+ min 115,483 | avg 115,864 | max 116,246 | stddev 381 msgs
 ```
-And then you can for example measure the speed of receiving (i.e. replay) the messages from the stream using ordered push consumers
+And then you can for example measure the speed of receiving (i.e. replay) the messages from the stream using ordered consumers
 ```
-nats bench js.bench --js --sub 4 --msgs 1000000 
+nats bench js ordered --msgs 1000000 --no-progress
 ```
 Output
 ```
-01:40:05 Starting benchmark [msgs=1,000,000, msgsize=128 B, pubs=0, subs=4, js=true, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=false, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
-01:40:05 Starting subscriber, expecting 1,000,000 messages
-01:40:05 Starting subscriber, expecting 1,000,000 messages
-01:40:05 Starting subscriber, expecting 1,000,000 messages
-01:40:05 Starting subscriber, expecting 1,000,000 messages
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
+15:34:23 Starting JetStream ordered ephemeral consumer benchmark [clients=1, msg-size=128 B, msgs=1,000,000, purge=false, sleep=0s, stream=benchstream]
+15:34:23 Starting subscriber, expecting 1,000,000 messages
 
-Sub stats: 1,522,920 msgs/sec ~ 185.90 MB/sec
- [1] 382,739 msgs/sec ~ 46.72 MB/sec (1000000 msgs)
- [2] 382,772 msgs/sec ~ 46.73 MB/sec (1000000 msgs)
- [3] 382,407 msgs/sec ~ 46.68 MB/sec (1000000 msgs)
- [4] 381,060 msgs/sec ~ 46.52 MB/sec (1000000 msgs)
- min 381,060 | avg 382,244 | max 382,772 | stddev 698 msgs
+Sub stats: 621,415 msgs/sec ~ 75.86 MB/sec
 ```
 
-Similarily you can benchmark synchronous request-reply type of interactions using the `--request` and `--reply` flags. For example you can first start one (or more) replier(s)
+Similarily you can benchmark synchronous request-reply type of interactions using the NATS service functionality through the `nats service serve` and `nats service request` commands. For example you can first start 2 service instances in one window
 
 ```
-nats bench test --sub 2 --reply
+nats bench service serve test.service --clients 2
 ```
 
-And then run a benchmark with one (or more) synchronous requester(s)
+And then run a benchmark with 10 synchronous requesters in another window
 
 ```
-nats bench test --pub 10 --request  
+nats bench service request test.service --clients 10 --no-progress
 ```
 Output
 ```
-03:04:56 Starting benchmark [msgs=100,000, msgsize=128 B, pubs=10, subs=0, js=false, stream=benchstream  storage=memory, syncpub=false, pubbatch=100, jstimeout=30s, pull=false, pullbatch=100, request=true, reply=false, noqueue=false, maxackpending=-1, replicas=1, purge=false]
-03:04:56 Benchmark in request-reply mode
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
-Finished      2s [================================================] 100%
+15:39:08 Starting Core NATS service request benchmark [clients=10, msg-size=128 B, msgs=100,000, sleep=0s, subject=test.service]
+15:39:08 Starting requester, requesting 10,000 messages
+15:39:08 Starting requester, requesting 10,000 messages
+15:39:08 Starting requester, requesting 10,000 messages
+15:39:08 Starting requester, requesting 10,000 messages
+15:39:08 Starting requester, requesting 10,000 messages
+15:39:08 Starting requester, requesting 10,000 messages
+15:39:08 Starting requester, requesting 10,000 messages
+15:39:08 Starting requester, requesting 10,000 messages
+15:39:08 Starting requester, requesting 10,000 messages
+15:39:08 Starting requester, requesting 10,000 messages
 
-Pub stats: 40,064 msgs/sec ~ 4.89 MB/sec
- [1] 4,045 msgs/sec ~ 505.63 KB/sec (10000 msgs)
- [2] 4,031 msgs/sec ~ 503.93 KB/sec (10000 msgs)
- [3] 4,034 msgs/sec ~ 504.37 KB/sec (10000 msgs)
- [4] 4,031 msgs/sec ~ 503.92 KB/sec (10000 msgs)
- [5] 4,022 msgs/sec ~ 502.85 KB/sec (10000 msgs)
- [6] 4,028 msgs/sec ~ 503.59 KB/sec (10000 msgs)
- [7] 4,025 msgs/sec ~ 503.22 KB/sec (10000 msgs)
- [8] 4,028 msgs/sec ~ 503.59 KB/sec (10000 msgs)
- [9] 4,025 msgs/sec ~ 503.15 KB/sec (10000 msgs)
- [10] 4,018 msgs/sec ~ 502.28 KB/sec (10000 msgs)
- min 4,018 | avg 4,028 | max 4,045 | stddev 7 msgs
+Pub stats: 28,003 msgs/sec ~ 3.42 MB/sec
+ [1] 2,817 msgs/sec ~ 352.17 KB/sec (10000 msgs)
+ [2] 2,816 msgs/sec ~ 352.03 KB/sec (10000 msgs)
+ [3] 2,814 msgs/sec ~ 351.84 KB/sec (10000 msgs)
+ [4] 2,814 msgs/sec ~ 351.77 KB/sec (10000 msgs)
+ [5] 2,812 msgs/sec ~ 351.55 KB/sec (10000 msgs)
+ [6] 2,805 msgs/sec ~ 350.69 KB/sec (10000 msgs)
+ [7] 2,803 msgs/sec ~ 350.49 KB/sec (10000 msgs)
+ [8] 2,803 msgs/sec ~ 350.49 KB/sec (10000 msgs)
+ [9] 2,801 msgs/sec ~ 350.21 KB/sec (10000 msgs)
+ [10] 2,800 msgs/sec ~ 350.05 KB/sec (10000 msgs)
+ min 2,800 | avg 2,808 | max 2,817 | stddev 6 msgs
 ```
 
-There are numerous other flags that can be set to configure size of messages, using push or pull JetStream consumers and much more, see `nats bench --help`.
+There are numerous other flags that can be set to configure size of messages, using fetch or consume for JetStream consumers and much more, see `nats bench` and `nats cheat bench` for some examples.
 
 ### Latency
 
