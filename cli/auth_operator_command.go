@@ -446,7 +446,7 @@ func (c *authOperatorCommand) lsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := newTableWriter("Operators")
+	table := iu.NewTableWriter(opts(), "Operators")
 	table.AddHeaders("Name", "Subject", "Accounts", "Account Server", "Signing Keys")
 	for _, op := range list {
 		table.AddRow(op.Name(), op.Subject(), len(op.Accounts().List()), op.AccountServerURL(), len(op.SigningKeys().List()))

@@ -1,4 +1,4 @@
-// Copyright 2019-2024 The NATS Authors
+// Copyright 2019-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -29,8 +29,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/guptarohit/asciigraph"
 	"github.com/nats-io/natscli/columns"
+	"github.com/nats-io/natscli/internal/asciigraph"
 	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 	"gopkg.in/yaml.v3"
@@ -40,6 +40,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/balancer"
 	"github.com/nats-io/nats.go"
 
 	"github.com/nats-io/jsm.go"
@@ -101,23 +102,29 @@ type consumerCmd struct {
 	metadata            map[string]string
 	pauseUntil          string
 
-	dryRun      bool
-	mgr         *jsm.Manager
-	nc          *nats.Conn
-	nak         bool
-	fPull       bool
-	fPush       bool
-	fBound      bool
-	fWaiting    int
-	fAckPending int
-	fPending    uint64
-	fIdle       time.Duration
-	fCreated    time.Duration
-	fReplicas   uint
-	fInvert     bool
-	fExpression string
-	fLeader     string
-	interactive bool
+	dryRun             bool
+	mgr                *jsm.Manager
+	nc                 *nats.Conn
+	nak                bool
+	fPull              bool
+	fPush              bool
+	fBound             bool
+	fWaiting           int
+	fAckPending        int
+	fPending           uint64
+	fIdle              time.Duration
+	fCreated           time.Duration
+	fReplicas          uint
+	fInvert            bool
+	fExpression        string
+	fLeader            string
+	interactive        bool
+	pinnedGroups       []string
+	pinnedTTL          time.Duration
+	overflowGroups     []string
+	groupName          string
+	fPinned            bool
+	placementPreferred string
 }
 
 func configureConsumerCommand(app commandHost) {
@@ -171,6 +178,9 @@ func configureConsumerCommand(app commandHost) {
 		f.Flag("metadata", "Adds metadata to the consumer").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
 		if !edit {
 			f.Flag("pause", fmt.Sprintf("Pause the consumer for a duration after start or until a specific timestamp (eg %s)", time.Now().Format(time.DateTime))).StringVar(&c.pauseUntil)
+			f.Flag("pinned-groups", "Create a Pinned Client consumer based on these groups").StringsVar(&c.pinnedGroups)
+			f.Flag("pinned-ttl", "The time to allow for a client to pull before losing the pinned status").DurationVar(&c.pinnedTTL)
+			f.Flag("overflow-groups", "Create a Overflow consumer based on these groups").StringsVar(&c.overflowGroups)
 		}
 	}
 
@@ -214,6 +224,7 @@ func configureConsumerCommand(app commandHost) {
 	consFind.Flag("created", "Display consumers created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
 	consFind.Flag("replicas", "Display consumers with fewer or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
 	consFind.Flag("leader", "Display only clustered streams with a specific leader").PlaceHolder("SERVER").StringVar(&c.fLeader)
+	consFind.Flag("pinned", "Finds Pinned Client priority group consumers that are fully pinned").UnNegatableBoolVar(&c.fPinned)
 	consFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	consFind.Flag("expression", "Match consumers using an expression language").StringVar(&c.fExpression)
 
@@ -250,7 +261,7 @@ func configureConsumerCommand(app commandHost) {
 	consNext.Flag("wait", "Wait up to this period to acknowledge messages").DurationVar(&c.ackWait)
 	consNext.Flag("count", "Number of messages to try to fetch from the pull consumer").Default("1").IntVar(&c.pullCount)
 
-	consSub := cons.Command("sub", "Retrieves messages from Consumers").Action(c.subAction)
+	consSub := cons.Command("sub", "Retrieves messages from Consumers").Action(c.subAction).Hidden()
 	consSub.Arg("stream", "Stream name").StringVar(&c.stream)
 	consSub.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consSub.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
@@ -267,6 +278,12 @@ func configureConsumerCommand(app commandHost) {
 	conPause.Arg("until", fmt.Sprintf("Pause until a specific time (eg %s)", time.Now().UTC().Format(time.DateTime))).PlaceHolder("TIME").StringVar(&c.pauseUntil)
 	conPause.Flag("force", "Force pause without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
+	conUnpin := cons.Command("unpin", "Unpin the current Pinned Client from a Priority Group").Action(c.unpinAction)
+	conUnpin.Arg("stream", "Stream name").StringVar(&c.stream)
+	conUnpin.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	conUnpin.Arg("group", "The group to unpin").StringVar(&c.groupName)
+	conUnpin.Flag("force", "Force unpin without prompting").Short('f').UnNegatableBoolVar(&c.force)
+
 	conResume := cons.Command("resume", "Resume a paused consumer").Action(c.resumeAction)
 	conResume.Arg("stream", "Stream name").StringVar(&c.stream)
 	conResume.Arg("consumer", "Consumer name").StringVar(&c.consumer)
@@ -281,21 +298,91 @@ func configureConsumerCommand(app commandHost) {
 	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDownAction)
 	conClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterDown.Arg("consumer", "Consumer to act on").StringVar(&c.consumer)
+	conClusterDown.Flag("preferred", "Prefer placing the leader on a specific host").StringVar(&c.placementPreferred)
 	conClusterDown.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
+
+	conClusterBalance := conCluster.Command("balance", "Balance consumer leaders").Action(c.balanceAction)
+	conClusterBalance.Arg("stream", "Stream to act on").StringVar(&c.stream)
+	conClusterBalance.Flag("pull", "Balance only pull based consumers").UnNegatableBoolVar(&c.fPull)
+	conClusterBalance.Flag("push", "Balance only push based consumers").UnNegatableBoolVar(&c.fPush)
+	conClusterBalance.Flag("bound", "Balance push-bound or pull consumers with waiting pulls").UnNegatableBoolVar(&c.fBound)
+	conClusterBalance.Flag("waiting", "Balance consumers with fewer waiting pulls").IntVar(&c.fWaiting)
+	conClusterBalance.Flag("ack-pending", "Balance consumers with fewer pending acks").IntVar(&c.fAckPending)
+	conClusterBalance.Flag("pending", "Balance consumers with fewer unprocessed messages").Uint64Var(&c.fPending)
+	conClusterBalance.Flag("idle", "Balance consumers with no new deliveries for a period").DurationVar(&c.fIdle)
+	conClusterBalance.Flag("created", "Balance consumers created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
+	conClusterBalance.Flag("replicas", "Balance consumers with fewer or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
+	conClusterBalance.Flag("leader", "Balance only clustered streams with a specific leader").PlaceHolder("SERVER").StringVar(&c.fLeader)
+	conClusterBalance.Flag("pinned", "Balance Pinned Client priority group consumers that are fully pinned").UnNegatableBoolVar(&c.fPinned)
+	conClusterBalance.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
+	conClusterBalance.Flag("expression", "Balance matching consumers using an expression language").StringVar(&c.fExpression)
+
 }
 
 func init() {
 	registerCommand("consumer", 4, configureConsumerCommand)
 }
 
+func (c *consumerCmd) unpinAction(_ *fisk.ParseContext) error {
+	c.connectAndSetup(true, true)
+
+	if !c.selectedConsumer.IsPinnedClientPriority() {
+		return fmt.Errorf("consumer is not a pinned priority consumer")
+	}
+
+	nfo, err := c.selectedConsumer.State()
+	if err != nil {
+		return err
+	}
+
+	matched := map[string]api.PriorityGroupState{}
+	var groups []string
+	for _, v := range nfo.PriorityGroups {
+		if v.PinnedClientID != "" {
+			matched[v.Group] = v
+			groups = append(groups, v.Group)
+		}
+	}
+
+	if len(matched) == 0 {
+		return fmt.Errorf("no priority groups have pinned clients")
+	}
+
+	if c.groupName == "" {
+		err = iu.AskOne(&survey.Select{
+			Message:  "Select a Group",
+			Options:  groups,
+			PageSize: iu.SelectPageSize(len(groups)),
+		}, &c.groupName, survey.WithValidator(survey.Required))
+		if err != nil {
+			return err
+		}
+	}
+
+	if !c.force {
+		ok, err := askConfirmation(fmt.Sprintf("Really unpin client from group %s > %s > %s", c.stream, c.consumer, c.groupName), false)
+		fisk.FatalIfError(err, "could not obtain confirmation")
+
+		if !ok {
+			return nil
+		}
+	}
+
+	err = c.selectedConsumer.Unpin(c.groupName)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Unpinned client %s from Priority Group %s > %s > %s\n", matched[c.groupName].PinnedClientID, c.stream, c.consumer, c.groupName)
+
+	return nil
+}
+
 func (c *consumerCmd) findAction(_ *fisk.ParseContext) error {
 	var err error
 	var stream *jsm.Stream
 
-	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
-	if err != nil {
-		return fmt.Errorf("setup failed: %v", err)
-	}
+	c.connectAndSetup(true, false)
 
 	c.stream, stream, err = selectStream(c.mgr, c.stream, c.force, c.showAll)
 	if err != nil {
@@ -342,6 +429,9 @@ func (c *consumerCmd) findAction(_ *fisk.ParseContext) error {
 	}
 	if c.fLeader != "" {
 		opts = append(opts, jsm.ConsumerQueryLeaderServer(c.fLeader))
+	}
+	if c.fPinned {
+		opts = append(opts, jsm.ConsumerQueryIsPinned())
 	}
 
 	found, err := stream.QueryConsumers(opts...)
@@ -423,13 +513,17 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				height -= 5
 			}
 
+			if width < 20 || height < 20 {
+				return fmt.Errorf("please increase terminal dimensions")
+			}
+
 			nfo, err := consumer.State()
 			if err != nil {
 				continue
 			}
 
-			deliveredRates = append(deliveredRates, float64(nfo.Delivered.Stream-lastDeliveredSeq)/time.Since(lastStateTs).Seconds())
-			ackedRates = append(ackedRates, float64(nfo.AckFloor.Stream-lastAckedSeq)/time.Since(lastStateTs).Seconds())
+			deliveredRates = append(deliveredRates, calculateRate(float64(nfo.Delivered.Stream), float64(lastDeliveredSeq), time.Since(lastStateTs)))
+			ackedRates = append(ackedRates, calculateRate(float64(nfo.AckFloor.Stream), float64(lastAckedSeq), time.Since(lastStateTs)))
 			unprocessedMessages = append(unprocessedMessages, float64(nfo.NumPending))
 			outstandingMessages = append(outstandingMessages, float64(nfo.NumAckPending))
 			lastDeliveredSeq = nfo.Delivered.Stream
@@ -447,6 +541,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/4-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(f),
 			)
 
 			ackedPlot := asciigraph.Plot(ackedRates,
@@ -455,6 +550,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/4-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(f),
 			)
 
 			unprocessedPlot := asciigraph.Plot(unprocessedMessages,
@@ -463,6 +559,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/4-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(fFloat2Int),
 			)
 
 			outstandingPlot := asciigraph.Plot(outstandingMessages,
@@ -471,6 +568,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/4-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(fFloat2Int),
 			)
 
 			iu.ClearScreen()
@@ -490,6 +588,85 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 			return nil
 		}
 	}
+}
+
+func (c *consumerCmd) balanceAction(_ *fisk.ParseContext) error {
+	var err error
+	var stream *jsm.Stream
+
+	c.connectAndSetup(true, false)
+
+	c.stream, stream, err = selectStream(c.mgr, c.stream, c.force, c.showAll)
+	if err != nil {
+		return err
+	}
+
+	if stream == nil {
+		return fmt.Errorf("no stream selected")
+	}
+
+	var opts []jsm.ConsumerQueryOpt
+	if c.fPush {
+		opts = append(opts, jsm.ConsumerQueryIsPush())
+	}
+	if c.fPull {
+		opts = append(opts, jsm.ConsumerQueryIsPull())
+	}
+	if c.fBound {
+		opts = append(opts, jsm.ConsumerQueryIsBound())
+	}
+	if c.fWaiting > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithFewerWaiting(c.fWaiting))
+	}
+	if c.fAckPending > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithFewerAckPending(c.fAckPending))
+	}
+	if c.fPending > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithFewerPending(c.fPending))
+	}
+	if c.fIdle > 0 {
+		opts = append(opts, jsm.ConsumerQueryWithDeliverySince(c.fIdle))
+	}
+	if c.fCreated > 0 {
+		opts = append(opts, jsm.ConsumerQueryOlderThan(c.fCreated))
+	}
+	if c.fReplicas > 0 {
+		opts = append(opts, jsm.ConsumerQueryReplicas(c.fReplicas))
+	}
+	if c.fInvert {
+		opts = append(opts, jsm.ConsumerQueryInvert())
+	}
+	if c.fExpression != "" {
+		opts = append(opts, jsm.ConsumerQueryExpression(c.fExpression))
+	}
+	if c.fLeader != "" {
+		opts = append(opts, jsm.ConsumerQueryLeaderServer(c.fLeader))
+	}
+	if c.fPinned {
+		opts = append(opts, jsm.ConsumerQueryIsPinned())
+	}
+
+	consumers, err := stream.QueryConsumers(opts...)
+	if err != nil {
+		return err
+	}
+
+	if len(consumers) > 0 {
+		balancer, err := balancer.New(c.mgr.NatsConn(), api.NewDefaultLogger(api.InfoLevel))
+		if err != nil {
+			return err
+		}
+
+		balanced, err := balancer.BalanceConsumers(consumers)
+		if err != nil {
+			return fmt.Errorf("failed to balance consumers on %s - %s", c.stream, err)
+		}
+		fmt.Printf("Balanced %d consumers on %s\n", balanced, c.stream)
+
+	} else {
+		fmt.Printf("No consumers on %s\n", c.stream)
+	}
+	return nil
 }
 
 func (c *consumerCmd) leaderStandDownAction(_ *fisk.ParseContext) error {
@@ -516,8 +693,18 @@ func (c *consumerCmd) leaderStandDownAction(_ *fisk.ParseContext) error {
 		leader = "<unknown>"
 	}
 
+	var p *api.Placement
+	if c.placementPreferred != "" {
+		err = iu.RequireAPILevel(c.mgr, 1, "placement hints during step-down requires NATS Server 2.11")
+		if err != nil {
+			return err
+		}
+
+		p = &api.Placement{Preferred: c.placementPreferred}
+	}
+
 	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(info.Cluster.Replicas)+1)
-	err = consumer.LeaderStepDown()
+	err = consumer.LeaderStepDown(p)
 	if err != nil {
 		return err
 	}
@@ -755,6 +942,11 @@ func (c *consumerCmd) editAction(pc *fisk.ParseContext) error {
 		}
 	}
 
+	err = c.checkConfigLevel(ncfg)
+	if err != nil {
+		return err
+	}
+
 	cons, err := c.mgr.NewConsumerFromDefault(c.stream, *ncfg)
 	if err != nil {
 		return err
@@ -860,7 +1052,7 @@ func (c *consumerCmd) lsAction(pc *fisk.ParseContext) error {
 
 func (c *consumerCmd) renderConsumerAsTable(stream *jsm.Stream) (string, error) {
 	var out bytes.Buffer
-	table := newTableWriter("Consumers")
+	table := iu.NewTableWriter(opts(), "Consumers")
 	table.AddHeaders("Name", "Description", "Created", "Ack Pending", "Unprocessed", "Last Delivery")
 
 	missing, err := stream.EachConsumer(func(cons *jsm.Consumer) {
@@ -996,6 +1188,11 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		} else {
 			cols.AddRowIf("Paused Until Deadline", fmt.Sprintf("%s (passed)", f(config.PauseUntil)), !config.PauseUntil.IsZero())
 		}
+		if config.PriorityPolicy != api.PriorityNone {
+			cols.AddRow("Priority Policy", config.PriorityPolicy)
+			cols.AddRow("Priority Groups", config.PriorityGroups)
+			cols.AddRowIf("Pinned TTL", config.PinnedTTL, config.PriorityPolicy == api.PriorityPinnedClient)
+		}
 
 		meta := iu.RemoveReservedMetadata(config.Metadata)
 		if len(meta) > 0 {
@@ -1066,6 +1263,19 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 	}
 	if state.Paused {
 		cols.AddRowf("Paused Until", "%s (%s remaining)", f(state.TimeStamp.Add(state.PauseRemaining)), state.PauseRemaining.Round(time.Second))
+	}
+
+	if len(state.PriorityGroups) > 0 && config.PriorityPolicy == api.PriorityPinnedClient {
+		groups := map[string]string{}
+		for _, v := range state.PriorityGroups {
+			msg := "No client"
+			if v.PinnedClientID != "" {
+				msg = fmt.Sprintf("pinned %s at %s", v.PinnedClientID, f(v.PinnedTS))
+			}
+
+			groups[v.Group] = msg
+		}
+		cols.AddMapStringsAsValue("Priority Groups", groups)
 	}
 
 	cols.Frender(os.Stdout)
@@ -1516,7 +1726,7 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 			Help:    "Consumers can filter messages from the stream, this is a space or comma separated list that can include wildcards. Settable using --filter",
 		}, &sub)
 		fisk.FatalIfError(err, "could not ask for filtering subject")
-		c.filterSubjects = splitString(sub)
+		c.filterSubjects = iu.SplitString(sub)
 	}
 
 	switch {
@@ -1651,6 +1861,18 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 		}
 	}
 
+	switch {
+	case len(c.pinnedGroups) > 0 && len(c.overflowGroups) > 0:
+		return nil, fmt.Errorf("setting both overflow and pinned groups are not supported")
+	case len(c.pinnedGroups) > 0:
+		cfg.PriorityPolicy = api.PriorityPinnedClient
+		cfg.PriorityGroups = c.pinnedGroups
+		cfg.PinnedTTL = c.pinnedTTL
+	case len(c.overflowGroups) > 0:
+		cfg.PriorityPolicy = api.PriorityOverflow
+		cfg.PriorityGroups = c.pinnedGroups
+	}
+
 	cfg.Metadata = iu.RemoveReservedMetadata(cfg.Metadata)
 
 	return cfg, nil
@@ -1679,7 +1901,7 @@ func (c *consumerCmd) parsePauseUntil(until string) (time.Time, error) {
 func (c *consumerCmd) resumeAction(_ *fisk.ParseContext) error {
 	c.connectAndSetup(true, true)
 
-	err := iu.RequireAPILevel(c.mgr, 1, "resuming consumers requires NATS Server 2.11")
+	err := iu.RequireAPILevel(c.mgr, 1, "resuming Consumers requires NATS Server 2.11")
 	if err != nil {
 		return err
 	}
@@ -1713,7 +1935,7 @@ func (c *consumerCmd) resumeAction(_ *fisk.ParseContext) error {
 func (c *consumerCmd) pauseAction(_ *fisk.ParseContext) error {
 	c.connectAndSetup(true, true)
 
-	err := iu.RequireAPILevel(c.mgr, 1, "pausing consumers requires NATS Server 2.11")
+	err := iu.RequireAPILevel(c.mgr, 1, "pausing Consumers requires NATS Server 2.11")
 	if err != nil {
 		return err
 	}
@@ -1834,6 +2056,7 @@ func (c *consumerCmd) validateCfg(cfg *api.ConsumerConfig) (bool, []byte, []stri
 }
 
 func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
+	c.connectAndSetup(true, false)
 	cfg, err := c.prepareConfig()
 	if err != nil {
 		return err
@@ -1864,13 +2087,9 @@ func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
 		return os.WriteFile(c.outFile, j, 0600)
 	}
 
-	c.connectAndSetup(true, false)
-
-	if !cfg.PauseUntil.IsZero() {
-		err := iu.RequireAPILevel(c.mgr, 1, "pausing consumers requires NATS Server 2.11")
-		if err != nil {
-			return err
-		}
+	err = c.checkConfigLevel(cfg)
+	if err != nil {
+		return err
 	}
 
 	created, err := c.mgr.NewConsumerFromDefault(c.stream, *cfg)
@@ -1879,6 +2098,24 @@ func (c *consumerCmd) createAction(pc *fisk.ParseContext) (err error) {
 	c.consumer = created.Name()
 
 	c.showConsumer(created)
+
+	return nil
+}
+
+func (c *consumerCmd) checkConfigLevel(cfg *api.ConsumerConfig) error {
+	if !cfg.PauseUntil.IsZero() {
+		err := iu.RequireAPILevel(c.mgr, 1, "pausing consumers requires NATS Server 2.11")
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(cfg.PriorityGroups) > 0 || cfg.PriorityPolicy != api.PriorityNone {
+		err := iu.RequireAPILevel(c.mgr, 1, "Consumer Groups requires NATS Server 2.11")
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -2173,7 +2410,7 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 
 	leaders := make(map[string]*raftLeader)
 
-	table := newTableWriter(fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, f(ss.Consumers)))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, f(ss.Consumers)))
 	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
 	missing, err := s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
@@ -2240,7 +2477,7 @@ func (c *consumerCmd) renderMissing(out io.Writer, missing []string) {
 	if len(missing) > 0 {
 		fmt.Fprintln(out)
 		sort.Strings(missing)
-		table := newTableWriter("Inaccessible Consumers")
+		table := iu.NewTableWriter(opts(), "Inaccessible Consumers")
 		iu.SliceGroups(missing, 4, func(names []string) {
 			table.AddRow(toany(names)...)
 		})

@@ -1,4 +1,4 @@
-// Copyright 2019-2024 The NATS Authors
+// Copyright 2019-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -216,7 +216,7 @@ func TestCLIStreamCreate(t *testing.T) {
 	srv, _, mgr := setupJStreamTest(t)
 	defer srv.Shutdown()
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m --max-msgs-per-subject=10 --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new --dupe-window 1h --replicas 1 --description 'test suite' --allow-rollup --deny-delete --no-deny-purge --allow-direct", srv.ClientURL()))
+	runNatsCli(t, fmt.Sprintf("--server='%s' str create mem1 --subjects 'js.mem.>,js.other' --storage m --max-msgs-per-subject=10 --max-msgs=-1 --max-age=-1 --max-bytes=-1 --ack --retention limits --max-msg-size=1024 --discard new --dupe-window 1h --replicas 1 --description 'test suite' --allow-rollup --deny-delete --no-deny-purge --allow-direct --allow-msg-ttl", srv.ClientURL()))
 	streamShouldExist(t, mgr, "mem1")
 	info := streamInfo(t, mgr, "mem1")
 
@@ -272,6 +272,10 @@ func TestCLIStreamCreate(t *testing.T) {
 		t.Fatalf("expected direct access to be enabled")
 	}
 
+	if !info.Config.AllowMsgTTL {
+		t.Fatalf("expected msg-ttl to be allowed")
+	}
+
 	runNatsCli(t, fmt.Sprintf("--server='%s' str create ORDERS --config testdata/ORDERS_config.json", srv.ClientURL()))
 	streamShouldExist(t, mgr, "ORDERS")
 	info = streamInfo(t, mgr, "ORDERS")
@@ -302,6 +306,10 @@ func TestCLIStreamCreate(t *testing.T) {
 
 	if info.Config.DenyDelete {
 		t.Fatalf("expected delete to be allowed")
+	}
+
+	if !info.Config.AllowMsgTTL {
+		t.Fatalf("expected msg-ttl to be allowed")
 	}
 }
 

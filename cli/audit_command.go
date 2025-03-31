@@ -13,26 +13,14 @@
 
 package cli
 
-import (
-	"time"
-)
-
 func configureAuditCommand(app commandHost) {
-	srv := app.Command("audit", "Audit a NATS deployment").Hidden()
+	audit := app.Command("audit", "Audit a NATS deployment")
 
-	configureAuditGatherCommand(srv)
-	configureAuditAnalyzeCommand(srv)
+	configureAuditAnalyzeCommand(audit)
+	configureAuditChecksCommand(audit)
+	configureAuditGatherCommand(audit)
 }
 
 func init() {
 	registerCommand("audit", 19, configureAuditCommand)
-}
-
-type auditMetadata struct {
-	Timestamp              time.Time `json:"capture_timestamp"`
-	ConnectedServerName    string    `json:"connected_server_name"`
-	ConnectedServerVersion string    `json:"connected_server_version"`
-	ConnectURL             string    `json:"connect_url"`
-	UserName               string    `json:"user_name"`
-	CLIVersion             string    `json:"cli_version"`
 }

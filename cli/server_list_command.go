@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -195,7 +195,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		}
 	})
 
-	table := newTableWriter("Server Overview")
+	table := iu.NewTableWriter(opts(), "Server Overview")
 	table.AddHeaders("Name", "Cluster", "Host", "Version", "JS", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU %", "Cores", "Slow", "Uptime", "RTT")
 
 	// here so its after the sort
@@ -206,8 +206,8 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 	cNames := names
 	cHosts := hosts
 	if c.compact {
-		cNames = compactStrings(names)
-		cHosts = compactStrings(hosts)
+		cNames = iu.CompactStrings(names)
+		cHosts = iu.CompactStrings(hosts)
 	}
 
 	versionsOk := ""
@@ -316,7 +316,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 
 func (c *SrvLsCmd) showClusters(cl map[string]*srvListCluster) {
 	fmt.Println()
-	table := newTableWriter("Cluster Overview")
+	table := iu.NewTableWriter(opts(), "Cluster Overview")
 	table.AddHeaders("Cluster", "Node Count", "Outgoing Gateways", "Incoming Gateways", "Connections")
 
 	var clusters []*srvListCluster

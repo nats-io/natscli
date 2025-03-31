@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"time"
 
 	iu "github.com/nats-io/natscli/internal/util"
 
@@ -49,6 +50,11 @@ type SrvReportCmd struct {
 	stateFilter             string
 	filterReason            string
 	skipDiscoverClusterSize bool
+	gatewayName             string
+	jsEnabled               bool
+	jsServerOnly            bool
+	stream                  string
+	consumer                string
 }
 
 type srvReportAccountInfo struct {
@@ -75,41 +81,533 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 		cmd.Flag("tags", "Limit the report to nodes matching certain tags").StringsVar(&c.tags)
 	}
 
+	acct := report.Command("accounts", "Report on account activity").Alias("acct").Action(c.reportAccount)
+	acct.Arg("account", "Account to produce a report for").StringVar(&c.account)
+	acct.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
+	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs")
+	acct.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
+	addFilterOpts(acct)
+	acct.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnections)
 	conns.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	conns.Flag("account", "Limit report to a specific account").StringVar(&c.account)
-	addFilterOpts(conns)
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
 	conns.Flag("username", "Limits responses only to those connections for a specific authentication username").StringVar(&c.user)
 	conns.Flag("state", "Limits responses only to those connections that are in a specific state (open, closed, all)").PlaceHolder("STATE").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
 	conns.Flag("closed-reason", "Filter results based on a closed reason").PlaceHolder("REASON").StringVar(&c.filterReason)
-	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	conns.Flag("filter", "Expression based filter for connections").StringVar(&c.filterExpression)
+	addFilterOpts(conns)
+	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
-	acct := report.Command("accounts", "Report on account activity").Alias("acct").Action(c.reportAccount)
-	acct.Arg("account", "Account to produce a report for").StringVar(&c.account)
-	acct.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
-	addFilterOpts(acct)
-	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs")
-	acct.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
-	acct.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
-
-	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.reportJetStream)
-	jsz.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
-	addFilterOpts(jsz)
-	jsz.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
-	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
-	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
-
-	cpu := report.Command("cpu", "Reports on CPU uage").Action(c.reportCPU)
+	cpu := report.Command("cpu", "Report on CPU usage").Action(c.reportCPU)
+	cpu.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(cpu)
 	cpu.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
-	mem := report.Command("mem", "Reports on Memory usage").Action(c.reportMem)
+	gateways := report.Command("gateways", "Repost on Gateway (Super Cluster) connections").Alias("super").Alias("gateway").Action(c.reportGateway)
+	gateways.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
+	gateways.Flag("filter-name", "Limits responses to a certain name").StringVar(&c.gatewayName)
+	gateways.Flag("sort", "Sorts by a specific property (server,cluster)").Default("cluster").EnumVar(&c.sort, "server", "cluster")
+	addFilterOpts(gateways)
+
+	health := report.Command("health", "Report on Server health").Action(c.reportHealth)
+	health.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
+	health.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
+	health.Flag("server-only", "Restricts the health check to the JetStream server only, do not check streams and consumers").Short('S').BoolVar(&c.jsServerOnly)
+	health.Flag("account", "Check only a specific Account").StringVar(&c.account)
+	health.Flag("stream", "Check only a specific Stream").StringVar(&c.stream)
+	health.Flag("consumer", "Check only a specific Consumer").StringVar(&c.consumer)
+	addFilterOpts(health)
+
+	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.reportJetStream)
+	jsz.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
+	jsz.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
+	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
+	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
+	addFilterOpts(jsz)
+
+	leafs := report.Command("leafnodes", "Report on Leafnode connections").Alias("leaf").Alias("leafz").Action(c.reportLeafs)
+	leafs.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
+	leafs.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
+	leafs.Flag("sort", "Sort by a specific property (server,name,account,subs,in-bytes,out-bytes,in-msgs,out-msgs)").EnumVar(&c.sort, "server", "name", "account", "subs", "in-bytes", "out-bytes", "in-msgs", "out-msgs")
+	addFilterOpts(leafs)
+
+	mem := report.Command("mem", "Report on Memory usage").Action(c.reportMem)
+	mem.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(mem)
 	mem.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
+
+	routes := report.Command("routes", "Report on Route (Cluster) connections").Alias("route").Action(c.reportRoute)
+	routes.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
+	routes.Flag("sort", "Sort by a specific property (server,cluster,name,account,subs,in-bytes,out-bytes)").EnumVar(&c.sort, "server", "cluster", "name", "account", "subs", "in-bytes", "out-bytes")
+	addFilterOpts(routes)
+}
+
+func (c *SrvReportCmd) reportLeafs(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	req := server.LeafzEventOptions{
+		LeafzOptions: server.LeafzOptions{
+			Account: c.account,
+		},
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	results, err := doReq(req, "$SYS.REQ.SERVER.PING.LEAFZ", c.waitFor, nc)
+	if err != nil {
+		return err
+	}
+
+	type leaf struct {
+		server *server.ServerInfo
+		leafs  *server.LeafInfo
+	}
+
+	var leafs []*leaf
+	for _, result := range results {
+		s := &server.ServerAPILeafzResponse{}
+		err := json.Unmarshal(result, s)
+		if err != nil {
+			return err
+		}
+
+		if s.Error != nil {
+			return fmt.Errorf("%v", s.Error.Error())
+		}
+
+		for _, l := range s.Data.Leafs {
+			leafs = append(leafs, &leaf{
+				server: s.Server,
+				leafs:  l,
+			})
+		}
+	}
+
+	sort.Slice(leafs, func(i, j int) bool {
+		switch c.sort {
+		case "name":
+			return c.boolReverse(leafs[i].leafs.Name < leafs[j].leafs.Name)
+		case "account":
+			return c.boolReverse(leafs[i].leafs.Account < leafs[j].leafs.Account)
+		case "subs":
+			return c.boolReverse(leafs[i].leafs.NumSubs < leafs[j].leafs.NumSubs)
+		case "in-bytes":
+			return c.boolReverse(leafs[i].leafs.InBytes < leafs[j].leafs.InBytes)
+		case "out-bytes":
+			return c.boolReverse(leafs[i].leafs.OutBytes < leafs[j].leafs.OutBytes)
+		case "in-msgs":
+			return c.boolReverse(leafs[i].leafs.InMsgs < leafs[j].leafs.InMsgs)
+		case "out-msgs":
+			return c.boolReverse(leafs[i].leafs.OutMsgs < leafs[j].leafs.OutMsgs)
+		default:
+			return c.boolReverse(leafs[i].server.Name < leafs[j].server.Name)
+		}
+	})
+
+	tbl := iu.NewTableWriter(opts(), "Leafnode Report")
+	tbl.AddHeaders("Server", "Name", "Account", "Address", "RTT", "Msgs In", "Msgs Out", "Bytes In", "Bytes Out", "Subs", "Compressed", "Spoke")
+
+	for _, lz := range leafs {
+		acct := lz.leafs.Account
+		if len(acct) > 23 {
+			acct = fmt.Sprintf("%s...%s", acct[0:10], acct[len(acct)-10:])
+		}
+
+		tbl.AddRow(
+			lz.server.Name,
+			lz.leafs.Name,
+			acct,
+			fmt.Sprintf("%s:%d", lz.leafs.IP, lz.leafs.Port),
+			lz.leafs.RTT,
+			f(lz.leafs.InMsgs),
+			f(lz.leafs.OutMsgs),
+			fiBytes(uint64(lz.leafs.InBytes)),
+			fiBytes(uint64(lz.leafs.OutBytes)),
+			f(lz.leafs.NumSubs),
+			f(lz.leafs.Compression),
+			f(lz.leafs.IsSpoke),
+		)
+	}
+
+	fmt.Println(tbl.Render())
+
+	return nil
+}
+
+func (c *SrvReportCmd) parseRtt(rtt string, crit time.Duration) string {
+	d, err := time.ParseDuration(rtt)
+	if err != nil {
+		return rtt
+	}
+
+	if d < crit {
+		return f(d)
+	}
+
+	return color.RedString(f(d))
+}
+
+func (c *SrvReportCmd) reportHealth(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	req := server.HealthzEventOptions{
+		HealthzOptions: server.HealthzOptions{
+			JSEnabledOnly: c.jsEnabled,
+			JSServerOnly:  c.jsServerOnly,
+			Account:       c.account,
+			Stream:        c.stream,
+			Consumer:      c.consumer,
+			Details:       true,
+		},
+		EventFilterOptions: c.reqFilter(),
+	}
+	results, err := doReq(req, "$SYS.REQ.SERVER.PING.HEALTHZ", c.waitFor, nc)
+	if err != nil {
+		return err
+	}
+
+	var servers []server.ServerAPIHealthzResponse
+	for _, result := range results {
+		s := &server.ServerAPIHealthzResponse{}
+		err := json.Unmarshal(result, s)
+		if err != nil {
+			return err
+		}
+
+		if s.Error != nil {
+			return fmt.Errorf("%v", s.Error.Error())
+		}
+
+		servers = append(servers, *s)
+	}
+
+	sort.Slice(servers, func(i, j int) bool {
+		return c.boolReverse(servers[i].Server.Name < servers[j].Server.Name)
+	})
+
+	tbl := iu.NewTableWriter(opts(), "Health Report")
+	tbl.AddHeaders("Server", "Cluster", "Domain", "Status", "Type", "Error")
+
+	var ok, notok, totalErrors int
+	totalClusters := map[string]struct{}{}
+
+	for _, srv := range servers {
+		tbl.AddRow(
+			srv.Server.Name,
+			srv.Server.Cluster,
+			srv.Server.Domain,
+			fmt.Sprintf("%s (%d)", srv.Data.Status, srv.Data.StatusCode),
+		)
+
+		if srv.Data.StatusCode == 200 {
+			ok += 1
+		} else {
+			notok += 1
+		}
+
+		totalClusters[srv.Server.Cluster] = struct{}{}
+
+		ecnt := len(srv.Data.Errors)
+		if ecnt == 0 {
+			continue
+		}
+
+		totalErrors += ecnt
+
+		show := ecnt
+		if ecnt > 10 {
+			show = 9
+		}
+
+		for _, errStatus := range srv.Data.Errors[0:show] {
+			tbl.AddRow(
+				"", "", "", "",
+				errStatus.Type.String(),
+				errStatus.Error,
+			)
+		}
+		if show != ecnt {
+			tbl.AddRow("", "", "", fmt.Sprintf("%d more errors", ecnt-show))
+		}
+	}
+
+	//tbl.AddSeparator()
+	tbl.AddFooter(f(len(servers)), f(len(totalClusters)), "", f(fmt.Sprintf("ok: %d / err: %d", ok, notok)), "", f(totalErrors))
+
+	fmt.Println(tbl.Render())
+
+	return nil
+}
+
+func (c *SrvReportCmd) reportGateway(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	req := &server.GatewayzEventOptions{
+		EventFilterOptions: c.reqFilter(),
+		GatewayzOptions: server.GatewayzOptions{
+			Name:     c.gatewayName,
+			Accounts: true,
+		},
+	}
+
+	results, err := doReq(req, "$SYS.REQ.SERVER.PING.GATEWAYZ", c.waitFor, nc)
+	if err != nil {
+		return err
+	}
+
+	var gateways []server.ServerAPIGatewayzResponse
+	for _, result := range results {
+		g := &server.ServerAPIGatewayzResponse{}
+		err := json.Unmarshal(result, g)
+		if err != nil {
+			return err
+		}
+
+		if g.Error != nil {
+			return fmt.Errorf("%v", g.Error.Error())
+		}
+
+		gateways = append(gateways, *g)
+	}
+
+	sort.Slice(gateways, func(i, j int) bool {
+		switch c.sort {
+		case "server":
+			return c.boolReverse(gateways[i].Server.Name < gateways[j].Server.Name)
+		case "cluster":
+			return c.boolReverse(gateways[i].Server.Cluster < gateways[j].Server.Cluster)
+		}
+
+		return c.boolReverse(false)
+	})
+
+	tbl := iu.NewTableWriter(opts(), "Super Cluster Report")
+	tbl.AddHeaders("Server", "Name", "Port", "Kind", "Connection", "ID", "Uptime", "RTT", "Bytes", "Accounts")
+
+	var lastServer, lastName, lastDirection string
+	var totalBytes int64
+	var totalServers, totalGateways int
+	totalClusters := map[string]struct{}{}
+
+	for _, g := range gateways {
+		sname := g.Server.Name
+		totalServers++
+
+		if sname == lastServer {
+			sname = ""
+		}
+		lastServer = g.Server.Name
+
+		cname := g.Server.Cluster
+		if cname == lastName {
+			cname = ""
+		}
+		lastName = g.Server.Name
+		totalClusters[cname] = struct{}{}
+
+		tbl.AddRow(
+			sname,
+			cname,
+			g.Data.Port,
+			"", "", "", "", "", "", "",
+		)
+
+		lastDirection = ""
+		for gname, conns := range g.Data.InboundGateways {
+			for _, conn := range conns {
+				totalGateways++
+				direction := "Inbound"
+				if direction == lastDirection {
+					direction = ""
+				} else {
+					lastDirection = "Inbound"
+				}
+
+				uptime := conn.Connection.Uptime
+				if d, err := time.ParseDuration(uptime); err == nil {
+					uptime = f(d)
+				}
+
+				totalBytes += conn.Connection.InBytes
+				tbl.AddRow(
+					"", "", "",
+					direction,
+					fmt.Sprintf("%s %s:%d", gname, conn.Connection.IP, conn.Connection.Port),
+					fmt.Sprintf("gid:%d", conn.Connection.Cid),
+					uptime,
+					c.parseRtt(conn.Connection.RTT, 300*time.Millisecond),
+					fiBytes(uint64(conn.Connection.InBytes)),
+					f(len(conn.Accounts)),
+				)
+			}
+		}
+
+		for gname, conn := range g.Data.OutboundGateways {
+			totalGateways++
+			direction := "Outbound"
+			if direction == lastDirection {
+				direction = ""
+			} else {
+				lastDirection = "Outbound"
+			}
+
+			totalBytes += conn.Connection.OutBytes
+			tbl.AddRow(
+				"", "", "",
+				direction,
+				fmt.Sprintf("%s %s:%d", gname, conn.Connection.IP, conn.Connection.Port),
+				fmt.Sprintf("gid:%d", conn.Connection.Cid),
+				conn.Connection.Uptime,
+				c.parseRtt(conn.Connection.RTT, 300*time.Millisecond),
+				fiBytes(uint64(conn.Connection.OutBytes)),
+				f(len(conn.Accounts)),
+			)
+		}
+	}
+
+	tbl.AddFooter(f(totalServers), len(totalClusters), "", "", f(totalGateways), "", "", "", fiBytes(uint64(totalBytes)), "")
+
+	fmt.Println(tbl.Render())
+
+	return nil
+}
+
+func (c *SrvReportCmd) reportRoute(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	req := &server.RoutezEventOptions{
+		EventFilterOptions: c.reqFilter(),
+	}
+	results, err := doReq(req, "$SYS.REQ.SERVER.PING.ROUTEZ", c.waitFor, nc)
+	if err != nil {
+		return err
+	}
+
+	type routeData struct {
+		server *server.ServerInfo
+		routes *server.RouteInfo
+	}
+
+	routes := []routeData{}
+	for _, result := range results {
+		r := &server.ServerAPIRoutezResponse{}
+		err := json.Unmarshal(result, r)
+		if err != nil {
+			return err
+		}
+
+		if r.Error != nil {
+			return fmt.Errorf("%v", r.Error.Error())
+		}
+
+		if len(r.Data.Routes) > 0 {
+			for _, route := range r.Data.Routes {
+				routes = append(routes, routeData{r.Server, route})
+			}
+		}
+	}
+
+	sort.Slice(routes, func(i, j int) bool {
+		switch c.sort {
+		case "cluster":
+			return c.boolReverse(routes[i].server.Cluster < routes[j].server.Cluster)
+		case "name":
+			return c.boolReverse(routes[i].routes.RemoteName < routes[j].routes.RemoteName)
+		case "account", "acct":
+			return c.boolReverse(routes[i].routes.Account < routes[j].routes.Account)
+		case "subs":
+			return c.boolReverse(routes[i].routes.NumSubs < routes[j].routes.NumSubs)
+		case "in-bytes":
+			return c.boolReverse(routes[i].routes.InBytes < routes[j].routes.InBytes)
+		case "out-bytes":
+			return c.boolReverse(routes[i].routes.OutBytes < routes[j].routes.OutBytes)
+		case "server":
+			return c.boolReverse(routes[i].server.Name < routes[j].server.Name)
+		}
+
+		return c.boolReverse(false)
+	})
+
+	tbl := iu.NewTableWriter(opts(), "Cluster Report")
+	tbl.AddHeaders("Server", "Cluster", "Name", "Account", "Address", "ID", "Uptime", "RTT", "Subs", "Bytes In", "Bytes Out")
+
+	var lastServer, lastCluster, lastRemote string
+	var subs, bytesIn, bytesOut, totalRoutes int64
+	totalServers := map[string]struct{}{}
+	totalClusters := map[string]struct{}{}
+
+	for _, route := range routes {
+		r := route.routes
+
+		totalServers[route.server.Name] = struct{}{}
+		totalClusters[route.server.Cluster] = struct{}{}
+
+		totalRoutes++
+
+		uptime := route.server.Time.Sub(r.Start)
+		sname := route.server.Name
+		if sname == lastServer {
+			sname = ""
+		} else {
+			lastRemote = ""
+			lastCluster = ""
+		}
+		lastServer = route.server.Name
+
+		cname := route.server.Cluster
+		if cname == lastCluster {
+			cname = ""
+		}
+		lastCluster = route.server.Cluster
+
+		rname := r.RemoteName
+		if rname == lastRemote {
+			rname = ""
+		}
+		lastRemote = r.RemoteName
+
+		acct := r.Account
+		if len(acct) > 23 {
+			acct = fmt.Sprintf("%s...%s", acct[0:10], acct[len(acct)-10:])
+		}
+		subs += int64(r.NumSubs)
+		bytesIn += r.InBytes
+		bytesOut += r.OutBytes
+
+		tbl.AddRow(
+			sname,
+			cname,
+			rname,
+			acct,
+			fmt.Sprintf("%s:%d", r.IP, r.Port),
+			fmt.Sprintf("rid:%d", r.Rid),
+			f(uptime),
+			c.parseRtt(r.RTT, 100*time.Millisecond),
+			f(r.NumSubs),
+			fiBytes(uint64(r.InBytes)),
+			fiBytes(uint64(r.OutBytes)),
+		)
+	}
+
+	tbl.AddFooter(f(len(totalServers)), f(len(totalClusters)), "", "", f(totalRoutes), "", "", "", f(subs), fiBytes(uint64(bytesIn)), fiBytes(uint64(bytesOut)))
+	fmt.Println(tbl.Render())
+
+	return nil
 }
 
 func (c *SrvReportCmd) reportMem(_ *fisk.ParseContext) error {
@@ -184,14 +682,9 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	type jszr struct {
-		Data   server.JSInfo     `json:"data"`
-		Server server.ServerInfo `json:"server"`
-	}
-
 	var (
 		names               []string
-		jszResponses        []*jszr
+		jszResponses        []*server.ServerAPIJszResponse
 		apiErrTotal         uint64
 		apiTotal            uint64
 		pendingTotal        int
@@ -209,7 +702,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	renderPending := iu.ServerMinVersion(nc, 2, 10, 21)
 	renderDomain := false
 	for _, r := range res {
-		response := jszr{}
+		response := &server.ServerAPIJszResponse{}
 
 		err = json.Unmarshal(r, &response)
 		if err != nil {
@@ -220,7 +713,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			renderDomain = true
 		}
 
-		jszResponses = append(jszResponses, &response)
+		jszResponses = append(jszResponses, response)
 	}
 
 	sort.Slice(jszResponses, func(i, j int) bool {
@@ -269,16 +762,16 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	}
 	var cNames []string
 	if c.compact {
-		cNames = compactStrings(names)
+		cNames = iu.CompactStrings(names)
 	} else {
 		cNames = names
 	}
 
-	var table *tbl
+	var table *iu.Table
 	if c.account != "" {
-		table = newTableWriter(fmt.Sprintf("JetStream Summary for Account %s", c.account))
+		table = iu.NewTableWriter(opts(), fmt.Sprintf("JetStream Summary for Account %s", c.account))
 	} else {
-		table = newTableWriter("JetStream Summary")
+		table = iu.NewTableWriter(opts(), "JetStream Summary")
 	}
 
 	hdrs := []any{"Server", "Cluster"}
@@ -413,12 +906,12 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			names = append(names, r.Name)
 		}
 		if c.compact {
-			cNames = compactStrings(names)
+			cNames = iu.CompactStrings(names)
 		} else {
 			cNames = names
 		}
 
-		table := newTableWriter("RAFT Meta Group Information")
+		table := iu.NewTableWriter(opts(), "RAFT Meta Group Information")
 		table.AddHeaders("Connection Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
 		for i, replica := range cluster.Replicas {
 			leader := ""
@@ -516,7 +1009,7 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := newTableWriter(fmt.Sprintf("%d Accounts Overview", len(accounts)))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("%d Accounts Overview", len(accounts)))
 	table.AddHeaders("Account", "Connections", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
 
 	for _, acct := range accounts {
@@ -634,7 +1127,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		limit = c.topk
 	}
 
-	table := newTableWriter(fmt.Sprintf("Top %d Connections out of %s by %s", limit, f(total), c.sort))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("Top %d Connections out of %s by %s", limit, f(total), c.sort))
 	showReason := c.stateFilter == "closed" || c.stateFilter == "all"
 	headers := []any{"CID", "Name", "Server", "Cluster", "IP", "Account", "Uptime", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs"}
 	if showReason {
@@ -718,7 +1211,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 			return servers[serverNames[i]].conns < servers[serverNames[j]].conns
 		})
 
-		table := newTableWriter("Connections per server")
+		table := iu.NewTableWriter(opts(), "Connections per server")
 		table.AddHeaders("Server", "Cluster", "Connections")
 		sort.Slice(serverNames, func(i, j int) bool {
 			return servers[serverNames[i]].conns < servers[serverNames[j]].conns

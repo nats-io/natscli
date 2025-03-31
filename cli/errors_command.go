@@ -112,7 +112,7 @@ func (c *errCmd) listAction(_ *fisk.ParseContext) error {
 		}
 	})
 
-	table := newTableWriter("NATS Errors")
+	table := iu.NewTableWriter(opts(), "NATS Errors")
 	table.AddHeaders("NATS Code", "HTTP Error Code", "Description", "Comment", "Go Constant")
 	for _, v := range matched {
 		table.AddRow(v.ErrCode, v.Code, v.Description, v.Comment, v.Constant)

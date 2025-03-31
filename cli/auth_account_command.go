@@ -1,4 +1,4 @@
-// Copyright 2023-2024 The NATS Authors
+// Copyright 2023-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -23,7 +23,8 @@ import (
 	"time"
 
 	au "github.com/nats-io/natscli/internal/auth"
-	"github.com/nats-io/natscli/internal/util"
+	iu "github.com/nats-io/natscli/internal/util"
+	"gopkg.in/yaml.v3"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -101,6 +102,14 @@ type authAccountCommand struct {
 	prefix                  string
 	tags                    []string
 	rmTags                  []string
+	signingKey              string
+	mapSource               string
+	mapTarget               string
+	mapWeight               uint
+	mapCluster              string
+	inputFile               string
+	clusterTraffic          string
+	clusterTrafficIsSet     bool
 }
 
 func configureAuthAccountCommand(auth commandHost) {
@@ -123,6 +132,7 @@ func configureAuthAccountCommand(auth commandHost) {
 		f.Flag("js-memory-stream", "Sets the maximum size a Memory Storage stream may be").PlaceHolder("BYTES").Default("-1").StringVar(&c.memMaxStreamString)
 		f.Flag("js-stream-size-required", "Requires Streams to have a maximum size declared").IsSetByUser(&c.streamSizeRequiredIsSet).UnNegatableBoolVar(&c.streamSizeRequired)
 		f.Flag("js-streams", "Sets the maximum Streams the account can have").Default("-1").IsSetByUser(&c.maxStreamsIsSet).Int64Var(&c.maxStreams)
+		f.Flag("js-cluster-traffic", "Sets the account used for JetStream cluster traffic").PlaceHolder("ACCOUNT").IsSetByUser(&c.clusterTrafficIsSet).EnumVar(&c.clusterTraffic, "owner", "system")
 		f.Flag("leafnodes", "Maximum allowed Leafnode connections").Default("-1").IsSetByUser(&c.maxLeafNodesIsSet).Int64Var(&c.maxLeafnodes)
 		f.Flag("payload", "Maximum allowed payload").PlaceHolder("BYTES").Default("-1").StringVar(&c.maxPayloadString)
 		f.Flag("subscriptions", "Maximum allowed subscriptions").Default("-1").IsSetByUser(&c.maxSubIsSet).Int64Var(&c.maxSubs)
@@ -133,17 +143,18 @@ func configureAuthAccountCommand(auth commandHost) {
 	}
 
 	add := acct.Command("add", "Adds a new Account").Alias("create").Alias("new").Action(c.addAction)
-	add.Arg("name", "Unique name for this Account").StringVar(&c.accountName)
+	add.Arg("account", "Unique name for this Account").StringVar(&c.accountName)
 	add.Flag("operator", "Operator to add the account to").StringVar(&c.operatorName)
+	add.Flag("key", "The public key to use when signing the user").StringVar(&c.signingKey)
 	addCreateFlags(add, false)
 	add.Flag("defaults", "Accept default values without prompting").UnNegatableBoolVar(&c.defaults)
 
 	info := acct.Command("info", "Show Account information").Alias("i").Alias("show").Alias("view").Action(c.infoAction)
-	info.Arg("name", "Account to view").StringVar(&c.accountName)
+	info.Arg("account", "Account to view").StringVar(&c.accountName)
 	info.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 
 	edit := acct.Command("edit", "Edit Account settings").Alias("update").Action(c.editAction)
-	edit.Arg("name", "Unique name for this Account").StringVar(&c.accountName)
+	edit.Arg("account", "Unique name for this Account").StringVar(&c.accountName)
 	edit.Flag("operator", "Operator to add the account to").StringVar(&c.operatorName)
 	addCreateFlags(edit, false)
 
@@ -151,18 +162,18 @@ func configureAuthAccountCommand(auth commandHost) {
 	ls.Arg("operator", "Operator to act on").StringVar(&c.operatorName)
 	ls.Flag("names", "Show just the Account names").UnNegatableBoolVar(&c.listNames)
 
-	rm := acct.Command("rm", "Removes an Account").Action(c.rmAction)
-	rm.Arg("name", "Account to view").StringVar(&c.accountName)
-	rm.Flag("operator", "Operator hosting the Account").StringVar(&c.operatorName)
-	rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
+	//rm := acct.Command("rm", "Removes an Account").Action(c.rmAction)
+	//rm.Arg("name", "Account to view").StringVar(&c.accountName)
+	//rm.Flag("operator", "Operator hosting the Account").StringVar(&c.operatorName)
+	//rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	push := acct.Command("push", "Push the Account to the NATS Resolver").Action(c.pushAction)
-	push.Arg("name", "Account to act on").StringVar(&c.accountName)
+	push.Arg("account", "Account to act on").StringVar(&c.accountName)
 	push.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	push.Flag("show", "Show the Account JWT before pushing").UnNegatableBoolVar(&c.showJWT)
 
 	query := acct.Command("query", "Pull the Account from the NATS Resolver and view it").Alias("pull").Action(c.queryAction)
-	query.Arg("name", "Account to act on").Required().StringVar(&c.accountName)
+	query.Arg("account", "Account to act on").Required().StringVar(&c.accountName)
 	query.Arg("output", "Saves the JWT to a file").StringVar(&c.output)
 	query.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
@@ -250,7 +261,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	sk := acct.Command("keys", "Manage Scoped Signing Keys").Alias("sk").Alias("s")
 
 	skadd := sk.Command("add", "Adds a signing key").Alias("new").Alias("a").Alias("n").Action(c.skAddAction)
-	skadd.Arg("name", "Account to act on").StringVar(&c.accountName)
+	skadd.Arg("account", "Account to act on").StringVar(&c.accountName)
 	skadd.Arg("role", "The role to add a key for").StringVar(&c.skRole)
 	skadd.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	skadd.Flag("description", "Description for the signing key").StringVar(&c.description)
@@ -265,19 +276,44 @@ func configureAuthAccountCommand(auth commandHost) {
 	skadd.Flag("sub-deny", "Sets subjects where subscribing is allowed").StringsVar(&c.subDeny)
 
 	skInfo := sk.Command("info", "Show information for a Scoped Signing Key").Alias("i").Alias("show").Alias("view").Action(c.skInfoAction)
-	skInfo.Arg("name", "Account to view").StringVar(&c.accountName)
+	skInfo.Arg("account", "Account to view").StringVar(&c.accountName)
 	skInfo.Arg("key", "The role or key to view").StringVar(&c.skRole)
 	skInfo.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	skls := sk.Command("ls", "List Scoped Signing Keys").Alias("list").Action(c.skListAction)
-	skls.Arg("name", "Account to act on").StringVar(&c.accountName)
+	skls.Arg("account", "Account to act on").StringVar(&c.accountName)
 	skls.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	skrm := sk.Command("rm", "Remove a scoped signing key").Action(c.skRmAction)
-	skrm.Arg("name", "Account to act on").StringVar(&c.accountName)
+	skrm.Arg("account", "Account to act on").StringVar(&c.accountName)
 	skrm.Flag("key", "The key to remove").StringVar(&c.skRole)
 	skrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
+
+	mappings := acct.Command("mappings", "Manage account level subject mapping and partitioning").Alias("m").Alias("mapping").Alias("map")
+
+	mappingsaAdd := mappings.Command("add", "Add a new mapping").Alias("new").Alias("a").Action(c.mappingAddAction)
+	mappingsaAdd.Arg("account", "Account to create the mappings on").StringVar(&c.accountName)
+	mappingsaAdd.Arg("source", "The source subject of the mapping").StringVar(&c.mapSource)
+	mappingsaAdd.Arg("target", "The target subject of the mapping").StringVar(&c.mapTarget)
+	mappingsaAdd.Arg("weight", "The weight (%) of the mapping").Default("100").UintVar(&c.mapWeight)
+	mappingsaAdd.Arg("cluster", "Limit the mappings to a specific cluster").StringVar(&c.mapCluster)
+	mappingsaAdd.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
+	mappingsaAdd.Flag("config", "json or yaml file to read configuration from").ExistingFileVar(&c.inputFile)
+
+	mappingsls := mappings.Command("ls", "List mappings").Alias("list").Action(c.mappingListAction)
+	mappingsls.Arg("account", "Account to list the mappings from").StringVar(&c.accountName)
+	mappingsls.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
+
+	mappingsrm := mappings.Command("rm", "Remove a mapping").Action(c.mappingRmAction)
+	mappingsrm.Arg("account", "Account to remove the mappings from").StringVar(&c.accountName)
+	mappingsrm.Arg("source", "The source subject of the mapping").StringVar(&c.mapSource)
+	mappingsrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
+
+	mappingsinfo := mappings.Command("info", "Show information about a mapping").Alias("i").Alias("show").Alias("view").Action(c.mappingInfoAction)
+	mappingsinfo.Arg("account", "Account to inspect the mappings from").StringVar(&c.accountName)
+	mappingsinfo.Arg("source", "The source subject of the mapping").StringVar(&c.mapSource)
+	mappingsinfo.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 }
 
 func (c *authAccountCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator, ab.Account, error) {
@@ -492,7 +528,7 @@ func (c *authAccountCommand) skAddAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.skRole == "" {
-		err := util.AskOne(&survey.Input{
+		err := iu.AskOne(&survey.Input{
 			Message: "Role Name",
 			Help:    "The role to associate with this key",
 		}, &c.skRole, survey.WithValidator(survey.Required))
@@ -502,7 +538,7 @@ func (c *authAccountCommand) skAddAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.maxPayloadString != "" {
-		c.maxPayload, err = parseStringAsBytes(c.maxPayloadString)
+		c.maxPayload, err = iu.ParseStringAsBytes(c.maxPayloadString)
 		if err != nil {
 			return err
 		}
@@ -601,10 +637,10 @@ func (c *authAccountCommand) skListAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	var table *tbl
+	var table *iu.Table
 
 	if len(acct.ScopedSigningKeys().List()) > 0 {
-		table = newTableWriter("Scoped Signing Keys")
+		table = iu.NewTableWriter(opts(), "Scoped Signing Keys")
 		table.AddHeaders("Role", "Key", "Description", "Max Subscriptions", "Pub Perms", "Sub Perms")
 		for _, sk := range acct.ScopedSigningKeys().List() {
 			scope, _ := acct.ScopedSigningKeys().GetScope(sk)
@@ -698,7 +734,6 @@ func (c *authAccountCommand) editAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	fmt.Printf("jsIsSet: %t enabled: %t\n", c.jetStreamIsSet, jsEnabled)
 	err = c.updateAccount(acct, c.jetStreamIsSet || jsEnabled)
 	if err != nil {
 		return err
@@ -712,39 +747,39 @@ func (c *authAccountCommand) editAction(_ *fisk.ParseContext) error {
 	return c.fShowAccount(os.Stdout, operator, acct)
 }
 
-func (c *authAccountCommand) rmAction(_ *fisk.ParseContext) error {
-	fmt.Println("WARNING: At present deleting is not supported by the nsc store")
-	fmt.Println()
-
-	auth, operator, account, err := c.selectAccount(true)
-	if err != nil {
-		return err
-	}
-
-	if !c.force {
-		ok, err := askConfirmation(fmt.Sprintf("Really remove the Accouint %s", c.accountName), false)
-		if err != nil {
-			return err
-		}
-
-		if !ok {
-			return nil
-		}
-	}
-
-	err = operator.Accounts().Delete(account.Name())
-	if err != nil {
-		return err
-	}
-
-	err = auth.Commit()
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Removed account %s\n", account.Name())
-	return nil
-}
+//func (c *authAccountCommand) rmAction(_ *fisk.ParseContext) error {
+//	fmt.Println("WARNING: At present deleting is not supported by the nsc store")
+//	fmt.Println()
+//
+//	auth, operator, account, err := c.selectAccount(true)
+//	if err != nil {
+//		return err
+//	}
+//
+//	if !c.force {
+//		ok, err := askConfirmation(fmt.Sprintf("Really remove the Accouint %s", c.accountName), false)
+//		if err != nil {
+//			return err
+//		}
+//
+//		if !ok {
+//			return nil
+//		}
+//	}
+//
+//	err = operator.Accounts().Delete(account.Name())
+//	if err != nil {
+//		return err
+//	}
+//
+//	err = auth.Commit()
+//	if err != nil {
+//		return err
+//	}
+//
+//	fmt.Printf("Removed account %s\n", account.Name())
+//	return nil
+//}
 
 func (c *authAccountCommand) lsAction(_ *fisk.ParseContext) error {
 	_, operator, err := c.selectOperator(true)
@@ -765,13 +800,13 @@ func (c *authAccountCommand) lsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := newTableWriter("Accounts")
+	table := iu.NewTableWriter(opts(), "Accounts")
 	table.AddHeaders("Name", "Subject", "Users", "JetStream", "System")
 	for _, acct := range list {
 		system := ""
 		js := ""
 		sa, err := operator.SystemAccount()
-		if err == nil && acct.Subject() == sa.Subject() {
+		if err == nil && sa != nil && acct.Subject() == sa.Subject() {
 			system = "true"
 		}
 		if acct.Limits().JetStream().IsJetStreamEnabled() {
@@ -830,6 +865,13 @@ func (c *authAccountCommand) updateAccount(acct ab.Account, js bool) error {
 		}
 	}
 
+	if c.clusterTrafficIsSet {
+		err = acct.SetClusterTraffic(c.clusterTraffic)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -837,7 +879,7 @@ func (c *authAccountCommand) parseStringOptions() error {
 	var err error
 
 	if c.maxPayloadString != "" {
-		c.maxPayload, err = parseStringAsBytes(c.maxPayloadString)
+		c.maxPayload, err = iu.ParseStringAsBytes(c.maxPayloadString)
 		if err != nil {
 			return err
 		}
@@ -858,26 +900,26 @@ func (c *authAccountCommand) parseStringOptions() error {
 		}
 
 		if c.storeMaxString != "" {
-			c.storeMax, err = parseStringAsBytes(c.storeMaxString)
+			c.storeMax, err = iu.ParseStringAsBytes(c.storeMaxString)
 			if err != nil {
 				return err
 			}
 		}
 		if c.memMaxString != "" {
-			c.memMax, err = parseStringAsBytes(c.memMaxString)
+			c.memMax, err = iu.ParseStringAsBytes(c.memMaxString)
 			if err != nil {
 				return err
 			}
 		}
 
 		if c.memMaxStreamString != "-1" {
-			c.memMaxStream, err = parseStringAsBytes(c.memMaxStreamString)
+			c.memMaxStream, err = iu.ParseStringAsBytes(c.memMaxStreamString)
 			if err != nil {
 				return err
 			}
 		}
 		if c.storeMaxStreamString != "-1" {
-			c.storeMaxStream, err = parseStringAsBytes(c.storeMaxStreamString)
+			c.storeMaxStream, err = iu.ParseStringAsBytes(c.storeMaxStreamString)
 			if err != nil {
 				return err
 			}
@@ -894,7 +936,7 @@ func (c *authAccountCommand) addAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.accountName == "" {
-		err := util.AskOne(&survey.Input{
+		err := iu.AskOne(&survey.Input{
 			Message: "Account Name",
 			Help:    "A unique name for the Account being added",
 		}, &c.accountName, survey.WithValidator(survey.Required))
@@ -910,6 +952,21 @@ func (c *authAccountCommand) addAction(_ *fisk.ParseContext) error {
 	acct, err := operator.Accounts().Add(c.accountName)
 	if err != nil {
 		return err
+	}
+
+	if c.signingKey != "" {
+		sk, err := au.SelectSigningKey(acct, c.signingKey)
+		if err != nil {
+			return err
+		}
+		c.signingKey = sk.Key()
+	}
+
+	if c.signingKey != "" {
+		err = acct.SetIssuer(c.signingKey)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = au.UpdateTags(acct.Tags(), c.tags, c.rmTags)
@@ -1020,7 +1077,13 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 
 	if js.IsJetStreamEnabled() {
 		cols.Indent(2)
-		cols.AddSectionTitle("JetStream Limits")
+		cols.AddSectionTitle("JetStream Settings")
+
+		traffic := acct.ClusterTraffic()
+		if traffic == "" {
+			traffic = "system"
+		}
+		cols.AddRow("Cluster Traffic", traffic)
 
 		tiers := c.validTiers(acct)
 
@@ -1083,4 +1146,214 @@ func (c *authAccountCommand) validTiers(acct ab.Account) []int8 {
 	}
 
 	return tiers
+}
+
+func (c *authAccountCommand) loadMappingsConfig() (map[string][]ab.Mapping, error) {
+	if c.inputFile != "" {
+		f, err := os.ReadFile(c.inputFile)
+		if err != nil {
+			return nil, err
+		}
+
+		var mappings map[string][]ab.Mapping
+		err = yaml.Unmarshal(f, &mappings)
+		if err != nil {
+			return nil, fmt.Errorf("unable to load config file: %s", err)
+		}
+		return mappings, nil
+	}
+	return nil, nil
+
+}
+
+func (c *authAccountCommand) mappingAddAction(_ *fisk.ParseContext) error {
+	var err error
+	mappings := map[string][]ab.Mapping{}
+	if c.inputFile != "" {
+		mappings, err = c.loadMappingsConfig()
+		if err != nil {
+			return err
+		}
+	}
+
+	auth, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	if c.inputFile == "" {
+		if c.mapSource == "" {
+			err := iu.AskOne(&survey.Input{
+				Message: "Source subject",
+				Help:    "The source subject of the mapping",
+			}, &c.mapSource, survey.WithValidator(survey.Required))
+			if err != nil {
+				return err
+			}
+		}
+
+		if c.mapTarget == "" {
+			err := iu.AskOne(&survey.Input{
+				Message: "Target subject",
+				Help:    "The target subject of the mapping",
+			}, &c.mapTarget, survey.WithValidator(survey.Required))
+			if err != nil {
+				return err
+			}
+		}
+
+		mapping := ab.Mapping{Subject: c.mapTarget, Weight: uint8(c.mapWeight)}
+		if c.mapCluster != "" {
+			mapping.Cluster = c.mapCluster
+		}
+		// check if there are mappings already set for the source
+		currentMappings := acct.SubjectMappings().Get(c.mapSource)
+		if len(currentMappings) > 0 {
+			// Check that we don't overwrite the current mapping
+			for _, m := range currentMappings {
+				if m.Subject == c.mapTarget {
+					return fmt.Errorf("mapping %s -> %s already exists", c.mapSource, c.mapTarget)
+				}
+			}
+		}
+		currentMappings = append(currentMappings, mapping)
+		mappings[c.mapSource] = currentMappings
+	}
+
+	for subject, m := range mappings {
+		err = acct.SubjectMappings().Set(subject, m...)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = auth.Commit()
+	if err != nil {
+		return err
+	}
+
+	return c.fShowMappings(os.Stdout, mappings)
+}
+
+func (c *authAccountCommand) mappingInfoAction(_ *fisk.ParseContext) error {
+	_, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	accountMappings := acct.SubjectMappings().List()
+	if len(accountMappings) == 0 {
+		fmt.Println("No mappings defined")
+		return nil
+	}
+
+	if c.mapSource == "" {
+		err = iu.AskOne(&survey.Select{
+			Message:  "Select a mapping to inspect",
+			Options:  accountMappings,
+			PageSize: iu.SelectPageSize(len(accountMappings)),
+		}, &c.mapSource)
+		if err != nil {
+			return err
+		}
+	}
+
+	mappings := map[string][]ab.Mapping{
+		c.mapSource: acct.SubjectMappings().Get(c.mapSource),
+	}
+
+	return c.fShowMappings(os.Stdout, mappings)
+}
+
+func (c *authAccountCommand) mappingListAction(_ *fisk.ParseContext) error {
+	_, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	mappings := acct.SubjectMappings().List()
+	if len(mappings) == 0 {
+		fmt.Println("No mappings defined")
+		return nil
+	}
+
+	tbl := iu.NewTableWriter(opts(), "Subject mappings for account %s", acct.Name())
+	tbl.AddHeaders("Source Subject", "Target Subject", "Weight", "Cluster")
+
+	for _, fromMapping := range acct.SubjectMappings().List() {
+		subjectMaps := acct.SubjectMappings().Get(fromMapping)
+		for _, m := range subjectMaps {
+			tbl.AddRow(fromMapping, m.Subject, m.Weight, m.Cluster)
+		}
+	}
+
+	fmt.Println(tbl.Render())
+	return nil
+}
+
+func (c *authAccountCommand) mappingRmAction(_ *fisk.ParseContext) error {
+	auth, _, acct, err := c.selectAccount(true)
+	if err != nil {
+		return err
+	}
+
+	mappings := acct.SubjectMappings().List()
+	if len(mappings) == 0 {
+		fmt.Println("No mappings defined")
+		return nil
+	}
+
+	if c.mapSource == "" {
+		err = iu.AskOne(&survey.Select{
+			Message:  "Select a mapping to delete",
+			Options:  mappings,
+			PageSize: iu.SelectPageSize(len(mappings)),
+		}, &c.mapSource)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = acct.SubjectMappings().Delete(c.mapSource)
+	if err != nil {
+		return err
+	}
+
+	err = auth.Commit()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Deleted mapping {%s}\n", c.mapSource)
+	return nil
+}
+
+func (c *authAccountCommand) fShowMappings(w io.Writer, mappings map[string][]ab.Mapping) error {
+	out, err := c.showMappings(mappings)
+	if err != nil {
+		return err
+	}
+
+	_, err = fmt.Fprintln(w, out)
+	return err
+}
+
+func (c *authAccountCommand) showMappings(mappings map[string][]ab.Mapping) (string, error) {
+	cols := newColumns("Subject mappings")
+	cols.AddSectionTitle("Configuration")
+	for source, m := range mappings {
+		totalWeight := 0
+		for _, wm := range m {
+			cols.AddRow("Source", source)
+			cols.AddRow("Target", wm.Subject)
+			cols.AddRow("Weight", wm.Weight)
+			cols.AddRow("Cluster", wm.Cluster)
+			cols.AddRow("", "")
+			totalWeight += int(wm.Weight)
+		}
+		cols.AddRow("Total weight:", totalWeight)
+		cols.AddRow("", "")
+	}
+
+	return cols.Render()
 }

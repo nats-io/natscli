@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -14,51 +14,36 @@
 package cli
 
 import (
-	"bufio"
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
-	"net/textproto"
 	"os"
 	"os/exec"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
-	"unicode"
 
-	"github.com/nats-io/nats.go/jetstream"
-	"github.com/nats-io/natscli/options"
-
-	iu "github.com/nats-io/natscli/internal/util"
+	"github.com/jedib0t/go-pretty/v6/progress"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	"github.com/google/shlex"
-	"github.com/gosuri/uiprogress"
-	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/klauspost/compress/s2"
-	"github.com/mattn/go-isatty"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/natscontext"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nuid"
-)
-
-var (
-	rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+	"github.com/nats-io/nats.go/jetstream"
+	iu "github.com/nats-io/natscli/internal/util"
+	"github.com/nats-io/natscli/options"
 )
 
 func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool) (string, *jsm.Consumer, error) {
@@ -203,7 +188,7 @@ func askOneBytes(prompt string, dflt string, help string, required string) (int6
 			val = "0"
 		}
 
-		i, err := parseStringAsBytes(val)
+		i, err := iu.ParseStringAsBytes(val)
 		if err != nil {
 			return 0, err
 		}
@@ -238,35 +223,6 @@ func askOneInt(prompt string, dflt string, help string) (int64, error) {
 	}
 
 	return int64(i), nil
-}
-
-func splitString(s string) []string {
-	return strings.FieldsFunc(s, func(c rune) bool {
-		if unicode.IsSpace(c) {
-			return true
-		}
-
-		if c == ',' {
-			return true
-		}
-
-		return false
-	})
-}
-
-func splitCLISubjects(subjects []string) []string {
-	new := []string{}
-
-	re := regexp.MustCompile(`,|\t|\s`)
-	for _, s := range subjects {
-		if re.MatchString(s) {
-			new = append(new, splitString(s)...)
-		} else {
-			new = append(new, s)
-		}
-	}
-
-	return new
 }
 
 func natsOpts() []nats.Option {
@@ -314,11 +270,32 @@ func natsOpts() []nats.Option {
 	}...)
 }
 
+// for new jetstream package
+func jetstreamOpts() []jetstream.JetStreamOpt {
+	opts := opts()
+
+	res := []jetstream.JetStreamOpt{}
+
+	if opts.Trace {
+		ct := &jetstream.ClientTrace{
+			RequestSent: func(subj string, payload []byte) {
+				log.Printf(">>> %s\n%s\n\n", subj, string(payload))
+			},
+			ResponseReceived: func(subj string, payload []byte, hdr nats.Header) {
+				log.Printf("<<< %s: %s", subj, string(payload))
+			},
+		}
+		res = append(res, jetstream.WithClientTrace(ct))
+	}
+
+	return res
+}
+
 func jsOpts() []nats.JSOpt {
 	opts := opts()
 	jso := []nats.JSOpt{
-		nats.Domain(opts.JsDomain),
-		nats.APIPrefix(opts.JsApiPrefix),
+		nats.Domain(opts.Config.JSDomain()),
+		nats.APIPrefix(opts.Config.JSAPIPrefix()),
 		nats.MaxWait(opts.Timeout),
 	}
 
@@ -384,6 +361,7 @@ func prepareJSHelper() (*nats.Conn, jetstream.JetStream, error) {
 	var err error
 	opts := options.DefaultOptions
 
+	jsOpts()
 	if opts.Conn == nil {
 		opts.Conn, _, err = prepareHelperUnlocked("", natsOpts()...)
 		if err != nil {
@@ -395,13 +373,20 @@ func prepareJSHelper() (*nats.Conn, jetstream.JetStream, error) {
 		return opts.Conn, opts.JSc, nil
 	}
 
-	opts.JSc, err = jetstream.New(opts.Conn)
+	switch {
+	case opts.Config.JSDomain() != "":
+		opts.JSc, err = jetstream.NewWithDomain(opts.Conn, opts.Config.JSDomain(), jetstreamOpts()...)
+	case opts.Config.JSAPIPrefix() != "":
+		opts.JSc, err = jetstream.NewWithAPIPrefix(opts.Conn, opts.Config.JSAPIPrefix(), jetstreamOpts()...)
+	default:
+		opts.JSc, err = jetstream.New(opts.Conn, jetstreamOpts()...)
+	}
+
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return opts.Conn, opts.JSc, nil
-
 }
 
 func prepareHelper(servers string, copts ...nats.Option) (*nats.Conn, *jsm.Manager, error) {
@@ -421,6 +406,33 @@ func validator() *SchemaValidator {
 	}
 
 	return nil
+}
+
+func jsmOpts() []jsm.Option {
+	opts := opts()
+
+	if opts.Config == nil {
+		return []jsm.Option{}
+	}
+
+	jsopts, err := opts.Config.JSMOptions()
+	if err != nil {
+		return nil
+	}
+
+	if os.Getenv("NOVALIDATE") == "" {
+		jsopts = append(jsopts, jsm.WithAPIValidation(validator()))
+	}
+
+	if opts.Timeout != 0 {
+		jsopts = append(jsopts, jsm.WithTimeout(opts.Timeout))
+	}
+
+	if opts.Trace {
+		jsopts = append(jsopts, jsm.WithTrace())
+	}
+
+	return jsopts
 }
 
 func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *jsm.Manager, error) {
@@ -446,23 +458,7 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 		return opts.Conn, opts.Mgr, nil
 	}
 
-	jsopts := []jsm.Option{
-		jsm.WithAPIPrefix(opts.Config.JSAPIPrefix()),
-		jsm.WithEventPrefix(opts.Config.JSEventPrefix()),
-		jsm.WithDomain(opts.Config.JSDomain()),
-	}
-
-	if os.Getenv("NOVALIDATE") == "" {
-		jsopts = append(jsopts, jsm.WithAPIValidation(validator()))
-	}
-
-	if opts.Timeout != 0 {
-		jsopts = append(jsopts, jsm.WithTimeout(opts.Timeout))
-	}
-
-	if opts.Trace {
-		jsopts = append(jsopts, jsm.WithTrace())
-	}
+	jsopts := jsmOpts()
 
 	opts.Mgr, err = jsm.New(opts.Conn, jsopts...)
 	if err != nil {
@@ -470,203 +466,6 @@ func prepareHelperUnlocked(servers string, copts ...nats.Option) (*nats.Conn, *j
 	}
 
 	return opts.Conn, opts.Mgr, err
-}
-
-const (
-	hdrLine   = "NATS/1.0\r\n"
-	crlf      = "\r\n"
-	hdrPreEnd = len(hdrLine) - len(crlf)
-	statusLen = 3
-	statusHdr = "Status"
-	descrHdr  = "Description"
-)
-
-// copied from nats.go
-func decodeHeadersMsg(data []byte) (nats.Header, error) {
-	tp := textproto.NewReader(bufio.NewReader(bytes.NewReader(data)))
-	l, err := tp.ReadLine()
-	if err != nil || len(l) < hdrPreEnd || l[:hdrPreEnd] != hdrLine[:hdrPreEnd] {
-		return nil, nats.ErrBadHeaderMsg
-	}
-
-	mh, err := readMIMEHeader(tp)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if we have an inlined status.
-	if len(l) > hdrPreEnd {
-		var description string
-		status := strings.TrimSpace(l[hdrPreEnd:])
-		if len(status) != statusLen {
-			description = strings.TrimSpace(status[statusLen:])
-			status = status[:statusLen]
-		}
-		mh.Add(statusHdr, status)
-		if len(description) > 0 {
-			mh.Add(descrHdr, description)
-		}
-	}
-	return nats.Header(mh), nil
-}
-
-// copied from nats.go
-func readMIMEHeader(tp *textproto.Reader) (textproto.MIMEHeader, error) {
-	m := make(textproto.MIMEHeader)
-	for {
-		kv, err := tp.ReadLine()
-		if len(kv) == 0 {
-			return m, err
-		}
-
-		// Process key fetching original case.
-		i := bytes.IndexByte([]byte(kv), ':')
-		if i < 0 {
-			return nil, nats.ErrBadHeaderMsg
-		}
-		key := kv[:i]
-		if key == "" {
-			// Skip empty keys.
-			continue
-		}
-		i++
-		for i < len(kv) && (kv[i] == ' ' || kv[i] == '\t') {
-			i++
-		}
-		value := string(kv[i:])
-		m[key] = append(m[key], value)
-		if err != nil {
-			return m, err
-		}
-	}
-}
-
-type pubData struct {
-	Cnt       int
-	Count     int
-	Unix      int64
-	UnixNano  int64
-	TimeStamp string
-	Time      string
-	Request   string
-}
-
-func (p *pubData) ID() string {
-	return nuid.Next()
-}
-
-func pubReplyBodyTemplate(body string, request string, ctr int) ([]byte, error) {
-	now := time.Now()
-	funcMap := template.FuncMap{
-		"Random":    randomString,
-		"Count":     func() int { return ctr },
-		"Cnt":       func() int { return ctr },
-		"Unix":      func() int64 { return now.Unix() },
-		"UnixNano":  func() int64 { return now.UnixNano() },
-		"TimeStamp": func() string { return now.Format(time.RFC3339) },
-		"Time":      func() string { return now.Format(time.Kitchen) },
-		"ID":        func() string { return nuid.Next() },
-	}
-
-	if request != "" {
-		funcMap["Request"] = func() string { return request }
-	}
-
-	templ, err := template.New("body").Funcs(funcMap).Parse(body)
-	if err != nil {
-		return []byte(body), err
-	}
-
-	var b bytes.Buffer
-	err = templ.Execute(&b, &pubData{
-		Cnt:       ctr,
-		Count:     ctr,
-		Unix:      now.Unix(),
-		UnixNano:  now.UnixNano(),
-		TimeStamp: now.Format(time.RFC3339),
-		Time:      now.Format(time.Kitchen),
-		Request:   request,
-	})
-	if err != nil {
-		return []byte(body), err
-	}
-
-	return b.Bytes(), nil
-}
-
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-var passwordRunes = append(letterRunes, []rune("@#_-%^&()")...)
-
-func randomPassword(length int) string {
-	b := make([]rune, length)
-	for i := range b {
-		b[i] = passwordRunes[rng.Intn(len(passwordRunes))]
-	}
-
-	return string(b)
-}
-
-func randomString(shortest uint, longest uint) string {
-	if shortest > longest {
-		shortest, longest = longest, shortest
-	}
-
-	var desired int
-
-	switch {
-	case int(longest)-int(shortest) < 0:
-		desired = int(shortest) + rng.Intn(int(longest))
-	case longest == shortest:
-		desired = int(shortest)
-	default:
-		desired = int(shortest) + rng.Intn(int(longest-shortest))
-	}
-
-	b := make([]rune, desired)
-	for i := range b {
-		b[i] = letterRunes[rng.Intn(len(letterRunes))]
-	}
-
-	return string(b)
-}
-
-func parseStringsToHeader(hdrs []string, seq int) (nats.Header, error) {
-	res := nats.Header{}
-
-	for _, hdr := range hdrs {
-		parts := strings.SplitN(hdr, ":", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid header %q", hdr)
-		}
-
-		val, err := pubReplyBodyTemplate(strings.TrimSpace(parts[1]), "", seq)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse Header template for %s: %s", parts[0], err)
-		}
-
-		res.Add(strings.TrimSpace(parts[0]), string(val))
-	}
-
-	return res, nil
-}
-
-func parseStringsToMsgHeader(hdrs []string, seq int, msg *nats.Msg) error {
-	for _, hdr := range hdrs {
-		parts := strings.SplitN(hdr, ":", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid header %q", hdr)
-		}
-
-		val, err := pubReplyBodyTemplate(strings.TrimSpace(parts[1]), "", seq)
-		if err != nil {
-			log.Printf("Failed to parse Header template for %s: %s", parts[0], err)
-			continue
-		}
-
-		msg.Header.Add(strings.TrimSpace(parts[0]), string(val))
-	}
-
-	return nil
 }
 
 func loadContext(softFail bool) error {
@@ -703,7 +502,7 @@ func loadContext(softFail bool) error {
 
 	var err error
 
-	exist, _ := fileAccessible(opts.CfgCtx)
+	exist, _ := iu.IsFileAccessible(opts.CfgCtx)
 
 	if exist && strings.HasSuffix(opts.CfgCtx, ".json") {
 		opts.Config, err = natscontext.NewFromFile(opts.CfgCtx, ctxOpts...)
@@ -716,30 +515,6 @@ func loadContext(softFail bool) error {
 	}
 
 	return err
-}
-
-func fileAccessible(f string) (bool, error) {
-	stat, err := os.Stat(f)
-	if err != nil {
-		return false, err
-	}
-
-	if stat.IsDir() {
-		return false, fmt.Errorf("is a directory")
-	}
-
-	file, err := os.Open(f)
-	if err != nil {
-		return false, err
-	}
-	file.Close()
-
-	return true, nil
-}
-
-func isJsonString(s string) bool {
-	trimmed := strings.TrimSpace(s)
-	return strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}")
 }
 
 func renderCluster(cluster *api.ClusterInfo) string {
@@ -772,7 +547,7 @@ func renderCluster(cluster *api.ClusterInfo) string {
 	}
 
 	// now we compact that list of hostnames and apply styling * and ! to the leader and down ones
-	compact := compactStrings(peers)
+	compact := iu.CompactStrings(peers)
 	if leader != -1 {
 		compact[0] = compact[0] + "*"
 	}
@@ -783,10 +558,6 @@ func renderCluster(cluster *api.ClusterInfo) string {
 
 	return f(compact)
 }
-
-// doReqAsyncWaitFullTimeoutInterval special value to be passed as `waitFor` argument of doReqAsync to turn off
-// "adaptive" timeout and wait for the full interval
-const doReqAsyncWaitFullTimeoutInterval = -1
 
 // doReqAsync serializes and sends a request to the given subject and handles multiple responses.
 // This function uses the value from `Timeout` CLI flag as upper limit for responses gathering.
@@ -945,7 +716,7 @@ type raftLeader struct {
 }
 
 func renderRaftLeaders(leaders map[string]*raftLeader, grpTitle string) {
-	table := newTableWriter("RAFT Leader Report")
+	table := iu.NewTableWriter(opts(), "RAFT Leader Report")
 	table.AddHeaders("Server", "Cluster", grpTitle, "Distribution")
 
 	var llist []*raftLeader
@@ -988,164 +759,29 @@ func renderRaftLeaders(leaders map[string]*raftLeader, grpTitle string) {
 	fmt.Println(table.Render())
 }
 
-func compactStrings(source []string) []string {
-	if len(source) == 0 {
-		return source
-	}
-
-	hnParts := make([][]string, len(source))
-	shortest := math.MaxInt8
-
-	for i, name := range source {
-		hnParts[i] = strings.Split(name, ".")
-		if len(hnParts[i]) < shortest {
-			shortest = len(hnParts[i])
-		}
-	}
-
-	toRemove := ""
-
-	// we dont chop the 0 item off
-	for i := shortest - 1; i > 0; i-- {
-		s := hnParts[0][i]
-
-		remove := true
-		for _, name := range hnParts {
-			if name[i] != s {
-				remove = false
-				break
-			}
-		}
-
-		if remove {
-			toRemove = "." + s + toRemove
-		} else {
-			break
-		}
-	}
-
-	result := make([]string, len(source))
-	for i, name := range source {
-		result[i] = strings.TrimSuffix(name, toRemove)
-	}
-
-	return result
-}
-
-func newTableWriter(format string, a ...any) *tbl {
-	tbl := &tbl{
-		writer: table.NewWriter(),
-	}
-
-	tbl.writer.SetStyle(styles["rounded"])
-
-	if isatty.IsTerminal(os.Stdout.Fd()) {
-		if opts().Config != nil {
-			style, ok := styles[opts().Config.ColorScheme()]
-			if ok {
-				tbl.writer.SetStyle(style)
-			}
-		}
-	}
-
-	tbl.writer.Style().Title.Align = text.AlignCenter
-	tbl.writer.Style().Format.Header = text.FormatDefault
-	tbl.writer.Style().Format.Footer = text.FormatDefault
-
-	if format != "" {
-		tbl.writer.SetTitle(fmt.Sprintf(format, a...))
-	}
-
-	return tbl
-}
-
-func isPrintable(s string) bool {
-	for _, r := range s {
-		if r > unicode.MaxASCII || !unicode.IsPrint(r) {
-			return false
-		}
-	}
-	return true
-}
-
-func base64IfNotPrintable(val []byte) string {
-	if isPrintable(string(val)) {
-		return string(val)
-	}
-
-	return base64.StdEncoding.EncodeToString(val)
-}
-
 // io.Reader / io.Writer that updates progress bar
 type progressRW struct {
 	r io.Reader
 	w io.Writer
-	p *uiprogress.Bar
+	p progress.Writer
+	t *progress.Tracker
 }
 
 func (pr *progressRW) Read(p []byte) (n int, err error) {
 	n, err = pr.r.Read(p)
-	pr.p.Set(pr.p.Current() + n)
+	pr.t.Increment(int64(n))
 
 	return n, err
 }
 
 func (pr *progressRW) Write(p []byte) (n int, err error) {
 	n, err = pr.w.Write(p)
-	pr.p.Set(pr.p.Current() + n)
+	pr.t.Increment(int64(n))
 	return n, err
 }
 
-var bytesUnitSplitter = regexp.MustCompile(`^(\d+)(\w+)`)
-var errInvalidByteString = errors.New("bytes must end in K, KB, M, MB, G, GB, T or TB")
-
-// nats-server derived string parse, empty string and any negative is -1,
-// others are parsed as 1024 based bytes
-func parseStringAsBytes(s string) (int64, error) {
-	if s == "" {
-		return -1, nil
-	}
-
-	s = strings.TrimSpace(s)
-
-	if strings.HasPrefix(s, "-") {
-		return -1, nil
-	}
-
-	// first we try just parsing it to handle numbers without units
-	num, err := strconv.ParseInt(s, 10, 64)
-	if err == nil {
-		if num < 0 {
-			return -1, nil
-		}
-		return num, nil
-	}
-
-	matches := bytesUnitSplitter.FindStringSubmatch(s)
-
-	if len(matches) == 0 {
-		return 0, fmt.Errorf("invalid bytes specification %v: %w", s, errInvalidByteString)
-	}
-
-	num, err = strconv.ParseInt(matches[1], 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	suffix := matches[2]
-	suffixMap := map[string]int64{"K": 10, "KB": 10, "KIB": 10, "M": 20, "MB": 20, "MIB": 20, "G": 30, "GB": 30, "GIB": 30, "T": 40, "TB": 40, "TIB": 40}
-
-	mult, ok := suffixMap[strings.ToUpper(suffix)]
-	if !ok {
-		return 0, fmt.Errorf("invalid bytes specification %v: %w", s, errInvalidByteString)
-	}
-	num *= 1 << mult
-
-	return num, nil
-}
-
 func outPutMSGBodyCompact(data []byte, filter string, subject string, stream string) (string, error) {
-	if len(data) == 0 {
+	if len(data) == 0 && filter == "" {
 		fmt.Println("nil body")
 		return "", nil
 	}
@@ -1228,4 +864,14 @@ func currentActiveServers(nc *nats.Conn) (int, error) {
 	})
 
 	return expect, err
+}
+
+func calculateRate(new, last float64, since time.Duration) float64 {
+	// If new == 0 we have missed a data point from nats.
+	// Return the previous calculation so that it doesn't break graphs
+	if new == 0 {
+		return last
+	}
+
+	return (new - last) / since.Seconds()
 }

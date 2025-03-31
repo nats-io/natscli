@@ -15,12 +15,13 @@ package cli
 
 import (
 	"fmt"
-	au "github.com/nats-io/natscli/internal/auth"
-	"github.com/nats-io/natscli/internal/util"
 	"io"
 	"os"
 	"sort"
 	"strings"
+
+	au "github.com/nats-io/natscli/internal/auth"
+	"github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
@@ -176,7 +177,7 @@ func (c *authAccountCommand) importLsAction(_ *fisk.ParseContext) error {
 
 	imports := c.importsBySubject(acct)
 
-	tbl := newTableWriter("Imports for account %s", acct.Name())
+	tbl := util.NewTableWriter(opts(), "Imports for account %s", acct.Name())
 	tbl.AddHeaders("Name", "Kind", "Source", "Local Subject", "Remote Subject", "Allows Tracing", "Sharing Connection Info")
 
 	for _, i := range imports {

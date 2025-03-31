@@ -19,6 +19,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/internal/util"
+
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/internal/sysclient"
@@ -44,6 +47,7 @@ type (
 		expected       int
 		stdin          bool
 		readTimeout    int
+		csv            bool
 	}
 )
 
@@ -57,34 +61,42 @@ func configureStreamCheckCommand(app commandHost) {
 	streamCheck.Flag("unsynced", "Filter results by streams that are out of sync").UnNegatableBoolVar(&sc.unsyncedFilter)
 	streamCheck.Flag("stdin", "Process the contents from STDIN").UnNegatableBoolVar(&sc.stdin)
 	streamCheck.Flag("read-timeout", "Read timeout in seconds").Default("5").IntVar(&sc.readTimeout)
+	streamCheck.Flag("csv", "Renders CSV format").UnNegatableBoolVar(&sc.csv)
 }
 
 func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
-	var err error
 	start := time.Now()
 
-	nc, _, err := prepareHelper(opts().Servers, natsOpts()...)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Connected in %.3fs\n", time.Since(start).Seconds())
+	var nc *nats.Conn
+	var err error
 
-	sys := sysclient.New(nc)
-
-	if c.expected == 0 {
-		c.expected, err = currentActiveServers(nc)
+	if !c.stdin {
+		nc, _, err = prepareHelper(opts().Servers, natsOpts()...)
 		if err != nil {
-			return fmt.Errorf("failed to get current active servers: %s", err)
+			return err
+		}
+		fmt.Printf("Connected in %.3fs\n", time.Since(start).Seconds())
+
+		if c.expected == 0 {
+			c.expected, err = currentActiveServers(nc)
+			if err != nil {
+				return fmt.Errorf("failed to get current active servers: %s", err)
+			}
 		}
 	}
+
+	sys := sysclient.New(nc)
 
 	start = time.Now()
 	servers, err := sys.FindServers(c.stdin, c.expected, opts().Timeout, time.Duration(c.readTimeout), false)
 	if err != nil {
 		return fmt.Errorf("failed to find servers: %s", err)
 	}
-	fmt.Printf("Response took %.3fs\n", time.Since(start).Seconds())
-	fmt.Printf("Servers: %d\n", len(servers))
+
+	if !c.csv {
+		fmt.Printf("Response took %.3fs\n", time.Since(start).Seconds())
+		fmt.Printf("Servers: %d\n", len(servers))
+	}
 
 	// Collect all info from servers.
 	streams := make(map[string]map[string]*streamDetail)
@@ -120,16 +132,21 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 	}
 	sort.Strings(keys)
 
-	fmt.Printf("Streams: %d\n", len(keys))
+	title := ""
+	if !c.csv {
+		fmt.Printf("Streams: %d\n", len(keys))
+		title = "Streams"
+	}
 
-	table := newTableWriter("Streams")
+	table := util.NewTableWriter(opts(), title)
 	if c.health {
 		table.AddHeaders("Stream Replica", "Raft", "Account", "Account ID", "Node", "Messages", "Bytes", "Subjects", "Deleted", "Consumers", "First", "Last", "Status", "Leader", "Peers", "Health")
 	} else {
 		table.AddHeaders("Stream Replica", "Raft", "Account", "Account ID", "Node", "Messages", "Bytes", "Subjects", "Deleted", "Consumers", "First", "Last", "Status", "Leader", "Peers")
 	}
 
-	for _, k := range keys {
+	var prev, prevAccount string
+	for i, k := range keys {
 		var unsynced bool
 		av := strings.Split(k, "|")
 		accName := av[0]
@@ -222,10 +239,22 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 			}
 		}
 
+		if i > 0 && prev != replica.StreamName || prevAccount != accName {
+			table.AddSeparator()
+		}
+
+		prev = replica.StreamName
+		prevAccount = accName
+
 		table.AddRow(replica.StreamName, replica.RaftGroup, account, replica.AccountID, fmt.Sprintf("%s%s", serverName, suffix), replica.State.Msgs, replica.State.Bytes, replica.State.NumSubjects, replica.State.NumDeleted, replica.State.Consumers, replica.State.FirstSeq,
-			replica.State.LastSeq, status, replica.Cluster.Leader, replicasInfo, healthStatus)
+			replica.State.LastSeq, status, replica.Cluster.Leader, strings.TrimSpace(replicasInfo), healthStatus)
 	}
 
-	fmt.Println(table.Render())
+	if c.csv {
+		fmt.Println(table.RenderCSV())
+	} else {
+		fmt.Println(table.Render())
+	}
+
 	return nil
 }

@@ -1,4 +1,4 @@
-// Copyright 2024 The NATS Authors
+// Copyright 2024-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,6 +15,8 @@ package util
 
 import (
 	"bytes"
+	"cmp"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,16 +29,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
-	"github.com/guptarohit/asciigraph"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/internal/asciigraph"
 	"github.com/nats-io/natscli/options"
-	"golang.org/x/exp/constraints"
-
 	"github.com/nats-io/nkeys"
 	terminal "golang.org/x/term"
 )
@@ -228,6 +229,26 @@ func FileExists(f string) bool {
 	return !os.IsNotExist(err)
 }
 
+// IsFileAccessible checks if f is a file and accessible, errors for non file arguments
+func IsFileAccessible(f string) (bool, error) {
+	stat, err := os.Stat(f)
+	if err != nil {
+		return false, err
+	}
+
+	if stat.IsDir() {
+		return false, fmt.Errorf("is a directory")
+	}
+
+	file, err := os.Open(f)
+	if err != nil {
+		return false, err
+	}
+	file.Close()
+
+	return true, nil
+}
+
 // IsDirectory returns true when path is a directory
 func IsDirectory(path string) bool {
 	s, err := os.Stat(path)
@@ -304,7 +325,7 @@ func SurveyColors() []survey.AskOpt {
 	}
 }
 
-func SortMultiSort[V constraints.Ordered, S string | constraints.Ordered](i1 V, j1 V, i2 S, j2 S) bool {
+func SortMultiSort[V cmp.Ordered, S string | cmp.Ordered](i1 V, j1 V, i2 S, j2 S) bool {
 	if i1 == j1 {
 		return i2 < j2
 	}
@@ -433,7 +454,7 @@ func JSONString(s string) string {
 	return "\"" + s + "\""
 }
 
-// Split the string into a command and its arguments.
+// SplitCommand Split the string into a command and its arguments.
 func SplitCommand(s string) (string, []string, error) {
 	cmdAndArgs, err := shlex.Split(s)
 	if err != nil {
@@ -445,7 +466,7 @@ func SplitCommand(s string) (string, []string, error) {
 	return cmd, args, nil
 }
 
-// Edit the file at filepath f using the environment variable EDITOR command.
+// EditFile edits the file at filepath f using the environment variable EDITOR command.
 func EditFile(f string) error {
 	rawEditor := os.Getenv("EDITOR")
 	if rawEditor == "" {
@@ -469,4 +490,152 @@ func EditFile(f string) error {
 	}
 
 	return nil
+}
+
+// SplitString splits a string by unicode space or comma
+func SplitString(s string) []string {
+	return strings.FieldsFunc(s, func(c rune) bool {
+		if unicode.IsSpace(c) {
+			return true
+		}
+
+		if c == ',' {
+			return true
+		}
+
+		return false
+	})
+}
+
+// SplitCLISubjects splits a subject list by comma, tab, space, unicode space etc
+func SplitCLISubjects(subjects []string) []string {
+	res := []string{}
+
+	re := regexp.MustCompile(`,|\t|\s`)
+	for _, s := range subjects {
+		if re.MatchString(s) {
+			res = append(res, SplitString(s)...)
+		} else {
+			res = append(res, s)
+		}
+	}
+
+	return res
+}
+
+// IsJsonObjectString checks if a string is a JSON document starting and ending with {}
+func IsJsonObjectString(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	return strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}")
+}
+
+// CompactStrings looks through a list of strings like hostnames and chops off the common parts like domains
+func CompactStrings(source []string) []string {
+	if len(source) == 0 {
+		return source
+	}
+
+	hnParts := make([][]string, len(source))
+	shortest := math.MaxInt32
+
+	for i, name := range source {
+		hnParts[i] = strings.Split(name, ".")
+		if len(hnParts[i]) < shortest {
+			shortest = len(hnParts[i])
+		}
+	}
+
+	toRemove := ""
+
+	// we dont chop the 0 item off
+	for i := shortest - 1; i > 0; i-- {
+		s := hnParts[0][i]
+
+		remove := true
+		for _, name := range hnParts {
+			if name[i] != s {
+				remove = false
+				break
+			}
+		}
+
+		if remove {
+			toRemove = "." + s + toRemove
+		} else {
+			break
+		}
+	}
+
+	result := make([]string, len(source))
+	for i, name := range source {
+		result[i] = strings.TrimSuffix(name, toRemove)
+	}
+
+	return result
+}
+
+// IsPrintable checks if a string is made of only printable characters
+func IsPrintable(s string) bool {
+	for _, r := range s {
+		if r > unicode.MaxASCII || !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// Base64IfNotPrintable returns the bytes are all printable else a b64 encoded version
+func Base64IfNotPrintable(val []byte) string {
+	if IsPrintable(string(val)) {
+		return string(val)
+	}
+
+	return base64.StdEncoding.EncodeToString(val)
+}
+
+var bytesUnitSplitter = regexp.MustCompile(`^(\d+)(\w+)`)
+var errInvalidByteString = errors.New("bytes must end in K, KB, M, MB, G, GB, T or TB")
+
+// ParseStringAsBytes nats-server derived string parse, empty string and any negative is -1,others are parsed as 1024 based bytes
+func ParseStringAsBytes(s string) (int64, error) {
+	if s == "" {
+		return -1, nil
+	}
+
+	s = strings.TrimSpace(s)
+
+	if strings.HasPrefix(s, "-") {
+		return -1, nil
+	}
+
+	// first we try just parsing it to handle numbers without units
+	num, err := strconv.ParseInt(s, 10, 64)
+	if err == nil {
+		if num < 0 {
+			return -1, nil
+		}
+		return num, nil
+	}
+
+	matches := bytesUnitSplitter.FindStringSubmatch(s)
+
+	if len(matches) == 0 {
+		return 0, fmt.Errorf("invalid bytes specification %v: %w", s, errInvalidByteString)
+	}
+
+	num, err = strconv.ParseInt(matches[1], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	suffix := matches[2]
+	suffixMap := map[string]int64{"K": 10, "KB": 10, "KIB": 10, "M": 20, "MB": 20, "MIB": 20, "G": 30, "GB": 30, "GIB": 30, "T": 40, "TB": 40, "TIB": 40}
+
+	mult, ok := suffixMap[strings.ToUpper(suffix)]
+	if !ok {
+		return 0, fmt.Errorf("invalid bytes specification %v: %w", s, errInvalidByteString)
+	}
+	num *= 1 << mult
+
+	return num, nil
 }

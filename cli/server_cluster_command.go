@@ -31,6 +31,8 @@ type SrvClusterCmd struct {
 	force             bool
 	peer              string
 	placementCluster  string
+	placementNode     string
+	placementTags     []string
 	balanceServerName string
 	balanceIdle       time.Duration
 	balanceAccount    string
@@ -55,6 +57,8 @@ func configureServerClusterCommand(srv *fisk.CmdClause) {
 
 	sd := cluster.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDownAction)
 	sd.Flag("cluster", "Request placement of the leader in a specific cluster").StringVar(&c.placementCluster)
+	sd.Flag("tags", "Request placement of the leader on nodes with specific tag(s)").StringsVar(&c.placementTags)
+	sd.Flag("host", "Request placement of the leader on a specific node").StringVar(&c.placementNode)
 	sd.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	sd.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
 
@@ -253,9 +257,19 @@ func (c *SrvClusterCmd) metaLeaderStandDownAction(_ *fisk.ParseContext) error {
 		leader = "<unknown>"
 	}
 
+	if c.placementNode != "" || len(c.placementTags) > 0 {
+		// TODO: check api level instead but requires https://github.com/nats-io/nats-server/issues/6681
+		fmt.Println("WARNING: Using placement tags or node name required NATS Server 2.11 or newer")
+		fmt.Println()
+	}
+
 	log.Printf("Requesting leader step down of %q in a %d peer RAFT group", leader, len(resp.Meta.Replicas)+1)
-	if c.placementCluster != "" {
-		err = mgr.MetaLeaderStandDown(&api.Placement{Cluster: c.placementCluster})
+	if c.placementCluster != "" || len(c.placementTags) > 0 || c.placementNode != "" {
+		err = mgr.MetaLeaderStandDown(&api.Placement{
+			Cluster:   c.placementCluster,
+			Tags:      c.placementTags,
+			Preferred: c.placementNode,
+		})
 	} else {
 		err = mgr.MetaLeaderStandDown(nil)
 	}

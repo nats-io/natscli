@@ -14,6 +14,7 @@
 package main
 
 import (
+	iu "github.com/nats-io/natscli/internal/util"
 	"log"
 	"os"
 	"runtime"
@@ -45,12 +46,12 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	if err != nil {
 		return
 	}
-	cli.SetVersion(version)
+	cli.SetVersion(getVersion())
 
 	ncli.Flag("server", "NATS server urls").Short('s').Envar("NATS_URL").PlaceHolder("URL").StringVar(&opts.Servers)
 	ncli.Flag("user", "Username or Token").Envar("NATS_USER").PlaceHolder("USER").StringVar(&opts.Username)
 	ncli.Flag("password", "Password").Envar("NATS_PASSWORD").PlaceHolder("PASSWORD").StringVar(&opts.Password)
-	ncli.Flag("connection-name", "Nickname to use for the underlying NATS Connection").Default("NATS CLI Version " + version).PlaceHolder("NAME").StringVar(&opts.ConnectionName)
+	ncli.Flag("connection-name", "Nickname to use for the underlying NATS Connection").Default("NATS CLI Version " + getVersion()).PlaceHolder("NAME").StringVar(&opts.ConnectionName)
 	ncli.Flag("creds", "User credentials").Envar("NATS_CREDS").PlaceHolder("FILE").StringVar(&opts.Creds)
 	ncli.Flag("nkey", "User NKEY").Envar("NATS_NKEY").PlaceHolder("FILE").StringVar(&opts.Nkey)
 	ncli.Flag("tlscert", "TLS public certificate").Envar("NATS_CERT").PlaceHolder("FILE").ExistingFileVar(&opts.TlsCert)
@@ -70,7 +71,7 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	ncli.Flag("js-domain", "JetStream domain to access").PlaceHolder("DOMAIN").StringVar(&opts.JsDomain)
 	ncli.Flag("inbox-prefix", "Custom inbox prefix to use for inboxes").PlaceHolder("PREFIX").StringVar(&opts.InboxPrefix)
 	ncli.Flag("domain", "JetStream domain to access").PlaceHolder("DOMAIN").Hidden().StringVar(&opts.JsDomain)
-	ncli.Flag("colors", "Sets a color scheme to use").PlaceHolder("SCHEME").Envar("NATS_COLOR").EnumVar(&opts.ColorScheme, cli.ValidStyles()...)
+	ncli.Flag("colors", "Sets a color scheme to use").PlaceHolder("SCHEME").Envar("NATS_COLOR").EnumVar(&opts.ColorScheme, iu.ValidStyles()...)
 	ncli.Flag("context", "Configuration context").Envar("NATS_CONTEXT").PlaceHolder("NAME").StringVar(&opts.CfgCtx)
 	ncli.Flag("trace", "Trace API interactions").UnNegatableBoolVar(&opts.Trace)
 	ncli.Flag("no-context", "Disable the selected context").UnNegatableBoolVar(&cli.SkipContexts)

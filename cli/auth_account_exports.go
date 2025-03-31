@@ -355,7 +355,7 @@ func (c *authAccountCommand) exportLsAction(_ *fisk.ParseContext) error {
 
 	exports := c.exportBySubject(acct)
 
-	tbl := newTableWriter("Exports for account %s", acct.Name())
+	tbl := util.NewTableWriter(opts(), "Exports for account %s", acct.Name())
 	tbl.AddHeaders("Name", "Kind", "Subject", "Activation Required", "Advertised", "Token Position", "Revocations")
 
 	for _, e := range exports {

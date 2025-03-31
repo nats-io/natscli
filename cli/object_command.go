@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/jedib0t/go-pretty/v6/progress"
 	"io"
 	"os"
 	"path/filepath"
@@ -25,13 +26,12 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
-	"github.com/nats-io/natscli/internal/util"
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
-	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 )
@@ -67,7 +67,6 @@ func configureObjectCommand(app commandHost) {
 The JetStream Object store uses streams to store large objects
 for an indefinite period or a per-bucket configured TTL.
 
-NOTE: This is an experimental feature.
 `
 
 	obj := app.Command("object", help).Alias("obj")
@@ -130,7 +129,7 @@ func init() {
 
 func (c *objCommand) parseLimitStrings(_ *fisk.ParseContext) (err error) {
 	if c.maxBucketSizeString != "" {
-		c.maxBucketSize, err = parseStringAsBytes(c.maxBucketSizeString)
+		c.maxBucketSize, err = iu.ParseStringAsBytes(c.maxBucketSizeString)
 		if err != nil {
 			return err
 		}
@@ -327,8 +326,9 @@ func (c *objCommand) showBucketInfo(store jetstream.ObjectStore) error {
 	if status.BackingStore() == "JetStream" {
 		cols.AddRow("JetStream Stream", nfo.Config.Name)
 
-		if len(nfo.Config.Metadata) > 0 {
-			cols.AddMapStringsAsValue("Metadata", nfo.Config.Metadata)
+		meta := jsm.FilterServerMetadata(nfo.Config.Metadata)
+		if len(meta) > 0 {
+			cols.AddMapStringsAsValue("Metadata", meta)
 		}
 
 		if nfo.Cluster != nil {
@@ -401,7 +401,7 @@ func (c *objCommand) listBuckets() error {
 		return info.State.Bytes < jnfo.State.Bytes
 	})
 
-	table := newTableWriter("Object Store Buckets")
+	table := iu.NewTableWriter(opts(), "Object Store Buckets")
 	table.AddHeaders("Bucket", "Description", "Created", "Size", "Last Update")
 	for _, s := range found {
 		nfo, _ := s.LatestInformation()
@@ -444,7 +444,7 @@ func (c *objCommand) lsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := newTableWriter("Bucket Contents")
+	table := iu.NewTableWriter(opts(), "Bucket Contents")
 	table.AddHeaders("Name", "Size", "Time")
 
 	for _, i := range contents {
@@ -484,9 +484,10 @@ func (c *objCommand) putAction(_ *fisk.ParseContext) error {
 		if !ok {
 			return nil
 		}
+		fmt.Println()
 	}
 
-	hdr, err := parseStringsToHeader(c.hdrs, 0)
+	hdr, err := iu.ParseStringsToHeader(c.hdrs, 0)
 	if err != nil {
 		return err
 	}
@@ -519,28 +520,35 @@ func (c *objCommand) putAction(_ *fisk.ParseContext) error {
 		Headers:     hdr,
 	}
 
-	var progress *uiprogress.Bar
+	var progbar progress.Writer
+	var tracker *progress.Tracker
+
 	stop := func() {}
 
 	if !opts().Trace && c.progress && stat != nil && stat.Size() > 20480 {
-		hs := humanize.IBytes(uint64(stat.Size()))
-		progress = uiprogress.AddBar(int(stat.Size())).PrependFunc(func(b *uiprogress.Bar) string {
-			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
+		progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+			Total: stat.Size(),
+			Units: iu.ProgressUnitsIBytes,
 		})
-		progress.Width = util.ProgressWidth()
+		if err != nil {
+			return err
+		}
 
-		fmt.Println()
-		uiprogress.Start()
-		stop = func() { uiprogress.Stop(); fmt.Println() }
-		pr = &progressRW{p: progress, r: pr}
+		stop = func() {
+			time.Sleep(300 * time.Millisecond)
+			progbar.Stop()
+			fmt.Println()
+		}
+		pr = &progressRW{p: progbar, t: tracker, r: pr}
 	}
 
-	nfo, err = obj.Put(ctx, meta, pr)
+	nfo, err = obj.Put(context.TODO(), meta, pr)
 	stop()
 	if err != nil {
 		return err
 	}
 
+	fmt.Println()
 	c.showObjectInfo(nfo)
 
 	return nil
@@ -552,10 +560,7 @@ func (c *objCommand) getAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
-	res, err := obj.Get(ctx, c.file)
+	res, err := obj.Get(context.Background(), c.file)
 	if err != nil {
 		return err
 	}
@@ -597,21 +602,28 @@ func (c *objCommand) getAction(_ *fisk.ParseContext) error {
 	}
 	defer of.Close()
 
-	var progress *uiprogress.Bar
+	var progbar progress.Writer
+	var tracker *progress.Tracker
+
 	pw := io.Writer(of)
 	stop := func() {}
 
 	if !opts().Trace && c.progress && nfo.Size > 20480 {
-		hs := humanize.IBytes(nfo.Size)
-		progress = uiprogress.AddBar(int(nfo.Size)).PrependFunc(func(b *uiprogress.Bar) string {
-			return fmt.Sprintf("%s / %s", humanize.IBytes(uint64(b.Current())), hs)
-		})
-		progress.Width = util.ProgressWidth()
-
 		fmt.Println()
-		uiprogress.Start()
-		stop = func() { uiprogress.Stop(); fmt.Println() }
-		pw = &progressRW{p: progress, w: of}
+		progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+			Total: int64(nfo.Size),
+			Units: iu.ProgressUnitsIBytes,
+		})
+		if err != nil {
+			return err
+		}
+		stop = func() {
+			time.Sleep(300 * time.Millisecond)
+			progbar.Stop()
+			fmt.Println()
+		}
+
+		pw = &progressRW{p: progbar, t: tracker, w: of}
 	}
 
 	start := time.Now()
@@ -693,10 +705,10 @@ func (c *objCommand) loadBucket() (*nats.Conn, jetstream.JetStream, jetstream.Ob
 			return nil, nil, nil, fmt.Errorf("no Object buckets found")
 		}
 
-		err = util.AskOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message:  "Select a Bucket",
 			Options:  known,
-			PageSize: util.SelectPageSize(len(known)),
+			PageSize: iu.SelectPageSize(len(known)),
 		}, &c.bucket)
 		if err != nil {
 			return nil, nil, nil, err

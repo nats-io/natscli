@@ -1,4 +1,4 @@
-// Copyright 2021-2024 The NATS Authors
+// Copyright 2021-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -232,7 +232,7 @@ func (c *SrvRunCmd) prepareConfig() error {
 	}
 
 	if c.config.UserPassword == "" {
-		c.config.UserPassword = randomString(32, 32)
+		c.config.UserPassword = iu.RandomString(32, 32)
 	}
 	b, err := bcrypt.GenerateFromPassword([]byte(c.config.UserPassword), 5)
 	if err != nil {
@@ -241,7 +241,7 @@ func (c *SrvRunCmd) prepareConfig() error {
 	c.config.UserPasswordCrypt = string(b)
 
 	if c.config.SystemPassword == "" {
-		c.config.SystemPassword = randomString(32, 32)
+		c.config.SystemPassword = iu.RandomString(32, 32)
 	}
 	b, err = bcrypt.GenerateFromPassword([]byte(c.config.SystemPassword), 5)
 	if err != nil {
@@ -250,7 +250,7 @@ func (c *SrvRunCmd) prepareConfig() error {
 	c.config.SystemPasswordCrypt = string(b)
 
 	if c.config.ServicePassword == "" {
-		c.config.ServicePassword = randomString(32, 32)
+		c.config.ServicePassword = iu.RandomString(32, 32)
 	}
 	b, err = bcrypt.GenerateFromPassword([]byte(c.config.ServicePassword), 5)
 	if err != nil {

@@ -31,10 +31,10 @@ jobs:
         shell: bash --noprofile --norc -x -eo pipefail {0}
         run: |
           PATH=$PATH:$GOPATH/bin
-          GO_LIST=$(go list ./...)
+          GO_LIST=$(go list ./... | grep -F -e asciigraph -v)
           $(exit $(go fmt $GO_LIST | wc -l))
           go vet -composites=false $GO_LIST
-          find . -type f -name "*.go" | xargs misspell -error -locale US
+          find . -type f -name "*.go" | grep -F -e asciigraph -v | xargs misspell -error -locale US
           staticcheck -f stylish $GO_LIST
 
       - name: Test
@@ -44,7 +44,8 @@ jobs:
           cd nats
           go build
           cd ..
-          go test -v --failfast -p=1 ./...
+          go list ./... | grep -F -e asciigraph -v | xargs go test -v --failfast -p=1
+
 
       - name: Create GitHub App Token
         id: token
@@ -56,9 +57,9 @@ jobs:
           repositories: "homebrew-nats-tools"
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest
+          version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

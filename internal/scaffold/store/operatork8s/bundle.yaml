@@ -1,0 +1,6 @@
+description: Generates configuration for an operator based NATS Server managed by Kubernetes
+contact: https://github.com/nats-io/natscli/issues
+source: https://github.com/nats-io/natscli/
+version: 0.0.1
+requires:
+  operator: true

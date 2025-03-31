@@ -26,7 +26,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/jedib0t/go-pretty/v6/text"
-	"github.com/mattn/go-isatty"
 	terminal "golang.org/x/term"
 )
 
@@ -39,6 +38,7 @@ type Writer struct {
 	heading     string
 	rows        []*columnRow
 	sep         string
+	unlimited   string
 	indent      string
 	colorScheme string
 }
@@ -53,7 +53,7 @@ var colsStyles = map[string]text.Color{
 }
 
 func New(heading string, a ...any) *Writer {
-	w := &Writer{sep: ":"}
+	w := &Writer{sep: ":", unlimited: "unlimited"}
 	w.SetHeading(heading, a...)
 
 	return w
@@ -160,7 +160,7 @@ func (w *Writer) Render() (string, error) {
 // AddRowUnlimitedIf puts "unlimited" as a value if unlimited is true
 func (w *Writer) AddRowUnlimitedIf(t string, v any, unlimited bool) {
 	if unlimited {
-		w.AddRow(t, "unlimited")
+		w.AddRow(t, w.unlimited)
 	} else {
 		w.AddRow(t, v)
 	}
@@ -169,7 +169,7 @@ func (w *Writer) AddRowUnlimitedIf(t string, v any, unlimited bool) {
 // AddRowUnlimited puts "unlimited" as a value when v == unlimited
 func (w *Writer) AddRowUnlimited(t string, v int64, unlimited int64) {
 	if v == unlimited {
-		w.AddRow(t, "unlimited")
+		w.AddRow(t, w.unlimited)
 	} else {
 		w.AddRow(t, v)
 	}
@@ -349,7 +349,7 @@ func (w *Writer) IsTerminal(o io.Writer) bool {
 		return false
 	}
 
-	return isatty.IsTerminal(fh.Fd())
+	return terminal.IsTerminal(int(fh.Fd()))
 }
 
 func (w *Writer) maybeAddColon(o io.Writer, v string, colorize bool) string {

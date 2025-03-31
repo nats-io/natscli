@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -30,7 +30,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/guptarohit/asciigraph"
+	"github.com/jedib0t/go-pretty/v6/progress"
+
+	"github.com/nats-io/natscli/internal/asciigraph"
 	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
 
@@ -39,9 +41,9 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/emicklei/dot"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/balancer"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/columns"
 	"gopkg.in/yaml.v3"
@@ -123,6 +125,7 @@ type streamCmd struct {
 	metadata               map[string]string
 	metadataIsSet          bool
 	compression            string
+	compressionSet         bool
 	firstSeq               uint64
 	limitInactiveThreshold time.Duration
 	limitMaxAckPending     int
@@ -150,11 +153,16 @@ type streamCmd struct {
 	vwTranslate  string
 	vwSubject    string
 
-	dryRun         bool
-	selectedStream *jsm.Stream
-	nc             *nats.Conn
-	mgr            *jsm.Manager
-	chunkSize      string
+	dryRun                    bool
+	selectedStream            *jsm.Stream
+	nc                        *nats.Conn
+	mgr                       *jsm.Manager
+	chunkSize                 string
+	placementPreferred        string
+	allowMsgTTlSet            bool
+	allowMsgTTL               bool
+	subjectDeleteMarkerTTLSet bool
+	subjectDeleteMarkerTTL    time.Duration
 }
 
 type streamStat struct {
@@ -182,7 +190,7 @@ func configureStreamCommand(app commandHost) {
 		if !edit {
 			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		}
-		f.Flag("compression", "Compression algorithm to use (file storage only)").Default("none").EnumVar(&c.compression, "none", "s2")
+		f.Flag("compression", "Compression algorithm to use (file storage only)").IsSetByUser(&c.compressionSet).EnumVar(&c.compression, "none", "s2")
 		f.Flag("replicas", "When clustered, how many replicas of the data to create").Int64Var(&c.replicas)
 		f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").IsSetByUser(&c.placementTagsSet).StringsVar(&c.placementTags)
 		f.Flag("tags", "Backward compatibility only, use --tag").Hidden().IsSetByUser(&c.placementTagsSet).StringsVar(&c.placementTags)
@@ -210,6 +218,10 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
 		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).Default("true").BoolVar(&c.allowDirect)
 		f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
+		if !edit {
+			f.Flag("allow-msg-ttl", "Allows per-message TTL handling").IsSetByUser(&c.allowMsgTTlSet).UnNegatableBoolVar(&c.allowMsgTTL)
+		}
+		f.Flag("subject-del-markers-ttl", "How long delete markers should persist in the Stream").PlaceHolder("DURATION").IsSetByUser(&c.subjectDeleteMarkerTTLSet).DurationVar(&c.subjectDeleteMarkerTTL)
 		f.Flag("transform-source", "Stream subject transform source").PlaceHolder("SOURCE").StringVar(&c.subjectTransformSource)
 		f.Flag("transform-destination", "Stream subject transform destination").PlaceHolder("DEST").StringVar(&c.subjectTransformDest)
 		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
@@ -402,7 +414,23 @@ Finding streams with certain subjects configured:
 	strCluster := str.Command("cluster", "Manages a clustered Stream").Alias("c")
 	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	strClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
+	strClusterDown.Flag("preferred", "Prefer placing the leader on a specific host").StringVar(&c.placementPreferred)
 	strClusterDown.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
+
+	strClusterBalance := strCluster.Command("balance", "Balance stream leaders").Action(c.balanceAction)
+	strClusterBalance.Flag("server-name", "Balance streams present on a regular expression matched server").StringVar(&c.fServer)
+	strClusterBalance.Flag("cluster", "Balance streams present on a regular expression matched cluster").StringVar(&c.fCluster)
+	strClusterBalance.Flag("empty", "Balance streams with no messages").UnNegatableBoolVar(&c.fEmpty)
+	strClusterBalance.Flag("idle", "Balance streams with no new messages or consumer deliveries for a period").PlaceHolder("DURATION").DurationVar(&c.fIdle)
+	strClusterBalance.Flag("created", "Balance streams created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
+	strClusterBalance.Flag("consumers", "Balance streams with fewer consumers than threshold").PlaceHolder("THRESHOLD").Default("-1").IntVar(&c.fConsumers)
+	strClusterBalance.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard and balances them").StringVar(&c.filterSubject)
+	strClusterBalance.Flag("replicas", "Balance streams with fewer or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
+	strClusterBalance.Flag("sourced", "Balance that sources data from other streams").IsSetByUser(&c.fSourcedSet).UnNegatableBoolVar(&c.fSourced)
+	strClusterBalance.Flag("mirrored", "Balance that mirrors data from other streams").IsSetByUser(&c.fMirroredSet).UnNegatableBoolVar(&c.fMirrored)
+	strClusterBalance.Flag("leader", "Balance only clustered streams with a specific leader").PlaceHolder("SERVER").StringVar(&c.fLeader)
+	strClusterBalance.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
+	strClusterBalance.Flag("expression", "Balance matching streams using an expression language").StringVar(&c.fExpression)
 
 	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the Stream cluster").Alias("pr").Action(c.removePeer)
 	strClusterRemovePeer.Arg("stream", "The stream to act on").StringVar(&c.stream)
@@ -412,6 +440,28 @@ Finding streams with certain subjects configured:
 
 func init() {
 	registerCommand("stream", 16, configureStreamCommand)
+}
+
+func (c *streamCmd) kvAbstractionWarn(stream string, prompt string) error {
+	fmt.Println("WARNING: Operating on the underlying stream of a Key-Value bucket is dangerous.")
+	fmt.Println()
+	fmt.Println("Key-Value stores are an abstraction above JetStream Streams and as such require particular")
+	fmt.Println("configuration to be set. Interacting with KV buckets outside of the 'nats kv' subcommand can lead")
+	fmt.Println("unexpected outcomes, data loss and, technically, will mean your KV bucket is no longer a KV bucket.")
+	fmt.Println()
+	fmt.Println("Continuing this operation is an unsupported action.")
+	fmt.Println()
+
+	ans, err := askConfirmation(prompt, false)
+	if err != nil {
+		return err
+	}
+
+	if !ans {
+		return fmt.Errorf("aborting Key-Value store operation")
+	}
+
+	return nil
 }
 
 func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
@@ -474,10 +524,14 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				width = 80
 			}
 			if width > 15 {
-				width -= 10
+				width -= 11
 			}
 			if height > 10 {
 				height -= 6
+			}
+
+			if width < 20 || height < 20 {
+				return fmt.Errorf("please increase terminal dimensions")
 			}
 
 			nfo, err := stream.State()
@@ -486,8 +540,8 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 			}
 
 			messagesStored = append(messagesStored, float64(nfo.Msgs))
-			messageRates = append(messageRates, float64(nfo.LastSeq-lastLastSeq)/time.Since(lastStateTs).Seconds())
-			limitedRates = append(limitedRates, float64(nfo.FirstSeq-lastFirstSeq)/time.Since(lastStateTs).Seconds())
+			messageRates = append(messageRates, calculateRate(float64(nfo.LastSeq), float64(lastLastSeq), time.Since(lastStateTs)))
+			limitedRates = append(limitedRates, calculateRate(float64(nfo.FirstSeq), float64(lastFirstSeq), time.Since(lastStateTs)))
 
 			lastStateTs = time.Now()
 			lastLastSeq = nfo.LastSeq
@@ -503,6 +557,7 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/3-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(fFloat2Int),
 			)
 
 			limitedRatePlot := asciigraph.Plot(limitedRates,
@@ -511,6 +566,7 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/3-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(f),
 			)
 
 			msgRatePlot := asciigraph.Plot(messageRates,
@@ -519,6 +575,7 @@ func (c *streamCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/3-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
+				asciigraph.ValueFormatter(f),
 			)
 
 			iu.ClearScreen()
@@ -575,7 +632,9 @@ func (c *streamCmd) detectGaps(_ *fisk.ParseContext) error {
 		c.showProgress = false
 	}
 
-	var progress *uiprogress.Bar
+	var progbar progress.Writer
+	var tracker *progress.Tracker
+
 	var gaps [][2]uint64
 	var cnt int
 
@@ -583,18 +642,18 @@ func (c *streamCmd) detectGaps(_ *fisk.ParseContext) error {
 		if !c.showProgress {
 			return
 		}
-		if progress == nil {
-			progress = uiprogress.AddBar(int(pending)).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
-				return fmt.Sprintf("%s / %s", f(b.Current()), f(b.Total))
+		if tracker == nil {
+			progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+				Total: int64(pending),
 			})
-			uiprogress.Start()
 		}
 		cnt++
 
-		progress.Set(int(seq))
+		tracker.SetValue(int64(seq))
 
 		if pending == 0 {
-			progress.Set(progress.Total)
+			tracker.SetValue(tracker.Total)
+			tracker.MarkAsDone()
 		}
 	}
 
@@ -603,9 +662,9 @@ func (c *streamCmd) detectGaps(_ *fisk.ParseContext) error {
 	}
 
 	err = stream.DetectGaps(ctx, progressCb, gapCb)
-	if progress != nil {
+	if tracker != nil {
 		time.Sleep(250 * time.Millisecond) // let it draw
-		uiprogress.Stop()
+		progbar.Stop()
 		fmt.Println()
 	}
 	if err != nil {
@@ -622,11 +681,11 @@ func (c *streamCmd) detectGaps(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	var table *tbl
+	var table *iu.Table
 	if len(gaps) == 1 {
-		table = newTableWriter(fmt.Sprintf("1 gap found in Stream %s", c.stream))
+		table = iu.NewTableWriter(opts(), fmt.Sprintf("1 gap found in Stream %s", c.stream))
 	} else {
-		table = newTableWriter(fmt.Sprintf("%s gaps found in Stream %s", f(len(gaps)), c.stream))
+		table = iu.NewTableWriter(opts(), fmt.Sprintf("%s gaps found in Stream %s", f(len(gaps)), c.stream))
 	}
 
 	table.AddHeaders("First Message", "Last Message")
@@ -676,7 +735,7 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 
 	cols := 1
 	countWidth := len(f(most))
-	table := newTableWriter(fmt.Sprintf("%d Subjects in stream %s", len(names), c.stream))
+	table := iu.NewTableWriter(opts(), fmt.Sprintf("%d Subjects in stream %s", len(names), c.stream))
 
 	switch {
 	case longest+countWidth < 20:
@@ -728,14 +787,14 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 
 func (c *streamCmd) parseLimitStrings(_ *fisk.ParseContext) (err error) {
 	if c.maxBytesLimitString != "" {
-		c.maxBytesLimit, err = parseStringAsBytes(c.maxBytesLimitString)
+		c.maxBytesLimit, err = iu.ParseStringAsBytes(c.maxBytesLimitString)
 		if err != nil {
 			return err
 		}
 	}
 
 	if c.maxMsgSizeString != "" {
-		c.maxMsgSize, err = parseStringAsBytes(c.maxMsgSizeString)
+		c.maxMsgSize, err = iu.ParseStringAsBytes(c.maxMsgSizeString)
 		if err != nil {
 			return err
 		}
@@ -820,6 +879,77 @@ func (c *streamCmd) loadStream(stream string) (*jsm.Stream, error) {
 	return c.mgr.LoadStream(stream)
 }
 
+func (c *streamCmd) balanceAction(_ *fisk.ParseContext) error {
+	var err error
+
+	c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
+	if err != nil {
+		return fmt.Errorf("setup failed: %v", err)
+	}
+
+	var opts []jsm.StreamQueryOpt
+	if c.fServer != "" {
+		opts = append(opts, jsm.StreamQueryServerName(c.fServer))
+	}
+	if c.fCluster != "" {
+		opts = append(opts, jsm.StreamQueryClusterName(c.fCluster))
+	}
+	if c.fEmpty {
+		opts = append(opts, jsm.StreamQueryWithoutMessages())
+	}
+	if c.fIdle > 0 {
+		opts = append(opts, jsm.StreamQueryIdleLongerThan(c.fIdle))
+	}
+	if c.fCreated > 0 {
+		opts = append(opts, jsm.StreamQueryOlderThan(c.fCreated))
+	}
+	if c.fConsumers >= 0 {
+		opts = append(opts, jsm.StreamQueryFewerConsumersThan(uint(c.fConsumers)))
+	}
+	if c.fInvert {
+		opts = append(opts, jsm.StreamQueryInvert())
+	}
+	if c.filterSubject != "" {
+		opts = append(opts, jsm.StreamQuerySubjectWildcard(c.filterSubject))
+	}
+	if c.fSourcedSet {
+		opts = append(opts, jsm.StreamQueryIsSourced())
+	}
+	if c.fMirroredSet {
+		opts = append(opts, jsm.StreamQueryIsMirror())
+	}
+	if c.fReplicas > 0 {
+		opts = append(opts, jsm.StreamQueryReplicas(c.fReplicas))
+	}
+	if c.fExpression != "" {
+		opts = append(opts, jsm.StreamQueryExpression(c.fExpression))
+	}
+	if c.fLeader != "" {
+		opts = append(opts, jsm.StreamQueryLeaderServer(c.fLeader))
+	}
+
+	found, err := c.mgr.QueryStreams(opts...)
+	if err != nil {
+		return err
+	}
+
+	if len(found) > 0 {
+		balancer, err := balancer.New(c.mgr.NatsConn(), api.NewDefaultLogger(api.InfoLevel))
+		if err != nil {
+			return err
+		}
+
+		balanced, err := balancer.BalanceStreams(found)
+		if err != nil {
+			return fmt.Errorf("failed to balance streams: %s", err)
+		}
+		fmt.Printf("Balanced %d streams.\n", balanced)
+
+	}
+
+	return nil
+}
+
 func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 	c.connectAndAskStream()
 
@@ -844,8 +974,18 @@ func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 		leader = "<unknown>"
 	}
 
+	var p *api.Placement
+	if c.placementPreferred != "" {
+		err = iu.RequireAPILevel(c.mgr, 1, "placement hints during step-down requires NATS Server 2.11")
+		if err != nil {
+			return err
+		}
+
+		p = &api.Placement{Preferred: c.placementPreferred}
+	}
+
 	log.Printf("Requesting leader step down of %q for stream %q in a %d peer cluster group", leader, stream.Name(), len(info.Cluster.Replicas)+1)
-	err = stream.LeaderStepDown()
+	err = stream.LeaderStepDown(p)
 	if err != nil {
 		return err
 	}
@@ -1080,13 +1220,11 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 		fisk.Fatalf("Stream %q already exist", bm.Config.Name)
 	}
 
-	var progress *uiprogress.Bar
-	var bps uint64
+	var progbar progress.Writer
+	var tracker *progress.Tracker
 	var prevMsg time.Time
 
 	cb := func(p jsm.RestoreProgress) {
-		bps = p.BytesPerSecond()
-
 		if opts().Trace && (p.ChunksSent()%100 == 0 || time.Since(prevMsg) > 500*time.Millisecond) {
 			fmt.Printf("Sent %v chunk %v / %v at %v / s\n", fiBytes(uint64(p.ChunkSize())), p.ChunksSent(), p.ChunksToSend(), fiBytes(p.BytesPerSecond()))
 			return
@@ -1094,23 +1232,19 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 
 		prevMsg = time.Now()
 
-		if progress == nil {
-			progress = uiprogress.AddBar(p.ChunksToSend()).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
-				return humanize.IBytes(bps) + "/s"
+		if progbar == nil {
+			progbar, tracker, _ = iu.NewProgress(opts(), &progress.Tracker{
+				Total: int64(p.ChunksToSend() * p.ChunkSize()),
+				Units: progress.UnitsBytes,
 			})
-			progress.Width = iu.ProgressWidth()
 		}
 
-		progress.Set(int(p.ChunksSent()))
+		tracker.SetValue(int64(p.ChunksSent() * uint32(p.ChunkSize())))
 	}
 
 	var ropts []jsm.SnapshotOption
 
 	if c.showProgress {
-		if !opts().Trace {
-			uiprogress.Start()
-		}
-
 		ropts = append(ropts, jsm.RestoreNotify(cb))
 	} else {
 		ropts = append(ropts, jsm.SnapshotDebug())
@@ -1143,15 +1277,18 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 		cfg.Replicas = int(c.replicas)
 	}
 
-	ropts = append(ropts, jsm.RestoreConfiguration(*cfg))
+	if cfg != nil {
+		ropts = append(ropts, jsm.RestoreConfiguration(*cfg))
+	}
 
 	fmt.Printf("Starting restore of Stream %q from file %q\n\n", bm.Config.Name, c.backupDirectory)
 
 	fp, _, err := mgr.RestoreSnapshotFromDirectory(ctx, bm.Config.Name, c.backupDirectory, ropts...)
 	fisk.FatalIfError(err, "restore failed")
 	if c.showProgress {
-		progress.Set(int(fp.ChunksSent()))
-		uiprogress.Stop()
+		tracker.SetValue(int64(fp.ChunksSent() * uint32(fp.ChunkSize())))
+		time.Sleep(300 * time.Millisecond)
+		progbar.Stop()
 	}
 
 	fmt.Println()
@@ -1168,13 +1305,13 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 
 func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check bool, target string, chunkSize int) error {
 	first := true
-	inprogress := true
 	pmu := sync.Mutex{}
-	var bar *uiprogress.Bar
-	var bps uint64
-	var progress *uiprogress.Progress
 	expected := 1
 	timedOut := false
+
+	var progbar progress.Writer
+	var tracker *progress.Tracker
+	var err error
 	var prevMsg time.Time
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -1193,14 +1330,14 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 	var received uint32
 
 	cb := func(p jsm.SnapshotProgress) {
-		if bar == nil && showProgress {
+		if tracker == nil && showProgress {
 			if p.BytesExpected() > 0 {
 				expected = int(p.BytesExpected())
 			}
-			bar = progress.AddBar(expected).AppendCompleted().PrependFunc(func(b *uiprogress.Bar) string {
-				return humanize.IBytes(bps) + "/s"
+			progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+				Total: int64(expected),
+				Units: iu.ProgressUnitsIBytes,
 			})
-			bar.Width = iu.ProgressWidth()
 		}
 
 		if first {
@@ -1216,8 +1353,6 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 			first = false
 		}
 
-		bps = p.BytesPerSecond()
-
 		if opts().Trace {
 			if first {
 				fmt.Printf("Received %s chunk %s\n", fiBytes(uint64(p.ChunkSize())), f(p.ChunksReceived()))
@@ -1231,20 +1366,8 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 			received = p.ChunksReceived()
 		}
 
-		if showProgress {
-			bar.Set(int(p.BytesReceived()))
-		}
-
-		if p.Finished() {
-			pmu.Lock()
-			if inprogress {
-				if showProgress {
-					progress.Stop()
-				}
-
-				inprogress = false
-			}
-			pmu.Unlock()
+		if tracker != nil {
+			tracker.SetValue(int64(p.UncompressedBytesReceived()))
 		}
 
 		prevMsg = time.Now()
@@ -1252,6 +1375,7 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 
 	sopts := []jsm.SnapshotOption{
 		jsm.SnapshotChunkSize(chunkSize),
+		jsm.SnapshotNotify(cb),
 	}
 
 	if consumers {
@@ -1263,13 +1387,6 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 		showProgress = false
 	}
 
-	if showProgress {
-		progress = uiprogress.New()
-		progress.Start()
-	}
-
-	sopts = append(sopts, jsm.SnapshotNotify(cb))
-
 	if check {
 		sopts = append(sopts, jsm.SnapshotHealthCheck())
 	}
@@ -1280,10 +1397,11 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 	}
 
 	pmu.Lock()
-	if showProgress && inprogress {
-		bar.Set(int(fp.BytesReceived()))
-		uiprogress.Stop()
-		inprogress = false
+	if tracker != nil {
+		tracker.SetValue(int64(expected))
+		tracker.MarkAsDone()
+		time.Sleep(300 * time.Millisecond)
+		progbar.Stop()
 	}
 	pmu.Unlock()
 
@@ -1293,7 +1411,7 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 		return fmt.Errorf("backup timed out after receiving no data for a long period")
 	}
 
-	fmt.Printf("Received %s compressed data in %s chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), f(fp.ChunksReceived()), stream.Name(), fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), humanize.IBytes(fp.UncompressedBytesReceived()))
+	fmt.Printf("Received %s compressed data in %s chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), f(fp.ChunksReceived()), stream.Name(), fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), fiBytes(fp.UncompressedBytesReceived()))
 
 	return nil
 }
@@ -1311,7 +1429,7 @@ func (c *streamCmd) backupAction(_ *fisk.ParseContext) error {
 
 	chunkSize := int64(128 * 1024)
 	if c.chunkSize != "" {
-		chunkSize, err = parseStringAsBytes(c.chunkSize)
+		chunkSize, err = iu.ParseStringAsBytes(c.chunkSize)
 		if err != nil {
 			return err
 		}
@@ -1469,7 +1587,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 }
 
 func (c *streamCmd) renderReplication(stats []streamStat) {
-	table := newTableWriter("Replication Report")
+	table := iu.NewTableWriter(opts(), "Replication Report")
 	table.AddHeaders("Stream", "Kind", "API Prefix", "Source Stream", "Filters and Transforms", "Active", "Lag", "Error")
 
 	for _, s := range stats {
@@ -1489,9 +1607,9 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 			}
 
 			if c.reportRaw {
-				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, "", "", s.Mirror.Active, s.Mirror.Lag, apierr)
+				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, "", s.Mirror.Active, s.Mirror.Lag, apierr)
 			} else {
-				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, "", "", f(s.Mirror.Active), f(s.Mirror.Lag), apierr)
+				table.AddRow(s.Name, "Mirror", eApiPrefix, s.Mirror.Name, "", f(s.Mirror.Active), f(s.Mirror.Lag), apierr)
 			}
 		}
 
@@ -1528,7 +1646,7 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 }
 
 func (c *streamCmd) renderStreams(stats []streamStat) {
-	table := newTableWriter("Stream Report")
+	table := iu.NewTableWriter(opts(), "Stream Report")
 	table.AddHeaders("Stream", "Storage", "Placement", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Replicas")
 
 	for _, s := range stats {
@@ -1647,7 +1765,7 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 	}
 
 	if len(c.subjects) > 0 {
-		cfg.Subjects = splitCLISubjects(c.subjects)
+		cfg.Subjects = iu.SplitCLISubjects(c.subjects)
 	}
 
 	if c.storage != "" {
@@ -1748,7 +1866,11 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 	}
 
 	if c.allowMirrorDirectSet {
-		cfg.MirrorDirect = c.allowMirrorDirectSet
+		cfg.MirrorDirect = c.allowMirrorDirect
+	}
+
+	if c.allowMsgTTL {
+		cfg.AllowMsgTTL = c.allowMsgTTL
 	}
 
 	if c.discardPerSubjSet {
@@ -1759,8 +1881,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		cfg.Metadata = c.metadata
 	}
 
-	if err = cfg.Compression.UnmarshalJSON([]byte(fmt.Sprintf("%q", c.compression))); err != nil {
-		return cfg, fmt.Errorf("invalid compression algorithm")
+	if c.compressionSet {
+		if err = cfg.Compression.UnmarshalJSON([]byte(fmt.Sprintf("%q", c.compression))); err != nil {
+			return cfg, fmt.Errorf("invalid compression algorithm")
+		}
 	}
 
 	if !c.noRepub && c.repubSource != "" && c.repubDest != "" {
@@ -1786,6 +1910,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		if subjectTransformConfig.Source != "" && subjectTransformConfig.Destination != "" {
 			cfg.SubjectTransform = &subjectTransformConfig
 		}
+	}
+
+	if c.subjectDeleteMarkerTTLSet {
+		cfg.SubjectDeleteMarkerTTL = c.subjectDeleteMarkerTTL
 	}
 
 	return cfg, nil
@@ -1886,6 +2014,13 @@ func (c *streamCmd) editAction(pc *fisk.ParseContext) error {
 		os.Exit(1)
 	}
 
+	if jsm.IsKVBucketStream(c.stream) {
+		err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
+		if err != nil {
+			return err
+		}
+	}
+
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really edit Stream %s", c.stream), false)
 		fisk.FatalIfError(err, "could not obtain confirmation")
@@ -1981,7 +2116,6 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRow("Retention", cfg.Retention.String())
 	cols.AddRow("Acknowledgments", !cfg.NoAck)
 	dnp := cfg.Discard.String()
-
 	if cfg.DiscardNewPer {
 		dnp = "New Per Subject"
 	}
@@ -1991,10 +2125,13 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRowIf("Mirror Direct Get", cfg.MirrorDirect, cfg.MirrorDirect)
 	cols.AddRow("Allows Msg Delete", !cfg.DenyDelete)
 	cols.AddRow("Allows Purge", !cfg.DenyPurge)
+	cols.AddRow("Allows Per-Message TTL", cfg.AllowMsgTTL)
+	if cfg.AllowMsgTTL && cfg.SubjectDeleteMarkerTTL > 0 {
+		cols.AddRow("Subject Delete Markers TTL", cfg.SubjectDeleteMarkerTTL)
+	}
 	cols.AddRow("Allows Rollups", cfg.RollupAllowed)
 
 	cols.AddSectionTitle("Limits")
-
 	if cfg.MaxMsgs == -1 {
 		cols.AddRow("Maximum Messages", "unlimited")
 	} else {
@@ -2395,10 +2532,10 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 			}, &subjects, survey.WithValidator(survey.Required))
 			fisk.FatalIfError(err, "invalid input")
 
-			c.subjects = splitString(subjects)
+			c.subjects = iu.SplitString(subjects)
 		}
 
-		c.subjects = splitCLISubjects(c.subjects)
+		c.subjects = iu.SplitCLISubjects(c.subjects)
 	}
 
 	if c.mirror != "" && len(c.subjects) > 0 {
@@ -2590,29 +2727,31 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	cfg := api.StreamConfig{
-		Name:          c.stream,
-		Description:   c.description,
-		Subjects:      c.subjects,
-		MaxMsgs:       c.maxMsgLimit,
-		MaxMsgsPer:    c.maxMsgPerSubjectLimit,
-		MaxBytes:      c.maxBytesLimit,
-		MaxMsgSize:    int32(c.maxMsgSize),
-		Duplicates:    dupeWindow,
-		MaxAge:        maxAge,
-		Storage:       storage,
-		Compression:   compression,
-		FirstSeq:      c.firstSeq,
-		NoAck:         !c.ack,
-		Retention:     c.retentionPolicyFromString(),
-		Discard:       c.discardPolicyFromString(),
-		MaxConsumers:  c.maxConsumers,
-		Replicas:      int(c.replicas),
-		RollupAllowed: c.allowRollup,
-		DenyPurge:     c.denyPurge,
-		DenyDelete:    c.denyDelete,
-		AllowDirect:   c.allowDirect,
-		MirrorDirect:  c.allowMirrorDirectSet,
-		DiscardNewPer: c.discardPerSubj,
+		Name:                   c.stream,
+		Description:            c.description,
+		Subjects:               c.subjects,
+		MaxMsgs:                c.maxMsgLimit,
+		MaxMsgsPer:             c.maxMsgPerSubjectLimit,
+		MaxBytes:               c.maxBytesLimit,
+		MaxMsgSize:             int32(c.maxMsgSize),
+		Duplicates:             dupeWindow,
+		MaxAge:                 maxAge,
+		Storage:                storage,
+		Compression:            compression,
+		FirstSeq:               c.firstSeq,
+		NoAck:                  !c.ack,
+		Retention:              c.retentionPolicyFromString(),
+		Discard:                c.discardPolicyFromString(),
+		MaxConsumers:           c.maxConsumers,
+		Replicas:               int(c.replicas),
+		RollupAllowed:          c.allowRollup,
+		DenyPurge:              c.denyPurge,
+		DenyDelete:             c.denyDelete,
+		AllowDirect:            c.allowDirect,
+		AllowMsgTTL:            c.allowMsgTTL,
+		SubjectDeleteMarkerTTL: c.subjectDeleteMarkerTTL,
+		MirrorDirect:           c.allowMirrorDirectSet,
+		DiscardNewPer:          c.discardPerSubj,
 	}
 
 	if c.limitInactiveThreshold > 0 {
@@ -2635,7 +2774,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	if c.mirror != "" {
-		if isJsonString(c.mirror) {
+		if iu.IsJsonObjectString(c.mirror) {
 			cfg.Mirror, err = c.parseStreamSource(c.mirror)
 			fisk.FatalIfError(err, "invalid mirror")
 		} else {
@@ -2646,7 +2785,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 	}
 
 	for _, source := range c.sources {
-		if isJsonString(source) {
+		if iu.IsJsonObjectString(source) {
 			ss, err := c.parseStreamSource(source)
 			fisk.FatalIfError(err, "invalid source")
 			cfg.Sources = append(cfg.Sources, ss)
@@ -2889,7 +3028,7 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 func (c *streamCmd) parseStreamSource(source string) (*api.StreamSource, error) {
 	ss := &api.StreamSource{}
 
-	if isJsonString(source) {
+	if iu.IsJsonObjectString(source) {
 		err := json.Unmarshal([]byte(source), ss)
 		if err != nil {
 			return nil, err
@@ -3022,6 +3161,13 @@ func (c *streamCmd) purgeAction(_ *fisk.ParseContext) (err error) {
 		}
 	}
 
+	if jsm.IsKVBucketStream(c.stream) {
+		err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
+		if err != nil {
+			return err
+		}
+	}
+
 	stream, err := c.loadStream(c.stream)
 	fisk.FatalIfError(err, "could not purge Stream")
 
@@ -3143,11 +3289,11 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string
 	})
 
 	var out bytes.Buffer
-	var table *tbl
+	var table *iu.Table
 	if c.filterSubject == "" {
-		table = newTableWriter("Streams")
+		table = iu.NewTableWriter(opts(), "Streams")
 	} else {
-		table = newTableWriter(fmt.Sprintf("Streams matching %s", c.filterSubject))
+		table = iu.NewTableWriter(opts(), fmt.Sprintf("Streams matching %s", c.filterSubject))
 	}
 
 	table.AddHeaders("Name", "Description", "Created", "Messages", "Size", "Last Message")
@@ -3174,7 +3320,7 @@ func (c *streamCmd) renderMissing(out io.Writer, missing []string) {
 	if len(missing) > 0 {
 		fmt.Fprintln(out)
 		sort.Strings(missing)
-		table := newTableWriter("Inaccessible Streams")
+		table := iu.NewTableWriter(opts(), "Inaccessible Streams")
 		iu.SliceGroups(missing, 4, func(names []string) {
 			table.AddRow(toany(names)...)
 		})
@@ -3204,6 +3350,13 @@ func (c *streamCmd) rmMsgAction(_ *fisk.ParseContext) (err error) {
 	stream, err := c.loadStream(c.stream)
 	fisk.FatalIfError(err, "could not load Stream %s", c.stream)
 
+	if jsm.IsKVBucketStream(c.stream) {
+		err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
+		if err != nil {
+			return err
+		}
+	}
+
 	if !c.force {
 		ok, err := askConfirmation(fmt.Sprintf("Really remove message %d from Stream %s", c.msgID, c.stream), false)
 		fisk.FatalIfError(err, "could not obtain confirmation")
@@ -3213,7 +3366,7 @@ func (c *streamCmd) rmMsgAction(_ *fisk.ParseContext) (err error) {
 		}
 	}
 
-	return stream.DeleteMessage(uint64(c.msgID))
+	return stream.DeleteMessageRequest(api.JSApiMsgDeleteRequest{Seq: uint64(c.msgID)})
 }
 
 func (c *streamCmd) getAction(_ *fisk.ParseContext) (err error) {
@@ -3258,11 +3411,11 @@ func (c *streamCmd) getAction(_ *fisk.ParseContext) (err error) {
 		return nil
 	}
 
-	fmt.Printf("Item: %s#%d received %v on Subject %s\n\n", c.stream, item.Sequence, item.Time, item.Subject)
+	fmt.Printf("Item: %s#%d received %v (%s) on Subject %s\n\n", c.stream, item.Sequence, item.Time, f(time.Since(item.Time)), item.Subject)
 
 	if len(item.Header) > 0 {
 		fmt.Println("Headers:")
-		hdrs, err := decodeHeadersMsg(item.Header)
+		hdrs, err := iu.DecodeHeadersMsg(item.Header)
 		if err == nil {
 			for k, vals := range hdrs {
 				for _, val := range vals {
