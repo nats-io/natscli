@@ -168,13 +168,11 @@ func (c *SrvReportCmd) withWatcher(fn func(*fisk.ParseContext) error) func(*fisk
 		ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 		defer cancel()
 
-		iu.ClearScreen()
 		fn(fctx)
 
 		for {
 			select {
 			case <-tick.C:
-				iu.ClearScreen()
 				fn(fctx)
 			case <-ctx.Done():
 				return nil
@@ -370,6 +368,9 @@ func (c *SrvReportCmd) reportHealth(_ *fisk.ParseContext) error {
 	//tbl.AddSeparator()
 	tbl.AddFooter(f(len(servers)), f(len(totalClusters)), "", f(fmt.Sprintf("ok: %d / err: %d", ok, notok)), "", f(totalErrors))
 
+	if c.watchInterval > 0 {
+		iu.ClearScreen()
+	}
 	fmt.Println(tbl.Render())
 
 	return nil
@@ -512,6 +513,9 @@ func (c *SrvReportCmd) reportGateway(_ *fisk.ParseContext) error {
 
 	tbl.AddFooter(f(totalServers), len(totalClusters), "", "", f(totalGateways), "", "", "", fiBytes(uint64(totalBytes)), "")
 
+	if c.watchInterval > 0 {
+		iu.ClearScreen()
+	}
 	fmt.Println(tbl.Render())
 
 	return nil
@@ -668,6 +672,10 @@ func (c *SrvReportCmd) reportRoute(_ *fisk.ParseContext) error {
 	}
 
 	tbl.AddFooter(f(len(totalServers)), f(len(totalClusters)), "", "", f(totalRoutes), "", "", "", f(subs), fiBytes(uint64(bytesIn)), fiBytes(uint64(bytesOut)))
+
+	if c.watchInterval > 0 {
+		iu.ClearScreen()
+	}
 	fmt.Println(tbl.Render())
 
 	return nil
@@ -717,6 +725,9 @@ func (c *SrvReportCmd) reportCpuOrMem(mem bool) error {
 		return iu.BarGraph(os.Stdout, usage, "Memory Usage", width, true)
 	}
 
+	if c.watchInterval > 0 {
+		iu.ClearScreen()
+	}
 	return iu.BarGraph(os.Stdout, usage, "CPU Usage", width, false)
 }
 
@@ -981,6 +992,10 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 
 			table.AddRow(cNames[i], peer, leader, replica.Current, online, f(replica.Active), f(replica.Lag))
 		}
+
+		if c.watchInterval > 0 {
+			iu.ClearScreen()
+		}
 		fmt.Print(table.Render())
 
 	}
@@ -1064,6 +1079,9 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 		table.AddRow(acct.Account, f(acct.Connections), f(acct.InMsgs), f(acct.OutMsgs), humanize.IBytes(uint64(acct.InBytes)), humanize.IBytes(uint64(acct.OutBytes)), f(acct.Subs))
 	}
 
+	if c.watchInterval > 0 {
+		iu.ClearScreen()
+	}
 	fmt.Print(table.Render())
 
 	return nil
@@ -1245,6 +1263,9 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		table.AddFooter(values...)
 	}
 
+	if c.watchInterval > 0 {
+		iu.ClearScreen()
+	}
 	fmt.Print(table.Render())
 
 	if len(serverNames) > 0 {
