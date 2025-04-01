@@ -494,6 +494,10 @@ func loadContext(softFail bool) error {
 		ctxOpts = append(ctxOpts, natscontext.WithTLSHandshakeFirst())
 	}
 
+	if opts.Token != "" {
+		ctxOpts = append(ctxOpts, natscontext.WithToken(opts.Token))
+	}
+
 	if opts.Username != "" && opts.Password == "" {
 		ctxOpts = append(ctxOpts, natscontext.WithToken(opts.Username))
 	} else {
