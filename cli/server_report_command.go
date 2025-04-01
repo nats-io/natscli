@@ -942,6 +942,9 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	}
 	table.AddFooter(row...)
 
+	if c.watchInterval > 0 {
+		iu.ClearScreen()
+	}
 	fmt.Print(table.Render())
 	fmt.Println()
 
@@ -993,11 +996,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			table.AddRow(cNames[i], peer, leader, replica.Current, online, f(replica.Active), f(replica.Lag))
 		}
 
-		if c.watchInterval > 0 {
-			iu.ClearScreen()
-		}
 		fmt.Print(table.Render())
-
 	}
 
 	return nil
