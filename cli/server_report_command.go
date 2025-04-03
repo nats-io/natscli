@@ -101,7 +101,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
 	conns.Flag("username", "Limits responses only to those connections for a specific authentication username").StringVar(&c.user)
-	conns.Flag("state", "Limits responses only to those connections that are in a specific state (open, closed, all)").PlaceHolder("STATE").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
+	conns.Flag("state", "Limits responses only to those connections that are in a specific state (open, closed, all)").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
 	conns.Flag("closed-reason", "Filter results based on a closed reason").PlaceHolder("REASON").StringVar(&c.filterReason)
 	conns.Flag("filter", "Expression based filter for connections").StringVar(&c.filterExpression)
 	addFilterOpts(conns)
