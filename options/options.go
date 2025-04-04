@@ -46,6 +46,8 @@ type Options struct {
 	Username string
 	// Password is the password to connect with
 	Password string
+	// Token is the token to connect with
+	Token string
 	// Nkey is the file holding a nkey to connect with
 	Nkey string
 	// JsApiPrefix is the JetStream API prefix
