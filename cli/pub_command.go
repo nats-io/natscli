@@ -32,6 +32,7 @@ import (
 type pubCmd struct {
 	subject      string
 	body         string
+	bodyIsSet    bool
 	req          bool
 	replyTo      string
 	raw          bool
@@ -72,7 +73,7 @@ Available template functions are:
 	addCheat("pub", pub)
 	pub.HelpLong(pubHelp)
 	pub.Arg("subject", "Subject to publish to").Required().StringVar(&c.subject)
-	pub.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
+	pub.Arg("body", "Message body").IsSetByUser(&c.bodyIsSet).StringVar(&c.body)
 	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
 	pub.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
@@ -103,7 +104,7 @@ Available template functions are:
 	req := app.Command("request", "Generic request-reply request utility").Alias("req").Action(c.publish)
 	req.HelpLong(requestHelp)
 	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
-	req.Arg("body", "Message body").Default("!nil!").StringVar(&c.body)
+	req.Arg("body", "Message body").StringVar(&c.body)
 	req.Flag("wait", "Wait for a reply from a service").Short('w').Default("true").Hidden().BoolVar(&c.req)
 	req.Flag("raw", "Show just the output received").Short('r').UnNegatableBoolVar(&c.raw)
 	req.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
@@ -311,7 +312,7 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 		c.cnt = math.MaxInt16
 	}
 
-	if c.body == "!nil!" && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
+	if !c.bodyIsSet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
 		log.Println("Reading payload from STDIN")
 		body, err := io.ReadAll(os.Stdin)
 		if err != nil {
