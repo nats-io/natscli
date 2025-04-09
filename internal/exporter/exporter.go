@@ -37,27 +37,36 @@ type Check struct {
 	ReuseConn  bool            `json:"reuse_connection" yaml:"reuse_connection"`
 	Properties json.RawMessage `json:"properties" yaml:"properties"`
 	nc         *nats.Conn
+	mgr        *jsm.Manager
 	mu         sync.Mutex
 }
 
-func (c *Check) connect(urls string, opts ...nats.Option) (*nats.Conn, error) {
+func (c *Check) connect(urls string, opts []nats.Option, jsmOpts []jsm.Option) (*nats.Conn, *jsm.Manager, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if !c.ReuseConn {
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	if c.nc != nil {
-		return c.nc, nil
+	if c.nc != nil && c.mgr != nil {
+		return c.nc, c.mgr, nil
 	}
 
 	opts = append(opts, nats.MaxReconnects(-1))
 
 	var err error
 	c.nc, err = nats.Connect(urls, opts...)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	return c.nc, err
+	c.mgr, err = jsm.New(c.nc, jsmOpts...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return c.nc, c.mgr, err
 }
 
 type Config struct {
@@ -178,7 +187,7 @@ func (e *Exporter) checkRequest(servers string, natsOpts []nats.Option, jsmOpts 
 		return
 	}
 
-	nc, err := check.connect(servers, natsOpts...)
+	nc, _, err := check.connect(servers, natsOpts, jsmOpts)
 	if result.CriticalIfErr(err, "connection failed: %v", err) {
 		return
 	}
@@ -209,7 +218,7 @@ func (e *Exporter) checkServer(servers string, natsOpts []nats.Option, jsmOpts [
 		return
 	}
 
-	nc, err := check.connect(servers, natsOpts...)
+	nc, _, err := check.connect(servers, natsOpts, jsmOpts)
 	if result.CriticalIfErr(err, "connection failed: %v", err) {
 		return
 	}
@@ -238,13 +247,13 @@ func (e *Exporter) checkJetStream(servers string, natsOpts []nats.Option, jsmOpt
 		return
 	}
 
-	nc, err := check.connect(servers, natsOpts...)
+	_, mgr, err := check.connect(servers, natsOpts, jsmOpts)
 	if result.CriticalIfErr(err, "connection failed: %v", err) {
 		return
 	}
 
-	if nc != nil {
-		err = monitor.CheckJetStreamAccountWithConnection(nc, jsmOpts, result, copts)
+	if mgr != nil {
+		err = monitor.CheckJetStreamAccountWithConnection(mgr, result, copts)
 	} else {
 		err = monitor.CheckJetStreamAccount(servers, natsOpts, jsmOpts, result, copts)
 	}
@@ -258,7 +267,7 @@ func (e *Exporter) checkMeta(servers string, natsOpts []nats.Option, jsmOpts []j
 		return
 	}
 
-	nc, err := check.connect(servers, natsOpts...)
+	nc, _, err := check.connect(servers, natsOpts, jsmOpts)
 	if result.CriticalIfErr(err, "connection failed: %v", err) {
 		return
 	}
@@ -278,13 +287,13 @@ func (e *Exporter) checkMessage(servers string, natsOpts []nats.Option, jsmOpts 
 		return
 	}
 
-	nc, err := check.connect(servers, natsOpts...)
+	_, mgr, err := check.connect(servers, natsOpts, jsmOpts)
 	if result.CriticalIfErr(err, "connection failed: %v", err) {
 		return
 	}
 
-	if nc != nil {
-		err = monitor.CheckStreamMessageWithConnection(nc, jsmOpts, result, copts)
+	if mgr != nil {
+		err = monitor.CheckStreamMessageWithConnection(mgr, result, copts)
 	} else {
 		err = monitor.CheckStreamMessage(servers, natsOpts, jsmOpts, result, copts)
 	}
@@ -301,7 +310,7 @@ func (e *Exporter) checkKv(servers string, natsOpts []nats.Option, jsmOpts []jsm
 		return
 	}
 
-	nc, err := check.connect(servers, natsOpts...)
+	nc, _, err := check.connect(servers, natsOpts, jsmOpts)
 	if result.CriticalIfErr(err, "connection failed: %v", err) {
 		return
 	}
@@ -316,21 +325,21 @@ func (e *Exporter) checkKv(servers string, natsOpts []nats.Option, jsmOpts []jsm
 }
 
 func (e *Exporter) checkConsumer(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
-	copts := monitor.ConsumerHealthCheckOptions{}
+	copts := monitor.CheckConsumerHealthOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
 	if result.CriticalIfErr(err, "invalid properties: %v", err) {
 		return
 	}
 
-	nc, err := check.connect(servers, natsOpts...)
+	_, mgr, err := check.connect(servers, natsOpts, jsmOpts)
 	if result.CriticalIfErr(err, "connection failed: %v", err) {
 		return
 	}
 
-	if nc != nil {
-		err = monitor.ConsumerHealthCheckWithConnection(nc, jsmOpts, result, copts, api.NewDiscardLogger())
+	if mgr != nil {
+		err = monitor.CheckConsumerHealthWithConnection(mgr, result, copts, api.NewDiscardLogger())
 	} else {
-		err = monitor.ConsumerHealthCheck(servers, natsOpts, jsmOpts, result, copts, api.NewDiscardLogger())
+		err = monitor.CheckConsumerHealth(servers, natsOpts, jsmOpts, result, copts, api.NewDiscardLogger())
 	}
 	result.CriticalIfErr(err, "check failed: %v", err)
 }
@@ -342,13 +351,13 @@ func (e *Exporter) checkStream(servers string, natsOpts []nats.Option, jsmOpts [
 		return
 	}
 
-	nc, err := check.connect(servers, natsOpts...)
+	_, mgr, err := check.connect(servers, natsOpts, jsmOpts)
 	if result.CriticalIfErr(err, "connection failed: %v", err) {
 		return
 	}
 
-	if nc != nil {
-		err = monitor.CheckStreamHealthWithConnection(nc, jsmOpts, result, copts, api.NewDiscardLogger())
+	if mgr != nil {
+		err = monitor.CheckStreamHealthWithConnection(mgr, result, copts, api.NewDiscardLogger())
 	} else {
 		err = monitor.CheckStreamHealth(servers, natsOpts, jsmOpts, result, copts, api.NewDiscardLogger())
 	}
