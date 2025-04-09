@@ -285,10 +285,15 @@ func (c *SrvCheckCmd) checkRequest(_ *fisk.ParseContext) error {
 		checkOpts.ResponseMatch = c.msgRegexp.String()
 	}
 
-	err := monitor.CheckRequest(opts().Config.ServerURL(), natsOpts(), check, opts().Timeout, checkOpts)
-	if err != nil {
-		return fmt.Errorf("health check failed: %v", err)
+	var err error
+	nc := opts().Conn
+
+	if nc == nil {
+		err = monitor.CheckRequest(opts().Config.ServerURL(), natsOpts(), check, opts().Timeout, checkOpts)
+	} else {
+		err = monitor.CheckRequestWithConnection(nc, check, opts().Timeout, checkOpts)
 	}
+	check.CriticalIfErr(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -297,7 +302,7 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: fmt.Sprintf("%s_%s", c.sourcesStream, c.consumerName), Check: "consumer", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	checkOpts := &monitor.ConsumerHealthCheckOptions{
+	checkOpts := monitor.CheckConsumerHealthOptions{
 		StreamName:   c.sourcesStream,
 		ConsumerName: c.consumerName,
 		Pinned:       c.consumerPinned,
@@ -326,10 +331,16 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	if opts().Trace {
 		logger = api.NewDefaultLogger(api.TraceLevel)
 	}
-	err := monitor.ConsumerHealthCheck(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, *checkOpts, logger)
-	if err != nil {
-		return fmt.Errorf("health check failed: %v", err)
+
+	var err error
+	mgr := opts().Mgr
+
+	if mgr == nil {
+		err = monitor.CheckConsumerHealth(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, checkOpts, logger)
+	} else {
+		err = monitor.CheckConsumerHealthWithConnection(mgr, check, checkOpts, logger)
 	}
+	check.CriticalIfErr(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -338,19 +349,31 @@ func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.kvBucket, Check: "kv", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckKVBucketAndKey(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckKVBucketAndKeyOptions{
+	checkOpts := monitor.CheckKVBucketAndKeyOptions{
 		Bucket:         c.kvBucket,
 		Key:            c.kvKey,
 		ValuesCritical: c.kvValuesCrit,
 		ValuesWarning:  c.kvValuesWarn,
-	})
+	}
+
+	var err error
+	nc := opts().Conn
+
+	if nc == nil {
+		err = monitor.CheckKVBucketAndKey(opts().Config.ServerURL(), natsOpts(), check, checkOpts)
+	} else {
+		err = monitor.CheckKVBucketAndKeyWithConnection(nc, check, checkOpts)
+	}
+	check.CriticalIfErr(err, "Check failed: %v", err)
+
+	return nil
 }
 
 func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.srvName, Check: "server", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckServer(opts().Config.ServerURL(), natsOpts(), check, opts().Timeout, monitor.CheckServerOptions{
+	checkOpts := monitor.CheckServerOptions{
 		Name:                   c.srvName,
 		CPUWarning:             c.srvCPUWarn,
 		CPUCritical:            c.srvCPUCrit,
@@ -365,14 +388,26 @@ func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
 		AuthenticationRequired: c.srvAuthRequired,
 		TLSRequired:            c.srvTLSRequired,
 		JetStreamRequired:      c.srvJSRequired,
-	})
+	}
+
+	var err error
+	nc := opts().Conn
+
+	if nc == nil {
+		err = monitor.CheckServer(opts().Config.ServerURL(), natsOpts(), check, opts().Timeout, checkOpts)
+	} else {
+		err = monitor.CheckServerWithConnection(nc, check, opts().Timeout, checkOpts)
+	}
+	check.CriticalIfErr(err, "Check failed: %v", err)
+
+	return nil
 }
 
 func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "JetStream", Check: "jetstream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckJetStreamAccount(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, monitor.CheckJetStreamAccountOptions{
+	checkOpts := monitor.CheckJetStreamAccountOptions{
 		MemoryWarning:       c.jsMemWarn,
 		MemoryCritical:      c.jsMemCritical,
 		FileWarning:         c.jsStoreWarn,
@@ -384,25 +419,49 @@ func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 		CheckReplicas:       c.jsReplicas,
 		ReplicaSeenCritical: c.jsReplicaSeenCritical.Seconds(),
 		ReplicaLagCritical:  c.jsReplicaLagCritical,
-	})
+	}
+
+	var err error
+	mgr := opts().Mgr
+
+	if mgr == nil {
+		err = monitor.CheckJetStreamAccount(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, checkOpts)
+	} else {
+		err = monitor.CheckJetStreamAccountWithConnection(mgr, check, checkOpts)
+	}
+	check.CriticalIfErr(err, "Check failed: %v", err)
+
+	return nil
 }
 
 func (c *SrvCheckCmd) checkRaft(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "JetStream Meta Cluster", Check: "meta", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckJetstreamMeta(opts().Config.ServerURL(), natsOpts(), check, monitor.CheckJetstreamMetaOptions{
+	checkOpts := monitor.CheckJetstreamMetaOptions{
 		ExpectServers: c.raftExpect,
 		LagCritical:   c.raftLagCritical,
 		SeenCritical:  c.raftSeenCritical.Seconds(),
-	})
+	}
+
+	var err error
+	nc := opts().Conn
+
+	if nc == nil {
+		err = monitor.CheckJetstreamMeta(opts().Config.ServerURL(), natsOpts(), check, checkOpts)
+	} else {
+		err = monitor.CheckJetstreamMetaWithConnection(nc, check, checkOpts)
+	}
+	check.CriticalIfErr(err, "Check failed: %v", err)
+
+	return nil
 }
 
 func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: c.sourcesStream, Check: "stream", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	checkOpts := &monitor.CheckStreamHealthOptions{
+	checkOpts := monitor.CheckStreamHealthOptions{
 		StreamName: c.sourcesStream,
 	}
 
@@ -444,8 +503,16 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	if opts().Trace {
 		logger = api.NewDefaultLogger(api.TraceLevel)
 	}
-	err := monitor.CheckStreamHealth(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, *checkOpts, logger)
-	check.CriticalIfErr(err, "Healthcheck failed: %s", err)
+
+	var err error
+	mgr := opts().Mgr
+
+	if mgr == nil {
+		err = monitor.CheckStreamHealth(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, checkOpts, logger)
+	} else {
+		err = monitor.CheckStreamHealthWithConnection(mgr, check, checkOpts, logger)
+	}
+	check.CriticalIfErr(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -454,14 +521,26 @@ func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "Stream Message", Check: "message", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckStreamMessage(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, monitor.CheckStreamMessageOptions{
+	checkOpts := monitor.CheckStreamMessageOptions{
 		StreamName:      c.sourcesStream,
 		Subject:         c.msgSubject,
 		AgeWarning:      c.msgAgeWarn.Seconds(),
 		AgeCritical:     c.msgAgeCrit.Seconds(),
 		Content:         c.msgRegexp.String(),
 		BodyAsTimestamp: c.msgBodyAsTs,
-	})
+	}
+
+	var err error
+	mgr := opts().Mgr
+
+	if mgr == nil {
+		err = monitor.CheckStreamMessage(opts().Config.ServerURL(), natsOpts(), jsmOpts(), check, checkOpts)
+	} else {
+		err = monitor.CheckStreamMessageWithConnection(mgr, check, checkOpts)
+	}
+	check.CriticalIfErr(err, "Check failed: %v", err)
+
+	return nil
 }
 
 func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
@@ -475,24 +554,39 @@ func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 		}
 	}
 
-	return monitor.CheckConnection(opts().Config.ServerURL(), natsOpts(), opts().Timeout, check, monitor.CheckConnectionOptions{
+	checkOpts := monitor.CheckConnectionOptions{
 		ConnectTimeWarning:  c.connectWarning.Seconds(),
 		ConnectTimeCritical: c.connectCritical.Seconds(),
 		ServerRttWarning:    c.rttWarning.Seconds(),
 		ServerRttCritical:   c.rttCritical.Seconds(),
 		RequestRttWarning:   c.reqWarning.Seconds(),
 		RequestRttCritical:  c.reqCritical.Seconds(),
-	})
+	}
+
+	var err error
+	nc := opts().Conn
+
+	if nc == nil {
+		err = monitor.CheckConnection(opts().Config.ServerURL(), natsOpts(), opts().Timeout, check, checkOpts)
+	} else {
+		err = fmt.Errorf("connection checks are not supported when a connection is supplied")
+	}
+	check.CriticalIfErr(err, "Check failed: %v", err)
+
+	return nil
 }
 
 func (c *SrvCheckCmd) checkCredentialAction(_ *fisk.ParseContext) error {
 	check := &monitor.Result{Name: "Credential", Check: "credential", OutFile: checkRenderOutFile, NameSpace: opts().PrometheusNamespace, RenderFormat: checkRenderFormat, Trace: opts().Trace}
 	defer check.GenericExit()
 
-	return monitor.CheckCredential(check, monitor.CheckCredentialOptions{
+	err := monitor.CheckCredential(check, monitor.CheckCredentialOptions{
 		File:             c.credential,
 		ValidityWarning:  c.credentialValidityWarn.Seconds(),
 		ValidityCritical: c.credentialValidityCrit.Seconds(),
 		RequiresExpiry:   c.credentialRequiresExpire,
 	})
+	check.CriticalIfErr(err, "Check failed: %v", err)
+
+	return nil
 }
