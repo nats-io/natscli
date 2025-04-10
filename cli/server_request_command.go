@@ -47,6 +47,7 @@ type SrvRequestCmd struct {
 	includeConsumers  bool
 	includeConfig     bool
 	leaderOnly        bool
+	streamLeaderOnly  bool
 	includeRaftGroups bool
 	includeAll        bool
 	includeDetails    bool
@@ -121,6 +122,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	jsz.Flag("config", "Include details about configuration").UnNegatableBoolVar(&c.includeConfig)
 	jsz.Flag("raft", "Include details about raft groups").UnNegatableBoolVar(&c.includeRaftGroups)
 	jsz.Flag("leader", "Request a response from the Meta-group leader only").UnNegatableBoolVar(&c.leaderOnly)
+	jsz.Flag("stream-leader", "Request a response from Stream leaders only").UnNegatableBoolVar(&c.streamLeaderOnly)
 	jsz.Flag("all", "Include accounts, streams, consumers and configuration").UnNegatableBoolVar(&c.includeAll)
 
 	kick := req.Command("kick", "Disconnects a client immediately").Action(c.kick)
@@ -289,10 +291,11 @@ func (c *SrvRequestCmd) jsz(_ *fisk.ParseContext) error {
 
 	opts := server.JszEventOptions{
 		JSzOptions: server.JSzOptions{
-			Account:    c.account,
-			LeaderOnly: c.leaderOnly,
-			Offset:     c.offset,
-			Limit:      c.limit,
+			Account:          c.account,
+			LeaderOnly:       c.leaderOnly,
+			StreamLeaderOnly: c.streamLeaderOnly,
+			Offset:           c.offset,
+			Limit:            c.limit,
 		},
 		EventFilterOptions: c.reqFilter(),
 	}
