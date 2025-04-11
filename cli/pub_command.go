@@ -104,7 +104,7 @@ Available template functions are:
 	req := app.Command("request", "Generic request-reply request utility").Alias("req").Action(c.publish)
 	req.HelpLong(requestHelp)
 	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
-	req.Arg("body", "Message body").StringVar(&c.body)
+	req.Arg("body", "Message body").IsSetByUser(&c.bodyIsSet).StringVar(&c.body)
 	req.Flag("wait", "Wait for a reply from a service").Short('w').Default("true").Hidden().BoolVar(&c.req)
 	req.Flag("raw", "Show just the output received").Short('r').UnNegatableBoolVar(&c.raw)
 	req.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
