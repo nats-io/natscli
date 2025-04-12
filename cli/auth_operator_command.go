@@ -60,7 +60,7 @@ func configureAuthOperatorCommand(auth commandHost) {
 	add.Arg("name", "Unique name for this Operator").StringVar(&c.operatorName)
 	add.Flag("service", "URLs for the Operator services").PlaceHolder("URL").URLListVar(&c.operatorService)
 	add.Flag("account-server", "URL for the account server").PlaceHolder("URL").URLVar(&c.accountServer)
-	add.Flag("signing-key", "Creates a signing key for this account").Default("true").BoolVar(&c.createSK)
+	add.Flag("signing-key", "Creates a signing key for this Operator").Default("true").BoolVar(&c.createSK)
 	add.Flag("tags", "Tags to assign to this Operator").StringsVar(&c.tags)
 
 	info := op.Command("info", "Show Operator information").Alias("i").Alias("show").Alias("view").Action(c.infoAction)
