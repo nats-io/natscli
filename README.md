@@ -2,9 +2,6 @@
 
 A command line utility to interact with and manage NATS.
 
-This utility replaces various past tools that were named in the form `nats-sub` and `nats-pub`, adds several new capabilities
-and support full JetStream management.
-
 ### Features
 
 * JetStream management
@@ -18,6 +15,7 @@ and support full JetStream management.
 * Deep system account inspection and reporting
 * Configuration context maintenance
 * NATS eco-system schema registry
+* Monitoring of Streams, Consumers, Services, Servers and Credentials
 
 ### Installation
 
@@ -60,14 +58,6 @@ For Arch users there is an [AUR package](https://aur.archlinux.org/packages/nats
 
 ```
 yay natscli
-```
-
-#### Installation from the shell
-
-The following script will install the latest released version of the nats cli on Linux and macOS:
-
-```nohighlight
-curl -sf https://binaries.nats.dev/nats-io/natscli/nats@latest | sh
 ```
 
 #### Nightly docker images

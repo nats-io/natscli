@@ -168,12 +168,18 @@ func (c *SrvReportCmd) withWatcher(fn func(*fisk.ParseContext) error) func(*fisk
 		ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 		defer cancel()
 
-		fn(fctx)
+		err = fn(fctx)
+		if err != nil {
+			return err
+		}
 
 		for {
 			select {
 			case <-tick.C:
-				fn(fctx)
+				err = fn(fctx)
+				if err != nil {
+					return err
+				}
 			case <-ctx.Done():
 				return nil
 			}
