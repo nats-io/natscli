@@ -208,12 +208,18 @@ func (c *actCmd) restoreAction(kp *fisk.ParseContext) error {
 }
 
 func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
 	cmd := SrvReportCmd{
 		topk:                    c.topk,
 		sort:                    c.sort,
 		subject:                 c.subject,
 		reverse:                 c.reverse,
 		skipDiscoverClusterSize: true,
+		nc:                      nc,
 	}
 
 	return cmd.reportConnections(pc)
