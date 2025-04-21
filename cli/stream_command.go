@@ -366,7 +366,7 @@ Finding streams with certain subjects configured:
 
 	strView := str.Command("view", "View messages in a stream").Action(c.viewAction)
 	strView.Arg("stream", "Stream name").StringVar(&c.stream)
-	strView.Arg("size", "Page size").Default("10").IntVar(&c.vwPageSize)
+	strView.Arg("size", "Page size <= 25").Default("10").IntVar(&c.vwPageSize)
 	strView.Flag("id", "Start at a specific message Sequence").IntVar(&c.vwStartId)
 	strView.Flag("since", "Delivers messages received since a duration like 1d3h5m2s").DurationVar(&c.vwStartDelta)
 	strView.Flag("raw", "Show the raw data received").UnNegatableBoolVar(&c.vwRaw)
@@ -1075,6 +1075,7 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.vwPageSize > 25 {
+		log.Printf("Page size is limited to 25, setting to 25...")
 		c.vwPageSize = 25
 	}
 
