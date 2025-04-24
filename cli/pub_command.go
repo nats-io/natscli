@@ -14,10 +14,13 @@
 package cli
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"math"
 	"os"
+	"os/signal"
 	"time"
 
 	iu "github.com/nats-io/natscli/internal/util"
@@ -28,6 +31,38 @@ import (
 	"github.com/nats-io/nats.go"
 	terminal "golang.org/x/term"
 )
+
+type SendOn int
+
+const (
+	SendOnEOF SendOn = iota
+	SendOnNewline
+)
+
+// Set parses the string value and sets the SendOn value
+func (s *SendOn) Set(value string) error {
+	switch value {
+	case "eof":
+		*s = SendOnEOF
+	case "newline":
+		*s = SendOnNewline
+	default:
+		return fmt.Errorf("invalid send-on value: %s", value)
+	}
+	return nil
+}
+
+// String returns the string representation of the SendOn value
+func (s *SendOn) String() string {
+	switch *s {
+	case SendOnEOF:
+		return "eof"
+	case SendOnNewline:
+		return "newline"
+	default:
+		return "unknown"
+	}
+}
 
 type pubCmd struct {
 	subject      string
@@ -44,6 +79,7 @@ type pubCmd struct {
 	forceStdin   bool
 	translate    string
 	jetstream    bool
+	sendOn       SendOn
 }
 
 func configurePubCommand(app commandHost) {
@@ -80,6 +116,10 @@ Available template functions are:
 	pub.Flag("sleep", "When publishing multiple messages, sleep between publishes").DurationVar(&c.sleep)
 	pub.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
 	pub.Flag("jetstream", "Publish messages to jetstream").Short('J').UnNegatableBoolVar(&c.jetstream)
+	pub.Flag("send-on", "When to send data from stdin: 'eof' (default) or 'newline'").Default("eof").Action(func(v *fisk.ParseContext) error {
+		value := v.String()
+		return c.sendOn.Set(value)
+	}).SetValue(&c.sendOn)
 
 	requestHelp := `Body and Header values of the messages may use Go templates to 
 create unique messages.
@@ -301,88 +341,134 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 	return nil
 }
 
+// readLine reads a full line from a bufio.Reader regardless of buffer size,
+// this is important for reading lines longer than the bufio.Reader's default
+// buffer size and nicer than wholesale enlarging the buffer.
+func readLine(reader *bufio.Reader) (string, error) {
+	var buf bytes.Buffer
+
+	for {
+		line, isPrefix, err := reader.ReadLine()
+		buf.Write(line)
+
+		if err != nil || !isPrefix {
+			return buf.String(), err
+		}
+	}
+}
+
 func (c *pubCmd) publish(_ *fisk.ParseContext) error {
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	defer cancel()
+
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 	defer nc.Close()
 
-	if c.cnt < 1 {
-		c.cnt = math.MaxInt16
+	log.Println("Reading payload from STDIN")
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("interrupted")
+		default:
+			{
+				if c.cnt < 1 {
+					c.cnt = math.MaxInt16
+				}
+
+				if !c.bodyIsSet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
+					if c.sendOn == SendOnEOF {
+						body, err := io.ReadAll(os.Stdin)
+						if err != nil {
+							return err
+						}
+						c.body = string(body)
+					} else if c.sendOn == SendOnNewline {
+						reader := bufio.NewReader(os.Stdin)
+						body, err := readLine(reader)
+						if err != nil && err != io.EOF {
+							return err
+						}
+						c.body = body
+					}
+				}
+
+				var tracker *progress.Tracker
+				var progbar progress.Writer
+
+				if c.cnt > 20 && !c.raw {
+					progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+						Total: int64(c.cnt),
+					})
+					if err != nil {
+						return err
+					}
+
+					defer func() {
+						progbar.Stop()
+						time.Sleep(300 * time.Millisecond)
+					}()
+				}
+
+				if c.jetstream {
+					err = c.doJetstream(nc, tracker)
+					if c.sendOn == SendOnEOF {
+						return err
+					} else if c.sendOn == SendOnNewline {
+						if err != nil {
+							log.Printf("Could not publish message: %s", err)
+						}
+						continue
+					}
+				}
+
+				if c.req || c.replyCount >= 1 {
+					return c.doReq(nc, tracker)
+				}
+
+				for i := 1; i <= c.cnt; i++ {
+					body, err := iu.PubReplyBodyTemplate(c.body, "", i)
+					if err != nil {
+						log.Printf("Could not parse body template: %s", err)
+					}
+
+					subj, err := iu.PubReplyBodyTemplate(c.subject, "", i)
+					if err != nil {
+						log.Printf("Could not parse subject template: %s", err)
+					}
+
+					msg, err := c.prepareMsg(string(subj), body, i)
+					if err != nil {
+						return err
+					}
+
+					err = nc.PublishMsg(msg)
+					if err != nil {
+						return err
+					}
+					nc.Flush()
+
+					err = nc.LastError()
+					if err != nil {
+						return err
+					}
+
+					if c.cnt > 1 && c.sleep > 0 {
+						time.Sleep(c.sleep)
+					}
+
+					if progbar == nil {
+						log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+					} else {
+						tracker.Increment(1)
+					}
+				}
+				if c.sendOn == SendOnEOF {
+					return nil
+				}
+			}
+		}
 	}
-
-	if !c.bodyIsSet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
-		log.Println("Reading payload from STDIN")
-		body, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return err
-		}
-		c.body = string(body)
-	}
-
-	var tracker *progress.Tracker
-	var progbar progress.Writer
-
-	if c.cnt > 20 && !c.raw {
-		progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
-			Total: int64(c.cnt),
-		})
-		if err != nil {
-			return err
-		}
-
-		defer func() {
-			progbar.Stop()
-			time.Sleep(300 * time.Millisecond)
-		}()
-	}
-
-	if c.jetstream {
-		return c.doJetstream(nc, tracker)
-	}
-
-	if c.req || c.replyCount >= 1 {
-		return c.doReq(nc, tracker)
-	}
-
-	for i := 1; i <= c.cnt; i++ {
-		body, err := iu.PubReplyBodyTemplate(c.body, "", i)
-		if err != nil {
-			log.Printf("Could not parse body template: %s", err)
-		}
-
-		subj, err := iu.PubReplyBodyTemplate(c.subject, "", i)
-		if err != nil {
-			log.Printf("Could not parse subject template: %s", err)
-		}
-
-		msg, err := c.prepareMsg(string(subj), body, i)
-		if err != nil {
-			return err
-		}
-
-		err = nc.PublishMsg(msg)
-		if err != nil {
-			return err
-		}
-		nc.Flush()
-
-		err = nc.LastError()
-		if err != nil {
-			return err
-		}
-
-		if c.cnt > 1 && c.sleep > 0 {
-			time.Sleep(c.sleep)
-		}
-
-		if progbar == nil {
-			log.Printf("Published %d bytes to %q\n", len(body), c.subject)
-		} else {
-			tracker.Increment(1)
-		}
-	}
-
-	return nil
 }
