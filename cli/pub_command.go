@@ -21,6 +21,7 @@ import (
 	"math"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	iu "github.com/nats-io/natscli/internal/util"
@@ -80,6 +81,7 @@ type pubCmd struct {
 	translate    string
 	jetstream    bool
 	sendOn       SendOn
+	quiet        bool
 }
 
 func configurePubCommand(app commandHost) {
@@ -120,6 +122,7 @@ Available template functions are:
 		value := v.String()
 		return c.sendOn.Set(value)
 	}).SetValue(&c.sendOn)
+	pub.Flag("quiet", "Show just the output received").Short('q').UnNegatableBoolVar(&c.quiet)
 
 	requestHelp := `Body and Header values of the messages may use Go templates to 
 create unique messages.
@@ -299,9 +302,9 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 		}
 
 		msg.Subject = string(subj)
-
-		log.Printf("Published %d bytes to %q\n", len(body), c.subject)
-
+		if !c.quiet {
+			log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+		}
 		resp, err := nc.RequestMsg(msg, opts().Timeout)
 		if err != nil {
 			return err
@@ -318,7 +321,7 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 
 		if progress != nil {
 			progress.Increment(1)
-		} else {
+		} else if !c.quiet {
 			msg := fmt.Sprintf("Stored in Stream: %s Sequence: %s", ack.Stream, f(ack.Sequence))
 			if ack.Domain != "" {
 				msg += fmt.Sprintf(" Domain: %q", ack.Domain)
@@ -358,7 +361,7 @@ func readLine(reader *bufio.Reader) (string, error) {
 }
 
 func (c *pubCmd) publish(_ *fisk.ParseContext) error {
-	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
 	nc, err := newNatsConn("", natsOpts()...)
@@ -366,8 +369,9 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 		return err
 	}
 	defer nc.Close()
-
-	log.Println("Reading payload from STDIN")
+	if !c.quiet {
+		log.Println("Reading payload from STDIN")
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -460,7 +464,9 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 					}
 
 					if progbar == nil {
-						log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+						if !c.quiet {
+							log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+						}
 					} else {
 						tracker.Increment(1)
 					}
