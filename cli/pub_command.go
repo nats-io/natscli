@@ -33,37 +33,10 @@ import (
 	terminal "golang.org/x/term"
 )
 
-type SendOn int
-
 const (
-	SendOnEOF SendOn = iota
-	SendOnNewline
+	SendOnEOF     = "eof"
+	SendOnNewline = "newline"
 )
-
-// Set parses the string value and sets the SendOn value
-func (s *SendOn) Set(value string) error {
-	switch value {
-	case "eof":
-		*s = SendOnEOF
-	case "newline":
-		*s = SendOnNewline
-	default:
-		return fmt.Errorf("invalid send-on value: %s", value)
-	}
-	return nil
-}
-
-// String returns the string representation of the SendOn value
-func (s *SendOn) String() string {
-	switch *s {
-	case SendOnEOF:
-		return "eof"
-	case SendOnNewline:
-		return "newline"
-	default:
-		return "unknown"
-	}
-}
 
 type pubCmd struct {
 	subject      string
@@ -80,7 +53,7 @@ type pubCmd struct {
 	forceStdin   bool
 	translate    string
 	jetstream    bool
-	sendOn       SendOn
+	sendOn       string
 	quiet        bool
 }
 
@@ -118,10 +91,8 @@ Available template functions are:
 	pub.Flag("sleep", "When publishing multiple messages, sleep between publishes").DurationVar(&c.sleep)
 	pub.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
 	pub.Flag("jetstream", "Publish messages to jetstream").Short('J').UnNegatableBoolVar(&c.jetstream)
-	pub.Flag("send-on", "When to send data from stdin: 'eof' (default) or 'newline'").Default("eof").Action(func(v *fisk.ParseContext) error {
-		value := v.String()
-		return c.sendOn.Set(value)
-	}).SetValue(&c.sendOn)
+	pub.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", SendOnEOF, SendOnNewline)).
+		Default("eof").EnumVar(&c.sendOn, SendOnNewline, SendOnEOF)
 	pub.Flag("quiet", "Show just the output received").Short('q').UnNegatableBoolVar(&c.quiet)
 
 	requestHelp := `Body and Header values of the messages may use Go templates to 
