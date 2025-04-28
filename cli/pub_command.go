@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	SendOnEOF     = "eof"
-	SendOnNewline = "newline"
+	sendOnEOF     = "eof"
+	sendOnNewline = "newline"
 )
 
 type pubCmd struct {
@@ -91,8 +91,8 @@ Available template functions are:
 	pub.Flag("sleep", "When publishing multiple messages, sleep between publishes").DurationVar(&c.sleep)
 	pub.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
 	pub.Flag("jetstream", "Publish messages to jetstream").Short('J').UnNegatableBoolVar(&c.jetstream)
-	pub.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", SendOnEOF, SendOnNewline)).
-		Default("eof").EnumVar(&c.sendOn, SendOnNewline, SendOnEOF)
+	pub.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).
+		Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
 	pub.Flag("quiet", "Show just the output received").Short('q').UnNegatableBoolVar(&c.quiet)
 
 	requestHelp := `Body and Header values of the messages may use Go templates to 
@@ -323,9 +323,12 @@ func readLine(reader *bufio.Reader) (string, error) {
 
 	for {
 		line, isPrefix, err := reader.ReadLine()
-		buf.Write(line)
+		if err != nil {
+			return buf.String(), err
+		}
 
-		if err != nil || !isPrefix {
+		buf.Write(line)
+		if !isPrefix {
 			return buf.String(), err
 		}
 	}
@@ -343,109 +346,116 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 	if !c.quiet {
 		log.Println("Reading payload from STDIN")
 	}
+
+	reader := bufio.NewReader(os.Stdin)
+	eof := false
+
 	for {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("interrupted")
 		default:
-			{
-				if c.cnt < 1 {
-					c.cnt = math.MaxInt16
-				}
+			if c.cnt < 1 {
+				c.cnt = math.MaxInt16
+			}
 
-				if !c.bodyIsSet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
-					if c.sendOn == SendOnEOF {
-						body, err := io.ReadAll(os.Stdin)
-						if err != nil {
-							return err
-						}
-						c.body = string(body)
-					} else if c.sendOn == SendOnNewline {
-						reader := bufio.NewReader(os.Stdin)
-						body, err := readLine(reader)
-						if err != nil && err != io.EOF {
-							return err
-						}
-						c.body = body
-					}
-				}
-
-				var tracker *progress.Tracker
-				var progbar progress.Writer
-
-				if c.cnt > 20 && !c.raw {
-					progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
-						Total: int64(c.cnt),
-					})
+			if !c.bodyIsSet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
+				if c.sendOn == sendOnEOF {
+					body, err := io.ReadAll(os.Stdin)
 					if err != nil {
 						return err
 					}
-
-					defer func() {
-						progbar.Stop()
-						time.Sleep(300 * time.Millisecond)
-					}()
-				}
-
-				if c.jetstream {
-					err = c.doJetstream(nc, tracker)
-					if c.sendOn == SendOnEOF {
+					c.body = string(body)
+				} else if c.sendOn == sendOnNewline {
+					body, err := readLine(reader)
+					if err != nil && err != io.EOF {
 						return err
-					} else if c.sendOn == SendOnNewline {
-						if err != nil {
-							log.Printf("Could not publish message: %s", err)
-						}
-						continue
+					} else if err == io.EOF {
+						eof = true
 					}
-				}
-
-				if c.req || c.replyCount >= 1 {
-					return c.doReq(nc, tracker)
-				}
-
-				for i := 1; i <= c.cnt; i++ {
-					body, err := iu.PubReplyBodyTemplate(c.body, "", i)
-					if err != nil {
-						log.Printf("Could not parse body template: %s", err)
-					}
-
-					subj, err := iu.PubReplyBodyTemplate(c.subject, "", i)
-					if err != nil {
-						log.Printf("Could not parse subject template: %s", err)
-					}
-
-					msg, err := c.prepareMsg(string(subj), body, i)
-					if err != nil {
-						return err
-					}
-
-					err = nc.PublishMsg(msg)
-					if err != nil {
-						return err
-					}
-					nc.Flush()
-
-					err = nc.LastError()
-					if err != nil {
-						return err
-					}
-
-					if c.cnt > 1 && c.sleep > 0 {
-						time.Sleep(c.sleep)
-					}
-
-					if progbar == nil {
-						if !c.quiet {
-							log.Printf("Published %d bytes to %q\n", len(body), c.subject)
-						}
-					} else {
-						tracker.Increment(1)
-					}
-				}
-				if c.sendOn == SendOnEOF {
-					return nil
+					c.body = body
 				}
 			}
+
+			var tracker *progress.Tracker
+			var progbar progress.Writer
+
+			if c.cnt > 20 && !c.raw {
+				progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+					Total: int64(c.cnt),
+				})
+				if err != nil {
+					return err
+				}
+
+				defer func() {
+					progbar.Stop()
+					time.Sleep(300 * time.Millisecond)
+				}()
+			}
+
+			if c.jetstream {
+				err = c.doJetstream(nc, tracker)
+				if c.sendOn == sendOnEOF {
+					return err
+				} else if c.sendOn == sendOnNewline {
+					if err != nil {
+						log.Printf("Could not publish message: %s", err)
+					}
+					continue
+				}
+			}
+
+			if c.req || c.replyCount >= 1 {
+				return c.doReq(nc, tracker)
+			}
+
+			if c.body == "" {
+				continue
+			}
+			for i := 1; i <= c.cnt; i++ {
+
+				body, err := iu.PubReplyBodyTemplate(c.body, "", i)
+				if err != nil {
+					log.Printf("Could not parse body template: %s", err)
+				}
+
+				subj, err := iu.PubReplyBodyTemplate(c.subject, "", i)
+				if err != nil {
+					log.Printf("Could not parse subject template: %s", err)
+				}
+
+				msg, err := c.prepareMsg(string(subj), body, i)
+				if err != nil {
+					return err
+				}
+
+				err = nc.PublishMsg(msg)
+				if err != nil {
+					return err
+				}
+				nc.Flush()
+
+				err = nc.LastError()
+				if err != nil {
+					return err
+				}
+
+				if c.cnt > 1 && c.sleep > 0 {
+					time.Sleep(c.sleep)
+				}
+
+				if progbar == nil {
+					if !c.quiet {
+						log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+					}
+				} else {
+					tracker.Increment(1)
+				}
+			}
+		}
+		if c.sendOn == sendOnEOF || eof {
+			return nil
 		}
 	}
 }
