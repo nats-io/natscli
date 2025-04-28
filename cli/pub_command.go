@@ -346,9 +346,9 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 	if !c.quiet {
 		log.Println("Reading payload from STDIN")
 	}
-
 	reader := bufio.NewReader(os.Stdin)
-	eof := false
+	// If a body is set, treat it as EOF, as no more input
+	eof := c.bodyIsSet
 
 	for {
 		select {
@@ -372,6 +372,9 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 						return err
 					} else if err == io.EOF {
 						eof = true
+					}
+					if body == "" && eof {
+						return nil
 					}
 					c.body = body
 				}
@@ -410,11 +413,7 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 				return c.doReq(nc, tracker)
 			}
 
-			if c.body == "" {
-				continue
-			}
 			for i := 1; i <= c.cnt; i++ {
-
 				body, err := iu.PubReplyBodyTemplate(c.body, "", i)
 				if err != nil {
 					log.Printf("Could not parse body template: %s", err)
