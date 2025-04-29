@@ -17,7 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"regexp"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +29,7 @@ import (
 
 // Create a randomly named consumer. This function implies testing the 'add' subcommand
 func createConsumer(mgr *jsm.Manager, t *testing.T, args ...jsm.ConsumerOption) (string, error) {
+	os.Setenv("TESTING", "true")
 	t.Helper()
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	consumerName := fmt.Sprintf("TEST_%d", rng.Intn(1000000))
@@ -61,52 +62,38 @@ func setupConsumerTest(t *testing.T, args ...jsm.ConsumerOption) (srv *server.Se
 	return srv, nc, mgr, name
 }
 
-func expectMatchRegex(t *testing.T, found, expected string) bool {
-	t.Helper()
-	return !regexp.MustCompile(expected).MatchString(found)
-}
-
-func expectMatchMap(t *testing.T, fields map[string]string, output string) (bool, string, string) {
-	t.Helper()
-	for field, expected := range fields {
-		re := regexp.MustCompile(expected)
-		if !re.MatchString(string(output)) {
-			return false, field, re.String()
-		}
-	}
-	return true, "", ""
-}
-
 func TestConsumerAdd(t *testing.T) {
 	srv, _, _, _ := setupConsumerTest(t)
 	defer srv.Shutdown()
 	name := "ADD_TEST_CONSUMER"
 
 	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer add ORDERS %s --defaults --pull", srv.ClientURL(), name))
-	success, field, expected := expectMatchMap(t,
-		map[string]string{
-			"header":             fmt.Sprintf("Information for Consumer ORDERS > %s created \\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})", name),
-			"name":               fmt.Sprintf("Name: %s", name),
-			"pull_mode":          "Pull Mode: true",
-			"deliver_policy":     "Deliver Policy: All",
-			"ack_policy":         "Ack Policy: Explicit",
-			"ack_wait":           "Ack Wait: 30.00s",
-			"replay_policy":      "Replay Policy: Instant",
-			"max_ack_pending":    "Max Ack Pending: 1,000",
-			"max_waiting_pulls":  "Max Waiting Pulls: +512",
-			"required_api_level": "Required API Level: 0 hosted at level \\d+",
-			"last_delivered_msg": "Last Delivered Message: Consumer sequence: 0 Stream sequence: 0",
-			"ack_floor":          "Acknowledgment Floor: Consumer sequence: 0 Stream sequence: 0",
-			"outstanding_acks":   "Outstanding Acks: 0 out of maximum 1,000",
-			"redelivered_msgs":   "Redelivered Messages: 0",
-			"unprocessed_msgs":   "Unprocessed Messages: 0",
-			"waiting_pulls":      "Waiting Pulls: 0 of maximum 512",
+	err := expectMatchJSON(t, string(output),
+		map[string]any{
+			"Configuration": map[string]any{
+				"Ack Policy":        "Explicit",
+				"Ack Wait":          "30.00s",
+				"Deliver Policy":    "All",
+				"Max Ack Pending":   "1,000",
+				"Max Waiting Pulls": "512",
+				"Name":              "ADD_TEST_CONSUMER",
+				"Pull Mode":         "true",
+				"Replay Policy":     "Instant",
+			},
+			"Header": `Information for Consumer ORDERS > ADD_TEST_CONSUMER created`,
+			"State": map[string]any{
+				"Acknowledgment Floor":   "Consumer sequence: 0 Stream sequence: 0",
+				"Last Delivered Message": "Consumer sequence: 0 Stream sequence: 0",
+				"Outstanding Acks":       "0 out of maximum 1,000",
+				"Redelivered Messages":   "0",
+				"Required API Level":     "0 hosted at level 1",
+				"Unprocessed Messages":   "0",
+				"Waiting Pulls":          "0 of maximum 512",
+			},
 		},
-		string(output),
 	)
-
-	if !success {
-		t.Errorf("expected match for field %s with pattern %s in output:\n%s", field, expected, output)
+	if err != nil {
+		t.Error(err)
 	}
 }
 
@@ -141,18 +128,8 @@ func TestConsumerLS(t *testing.T) {
 	defer srv.Shutdown()
 
 	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer ls ORDERS", srv.ClientURL()))
-	rowRegex := regexp.MustCompile(`(?m)^│.*?│$`)
-	found := false
-	for _, line := range rowRegex.FindAllString(string(output), -1) {
-		if regexp.MustCompile(name).MatchString(line) &&
-			regexp.MustCompile(`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`).MatchString(line) &&
-			regexp.MustCompile(`0.*0`).MatchString(line) &&
-			regexp.MustCompile(`never`).MatchString(line) {
-			found = true
-			break
-		}
-	}
-	if !found {
+
+	if !expectMatchLine(t, string(output), name, `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`, "0.*0", "never") {
 		t.Errorf("consumer row not found in output:\n%s", output)
 	}
 }
@@ -168,34 +145,37 @@ func TestConsumerFind(t *testing.T) {
 }
 
 func TestConsumerInfo(t *testing.T) {
+	os.Setenv("TESTING", "true")
 	srv, _, _, name := setupConsumerTest(t)
 	defer srv.Shutdown()
 
 	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer info ORDERS %s", srv.ClientURL(), name))
-	success, field, expected := expectMatchMap(t,
-		map[string]string{
-			"header":             fmt.Sprintf("Information for Consumer ORDERS > %s created \\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})", name),
-			"name":               fmt.Sprintf("Name: %s", name),
-			"pull_mode":          "Pull Mode: true",
-			"deliver_policy":     "Deliver Policy: All",
-			"ack_policy":         "Ack Policy: Explicit",
-			"ack_wait":           "Ack Wait: 30.00s",
-			"replay_policy":      "Replay Policy: Instant",
-			"max_ack_pending":    "Max Ack Pending: 1,000",
-			"max_waiting_pulls":  "Max Waiting Pulls: 512",
-			"required_api_level": "Required API Level: 0 hosted at level \\d+",
-			"last_delivered_msg": "Last Delivered Message: Consumer sequence: 0 Stream sequence: 0",
-			"ack_floor":          "Acknowledgment Floor: Consumer sequence: 0 Stream sequence: 0",
-			"outstanding_acks":   "Outstanding Acks: 0 out of maximum 1,000",
-			"redelivered_msgs":   "Redelivered Messages: 0",
-			"unprocessed_msgs":   "Unprocessed Messages: 0",
-			"waiting_pulls":      "Waiting Pulls: 0 of maximum 512",
+	expected := map[string]any{
+		"Header": `Information for Consumer ORDERS > TEST_\d+ created .*`,
+		"Configuration": map[string]any{
+			"Name":              `TEST_\d+`,
+			"Pull Mode":         "true",
+			"Filter Subject":    `ORDERS\.new`,
+			"Ack Policy":        "Explicit",
+			"Replay Policy":     "Instant",
+			"Deliver Policy":    "All",
+			"Max Ack Pending":   "1,000",
+			"Max Waiting Pulls": "512",
+			"Ack Wait":          `30\.00s`,
 		},
-		string(output),
-	)
+		"State": map[string]any{
+			"Acknowledgment Floor":   "Consumer sequence: 0 Stream sequence: 0",
+			"Last Delivered Message": "Consumer sequence: 0 Stream sequence: 0",
+			"Outstanding Acks":       "0 out of maximum 1,000",
+			"Redelivered Messages":   "0",
+			"Required API Level":     "0 hosted at level 1",
+			"Unprocessed Messages":   "0",
+			"Waiting Pulls":          "0 of maximum 512",
+		},
+	}
 
-	if !success {
-		t.Errorf("expected match for field %s with pattern %s in output:\n%s", field, expected, output)
+	if err := expectMatchJSON(t, string(output), expected); err != nil {
+		t.Errorf("columns mismatch: %v", err)
 	}
 }
 
@@ -204,22 +184,21 @@ func TestConsumerState(t *testing.T) {
 	defer srv.Shutdown()
 
 	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer state ORDERS %s", srv.ClientURL(), name))
-	success, field, expected := expectMatchMap(t,
-		map[string]string{
-			"header":             fmt.Sprintf("State for Consumer ORDERS > %s created \\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})", name),
-			"required_api_level": "Required API Level: 0 hosted at level \\d+",
-			"last_delivered_msg": "Last Delivered Message: Consumer sequence: 0 Stream sequence: 0",
-			"ack_floor":          "Acknowledgment Floor: Consumer sequence: 0 Stream sequence: 0",
-			"outstanding_acks":   "Outstanding Acks: 0 out of maximum 1,000",
-			"redelivered_msgs":   "Redelivered Messages: 0",
-			"unprocessed_msgs":   "Unprocessed Messages: 0",
-			"waiting_pulls":      "Waiting Pulls: 0 of maximum 512",
+	expected := map[string]any{
+		"Header": `State for Consumer ORDERS > TEST_\d+ created .*`,
+		"State": map[string]any{
+			"Acknowledgment Floor":   "Consumer sequence: 0 Stream sequence: 0",
+			"Last Delivered Message": "Consumer sequence: 0 Stream sequence: 0",
+			"Outstanding Acks":       "0 out of maximum 1,000",
+			"Redelivered Messages":   "0",
+			"Required API Level":     "0 hosted at level 1",
+			"Unprocessed Messages":   "0",
+			"Waiting Pulls":          "0 of maximum 512",
 		},
-		string(output),
-	)
+	}
 
-	if !success {
-		t.Errorf("expected match for field %s with pattern %s in output:\n%s", field, expected, output)
+	if err := expectMatchJSON(t, string(output), expected); err != nil {
+		t.Errorf("columns mismatch: %v", err)
 	}
 }
 
@@ -228,30 +207,21 @@ func TestConsumerCopy(t *testing.T) {
 	defer srv.Shutdown()
 
 	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer copy ORDERS %s COPY_1", srv.ClientURL(), name))
-	success, field, expected := expectMatchMap(t,
-		map[string]string{
-			"header":             "Information for Consumer ORDERS > COPY_1 created \\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})",
-			"name":               "Name: COPY_1",
-			"pull_mode":          "Pull Mode: true",
-			"deliver_policy":     "Deliver Policy: All",
-			"ack_policy":         "Ack Policy: Explicit",
-			"ack_wait":           "Ack Wait: 30.00s",
-			"replay_policy":      "Replay Policy: Instant",
-			"max_ack_pending":    "Max Ack Pending: 1,000",
-			"max_waiting_pulls":  "Max Waiting Pulls: 512",
-			"required_api_level": "Required API Level: 0 hosted at level \\d+",
-			"last_delivered_msg": "Last Delivered Message: Consumer sequence: 0 Stream sequence: 0",
-			"ack_floor":          "Acknowledgment Floor: Consumer sequence: 0 Stream sequence: 0",
-			"outstanding_acks":   "Outstanding Acks: 0 out of maximum 1,000",
-			"redelivered_msgs":   "Redelivered Messages: 0",
-			"unprocessed_msgs":   "Unprocessed Messages: 0",
-			"waiting_pulls":      "Waiting Pulls: 0 of maximum 512",
+	expected := map[string]any{
+		"Header": `Information for Consumer ORDERS > COPY_1 created`,
+		"State": map[string]any{
+			"Acknowledgment Floor":   "Consumer sequence: 0 Stream sequence: 0",
+			"Last Delivered Message": "Consumer sequence: 0 Stream sequence: 0",
+			"Outstanding Acks":       "0 out of maximum 1,000",
+			"Redelivered Messages":   "0",
+			"Required API Level":     "0 hosted at level 1",
+			"Unprocessed Messages":   "0",
+			"Waiting Pulls":          "0 of maximum 512",
 		},
-		string(output),
-	)
+	}
 
-	if !success {
-		t.Errorf("expected match for field %s with pattern %s in output:\n%s", field, expected, output)
+	if err := expectMatchJSON(t, string(output), expected); err != nil {
+		t.Errorf("columns mismatch: %v", err)
 	}
 }
 
@@ -359,22 +329,8 @@ func TestConsumerReport(t *testing.T) {
 	defer srv.Shutdown()
 
 	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer report ORDERS", srv.ClientURL()))
-	rowRegex := regexp.MustCompile(`(?m)^│.*?│$`)
-	found := false
 
-	for _, line := range rowRegex.FindAllString(string(output), -1) {
-		if regexp.MustCompile(name).MatchString(line) &&
-			regexp.MustCompile(`Pull`).MatchString(line) &&
-			regexp.MustCompile(`Explicit`).MatchString(line) &&
-			regexp.MustCompile(`30\.00s`).MatchString(line) &&
-			regexp.MustCompile(`0`).FindAllString(line, -1) != nil &&
-			len(regexp.MustCompile(`0`).FindAllString(line, -1)) >= 5 {
-			found = true
-			break
-		}
-	}
-
-	if !found {
+	if !expectMatchLine(t, string(output), name, "Pull", "Explicit") {
 		t.Errorf("consumer row not found in output:\n%s", output)
 	}
 }
@@ -420,8 +376,8 @@ func TestConsumerClusterBalance(t *testing.T) {
 		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer cluster balance ORDERS", servers[0].ClientURL()))
 		success, field, expected := expectMatchMap(t,
 			map[string]string{
-				"cluster_found": "Found cluster TEST with a balanced distribution of \\d",
-				"balanced":      "Balanced \\d consumers on ORDERS",
+				"cluster_found": `Found cluster TEST with a balanced distribution of \d`,
+				"balanced":      `Balanced \d consumers on ORDERS`,
 			},
 			string(output),
 		)
