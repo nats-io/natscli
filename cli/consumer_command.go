@@ -1555,11 +1555,7 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 		}
 
 		if cfg.Durable != "" && c.consumer != "" && cfg.Durable != c.consumer {
-			if c.consumer != "" {
-				cfg.Durable = c.consumer
-			} else {
-				return cfg, fmt.Errorf("durable consumer name in %s does not match CLI consumer name %s", c.inputFile, c.consumer)
-			}
+			cfg.Durable = c.consumer
 		}
 
 		if cfg.DeliverSubject != "" && c.delivery != "" {
