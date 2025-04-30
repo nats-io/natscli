@@ -218,7 +218,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
 							log.Printf("%s: %s", h, val)
 						}
 					}
-					fmt.Println()
+					log.Println()
 				}
 
 				outPutMSGBody(m.Data, c.translate, m.Subject, "")
@@ -335,7 +335,7 @@ func readLine(reader *bufio.Reader) (string, error) {
 }
 
 func (c *pubCmd) publish(_ *fisk.ParseContext) error {
-	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
+	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer cancel()
 
 	nc, err := newNatsConn("", natsOpts()...)
@@ -343,38 +343,54 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 		return err
 	}
 	defer nc.Close()
-	if !c.quiet {
-		log.Println("Reading payload from STDIN")
-	}
-	reader := bufio.NewReader(os.Stdin)
+
+	// Create a pipe so that we can interrupt the input at any time.
+	readPipe, writePipe := io.Pipe()
+	go func() {
+		_, errPipe := io.Copy(writePipe, os.Stdin)
+		if errPipe != nil {
+			writePipe.CloseWithError(errPipe)
+		} else {
+			// io.Copy does not return io.EOF, so on success we need to trigger EOF that by closing the pipe
+			_ = writePipe.Close()
+		}
+	}()
+	reader := bufio.NewReader(readPipe)
+	complete := make(chan struct{})
+
 	// If a body is set, treat it as EOF, as no more input
 	eof := c.bodyIsSet
+	if !c.bodyIsSet && !c.quiet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
+		log.Println("Reading payload from STDIN")
+	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("interrupted")
-		default:
+	errCh := make(chan error, 1)
+	go func() {
+		defer close(complete)
+		for {
 			if c.cnt < 1 {
 				c.cnt = math.MaxInt16
 			}
 
 			if !c.bodyIsSet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
 				if c.sendOn == sendOnEOF {
-					body, err := io.ReadAll(os.Stdin)
+					body, err := io.ReadAll(readPipe)
 					if err != nil {
-						return err
+						errCh <- err
+						return
 					}
 					c.body = string(body)
 				} else if c.sendOn == sendOnNewline {
 					body, err := readLine(reader)
 					if err != nil && err != io.EOF {
-						return err
+						errCh <- err
+						return
 					} else if err == io.EOF {
 						eof = true
 					}
 					if body == "" && eof {
-						return nil
+						errCh <- nil
+						return
 					}
 					c.body = body
 				}
@@ -388,7 +404,8 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 					Total: int64(c.cnt),
 				})
 				if err != nil {
-					return err
+					errCh <- err
+					return
 				}
 
 				defer func() {
@@ -400,7 +417,8 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 			if c.jetstream {
 				err = c.doJetstream(nc, tracker)
 				if c.sendOn == sendOnEOF {
-					return err
+					errCh <- err
+					return
 				} else if c.sendOn == sendOnNewline {
 					if err != nil {
 						log.Printf("Could not publish message: %s", err)
@@ -410,7 +428,8 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 			}
 
 			if c.req || c.replyCount >= 1 {
-				return c.doReq(nc, tracker)
+				errCh <- c.doReq(nc, tracker)
+				return
 			}
 
 			for i := 1; i <= c.cnt; i++ {
@@ -426,18 +445,21 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 
 				msg, err := c.prepareMsg(string(subj), body, i)
 				if err != nil {
-					return err
+					errCh <- err
+					return
 				}
 
 				err = nc.PublishMsg(msg)
 				if err != nil {
-					return err
+					errCh <- err
+					return
 				}
 				nc.Flush()
 
 				err = nc.LastError()
 				if err != nil {
-					return err
+					errCh <- err
+					return
 				}
 
 				if c.cnt > 1 && c.sleep > 0 {
@@ -452,9 +474,21 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 					tracker.Increment(1)
 				}
 			}
+
+			if c.sendOn == sendOnEOF || eof {
+				errCh <- nil
+				return
+			}
 		}
-		if c.sendOn == sendOnEOF || eof {
-			return nil
-		}
+	}()
+
+	// Wait until the core go routine is complete or context is canceled.
+	// Closes the remote connection(due to defer), the core loop go routine is just dropped.
+	select {
+	case <-ctx.Done():
+		readPipe.Close()
+		return fmt.Errorf("interrupted")
+	case <-complete:
+		return <-errCh
 	}
 }
