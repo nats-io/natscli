@@ -9,3 +9,6 @@ echo "hello world" | nats pub --force-stdin destination.subject
 
 # To request a response from a server and show just the raw result
 nats request destination.subject "hello world" -H "Content-type:text/plain" --raw
+
+# To listen on STDIN and publish one message per newline
+nats pub destination.subject --send-on=newline

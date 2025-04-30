@@ -14,10 +14,14 @@
 package cli
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"math"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	iu "github.com/nats-io/natscli/internal/util"
@@ -27,6 +31,11 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	terminal "golang.org/x/term"
+)
+
+const (
+	sendOnEOF     = "eof"
+	sendOnNewline = "newline"
 )
 
 type pubCmd struct {
@@ -44,6 +53,8 @@ type pubCmd struct {
 	forceStdin   bool
 	translate    string
 	jetstream    bool
+	sendOn       string
+	quiet        bool
 }
 
 func configurePubCommand(app commandHost) {
@@ -80,6 +91,9 @@ Available template functions are:
 	pub.Flag("sleep", "When publishing multiple messages, sleep between publishes").DurationVar(&c.sleep)
 	pub.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
 	pub.Flag("jetstream", "Publish messages to jetstream").Short('J').UnNegatableBoolVar(&c.jetstream)
+	pub.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).
+		Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
+	pub.Flag("quiet", "Show just the output received").Short('q').UnNegatableBoolVar(&c.quiet)
 
 	requestHelp := `Body and Header values of the messages may use Go templates to 
 create unique messages.
@@ -204,7 +218,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
 							log.Printf("%s: %s", h, val)
 						}
 					}
-					fmt.Println()
+					log.Println()
 				}
 
 				outPutMSGBody(m.Data, c.translate, m.Subject, "")
@@ -259,9 +273,9 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 		}
 
 		msg.Subject = string(subj)
-
-		log.Printf("Published %d bytes to %q\n", len(body), c.subject)
-
+		if !c.quiet {
+			log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+		}
 		resp, err := nc.RequestMsg(msg, opts().Timeout)
 		if err != nil {
 			return err
@@ -278,7 +292,7 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 
 		if progress != nil {
 			progress.Increment(1)
-		} else {
+		} else if !c.quiet {
 			msg := fmt.Sprintf("Stored in Stream: %s Sequence: %s", ack.Stream, f(ack.Sequence))
 			if ack.Domain != "" {
 				msg += fmt.Sprintf(" Domain: %q", ack.Domain)
@@ -301,88 +315,180 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 	return nil
 }
 
+// readLine reads a full line from a bufio.Reader regardless of buffer size,
+// this is important for reading lines longer than the bufio.Reader's default
+// buffer size and nicer than wholesale enlarging the buffer.
+func readLine(reader *bufio.Reader) (string, error) {
+	var buf bytes.Buffer
+
+	for {
+		line, isPrefix, err := reader.ReadLine()
+		if err != nil {
+			return buf.String(), err
+		}
+
+		buf.Write(line)
+		if !isPrefix {
+			return buf.String(), err
+		}
+	}
+}
+
 func (c *pubCmd) publish(_ *fisk.ParseContext) error {
+	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer cancel()
+
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 	defer nc.Close()
 
-	if c.cnt < 1 {
-		c.cnt = math.MaxInt16
-	}
-
-	if !c.bodyIsSet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
-		log.Println("Reading payload from STDIN")
-		body, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return err
-		}
-		c.body = string(body)
-	}
-
-	var tracker *progress.Tracker
-	var progbar progress.Writer
-
-	if c.cnt > 20 && !c.raw {
-		progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
-			Total: int64(c.cnt),
-		})
-		if err != nil {
-			return err
-		}
-
-		defer func() {
-			progbar.Stop()
-			time.Sleep(300 * time.Millisecond)
-		}()
-	}
-
-	if c.jetstream {
-		return c.doJetstream(nc, tracker)
-	}
-
-	if c.req || c.replyCount >= 1 {
-		return c.doReq(nc, tracker)
-	}
-
-	for i := 1; i <= c.cnt; i++ {
-		body, err := iu.PubReplyBodyTemplate(c.body, "", i)
-		if err != nil {
-			log.Printf("Could not parse body template: %s", err)
-		}
-
-		subj, err := iu.PubReplyBodyTemplate(c.subject, "", i)
-		if err != nil {
-			log.Printf("Could not parse subject template: %s", err)
-		}
-
-		msg, err := c.prepareMsg(string(subj), body, i)
-		if err != nil {
-			return err
-		}
-
-		err = nc.PublishMsg(msg)
-		if err != nil {
-			return err
-		}
-		nc.Flush()
-
-		err = nc.LastError()
-		if err != nil {
-			return err
-		}
-
-		if c.cnt > 1 && c.sleep > 0 {
-			time.Sleep(c.sleep)
-		}
-
-		if progbar == nil {
-			log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+	// Create a pipe so that we can interrupt the input at any time.
+	readPipe, writePipe := io.Pipe()
+	go func() {
+		_, errPipe := io.Copy(writePipe, os.Stdin)
+		if errPipe != nil {
+			writePipe.CloseWithError(errPipe)
 		} else {
-			tracker.Increment(1)
+			// io.Copy does not return io.EOF, so on success we need to trigger EOF that by closing the pipe
+			_ = writePipe.Close()
 		}
+	}()
+	reader := bufio.NewReader(readPipe)
+	complete := make(chan struct{})
+
+	// If a body is set, treat it as EOF, as no more input
+	eof := c.bodyIsSet
+	if !c.bodyIsSet && !c.quiet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
+		log.Println("Reading payload from STDIN")
 	}
 
-	return nil
+	errCh := make(chan error, 1)
+	go func() {
+		defer close(complete)
+		for {
+			if c.cnt < 1 {
+				c.cnt = math.MaxInt16
+			}
+
+			if !c.bodyIsSet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
+				if c.sendOn == sendOnEOF {
+					body, err := io.ReadAll(readPipe)
+					if err != nil {
+						errCh <- err
+						return
+					}
+					c.body = string(body)
+				} else if c.sendOn == sendOnNewline {
+					body, err := readLine(reader)
+					if err != nil && err != io.EOF {
+						errCh <- err
+						return
+					} else if err == io.EOF {
+						eof = true
+					}
+					if body == "" && eof {
+						errCh <- nil
+						return
+					}
+					c.body = body
+				}
+			}
+
+			var tracker *progress.Tracker
+			var progbar progress.Writer
+
+			if c.cnt > 20 && !c.raw {
+				progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+					Total: int64(c.cnt),
+				})
+				if err != nil {
+					errCh <- err
+					return
+				}
+
+				defer func() {
+					progbar.Stop()
+					time.Sleep(300 * time.Millisecond)
+				}()
+			}
+
+			if c.jetstream {
+				err = c.doJetstream(nc, tracker)
+				if c.sendOn == sendOnEOF {
+					errCh <- err
+					return
+				} else if c.sendOn == sendOnNewline {
+					if err != nil {
+						log.Printf("Could not publish message: %s", err)
+					}
+					continue
+				}
+			}
+
+			if c.req || c.replyCount >= 1 {
+				errCh <- c.doReq(nc, tracker)
+				return
+			}
+
+			for i := 1; i <= c.cnt; i++ {
+				body, err := iu.PubReplyBodyTemplate(c.body, "", i)
+				if err != nil {
+					log.Printf("Could not parse body template: %s", err)
+				}
+
+				subj, err := iu.PubReplyBodyTemplate(c.subject, "", i)
+				if err != nil {
+					log.Printf("Could not parse subject template: %s", err)
+				}
+
+				msg, err := c.prepareMsg(string(subj), body, i)
+				if err != nil {
+					errCh <- err
+					return
+				}
+
+				err = nc.PublishMsg(msg)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				nc.Flush()
+
+				err = nc.LastError()
+				if err != nil {
+					errCh <- err
+					return
+				}
+
+				if c.cnt > 1 && c.sleep > 0 {
+					time.Sleep(c.sleep)
+				}
+
+				if progbar == nil {
+					if !c.quiet {
+						log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+					}
+				} else {
+					tracker.Increment(1)
+				}
+			}
+
+			if c.sendOn == sendOnEOF || eof {
+				errCh <- nil
+				return
+			}
+		}
+	}()
+
+	// Wait until the core go routine is complete or context is canceled.
+	// Closes the remote connection(due to defer), the core loop go routine is just dropped.
+	select {
+	case <-ctx.Done():
+		readPipe.Close()
+		return fmt.Errorf("interrupted")
+	case <-complete:
+		return <-errCh
+	}
 }
