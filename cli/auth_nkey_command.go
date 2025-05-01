@@ -287,6 +287,7 @@ func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
 	_, err = f.Write(encryptedData)
 	if err != nil {
@@ -342,6 +343,7 @@ func (c *authNKCommand) unsealAction(_ *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
 	_, err = f.Write(decryptedData)
 	if err != nil {

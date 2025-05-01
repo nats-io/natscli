@@ -38,7 +38,7 @@ func runCommand(cmd string, input string, args ...string) ([]byte, error) {
 	select {
 	case <-ctx.Done():
 		if execution.Process != nil {
-			_ = syscall.Kill(execution.Process.Pid, syscall.SIGKILL)
+			_ = syscall.Kill(-execution.Process.Pid, syscall.SIGKILL)
 		}
 		return nil, fmt.Errorf("nats utility timed out")
 	case err := <-errCh:
