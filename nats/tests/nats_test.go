@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -61,20 +62,30 @@ func runNatsCli(t *testing.T, args ...string) (output []byte) {
 func runNatsCliWithInput(t *testing.T, input string, args ...string) (output []byte) {
 	t.Helper()
 
-	var cmd []string
+	var runArgs []string
+	var cmd string
 	var err error
 	if os.Getenv("CI") == "true" {
-		cmd, err = shellquote.Split(fmt.Sprintf("../nats %s", strings.Join(args, " ")))
+		cmd = "../nats"
+		runArgs, err = shellquote.Split(strings.Join(args, " "))
 	} else {
-		cmd, err = shellquote.Split(fmt.Sprintf("run ../main.go %s", strings.Join(args, " ")))
+		cmd = "go"
+		runArgs, err = shellquote.Split(fmt.Sprintf("run ../main.go %s", strings.Join(args, " ")))
 	}
 	if err != nil {
 		t.Fatalf("spliting command argument string failed: %v", err)
 	}
-	out, err := runCommand("go", input, cmd...)
+
+	if _, err := exec.LookPath(cmd); err != nil {
+		t.Fatalf("could not find %s in path", cmd)
+		return
+	}
+
+	out, err := runCommand(cmd, input, runArgs...)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
+
 	return out
 }
 

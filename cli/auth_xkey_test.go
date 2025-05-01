@@ -15,11 +15,12 @@ package cli
 
 import (
 	"crypto/rand"
-	"github.com/nats-io/nkeys"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/nats-io/nkeys"
 )
 
 func TestSealUnseal(t *testing.T) {
