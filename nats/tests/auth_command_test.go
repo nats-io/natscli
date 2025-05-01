@@ -133,7 +133,7 @@ func TestMapping(t *testing.T) {
 					t.Fatalf("Error writing to file: %s", err)
 				}
 
-				output := runNatsCli(t, fmt.Sprintf("auth account mappings add %s --operator=%s --config=%s", accountName, operatorName, fp))
+				output := runNatsCli(t, fmt.Sprintf("auth account mappings add %s --operator=%s --config='%s'", accountName, operatorName, fp))
 
 				for name, pattern := range fields {
 					if !pattern.Match(output) {
