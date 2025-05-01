@@ -16,6 +16,7 @@ package cli
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -71,19 +72,28 @@ for an indefinite period or a per-bucket configured TTL.
 	obj := app.Command("object", help).Alias("obj")
 	addCheat("obj", obj)
 
-	add := obj.Command("add", "Adds a new Object Store Bucket").Action(c.addAction)
-	add.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-	add.Flag("ttl", "How long to keep objects for").DurationVar(&c.ttl)
-	add.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
-	add.Flag("max-bucket-size", "Maximum size for the bucket").StringVar(&c.maxBucketSizeString)
-	add.Flag("description", "A description for the bucket").StringVar(&c.description)
-	add.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
-	add.Flag("tags", "Place the store on servers that has specific tags").StringsVar(&c.placementTags)
-	add.Flag("cluster", "Place the store on a specific cluster").StringVar(&c.placementCluster)
-	add.Flag("metadata", "Adds metadata to the bucket").PlaceHolder("META").StringMapVar(&c.metadata)
-	add.Flag("compress", "Compress the bucket data").BoolVar(&c.compression)
+	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
+		f.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
+		f.Flag("ttl", "How long to keep objects for").DurationVar(&c.ttl)
+		f.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
+		f.Flag("max-bucket-size", "Maximum size for the bucket").StringVar(&c.maxBucketSizeString)
+		f.Flag("description", "A description for the bucket").StringVar(&c.description)
+		if !edit {
+			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
+		}
+		f.Flag("tags", "Place the store on servers that has specific tags").StringsVar(&c.placementTags)
+		f.Flag("cluster", "Place the store on a specific cluster").StringVar(&c.placementCluster)
+		f.Flag("metadata", "Adds metadata to the bucket").PlaceHolder("META").StringMapVar(&c.metadata)
+		f.Flag("compress", "Compress the bucket data").BoolVar(&c.compression)
+	}
 
+	add := obj.Command("add", "Adds a new Object Store Bucket").Action(c.addAction)
+	addCreateFlags(add, false)
 	add.PreAction(c.parseLimitStrings)
+
+	edit := obj.Command("edit", "Edit an existing Object Store Bucket").Action(c.editAction)
+	addCreateFlags(edit, true)
+	edit.PreAction(c.parseLimitStrings)
 
 	put := obj.Command("put", "Puts a file into the store").Action(c.putAction)
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -675,6 +685,54 @@ func (c *objCommand) addAction(_ *fisk.ParseContext) error {
 		Description: c.description,
 		TTL:         c.ttl,
 		Storage:     st,
+		Replicas:    int(c.replicas),
+		Placement:   placement,
+		MaxBytes:    c.maxBucketSize,
+		Metadata:    c.metadata,
+		Compression: c.compression,
+	})
+	if err != nil {
+		return err
+	}
+
+	return c.showBucketInfo(obj)
+}
+
+func (c *objCommand) editAction(_ *fisk.ParseContext) error {
+	_, js, err := prepareJSHelper()
+	if err != nil {
+		return err
+	}
+
+
+	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
+	defer cancel()
+
+	placement := &jetstream.Placement{Cluster: c.placementCluster}
+	if len(c.placementTags) > 0 {
+		placement.Tags = c.placementTags
+	}
+
+	os, err := js.ObjectStore(ctx, c.bucket)
+	if err != nil {
+		return err
+	}
+	status, err := os.Status(ctx)
+	if err != nil {
+		return err
+	}
+	var nfo *jetstream.StreamInfo
+	if status.BackingStore() == "JetStream" {
+		nfo = status.(*jetstream.ObjectBucketStatus).StreamInfo()
+	} else {
+		return errors.New(c.bucket + " is not a JetStream bucket")
+	}
+
+	obj, err := js.UpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
+		Bucket:      c.bucket,
+		Description: c.description,
+		TTL:         c.ttl,
+		Storage:     nfo.Config.Storage,
 		Replicas:    int(c.replicas),
 		Placement:   placement,
 		MaxBytes:    c.maxBucketSize,
