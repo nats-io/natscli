@@ -17,7 +17,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/jedib0t/go-pretty/v6/progress"
 	"io"
 	"os"
 	"path/filepath"
@@ -25,15 +24,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nats-io/nats.go/jetstream"
-	iu "github.com/nats-io/natscli/internal/util"
-
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
+	"github.com/jedib0t/go-pretty/v6/progress"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
+	iu "github.com/nats-io/natscli/internal/util"
 )
 
 type objCommand struct {
