@@ -62,12 +62,15 @@ func runNatsCliWithInput(t *testing.T, input string, args ...string) (output []b
 	t.Helper()
 
 	var cmd []string
+	var err error
 	if os.Getenv("CI") == "true" {
-		cmd, _ = shellquote.Split(fmt.Sprintf("../nats %s", strings.Join(args, " ")))
+		cmd, err = shellquote.Split(fmt.Sprintf("../nats %s", strings.Join(args, " ")))
 	} else {
-		cmd, _ = shellquote.Split(fmt.Sprintf("run ../main.go %s", strings.Join(args, " ")))
+		cmd, err = shellquote.Split(fmt.Sprintf("run ../main.go %s", strings.Join(args, " ")))
 	}
-
+	if err != nil {
+		t.Fatalf("spliting command argument string failed: %v", err)
+	}
 	out, err := runCommand("go", input, cmd...)
 	if err != nil {
 		t.Fatalf("%v", err)
