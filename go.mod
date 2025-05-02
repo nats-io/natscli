@@ -18,7 +18,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.18.0
-	github.com/nats-io/jsm.go v0.2.3-0.20250425094154-8fbb284b404c
+	github.com/nats-io/jsm.go v0.2.3-0.20250502134545-3120d5294101
 	github.com/nats-io/jwt/v2 v2.7.4
 	github.com/nats-io/nats-server/v2 v2.11.3
 	github.com/nats-io/nats.go v1.42.0
@@ -60,7 +60,7 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/spf13/cast v1.7.1 // indirect
+	github.com/spf13/cast v1.8.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
