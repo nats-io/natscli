@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/kballard/go-shellquote"
 	"math/rand"
 	"net/url"
 	"os"
@@ -60,23 +61,29 @@ func runNatsCli(t *testing.T, args ...string) (output []byte) {
 
 func runNatsCliWithInput(t *testing.T, input string, args ...string) (output []byte) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
+	var runArgs []string
 	var cmd string
+	var err error
 	if os.Getenv("CI") == "true" {
-		cmd = fmt.Sprintf("../nats %s", strings.Join(args, " "))
+		cmd = "../nats"
+		runArgs, err = shellquote.Split(strings.Join(args, " "))
 	} else {
-		cmd = fmt.Sprintf("go run $(ls ../*.go | grep -v _test.go) %s", strings.Join(args, " "))
+		cmd = "go"
+		runArgs, err = shellquote.Split(fmt.Sprintf("run ../main.go %s", strings.Join(args, " ")))
+	}
+	if err != nil {
+		t.Fatalf("spliting command argument string failed: %v", err)
 	}
 
-	execution := exec.CommandContext(ctx, "bash", "-c", cmd)
-	if input != "" {
-		execution.Stdin = strings.NewReader(input)
+	if _, err := exec.LookPath(cmd); err != nil {
+		t.Fatalf("could not find %s in path", cmd)
+		return
 	}
-	out, err := execution.CombinedOutput()
+
+	out, err := runCommand(cmd, input, runArgs...)
 	if err != nil {
-		t.Fatalf("nats utility failed: %v\n%v", err, string(out))
+		t.Fatalf("%v", err)
 	}
 
 	return out
@@ -145,7 +152,7 @@ func withJSCluster(t *testing.T, cb func(*testing.T, []*server.Server, *nats.Con
 			Port:       -1,
 			Host:       "localhost",
 			ServerName: fmt.Sprintf("s%d", i),
-			LogFile:    "/dev/null",
+			LogFile:    filepath.Join(d, fmt.Sprintf("s%d.log", i)),
 			Cluster: server.ClusterOpts{
 				Name: "TEST",
 				Port: 12000 + i,
