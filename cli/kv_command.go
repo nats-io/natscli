@@ -67,6 +67,8 @@ type kvCommand struct {
 	includeHistory        bool
 	includeDeletes        bool
 	updatesOnly           bool
+	limitsMarkerTTL       time.Duration
+	keyTTL                time.Duration
 }
 
 func configureKVCommand(app commandHost) {
@@ -98,6 +100,7 @@ for an indefinite period or a per-bucket configured TTL.
 		f.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SRC").StringVar(&c.repubSource)
 		f.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
 		f.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
+		f.Flag("marker-ttl", "Enables Per-Key TTLs and Limit Markers").PlaceHolder("DURATION").DurationVar(&c.limitsMarkerTTL)
 		if !edit {
 			f.Flag("mirror", "Creates a mirror of a different bucket").StringVar(&c.mirror)
 			f.Flag("mirror-domain", "When mirroring find the bucket in a different domain").StringVar(&c.mirrorDomain)
@@ -128,6 +131,7 @@ for an indefinite period or a per-bucket configured TTL.
 	create.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	create.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	create.Arg("value", "The value to store, when empty reads STDIN").StringVar(&c.val)
+	create.Flag("ttl", "Sets a TTL for the key").PlaceHolder("DURATION").DurationVar(&c.keyTTL)
 
 	update := kv.Command("update", "Updates a key with a new value if the previous value matches the given revision").Action(c.updateAction)
 	update.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -144,6 +148,7 @@ for an indefinite period or a per-bucket configured TTL.
 	purge.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	purge.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	purge.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
+	purge.Flag("ttl", "Sets a TTL for the purge marker").PlaceHolder("DURATION").DurationVar(&c.keyTTL)
 
 	history := kv.Command("history", "Shows the full history for a key").Action(c.historyAction)
 	history.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -505,16 +510,17 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 	}
 
 	cfg := jetstream.KeyValueConfig{
-		Bucket:       c.bucket,
-		Description:  c.description,
-		MaxValueSize: int32(c.maxValueSize),
-		History:      uint8(c.history),
-		TTL:          c.ttl,
-		MaxBytes:     c.maxBucketSize,
-		Storage:      storage,
-		Replicas:     int(c.replicas),
-		Placement:    placement,
-		Compression:  c.compression,
+		Bucket:         c.bucket,
+		Description:    c.description,
+		MaxValueSize:   int32(c.maxValueSize),
+		History:        uint8(c.history),
+		TTL:            c.ttl,
+		MaxBytes:       c.maxBucketSize,
+		Storage:        storage,
+		Replicas:       int(c.replicas),
+		Placement:      placement,
+		Compression:    c.compression,
+		LimitMarkerTTL: c.limitsMarkerTTL,
 	}
 
 	if c.repubDest != "" {
@@ -582,16 +588,17 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 	}
 
 	cfg := jetstream.KeyValueConfig{
-		Bucket:       c.bucket,
-		Description:  c.description,
-		MaxValueSize: int32(c.maxValueSize),
-		History:      uint8(c.history),
-		TTL:          c.ttl,
-		MaxBytes:     c.maxBucketSize,
-		Storage:      nfo.Config.Storage,
-		Replicas:     int(c.replicas),
-		Placement:    placement,
-		Compression:  c.compression,
+		Bucket:         c.bucket,
+		Description:    c.description,
+		MaxValueSize:   int32(c.maxValueSize),
+		History:        uint8(c.history),
+		TTL:            c.ttl,
+		MaxBytes:       c.maxBucketSize,
+		Storage:        nfo.Config.Storage,
+		Replicas:       int(c.replicas),
+		Placement:      placement,
+		Compression:    c.compression,
+		LimitMarkerTTL: c.limitsMarkerTTL,
 	}
 
 	if c.repubDest != "" {
@@ -694,7 +701,11 @@ func (c *kvCommand) createAction(_ *fisk.ParseContext) error {
 	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
 	defer cancel()
 
-	_, err = store.Create(ctx, c.key, val)
+	if c.keyTTL > 0 {
+		_, err = store.Create(ctx, c.key, val, jetstream.KeyTTL(c.keyTTL))
+	} else {
+		_, err = store.Create(ctx, c.key, val)
+	}
 	if err != nil {
 		return err
 	}
@@ -868,6 +879,10 @@ func (c *kvCommand) purgeAction(_ *fisk.ParseContext) error {
 	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
 	defer cancel()
 
+	if c.keyTTL > 0 {
+		return store.Purge(ctx, c.key, jetstream.PurgeTTL(c.keyTTL))
+	}
+
 	return store.Purge(ctx, c.key)
 }
 
@@ -924,6 +939,8 @@ func (c *kvCommand) showStatus(store jetstream.KeyValue) error {
 	cols.AddRow("History Kept", status.History())
 	cols.AddRow("Values Stored", status.Values())
 	cols.AddRow("Compressed", status.IsCompressed())
+	cols.AddRow("Per-Key TTL Supported", status.LimitMarkerTTL() > 0)
+	cols.AddRowIf("Limit Marker TTL", status.LimitMarkerTTL(), status.LimitMarkerTTL() > 0)
 	cols.AddRow("Backing Store Kind", status.BackingStore())
 
 	if nfo != nil {
