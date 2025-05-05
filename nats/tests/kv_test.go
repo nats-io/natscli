@@ -16,10 +16,12 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/nats-io/natscli/cli"
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/nats-io/natscli/cli"
 
 	"github.com/nats-io/nats.go"
 )
@@ -287,5 +289,50 @@ func TestCLIRM(t *testing.T) {
 	}
 	if known {
 		t.Fatalf("stream was not deleted")
+	}
+}
+
+func TestCLIEdit(t *testing.T) {
+	os.Setenv("TESTING", "true")
+	srv, nc, _ := setupJStreamTest(t)
+	defer srv.Shutdown()
+
+	cfg := nats.KeyValueConfig{
+		Bucket:       "T",
+		Description:  "This is an old descrption",
+		MaxValueSize: 44,
+		History:      44,
+		TTL:          time.Duration(44 * time.Second),
+		MaxBytes:     44,
+		Compression:  true,
+	}
+
+	createTestBucket(t, nc, &cfg)
+	output := string(runNatsCli(t, fmt.Sprintf("--server='%s' kv edit T --description='This is a new description'", srv.ClientURL())))
+	err := expectMatchJSON(t, output, map[string]any{
+		"Header": "Information for Key-Value Store Bucket T",
+		"Configuration": map[string]any{
+			"Backing Store Kind":    "JetStream",
+			"Bucket Name":           "T",
+			"Bucket Size":           "0 B",
+			"Compressed":            "true",
+			"Description":           "This is a new description",
+			"History Kept":          "44",
+			"JetStream Stream":      "KV_T",
+			"Maximum Age":           "44.00s",
+			"Maximum Bucket Size":   "44 B",
+			"Maximum Value Size":    "44 B",
+			"Per-Key TTL Supported": "false",
+			"Storage":               "File",
+			"Values Stored":         "0",
+		},
+		"Cluster Information": map[string]any{
+			"Leader": ".+",
+			"Name":   "",
+		},
+	})
+
+	if err != nil {
+		t.Error(err)
 	}
 }

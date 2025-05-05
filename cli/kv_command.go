@@ -37,38 +37,52 @@ import (
 )
 
 type kvCommand struct {
-	bucket                string
-	key                   string
-	val                   string
-	raw                   bool
-	history               uint64
-	ttl                   time.Duration
-	replicas              uint
-	force                 bool
-	maxValueSize          int64
-	maxValueSizeString    string
-	maxBucketSize         int64
-	maxBucketSizeString   string
-	revision              uint64
-	description           string
-	listNames             bool
-	lsVerbose             bool
-	lsVerboseDisplayValue bool
-	storage               string
-	placementCluster      string
-	placementTags         []string
-	repubSource           string
-	repubDest             string
-	repubHeadersOnly      bool
-	mirror                string
-	mirrorDomain          string
-	sources               []string
-	compression           bool
-	includeHistory        bool
-	includeDeletes        bool
-	updatesOnly           bool
-	limitsMarkerTTL       time.Duration
-	keyTTL                time.Duration
+	bucket                  string
+	key                     string
+	val                     string
+	raw                     bool
+	history                 uint64
+	ttl                     time.Duration
+	replicas                uint
+	force                   bool
+	maxValueSize            int64
+	maxValueSizeString      string
+	maxBucketSize           int64
+	maxBucketSizeString     string
+	revision                uint64
+	description             string
+	listNames               bool
+	lsVerbose               bool
+	lsVerboseDisplayValue   bool
+	storage                 string
+	placementCluster        string
+	placementTags           []string
+	repubSource             string
+	repubDest               string
+	repubHeadersOnly        bool
+	mirror                  string
+	mirrorDomain            string
+	sources                 []string
+	compression             bool
+	includeHistory          bool
+	includeDeletes          bool
+	updatesOnly             bool
+	limitsMarkerTTL         time.Duration
+	keyTTL                  time.Duration
+	historySet              bool
+	ttlSet                  bool
+	replicaSet              bool
+	maxValueSizeSet         bool
+	maxBucketSizeSet        bool
+	descriptionSet          bool
+	compressSet             bool
+	tagsSet                 bool
+	clusterSet              bool
+	republishSourceSet      bool
+	republishDestinationSet bool
+	republishHeadersSet     bool
+	markerTTLSet            bool
+	sourceSet               bool
 }
 
 func configureKVCommand(app commandHost) {
@@ -85,27 +99,27 @@ for an indefinite period or a per-bucket configured TTL.
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-		f.Flag("history", "How many historic values to keep per key").Default("1").Uint64Var(&c.history)
-		f.Flag("ttl", "How long to keep values for").DurationVar(&c.ttl)
-		f.Flag("replicas", "How many replicas of the data to store").Default("1").UintVar(&c.replicas)
-		f.Flag("max-value-size", "Maximum size for any single value").PlaceHolder("BYTES").StringVar(&c.maxValueSizeString)
-		f.Flag("max-bucket-size", "Maximum size for the bucket").PlaceHolder("BYTES").StringVar(&c.maxBucketSizeString)
-		f.Flag("description", "A description for the bucket").StringVar(&c.description)
+		f.Flag("history", "How many historic values to keep per key").IsSetByUser(&c.historySet).Default("1").Uint64Var(&c.history)
+		f.Flag("ttl", "How long to keep values for").IsSetByUser(&c.ttlSet).DurationVar(&c.ttl)
+		f.Flag("replicas", "How many replicas of the data to store").IsSetByUser(&c.replicaSet).Default("1").UintVar(&c.replicas)
+		f.Flag("max-value-size", "Maximum size for any single value").IsSetByUser(&c.maxValueSizeSet).PlaceHolder("BYTES").StringVar(&c.maxValueSizeString)
+		f.Flag("max-bucket-size", "Maximum size for the bucket").IsSetByUser(&c.maxBucketSizeSet).PlaceHolder("BYTES").StringVar(&c.maxBucketSizeString)
+		f.Flag("description", "A description for the bucket").IsSetByUser(&c.descriptionSet).StringVar(&c.description)
 		if !edit {
 			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		}
-		f.Flag("compress", "Compress the bucket data").BoolVar(&c.compression)
-		f.Flag("tags", "Place the bucket on servers that has specific tags").StringsVar(&c.placementTags)
-		f.Flag("cluster", "Place the bucket on a specific cluster").StringVar(&c.placementCluster)
-		f.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SRC").StringVar(&c.repubSource)
-		f.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
-		f.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
-		f.Flag("marker-ttl", "Enables Per-Key TTLs and Limit Markers").PlaceHolder("DURATION").DurationVar(&c.limitsMarkerTTL)
+		f.Flag("compress", "Compress the bucket data").IsSetByUser(&c.compressSet).BoolVar(&c.compression)
+		f.Flag("tags", "Place the bucket on servers that has specific tags").IsSetByUser(&c.tagsSet).StringsVar(&c.placementTags)
+		f.Flag("cluster", "Place the bucket on a specific cluster").IsSetByUser(&c.clusterSet).StringVar(&c.placementCluster)
+		f.Flag("republish-source", "Republish messages to --republish-destination").IsSetByUser(&c.republishSourceSet).PlaceHolder("SRC").StringVar(&c.repubSource)
+		f.Flag("republish-destination", "Republish destination for messages in --republish-source").IsSetByUser(&c.republishDestinationSet).PlaceHolder("DEST").StringVar(&c.repubDest)
+		f.Flag("republish-headers", "Republish only message headers, no bodies").IsSetByUser(&c.republishHeadersSet).UnNegatableBoolVar(&c.repubHeadersOnly)
+		f.Flag("marker-ttl", "Enables Per-Key TTLs and Limit Markers").IsSetByUser(&c.markerTTLSet).PlaceHolder("DURATION").DurationVar(&c.limitsMarkerTTL)
 		if !edit {
 			f.Flag("mirror", "Creates a mirror of a different bucket").StringVar(&c.mirror)
 			f.Flag("mirror-domain", "When mirroring find the bucket in a different domain").StringVar(&c.mirrorDomain)
 		}
-		f.Flag("source", "Source from a different bucket").PlaceHolder("BUCKET").StringsVar(&c.sources)
+		f.Flag("source", "Source from a different bucket").IsSetByUser(&c.sourceSet).PlaceHolder("BUCKET").StringsVar(&c.sources)
 	}
 
 	add := kv.Command("add", "Adds a new KV Store Bucket").Alias("new").Action(c.addAction)
@@ -564,14 +578,6 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
 	defer cancel()
 
-	var placement *jetstream.Placement
-	if c.placementCluster != "" || len(c.placementTags) > 0 {
-		placement = &jetstream.Placement{Cluster: c.placementCluster}
-		if len(c.placementTags) > 0 {
-			placement.Tags = c.placementTags
-		}
-	}
-
 	kv, err := js.KeyValue(ctx, c.bucket)
 	if err != nil {
 		return err
@@ -589,19 +595,54 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 
 	cfg := jetstream.KeyValueConfig{
 		Bucket:         c.bucket,
-		Description:    c.description,
-		MaxValueSize:   int32(c.maxValueSize),
-		History:        uint8(c.history),
-		TTL:            c.ttl,
-		MaxBytes:       c.maxBucketSize,
+		Description:    nfo.Config.Description,
+		MaxValueSize:   int32(nfo.Config.MaxMsgSize),
+		History:        uint8(status.History()),
+		TTL:            status.TTL(),
+		MaxBytes:       nfo.Config.MaxBytes,
 		Storage:        nfo.Config.Storage,
-		Replicas:       int(c.replicas),
-		Placement:      placement,
-		Compression:    c.compression,
-		LimitMarkerTTL: c.limitsMarkerTTL,
+		Replicas:       int(nfo.Config.Replicas),
+		Placement:      nfo.Config.Placement,
+		RePublish:      nfo.Config.RePublish,
+		Sources:        nfo.Config.Sources,
+		Compression:    status.IsCompressed(),
+		LimitMarkerTTL: status.LimitMarkerTTL(),
 	}
 
-	if c.repubDest != "" {
+	if c.descriptionSet {
+		cfg.Description = c.description
+	}
+
+	if c.maxValueSizeSet {
+		cfg.MaxValueSize = int32(c.maxValueSize)
+	}
+
+	if c.historySet {
+		cfg.History = uint8(c.history)
+	}
+
+	if c.ttlSet {
+		cfg.TTL = c.ttl
+	}
+
+	if c.maxBucketSizeSet {
+		cfg.MaxBytes = c.maxBucketSize
+	}
+
+	if c.replicaSet {
+		cfg.Replicas = int(c.replicas)
+	}
+
+	var placement *jetstream.Placement
+	if c.clusterSet || c.tagsSet {
+		placement = &jetstream.Placement{Cluster: c.placementCluster}
+		if len(c.placementTags) > 0 {
+			placement.Tags = c.placementTags
+		}
+		cfg.Placement = placement
+	}
+
+	if c.republishDestinationSet {
 		cfg.RePublish = &jetstream.RePublish{
 			Source:      c.repubSource,
 			Destination: c.repubDest,
@@ -613,6 +654,14 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 		cfg.Sources = append(cfg.Sources, &jetstream.StreamSource{
 			Name: source,
 		})
+	}
+
+	if c.compressSet {
+		cfg.Compression = c.compression
+	}
+
+	if c.markerTTLSet {
+		cfg.LimitMarkerTTL = c.limitsMarkerTTL
 	}
 
 	store, err := js.UpdateKeyValue(ctx, cfg)
