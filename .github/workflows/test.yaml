@@ -1,15 +1,14 @@
 name: NATS CLI Testing
+
+defaults:
+  run:
+    shell: bash
+
 on: [push, pull_request]
 
 jobs:
-  test:
-    strategy:
-      matrix:
-        go: [ "1.23", "1.24" ]
-
-    env:
-      GOPATH: /home/runner/work/natscli
-
+  lint:
+    name: Running linting (ubuntu-latest/1.24)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -18,19 +17,13 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{matrix.go}}
+          go-version: "1.24"
 
-      - name: Install deps
+      - name: Install linting tools
         shell: bash --noprofile --norc -x -eo pipefail {0}
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@latest
           go install github.com/client9/misspell/cmd/misspell@latest
-
-      - name: Build
-        shell: bash --noprofile --norc -x -eo pipefail {0}
-        run: |
-          cd nats
-          go build
 
       - name: Lint
         shell: bash --noprofile --norc -x -eo pipefail {0}
@@ -42,9 +35,56 @@ jobs:
           find . -type f -name "*.go" | grep -F -e asciigraph -v | xargs misspell -error -locale US
           staticcheck -f stylish $GO_LIST
 
-      - name: Run tests
+  test:
+    name: Running tests (${{ matrix.os }}/${{matrix.go}})
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [ "1.23", "1.24" ]
+        os:
+          - ubuntu-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{matrix.go}}
+
+      - name: Build
+        run: |
+          cd nats
+          go build
+
+      - name: Run Linux tests
+        if: startsWith(runner.os, 'Linux')
         shell: bash --noprofile --norc -x -eo pipefail {0}
         run: |
           set -e
           go list ./... | grep -F -e asciigraph -v | xargs go test -v --failfast -p=1
           set +e
+
+      - name: Run Windows tests
+        if: startsWith(runner.os, 'Windows')
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          function Invoke-LoggedCommand {
+            param([string]$command)
+            Invoke-Expression $command
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "x Command failed: $command"
+              exit $LASTEXITCODE
+            }
+          }
+          
+          go list ./... | ForEach-Object{
+            if ($_ -notmatch 'asciigraph') {
+              Invoke-LoggedCommand "go test -v --failfast -p=1 $_" 
+            }
+          }
