@@ -17,16 +17,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/kballard/go-shellquote"
 	"math/rand"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/kballard/go-shellquote"
 
 	"github.com/nats-io/natscli/cli"
 
@@ -134,6 +136,9 @@ func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn, mgr *jsm
 }
 func withJSCluster(t *testing.T, cb func(*testing.T, []*server.Server, *nats.Conn, *jsm.Manager) error) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows due to GitHub Actions resource constraints")
+	}
 
 	d, err := os.MkdirTemp("", "jstest")
 	if err != nil {
