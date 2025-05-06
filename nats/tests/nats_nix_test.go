@@ -25,25 +25,28 @@ func runCommand(cmd string, input string, args ...string) ([]byte, error) {
 		execution.Stdin = strings.NewReader(input)
 	}
 
-	outCh := make(chan []byte)
-	errCh := make(chan error)
+	type result struct {
+		out []byte
+		err error
+	}
+
+	resCh := make(chan result, 1)
+
 	go func() {
 		out, err := execution.CombinedOutput()
-		if err != nil {
-			errCh <- err
-		} else {
-			outCh <- out
-		}
+		resCh <- result{out: out, err: err}
 	}()
+
 	select {
 	case <-ctx.Done():
 		if execution.Process != nil {
 			_ = syscall.Kill(-execution.Process.Pid, syscall.SIGKILL)
 		}
 		return nil, fmt.Errorf("nats utility timed out")
-	case err := <-errCh:
-		return nil, fmt.Errorf("nats utility failed: %v\n%v", err, string(<-outCh))
-	case out := <-outCh:
-		return out, nil
+	case res := <-resCh:
+		if res.err != nil {
+			return nil, fmt.Errorf("nats utility failed: %v\n%v", res.err, string(res.out))
+		}
+		return res.out, nil
 	}
 }
