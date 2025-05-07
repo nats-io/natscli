@@ -99,22 +99,22 @@ for an indefinite period or a per-bucket configured TTL.
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
-		f.Flag("history", "How many historic values to keep per key").IsSetByUser(&c.historySet).Default("1").Uint64Var(&c.history)
-		f.Flag("ttl", "How long to keep values for").IsSetByUser(&c.ttlSet).DurationVar(&c.ttl)
-		f.Flag("replicas", "How many replicas of the data to store").IsSetByUser(&c.replicaSet).Default("1").UintVar(&c.replicas)
-		f.Flag("max-value-size", "Maximum size for any single value").IsSetByUser(&c.maxValueSizeSet).PlaceHolder("BYTES").StringVar(&c.maxValueSizeString)
-		f.Flag("max-bucket-size", "Maximum size for the bucket").IsSetByUser(&c.maxBucketSizeSet).PlaceHolder("BYTES").StringVar(&c.maxBucketSizeString)
 		f.Flag("description", "A description for the bucket").IsSetByUser(&c.descriptionSet).StringVar(&c.description)
+		f.Flag("history", "How many historic values to keep per key").IsSetByUser(&c.historySet).Default("1").Uint64Var(&c.history)
 		if !edit {
 			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		}
-		f.Flag("compress", "Compress the bucket data").IsSetByUser(&c.compressSet).BoolVar(&c.compression)
+		f.Flag("ttl", "How long to keep values for").IsSetByUser(&c.ttlSet).PlaceHolder("DURATION").DurationVar(&c.ttl)
+		f.Flag("marker-ttl", "Enables Per-Key TTLs and Limit Markers").IsSetByUser(&c.markerTTLSet).PlaceHolder("DURATION").DurationVar(&c.limitsMarkerTTL)
+		f.Flag("replicas", "How many replicas of the data to store").IsSetByUser(&c.replicaSet).Default("1").UintVar(&c.replicas)
+		f.Flag("max-value-size", "Maximum size for any single value").IsSetByUser(&c.maxValueSizeSet).PlaceHolder("BYTES").StringVar(&c.maxValueSizeString)
+		f.Flag("max-bucket-size", "Maximum size for the bucket").IsSetByUser(&c.maxBucketSizeSet).PlaceHolder("BYTES").StringVar(&c.maxBucketSizeString)
 		f.Flag("tags", "Place the bucket on servers that has specific tags").IsSetByUser(&c.tagsSet).StringsVar(&c.placementTags)
 		f.Flag("cluster", "Place the bucket on a specific cluster").IsSetByUser(&c.clusterSet).StringVar(&c.placementCluster)
+		f.Flag("compress", "Compress the bucket data").IsSetByUser(&c.compressSet).BoolVar(&c.compression)
 		f.Flag("republish-source", "Republish messages to --republish-destination").IsSetByUser(&c.republishSourceSet).PlaceHolder("SRC").StringVar(&c.repubSource)
 		f.Flag("republish-destination", "Republish destination for messages in --republish-source").IsSetByUser(&c.republishDestinationSet).PlaceHolder("DEST").StringVar(&c.repubDest)
 		f.Flag("republish-headers", "Republish only message headers, no bodies").IsSetByUser(&c.republishHeadersSet).UnNegatableBoolVar(&c.repubHeadersOnly)
-		f.Flag("marker-ttl", "Enables Per-Key TTLs and Limit Markers").IsSetByUser(&c.markerTTLSet).PlaceHolder("DURATION").DurationVar(&c.limitsMarkerTTL)
 		if !edit {
 			f.Flag("mirror", "Creates a mirror of a different bucket").StringVar(&c.mirror)
 			f.Flag("mirror-domain", "When mirroring find the bucket in a different domain").StringVar(&c.mirrorDomain)
