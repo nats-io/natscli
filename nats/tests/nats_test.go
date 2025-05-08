@@ -110,12 +110,26 @@ func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn, mgr *jsm
 
 	dir, err := os.MkdirTemp("", "")
 	checkErr(t, err, "could not create temporary js store: %v", err)
+	sysAcc := server.NewAccount("SYS")
 
 	srv, err = server.NewServer(&server.Options{
-		Port:      -1,
-		StoreDir:  dir,
-		JetStream: true,
+		Port:          -1,
+		ServerName:    "TEST_SERVER",
+		StoreDir:      dir,
+		JetStream:     true,
+		SystemAccount: "SYS",
+		Accounts: []*server.Account{
+			sysAcc,
+		},
+		Users: []*server.User{
+			{
+				Username: "sys",
+				Password: "pass",
+				Account:  sysAcc,
+			},
+		},
 	})
+
 	checkErr(t, err, "could not start js server: %v", err)
 
 	go srv.Start()
@@ -150,6 +164,8 @@ func withJSCluster(t *testing.T, cb func(*testing.T, []*server.Server, *nats.Con
 		servers []*server.Server
 	)
 
+	sysAcc := server.NewAccount("SYS")
+
 	for i := 1; i <= 3; i++ {
 		opts := &server.Options{
 			JetStream:  true,
@@ -166,6 +182,17 @@ func withJSCluster(t *testing.T, cb func(*testing.T, []*server.Server, *nats.Con
 				{Host: "localhost:12001"},
 				{Host: "localhost:12002"},
 				{Host: "localhost:12003"},
+			},
+			SystemAccount: "SYS",
+			Accounts: []*server.Account{
+				sysAcc,
+			},
+			Users: []*server.User{
+				{
+					Username: "sys",
+					Password: "pass",
+					Account:  sysAcc,
+				},
 			},
 		}
 
