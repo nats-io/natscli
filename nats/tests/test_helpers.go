@@ -14,16 +14,32 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/nats-io/natscli/internal/scaffold"
+	"gopkg.in/yaml.v2"
 )
 
-func expectMatchRegex(t *testing.T, found, expected string) bool {
+func expectMatchRegex(t *testing.T, pattern, output string) bool {
 	t.Helper()
-	return !regexp.MustCompile(expected).MatchString(found)
+
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		t.Errorf("invalid regex %q: %v", pattern, err)
+		return false
+	}
+
+	return re.MatchString(output)
 }
 
 func expectMatchMap(t *testing.T, fields map[string]string, output string) (bool, string, string) {
@@ -68,10 +84,10 @@ func expectMatchLine(t *testing.T, output string, fields ...string) bool {
 	return found
 }
 
-func expectMatchJSON(t *testing.T, jsonStr string, expected map[string]any) error {
+func expectMatchJSON(t *testing.T, jsonStr string, expected any) error {
 	t.Helper()
 
-	var actual map[string]any
+	var actual any
 	if err := json.Unmarshal([]byte(jsonStr), &actual); err != nil {
 		return fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
@@ -79,36 +95,155 @@ func expectMatchJSON(t *testing.T, jsonStr string, expected map[string]any) erro
 	return matchRecursive(actual, expected)
 }
 
-func matchRecursive(actual map[string]any, expected map[string]any) error {
-	for key, expectedValue := range expected {
-		actualValue, exists := actual[key]
-		if !exists {
-			return fmt.Errorf("missing expected key: %q", key)
+// matchRecursive compares actual and expected structures recursively.
+// Maps are matched by key. Arrays pass if all expected items match any actual item.
+// Strings are interpreted as regex patterns and matched against stringified actual values.
+// Returns an error if any expected structure is missing or mismatched.
+
+func matchRecursive(actual any, expected any) error {
+	switch expectedTyped := expected.(type) {
+	case map[string]any:
+		actualMap, ok := actual.(map[string]any)
+		if !ok {
+			return fmt.Errorf("expected object, got %T", actual)
+		}
+		for key, expectedValue := range expectedTyped {
+			actualValue, exists := actualMap[key]
+			if !exists {
+				return fmt.Errorf("missing expected key: %q", key)
+			}
+			if err := matchRecursive(actualValue, expectedValue); err != nil {
+				return fmt.Errorf("at key %q: %w", key, err)
+			}
 		}
 
-		switch ev := expectedValue.(type) {
-		case map[string]any:
-			actualNested, ok := actualValue.(map[string]any)
-			if !ok {
-				return fmt.Errorf("expected object at key %s, but got %s", key, actualValue)
-			}
-			if err := matchRecursive(actualNested, ev); err != nil {
-				return err
-			}
+	// Recursively check if any of the items in the expected array is the one we're looking for,
+	// not expected[x] == actual[x]
+	case []any:
+		actualSlice, ok := actual.([]any)
+		if !ok {
+			return fmt.Errorf("expected array, got %T", actual)
+		}
 
-		default:
-			actualStr := fmt.Sprint(actualValue)
-			patternStr := fmt.Sprint(expectedValue)
-
-			re, err := regexp.Compile(patternStr)
-			if err != nil {
-				return fmt.Errorf("invalid regex for key %q: %v", key, err)
+		for i, expectedItem := range expectedTyped {
+			matched := false
+			var lastErr error
+			for _, actualItem := range actualSlice {
+				if err := matchRecursive(actualItem, expectedItem); err == nil {
+					matched = true
+					break
+				} else {
+					lastErr = err
+				}
 			}
-
-			if !re.MatchString(actualStr) {
-				return fmt.Errorf("regex mismatch at key %s: value %s does not match pattern %s", key, actualStr, patternStr)
+			if !matched {
+				return fmt.Errorf("no match found for expected item at index %d: %v", i, lastErr)
 			}
+		}
+
+	default:
+		actualStr := fmt.Sprint(actual)
+		patternStr := fmt.Sprint(expected)
+
+		re, err := regexp.Compile(patternStr)
+		if err != nil {
+			return fmt.Errorf("invalid regex: %v", err)
+		}
+		if !re.MatchString(actualStr) {
+			return fmt.Errorf("regex mismatch: value %q does not match pattern %q", actualStr, patternStr)
 		}
 	}
+
 	return nil
+}
+
+// serveBundleZip starts up a webserver that we can connect to during tests to serve up a zip filel
+// for bundle testing
+func serveBundleZip(t *testing.T, bundle scaffold.Bundle) string {
+	t.Helper()
+
+	yamlData, err := yaml.Marshal(bundle)
+	if err != nil {
+		t.Fatalf("failed to marshal bundle: %v", err)
+	}
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+
+	add := func(name string, contents []byte) {
+		header := &zip.FileHeader{
+			Name:   name,
+			Method: zip.Deflate,
+		}
+		header.SetMode(0644)
+
+		f, err := zw.CreateHeader(header)
+		if err != nil {
+			t.Fatalf("failed to create %s: %v", name, err)
+		}
+		if _, err := f.Write(contents); err != nil {
+			t.Fatalf("failed to write %s: %v", name, err)
+		}
+	}
+	addDir := func(name string) {
+		header := &zip.FileHeader{
+			Name: name + "/",
+		}
+		header.SetMode(0755)
+		_, err := zw.CreateHeader(header)
+		if err != nil {
+			t.Fatalf("failed to create dir %s: %v", name, err)
+		}
+	}
+
+	addDir("scaffold")
+	add("bundle.yaml", yamlData)
+	add("scaffold.json", []byte(`{"source_directory": "scaffold"}`))
+	add("scaffold/README.md", []byte("Generated by {{ .Contact }}"))
+	add("scaffold/config.yaml", []byte(`jetstream: true
+server_name: scaffolded-nats
+port: 4222
+`))
+
+	_ = zw.Close()
+
+	srv := &http.Server{
+		Addr: "127.0.0.1:0",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/zip")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(buf.Bytes())
+		}),
+	}
+
+	ln, err := net.Listen("tcp", srv.Addr)
+	if err != nil {
+		t.Fatalf("listen failed: %v", err)
+	}
+
+	go srv.Serve(ln)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	return "http://" + ln.Addr().String()
+}
+
+func deleteProfileFile(t *testing.T, dir string) {
+	t.Helper()
+
+	pattern := regexp.MustCompile(`^mutex-\d{8}-\d{6}-TEST_SERVER$`)
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() && pattern.MatchString(info.Name()) {
+			return os.Remove(path)
+		}
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("failed to delete profile file: %v", err)
+	}
 }
