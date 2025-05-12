@@ -5,7 +5,7 @@ go 1.23.9
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
-	github.com/choria-io/fisk v0.7.0
+	github.com/choria-io/fisk v0.7.1
 	github.com/choria-io/scaffold v0.0.4
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.8.0
@@ -18,7 +18,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.18.0
-	github.com/nats-io/jsm.go v0.2.3-0.20250508090127-0fc7170ac576
+	github.com/nats-io/jsm.go v0.2.3
 	github.com/nats-io/jwt/v2 v2.7.4
 	github.com/nats-io/nats-server/v2 v2.11.3
 	github.com/nats-io/nats.go v1.42.0
@@ -36,12 +36,12 @@ require (
 )
 
 require (
-	dario.cat/mergo v1.0.1 // indirect
+	dario.cat/mergo v1.0.2 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/google/go-tpm v0.9.4 // indirect
+	github.com/google/go-tpm v0.9.5 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
