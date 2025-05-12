@@ -19,8 +19,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"os"
+	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -30,11 +31,13 @@ import (
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
+	iu "github.com/nats-io/natscli/internal/util"
 )
 
 type serviceCmd struct {
 	name     string
 	id       string
+	endpoint *regexp.Regexp
 	showJSON bool
 	hdrs     map[string]string
 
@@ -53,6 +56,7 @@ func configureServiceCommand(app commandHost) {
 	info := mc.Command("info", "Show Service information").Alias("i").Action(c.infoAction)
 	info.Arg("service", "Service to show").Required().StringVar(&c.name)
 	info.Arg("id", "Show info for a specific ID").StringVar(&c.id)
+	info.Flag("endpoint", "Filter shown endpoints using a regular expression").Short('e').RegexpVar(&c.endpoint)
 	info.Flag("json", "Show JSON output").Short('j').UnNegatableBoolVar(&c.showJSON)
 
 	stats := mc.Command("stats", "Report Service statistics").Action(c.statsAction)
@@ -380,6 +384,15 @@ func (c *serviceCmd) infoAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.showJSON {
+		if c.endpoint != nil {
+			nfo.Endpoints = slices.DeleteFunc(nfo.Endpoints, func(e micro.EndpointInfo) bool {
+				return !c.endpoint.MatchString(e.Name)
+			})
+			stats.Endpoints = slices.DeleteFunc(stats.Endpoints, func(e *micro.EndpointStats) bool {
+				return !c.endpoint.MatchString(e.Name)
+			})
+		}
+
 		iu.PrintJSON(map[string]any{
 			"info":  nfo,
 			"stats": stats,
@@ -399,6 +412,10 @@ func (c *serviceCmd) infoAction(_ *fisk.ParseContext) error {
 	cols.AddSectionTitle("Endpoints:")
 	cols.Indent(2)
 	for _, e := range nfo.Endpoints {
+		if c.endpoint != nil && !c.endpoint.MatchString(e.Name) {
+			continue
+		}
+
 		cols.Println()
 		cols.AddRow("Name", e.Name)
 		cols.AddRow("Subject", e.Subject)
@@ -413,6 +430,10 @@ func (c *serviceCmd) infoAction(_ *fisk.ParseContext) error {
 
 	cols.AddSectionTitle("Statistics for %d Endpoint(s)", len(stats.Endpoints))
 	for _, e := range stats.Endpoints {
+		if c.endpoint != nil && !c.endpoint.MatchString(e.Name) {
+			continue
+		}
+
 		if e.Name == "" {
 			e.Name = "default"
 		}
