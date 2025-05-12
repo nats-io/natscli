@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -134,6 +134,10 @@ func (c *rttCmd) performTest(targets []*rttTarget) (err error) {
 func (c *rttCmd) calcRTT(server string, copts []nats.Option) (string, time.Duration, error) {
 	opts().Conn = nil
 
+	if opts().Trace {
+		log.Printf(">>> Connecting to %s\n", server)
+	}
+
 	nc, err := newNatsConn(server, copts...)
 	if err != nil {
 		return "", 0, err
@@ -185,19 +189,24 @@ func (c *rttCmd) targets() (targets []*rttTarget, err error) {
 			return targets, err
 		}
 
+		port := u.Port()
+		if port == "" {
+			port = "4222"
+		}
+
 		targets = append(targets, &rttTarget{URL: u.String()})
 		target := targets[len(targets)-1]
 
 		// its a ip just add it
 		if net.ParseIP(u.Hostname()) != nil {
-			target.Results = append(target.Results, &rttResult{Address: u.Hostname()})
+			target.Results = append(target.Results, &rttResult{Address: fmt.Sprintf("%s://%s", u.Scheme, net.JoinHostPort(u.Hostname(), port))})
 			continue
 		}
 
 		// else look it up and add all its addresses
 		addrs, _ := net.LookupHost(u.Hostname())
 		if len(addrs) == 0 {
-			target.Results = append(target.Results, &rttResult{Address: u.Hostname()})
+			target.Results = append(target.Results, &rttResult{Address: fmt.Sprintf("%s://%s", u.Scheme, net.JoinHostPort(u.Hostname(), port))})
 			continue
 		}
 
@@ -207,11 +216,6 @@ func (c *rttCmd) targets() (targets []*rttTarget, err error) {
 		target.tlsName = u.Hostname()
 
 		for _, a := range addrs {
-			port := u.Port()
-			if port == "" {
-				port = "4222"
-			}
-
 			target.Results = append(target.Results, &rttResult{Address: fmt.Sprintf("%s://%s", u.Scheme, net.JoinHostPort(a, port))})
 		}
 	}
