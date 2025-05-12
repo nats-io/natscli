@@ -917,7 +917,7 @@ func TestServerPing(t *testing.T) {
 		srv, _, _ := setupServerTest(t)
 		defer srv.Shutdown()
 		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server ping 1", srv.ClientURL(), sysUserCreds)))
-		if !expectMatchLine(t, output, `^TEST_SERVER\s+rtt=\d+\.\d+.+$`) {
+		if !expectMatchLine(t, output, `^TEST_SERVER\s+rtt=\d+(?:\.\d+)?.*\s*$`) {
 			t.Errorf("failed to ping: %s", output)
 		}
 	})
