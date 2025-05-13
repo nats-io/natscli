@@ -44,7 +44,8 @@ builds:
 archives:
   - name_template: "nats-{{.Version}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
     wrap_in_directory: true
-    format: zip
+    formats:
+      - zip
     files:
       - README.md
       - LICENSE
