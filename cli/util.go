@@ -241,9 +241,18 @@ func natsOpts() []nats.Option {
 	return append(copts, []nats.Option{
 		nats.Name(connectionName),
 		nats.MaxReconnects(-1),
+		nats.CustomReconnectDelay(func(attempts int) time.Duration {
+			d := iu.DefaultBackoff.Duration(attempts)
+
+			if opts().Trace {
+				log.Printf(">>> Setting reconnect delay to %v", d)
+			}
+
+			return d
+		}),
 		nats.ConnectHandler(func(conn *nats.Conn) {
 			if opts().Trace {
-				log.Printf(">>> Connected to %s", conn.ConnectedUrlRedacted())
+				log.Printf(">>> Connected to %s (%s)", conn.ConnectedUrlRedacted(), conn.ConnectedAddr())
 			}
 		}),
 		nats.DiscoveredServersHandler(func(conn *nats.Conn) {
@@ -257,7 +266,14 @@ func natsOpts() []nats.Option {
 			}
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
-			log.Printf("Reconnected [%s]", nc.ConnectedUrl())
+			if opts().Trace {
+				log.Printf("Reconnected to %s (%s)", nc.ConnectedUrlRedacted(), nc.ConnectedAddr())
+			}
+		}),
+		nats.ReconnectErrHandler(func(conn *nats.Conn, err error) {
+			if err != nil {
+				log.Printf("Reconnect error: %s", err)
+			}
 		}),
 		nats.ErrorHandler(func(nc *nats.Conn, _ *nats.Subscription, err error) {
 			url := nc.ConnectedUrl()
