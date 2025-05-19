@@ -69,6 +69,8 @@ type SrvRequestCmd struct {
 	profileDebug int
 	profileDir   string
 	filterEmpty  bool
+	group        string
+	queueFilter  string
 }
 
 func configureServerRequestCommand(srv *fisk.CmdClause) {
@@ -104,6 +106,10 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	gwyz.Flag("accounts", "Show account detail").UnNegatableBoolVar(&c.detail)
 	gwyz.Flag("subscriptions", "Show subscription details").Default("true").BoolVar(&c.accountSubscriptions)
 
+	ipq := req.Command("ipqueue", "Show IP Queue details").Alias("ipq").Alias("ipqueuesz").Action(c.ipqz)
+	ipq.Flag("all", "Shows all available information").Default("true").BoolVar(&c.includeAll)
+	ipq.Flag("filter", "Filter results for specific queues").StringVar(&c.queueFilter)
+
 	healthz := req.Command("jetstream-health", "Request JetStream health status").Alias("healthz").Action(c.healthz)
 	healthz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	healthz.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
@@ -138,6 +144,10 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	profilez.Arg("dir", "Set the output directory for profile files").Default(".").ExistingDirVar(&c.profileDir)
 	profilez.Flag("level", "Set the debug level of the profile").IntVar(&c.profileDebug)
 
+	raftz := req.Command("raft", "Show RAFT state details").Alias("raftz").Action(c.raftz)
+	raftz.Flag("account", "Filters on an specific account").StringVar(&c.account)
+	raftz.Flag("group", "Filters on a specific group").StringVar(&c.group)
+
 	routez := req.Command("routes", "Show route details").Alias("route").Alias("routez").Action(c.routez)
 	routez.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	routez.Flag("subscriptions", "Show subscription detail").UnNegatableBoolVar(&c.detail)
@@ -151,6 +161,58 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	varz := req.Command("variables", "Show runtime variables").Alias("var").Alias("varz").Action(c.varz)
 	varz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 
+}
+
+func (c *SrvRequestCmd) ipqz(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	opts := server.IpqueueszEventOptions{
+		IpqueueszOptions: server.IpqueueszOptions{
+			All:    c.includeAll,
+			Filter: c.queueFilter,
+		},
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	res, err := c.doReq("IPQUEUESZ", &opts, nc)
+	if err != nil {
+		return err
+	}
+
+	for _, m := range res {
+		fmt.Println(string(m))
+	}
+
+	return nil
+}
+
+func (c *SrvRequestCmd) raftz(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	opts := server.RaftzEventOptions{
+		RaftzOptions: server.RaftzOptions{
+			AccountFilter: c.account,
+			GroupFilter:   c.group,
+		},
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	res, err := c.doReq("RAFTZ", &opts, nc)
+	if err != nil {
+		return err
+	}
+
+	for _, m := range res {
+		fmt.Println(string(m))
+	}
+
+	return nil
 }
 
 func (c *SrvRequestCmd) kick(_ *fisk.ParseContext) error {

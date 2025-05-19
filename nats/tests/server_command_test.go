@@ -14,6 +14,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -21,6 +22,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"testing"
 	"time"
 
@@ -1241,6 +1243,36 @@ func TestServerRequest(t *testing.T) {
 		}
 	})
 
+	t.Run("ipq command", func(t *testing.T) {
+		srv, _, _ := setupServerTest(t)
+		defer srv.Shutdown()
+
+		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server request ipq", srv.ClientURL(), sysUserCreds)))
+		expected := map[string]any{
+			"server": map[string]any{
+				"name":      "TEST_SERVER",
+				"host":      "0.0.0.0",
+				"id":        `[A-Z0-9]{52}`,
+				"ver":       `\d+\.\d+\.\d+`,
+				"jetstream": "true",
+				"flags":     `\d+`,
+				"seq":       `\d+`,
+				"time":      `.+`,
+			},
+			"data": map[string]any{
+				"Routed JS API Requests": map[string]any{},
+				"SendQ":                  map[string]any{},
+				"System recvQ":           map[string]any{},
+				"System recvQ Pings":     map[string]any{},
+				"delayed API responses":  map[string]any{},
+			},
+		}
+		err := expectMatchJSON(t, output, expected)
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
 	t.Run("jetstream-health command", func(t *testing.T) {
 		srv, _, _ := setupServerTest(t)
 		defer srv.Shutdown()
@@ -1391,6 +1423,43 @@ func TestServerRequest(t *testing.T) {
 		if !expectMatchLine(t, output, `Server "TEST_SERVER" profile written: mutex-\d{8}-\d{6}-TEST_SERVER`) {
 			t.Errorf("failed to write profile: %s", output)
 		}
+	})
+
+	t.Run("raftz command", func(t *testing.T) {
+		withJSCluster(t, func(t *testing.T, servers []*server.Server, conn *nats.Conn, mgr *jsm.Manager) error {
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server request raft", servers[0].ClientURL(), sysUserCreds)))
+
+			var lines []string
+			sc := bufio.NewScanner(strings.NewReader(output))
+			for sc.Scan() {
+				lines = append(lines, sc.Text())
+			}
+
+			if len(lines) != 3 {
+				t.Errorf("failed raftz: %s", output)
+			}
+
+			for _, line := range lines {
+				expected := map[string]any{
+					"server": map[string]any{
+						"host":    "localhost",
+						"cluster": "TEST",
+					},
+					"data": map[string]any{
+						"SYS": map[string]any{
+							"_meta_": map[string]any{},
+						},
+					},
+				}
+
+				err := expectMatchJSON(t, line, expected)
+				if err != nil {
+					t.Error(err)
+				}
+			}
+
+			return nil
+		})
 	})
 
 	t.Run("routes command", func(t *testing.T) {
