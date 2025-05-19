@@ -105,6 +105,15 @@ func prepareHelper(servers string) (*nats.Conn, *jsm.Manager, error) {
 	return nc, mgr, nil
 }
 
+func createDefaultTestStream(t *testing.T, mgr *jsm.Manager) {
+	t.Helper()
+
+	_, err := mgr.NewStream("TEST_STREAM", jsm.Subjects("TEST_STREAM.*"))
+	if err != nil {
+		t.Fatalf("unable to create stream: %s", err)
+	}
+}
+
 func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) {
 	t.Helper()
 
@@ -148,6 +157,154 @@ func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn, mgr *jsm
 
 	return srv, nc, mgr
 }
+
+func withNatsServer(t *testing.T, cb func(*testing.T, *server.Server, *nats.Conn) error) {
+	t.Helper()
+	createServersWithCallback(t, 1, false, cb)
+}
+
+func withJSServer(t *testing.T, cb func(*testing.T, *server.Server, *nats.Conn, *jsm.Manager) error) {
+	t.Helper()
+	createServersWithCallback(t, 1, true, cb)
+}
+
+func createServersWithCallback(t *testing.T, serverCount int, jsEnabled bool, cb any) {
+	t.Helper()
+
+	d, err := os.MkdirTemp("", "jstest")
+	if err != nil {
+		t.Fatalf("temp dir could not be made: %s", err)
+	}
+	defer os.RemoveAll(d)
+
+	var servers []*server.Server
+	sysAcc := server.NewAccount("SYS")
+
+	var routes []*url.URL
+	for i := 1; i <= serverCount; i++ {
+		routes = append(routes, &url.URL{Host: fmt.Sprintf("localhost:%d", 12000+i)})
+	}
+
+	for i := 1; i <= serverCount; i++ {
+		opts := &server.Options{
+			JetStream:     jsEnabled,
+			StoreDir:      filepath.Join(d, fmt.Sprintf("s%d", i)),
+			Port:          -1,
+			Host:          "localhost",
+			ServerName:    fmt.Sprintf("s%d", i),
+			LogFile:       filepath.Join(d, fmt.Sprintf("s%d.log", i)),
+			Routes:        routes,
+			SystemAccount: "SYS",
+			Accounts:      []*server.Account{sysAcc},
+			Users: []*server.User{{
+				Username: "sys",
+				Password: "pass",
+				Account:  sysAcc,
+			}},
+		}
+
+		if serverCount > 1 {
+			opts.Cluster = server.ClusterOpts{
+				Name: "TEST",
+				Port: 12000 + i,
+			}
+		}
+
+		s, err := server.NewServer(opts)
+		if err != nil {
+			t.Fatalf("server %d start failed: %v", i, err)
+		}
+		s.ConfigureLogger()
+		go s.Start()
+		if !s.ReadyForConnections(10 * time.Second) {
+			t.Errorf("nats server %d did not start", i)
+		}
+		defer s.Shutdown()
+		servers = append(servers, s)
+	}
+
+	if len(servers) != serverCount {
+		t.Fatalf("not all servers started: expected %d, got %d", serverCount, len(servers))
+	}
+
+	nc, err := nats.Connect(servers[0].ClientURL(), nats.UseOldRequestStyle())
+	if err != nil {
+		t.Fatalf("client start failed: %s", err)
+	}
+	defer nc.Close()
+
+	var mgr *jsm.Manager
+	if jsEnabled {
+		mgr, err = jsm.New(nc, jsm.WithTimeout(5*time.Second))
+		if err != nil {
+			t.Fatalf("manager creation failed: %s", err)
+		}
+	}
+
+	var callback func() error
+
+	switch typed := cb.(type) {
+	case func(t *testing.T, srv *server.Server, nc *nats.Conn) error:
+		if serverCount != 1 {
+			t.Fatal("single server callback provided but serverCount != 1")
+		}
+		callback = func() error {
+			return typed(t, servers[0], nc)
+		}
+
+	case func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error:
+		if !jsEnabled {
+			t.Fatal("jetstream callback used but jsEnabled is false")
+		}
+		if serverCount != 1 {
+			t.Fatal("single jetstream server callback provided but serverCount != 1")
+		}
+		callback = func() error {
+			return typed(t, servers[0], nc, mgr)
+		}
+
+	case func(t *testing.T, srvs []*server.Server, nc *nats.Conn, mgr *jsm.Manager) error:
+		if !jsEnabled {
+			t.Fatal("jetstream callback used but jsEnabled is false")
+		}
+		callback = func() error {
+			return typed(t, servers, nc, mgr)
+		}
+
+	default:
+		t.Fatalf("unsupported callback signature")
+	}
+
+	if !jsEnabled {
+		if err := callback(); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if _, err := mgr.JetStreamAccountInfo(); err != nil {
+				continue
+			}
+
+			if err := callback(); err != nil {
+				t.Fatal(err)
+			}
+			return
+
+		case <-ctx.Done():
+			t.Fatalf("jetstream did not become available in time")
+		}
+	}
+}
+
 func withJSCluster(t *testing.T, cb func(*testing.T, []*server.Server, *nats.Conn, *jsm.Manager) error) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
