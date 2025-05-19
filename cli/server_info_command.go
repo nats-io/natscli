@@ -181,6 +181,9 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 		cols.AddRowf("GOMAXPROCS", "%d", varz.MaxProcs)
 	}
 	cols.AddRow("Memory", humanize.IBytes(uint64(varz.Mem)))
+	if varz.MemLimit > 0 {
+		cols.AddRow("GOMEMLIMIT", varz.MemLimit)
+	}
 	cols.AddRow("Connections", varz.Connections)
 	cols.AddRow("Subscriptions", varz.Subscriptions)
 	cols.AddRowf("Messages", "%s in %s out", f(varz.InMsgs), f(varz.OutMsgs))
