@@ -20,6 +20,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"testing"
 	"time"
@@ -743,6 +745,12 @@ func TestServerGraph(t *testing.T) {
 
 func TestServerInfo(t *testing.T) {
 	t.Run("info action", func(t *testing.T) {
+		oldmaxProcs := runtime.GOMAXPROCS(1)
+		defer func() { runtime.GOMAXPROCS(oldmaxProcs) }()
+
+		oldmemlimit := debug.SetMemoryLimit(1024 * 1024 * 1024)
+		defer func() { debug.SetMemoryLimit(oldmemlimit) }()
+
 		srv, _, _ := setupServerTest(t)
 		defer srv.Shutdown()
 
@@ -793,8 +801,9 @@ func TestServerInfo(t *testing.T) {
 				"Bytes":          `\d+(\.\d+)?\s?[KMGTP]?i?B in \d+(\.\d+)?\s?[KMGTP]?i?B out`,
 				"CPU Cores":      `\d+ \d+\.\d+%`,
 				"Connections":    `\d+`,
-				"GOMAXPROCS":     `\d+`,
+				"GOMAXPROCS":     `1`,
 				"Memory":         `\d+(\.\d+)?\s?[KMGTP]?i?B`,
+				"GOMEMLIMIT":     "1,073,741,824",
 				"Messages":       `\d+ in \d+ out`,
 				"Slow Consumers": `\d+`,
 				"Subscriptions":  `\d+`,
