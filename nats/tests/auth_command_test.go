@@ -81,19 +81,19 @@ func TestMapping(t *testing.T) {
 			teardown(t)
 		})
 
-		fields := map[string]*regexp.Regexp{
-			"source":      regexp.MustCompile("Source: test.a"),
-			"target":      regexp.MustCompile("Target: test.b"),
-			"weight":      regexp.MustCompile("Weight: 100"),
-			"totalWeight": regexp.MustCompile("Total weight: 100"),
+		fields := map[string]any{
+			"Configuration": map[string]any{
+				"Source":       "test.a",
+				"Target":       "test.b",
+				"Weight":       "100",
+				"Total weight": "100",
+			},
 		}
 
-		output := runNatsCli(t, fmt.Sprintf("auth account mappings add %s test.a test.b 100 --operator=%s", accountName, operatorName))
-
-		for name, pattern := range fields {
-			if !pattern.Match(output) {
-				t.Errorf("%s value does not match expected %s", name, pattern)
-			}
+		output := string(runNatsCli(t, fmt.Sprintf("auth account mappings add %s test.a test.b 100 --operator=%s", accountName, operatorName)))
+		err := expectMatchJSON(t, output, fields)
+		if err != nil {
+			t.Errorf("failed to add account: %s. %s", err, output)
 		}
 	})
 
@@ -113,12 +113,14 @@ func TestMapping(t *testing.T) {
 				setup(operatorName, accountName, t)
 				t.Cleanup(func() { teardown(t) })
 
-				fields := map[string]*regexp.Regexp{
-					"source":      regexp.MustCompile("Source: test.a"),
-					"target":      regexp.MustCompile("Target: test.b"),
-					"weight":      regexp.MustCompile("Weight: 100"),
-					"cluster":     regexp.MustCompile("Cluster: test_cluster"),
-					"totalWeight": regexp.MustCompile("Total weight: 100"),
+				fields := map[string]any{
+					"Configuration": map[string]any{
+						"Source":       "test.a",
+						"Target":       "test.b",
+						"Weight":       "100",
+						"Total weight": "100",
+						"Cluster":      "test_cluster",
+					},
 				}
 
 				fp := filepath.Join(TEST_DIR, fmt.Sprintf("test.%s", tt.fileExt))
@@ -133,12 +135,11 @@ func TestMapping(t *testing.T) {
 					t.Fatalf("Error writing to file: %s", err)
 				}
 
-				output := runNatsCli(t, fmt.Sprintf("auth account mappings add %s --operator=%s --config='%s'", accountName, operatorName, fp))
+				output := string(runNatsCli(t, fmt.Sprintf("auth account mappings add %s --operator=%s --config='%s'", accountName, operatorName, fp)))
 
-				for name, pattern := range fields {
-					if !pattern.Match(output) {
-						t.Errorf("%s value does not match expected %s", name, pattern)
-					}
+				err = expectMatchJSON(t, output, fields)
+				if err != nil {
+					t.Errorf("failed to add account: %s. %s", err, output)
 				}
 			})
 		}
@@ -173,20 +174,21 @@ func TestMapping(t *testing.T) {
 			teardown(t)
 		})
 
-		fields := map[string]*regexp.Regexp{
-			"source":      regexp.MustCompile("Source: test.a"),
-			"target":      regexp.MustCompile("Target: test.b"),
-			"weight":      regexp.MustCompile("Weight: 100"),
-			"totalWeight": regexp.MustCompile("Total weight: 100"),
+		fields := map[string]any{
+			"Configuration": map[string]any{
+				"Source":       "test.a",
+				"Target":       "test.b",
+				"Weight":       "100",
+				"Total weight": "100",
+			},
 		}
 
 		runNatsCli(t, fmt.Sprintf("auth account mappings add %s test.a test.b 100 --operator=%s", accountName, operatorName))
-		output := runNatsCli(t, fmt.Sprintf("auth account mappings info %s test.a --operator=%s", accountName, operatorName))
+		output := string(runNatsCli(t, fmt.Sprintf("auth account mappings info %s test.a --operator=%s", accountName, operatorName)))
 
-		for name, pattern := range fields {
-			if !pattern.Match(output) {
-				t.Errorf("%s value does not match expected %s", name, pattern)
-			}
+		err := expectMatchJSON(t, output, fields)
+		if err != nil {
+			t.Errorf("failed to get account info: %s. %s", err, output)
 		}
 	})
 
