@@ -230,7 +230,7 @@ port: 4222
 func deleteProfileFile(t *testing.T, dir string) {
 	t.Helper()
 
-	pattern := regexp.MustCompile(`^mutex-\d{8}-\d{6}-TEST_SERVER$`)
+	pattern := regexp.MustCompile(`^mutex-\d{8}-\d{6}-s1$`)
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

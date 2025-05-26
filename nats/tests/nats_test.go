@@ -105,10 +105,10 @@ func prepareHelper(servers string) (*nats.Conn, *jsm.Manager, error) {
 	return nc, mgr, nil
 }
 
-func createDefaultTestStream(t *testing.T, mgr *jsm.Manager) {
+func createDefaultTestStream(t *testing.T, mgr *jsm.Manager, replicas int) {
 	t.Helper()
 
-	_, err := mgr.NewStream("TEST_STREAM", jsm.Subjects("TEST_STREAM.*"))
+	_, err := mgr.NewStream("TEST_STREAM", jsm.Subjects("TEST_STREAM.*"), jsm.Replicas(replicas))
 	if err != nil {
 		t.Fatalf("unable to create stream: %s", err)
 	}
@@ -166,6 +166,14 @@ func withNatsServer(t *testing.T, cb func(*testing.T, *server.Server, *nats.Conn
 func withJSServer(t *testing.T, cb func(*testing.T, *server.Server, *nats.Conn, *jsm.Manager) error) {
 	t.Helper()
 	createServersWithCallback(t, 1, true, cb)
+}
+
+func withJSCluster(t *testing.T, cb func(*testing.T, []*server.Server, *nats.Conn, *jsm.Manager) error) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows due to GitHub Actions resource constraints")
+	}
+	createServersWithCallback(t, 3, true, cb)
 }
 
 func createServersWithCallback(t *testing.T, serverCount int, jsEnabled bool, cb any) {
@@ -301,111 +309,6 @@ func createServersWithCallback(t *testing.T, serverCount int, jsEnabled bool, cb
 
 		case <-ctx.Done():
 			t.Fatalf("jetstream did not become available in time")
-		}
-	}
-}
-
-func withJSCluster(t *testing.T, cb func(*testing.T, []*server.Server, *nats.Conn, *jsm.Manager) error) {
-	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows due to GitHub Actions resource constraints")
-	}
-
-	d, err := os.MkdirTemp("", "jstest")
-	if err != nil {
-		t.Fatalf("temp dir could not be made: %s", err)
-	}
-	defer os.RemoveAll(d)
-
-	var (
-		servers []*server.Server
-	)
-
-	sysAcc := server.NewAccount("SYS")
-
-	for i := 1; i <= 3; i++ {
-		opts := &server.Options{
-			JetStream:  true,
-			StoreDir:   filepath.Join(d, fmt.Sprintf("s%d", i)),
-			Port:       -1,
-			Host:       "localhost",
-			ServerName: fmt.Sprintf("s%d", i),
-			LogFile:    filepath.Join(d, fmt.Sprintf("s%d.log", i)),
-			Cluster: server.ClusterOpts{
-				Name: "TEST",
-				Port: 12000 + i,
-			},
-			Routes: []*url.URL{
-				{Host: "localhost:12001"},
-				{Host: "localhost:12002"},
-				{Host: "localhost:12003"},
-			},
-			SystemAccount: "SYS",
-			Accounts: []*server.Account{
-				sysAcc,
-			},
-			Users: []*server.User{
-				{
-					Username: "sys",
-					Password: "pass",
-					Account:  sysAcc,
-				},
-			},
-		}
-
-		s, err := server.NewServer(opts)
-		if err != nil {
-			t.Fatalf("server %d start failed: %v", i, err)
-		}
-		s.ConfigureLogger()
-		go s.Start()
-		if !s.ReadyForConnections(10 * time.Second) {
-			t.Errorf("nats server %d did not start", i)
-		}
-		defer func() {
-			s.Shutdown()
-		}()
-
-		servers = append(servers, s)
-	}
-
-	if len(servers) != 3 {
-		t.Fatalf("servers did not start")
-	}
-
-	nc, err := nats.Connect(servers[0].ClientURL(), nats.UseOldRequestStyle())
-	if err != nil {
-		t.Fatalf("client start failed: %s", err)
-	}
-	defer nc.Close()
-
-	mgr, err := jsm.New(nc, jsm.WithTimeout(5*time.Second))
-	if err != nil {
-		t.Fatalf("manager creation failed: %s", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			_, err := mgr.JetStreamAccountInfo()
-			if err != nil {
-				continue
-			}
-
-			err = cb(t, servers, nc, mgr)
-
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			return
-		case <-ctx.Done():
-			t.Fatalf("jetstream did not become available")
 		}
 	}
 }
@@ -1153,4 +1056,9 @@ func TestCLIMessageRm(t *testing.T) {
 	if err == nil {
 		t.Fatalf("loading delete message did not fail")
 	}
+}
+
+func TestMain(m *testing.M) {
+	os.Setenv("TESTING", "true")
+	m.Run()
 }

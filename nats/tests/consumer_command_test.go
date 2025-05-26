@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -27,20 +26,23 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// Create a randomly named consumer. This function implies testing the 'add' subcommand
-func createConsumer(mgr *jsm.Manager, t *testing.T, args ...jsm.ConsumerOption) (string, error) {
-	os.Setenv("TESTING", "true")
+const defaultStreamName = "TEST_STREAM"
+const defaultSubject = "TEST_STREAM.new"
+
+// Create a randomly named consumer
+func setupConsumerTest(t *testing.T, replicas int, mgr *jsm.Manager, args ...jsm.ConsumerOption) (string, error) {
 	t.Helper()
+	createDefaultTestStream(t, mgr, replicas)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	consumerName := fmt.Sprintf("TEST_%d", rng.Intn(1000000))
 	opts := []jsm.ConsumerOption{
 		jsm.DurableName(consumerName),
 		jsm.AcknowledgeExplicit(),
-		jsm.FilterStreamBySubject("ORDERS.new"),
+		jsm.FilterStreamBySubject(defaultSubject),
 	}
 	opts = append(opts, args...)
 
-	_, err := mgr.NewConsumer("ORDERS", opts...)
+	_, err := mgr.NewConsumer(defaultStreamName, opts...)
 
 	if err != nil {
 		return "", err
@@ -49,38 +51,130 @@ func createConsumer(mgr *jsm.Manager, t *testing.T, args ...jsm.ConsumerOption) 
 	return consumerName, nil
 }
 
-func setupConsumerTest(t *testing.T, args ...jsm.ConsumerOption) (srv *server.Server, nc *nats.Conn, mgr *jsm.Manager, name string) {
-	srv, nc, mgr = setupJStreamTest(t)
-	_, err := mgr.NewStream("ORDERS", jsm.Subjects("ORDERS.*"))
-	if err != nil {
-		t.Fatalf("unable to create stream: %s", err)
-	}
-	name, err = createConsumer(mgr, t, args...)
-	if err != nil {
-		t.Errorf("unable to setup consumer tests: %s", err)
-	}
-	return srv, nc, mgr, name
+func TestConsumerAdd(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		createDefaultTestStream(t, mgr, 1)
+		name := "TEST_CONSUMER"
+
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer add %s %s --defaults --pull", srv.ClientURL(), defaultStreamName, name))
+		err := expectMatchJSON(t, string(output),
+			map[string]any{
+				"Configuration": map[string]any{
+					"Ack Policy":        "Explicit",
+					"Ack Wait":          "30.00s",
+					"Deliver Policy":    "All",
+					"Max Ack Pending":   "1,000",
+					"Max Waiting Pulls": "512",
+					"Name":              name,
+					"Pull Mode":         "true",
+					"Replay Policy":     "Instant",
+				},
+				"Header": fmt.Sprintf(`Information for Consumer %s > %s created`, defaultStreamName, name),
+				"State": map[string]any{
+					"Acknowledgment Floor":   "Consumer sequence: 0 Stream sequence: 0",
+					"Last Delivered Message": "Consumer sequence: 0 Stream sequence: 0",
+					"Outstanding Acks":       "0 out of maximum 1,000",
+					"Redelivered Messages":   "0",
+					"Required API Level":     "0 hosted at level 1",
+					"Unprocessed Messages":   "0",
+					"Waiting Pulls":          "0 of maximum 512",
+				},
+			},
+		)
+		if err != nil {
+			t.Errorf("Failed to add consumer: %s. %s", err, output)
+		}
+		return nil
+	})
 }
 
-func TestConsumerAdd(t *testing.T) {
-	srv, _, _, _ := setupConsumerTest(t)
-	defer srv.Shutdown()
-	name := "ADD_TEST_CONSUMER"
+func TestConsumerRM(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer add ORDERS %s --defaults --pull", srv.ClientURL(), name))
-	err := expectMatchJSON(t, string(output),
-		map[string]any{
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer rm %s %s --force", srv.ClientURL(), defaultStreamName, name))
+
+		_, err = mgr.LoadConsumer(defaultStreamName, name)
+		if err == nil {
+			t.Errorf("failed to delete consumer: %s", output)
+		}
+		return nil
+	})
+}
+
+func TestConsumerEdit(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer edit %s %s --max-pending=10 -f", srv.ClientURL(), defaultStreamName, name))
+		if !strings.Contains(string(output), "MaxAckPending: 1000,") {
+			t.Errorf("expected old MaxAckPending line not found")
+		}
+		if !strings.Contains(string(output), "MaxAckPending: 10,") {
+			t.Errorf("expected new MaxAckPending line not found")
+		}
+		return nil
+	})
+}
+
+func TestConsumerLS(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer ls %s", srv.ClientURL(), defaultStreamName))
+
+		if !expectMatchLine(t, string(output), name, `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`, "0.*0", "never") {
+			t.Errorf("consumer row not found in output:\n%s", output)
+		}
+		return nil
+	})
+}
+
+func TestConsumerFind(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer find %s --pull", srv.ClientURL(), defaultStreamName))
+		if !expectMatchRegex(t, name, string(output)) {
+			t.Errorf("failed to find consumer %s in %s", name, string(output))
+		}
+		return nil
+	})
+}
+
+func TestConsumerInfo(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer info %s %s", srv.ClientURL(), defaultStreamName, name))
+		expected := map[string]any{
+			"Header": fmt.Sprintf(`Information for Consumer %s > %s created .*`, defaultStreamName, name),
 			"Configuration": map[string]any{
+				"Name":              `TEST_\d+`,
+				"Pull Mode":         "true",
+				"Filter Subject":    defaultStreamName,
 				"Ack Policy":        "Explicit",
-				"Ack Wait":          "30.00s",
+				"Replay Policy":     "Instant",
 				"Deliver Policy":    "All",
 				"Max Ack Pending":   "1,000",
 				"Max Waiting Pulls": "512",
-				"Name":              "ADD_TEST_CONSUMER",
-				"Pull Mode":         "true",
-				"Replay Policy":     "Instant",
+				"Ack Wait":          `30\.00s`,
 			},
-			"Header": `Information for Consumer ORDERS > ADD_TEST_CONSUMER created`,
 			"State": map[string]any{
 				"Acknowledgment Floor":   "Consumer sequence: 0 Stream sequence: 0",
 				"Last Delivered Message": "Consumer sequence: 0 Stream sequence: 0",
@@ -90,173 +184,113 @@ func TestConsumerAdd(t *testing.T) {
 				"Unprocessed Messages":   "0",
 				"Waiting Pulls":          "0 of maximum 512",
 			},
-		},
-	)
-	if err != nil {
-		t.Error(err)
-	}
-}
+		}
 
-func TestConsumerRM(t *testing.T) {
-	srv, _, mgr, name := setupConsumerTest(t)
-	defer srv.Shutdown()
-
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer rm ORDERS %s --force", srv.ClientURL(), name))
-
-	_, err := mgr.LoadConsumer("ORDERS", name)
-	if err == nil {
-		t.Errorf("failed to delete consumer: %s", output)
-	}
-
-}
-
-func TestConsumerEdit(t *testing.T) {
-	srv, _, _, name := setupConsumerTest(t)
-	defer srv.Shutdown()
-
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer edit ORDERS %s --max-pending=10 -f", srv.ClientURL(), name))
-	if !strings.Contains(string(output), "MaxAckPending: 1000,") {
-		t.Errorf("expected old MaxAckPending line not found")
-	}
-	if !strings.Contains(string(output), "MaxAckPending: 10,") {
-		t.Errorf("expected new MaxAckPending line not found")
-	}
-}
-
-func TestConsumerLS(t *testing.T) {
-	srv, _, _, name := setupConsumerTest(t)
-	defer srv.Shutdown()
-
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer ls ORDERS", srv.ClientURL()))
-
-	if !expectMatchLine(t, string(output), name, `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`, "0.*0", "never") {
-		t.Errorf("consumer row not found in output:\n%s", output)
-	}
-}
-
-func TestConsumerFind(t *testing.T) {
-	srv, _, _, name := setupConsumerTest(t)
-	defer srv.Shutdown()
-
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer find ORDERS --pull", srv.ClientURL()))
-	if !expectMatchRegex(t, name, string(output)) {
-		t.Errorf("failed to find consumer %s in %s", name, string(output))
-	}
-}
-
-func TestConsumerInfo(t *testing.T) {
-	os.Setenv("TESTING", "true")
-	srv, _, _, name := setupConsumerTest(t)
-	defer srv.Shutdown()
-
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer info ORDERS %s", srv.ClientURL(), name))
-	expected := map[string]any{
-		"Header": `Information for Consumer ORDERS > TEST_\d+ created .*`,
-		"Configuration": map[string]any{
-			"Name":              `TEST_\d+`,
-			"Pull Mode":         "true",
-			"Filter Subject":    `ORDERS\.new`,
-			"Ack Policy":        "Explicit",
-			"Replay Policy":     "Instant",
-			"Deliver Policy":    "All",
-			"Max Ack Pending":   "1,000",
-			"Max Waiting Pulls": "512",
-			"Ack Wait":          `30\.00s`,
-		},
-		"State": map[string]any{
-			"Acknowledgment Floor":   "Consumer sequence: 0 Stream sequence: 0",
-			"Last Delivered Message": "Consumer sequence: 0 Stream sequence: 0",
-			"Outstanding Acks":       "0 out of maximum 1,000",
-			"Redelivered Messages":   "0",
-			"Required API Level":     "0 hosted at level 1",
-			"Unprocessed Messages":   "0",
-			"Waiting Pulls":          "0 of maximum 512",
-		},
-	}
-
-	if err := expectMatchJSON(t, string(output), expected); err != nil {
-		t.Errorf("columns mismatch: %v", err)
-	}
+		if err := expectMatchJSON(t, string(output), expected); err != nil {
+			t.Errorf("columns mismatch: %v", err)
+		}
+		return nil
+	})
 }
 
 func TestConsumerState(t *testing.T) {
-	srv, _, _, name := setupConsumerTest(t)
-	defer srv.Shutdown()
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer state ORDERS %s", srv.ClientURL(), name))
-	expected := map[string]any{
-		"Header": `State for Consumer ORDERS > TEST_\d+ created .*`,
-		"State": map[string]any{
-			"Acknowledgment Floor":   "Consumer sequence: 0 Stream sequence: 0",
-			"Last Delivered Message": "Consumer sequence: 0 Stream sequence: 0",
-			"Outstanding Acks":       "0 out of maximum 1,000",
-			"Redelivered Messages":   "0",
-			"Required API Level":     "0 hosted at level 1",
-			"Unprocessed Messages":   "0",
-			"Waiting Pulls":          "0 of maximum 512",
-		},
-	}
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer state %s %s", srv.ClientURL(), defaultStreamName, name))
+		expected := map[string]any{
+			"Header": fmt.Sprintf(`State for Consumer %s > %s created .*`, defaultStreamName, name),
+			"State": map[string]any{
+				"Acknowledgment Floor":   "Consumer sequence: 0 Stream sequence: 0",
+				"Last Delivered Message": "Consumer sequence: 0 Stream sequence: 0",
+				"Outstanding Acks":       "0 out of maximum 1,000",
+				"Redelivered Messages":   "0",
+				"Required API Level":     "0 hosted at level 1",
+				"Unprocessed Messages":   "0",
+				"Waiting Pulls":          "0 of maximum 512",
+			},
+		}
 
-	if err := expectMatchJSON(t, string(output), expected); err != nil {
-		t.Errorf("columns mismatch: %v", err)
-	}
+		if err := expectMatchJSON(t, string(output), expected); err != nil {
+			t.Errorf("columns mismatch: %v", err)
+		}
+		return nil
+	})
 }
 
 func TestConsumerCopy(t *testing.T) {
-	srv, _, _, name := setupConsumerTest(t)
-	defer srv.Shutdown()
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer copy ORDERS %s COPY_1", srv.ClientURL(), name))
-	expected := map[string]any{
-		"Header": `Information for Consumer ORDERS > COPY_1 created`,
-		"State": map[string]any{
-			"Acknowledgment Floor":   "Consumer sequence: 0 Stream sequence: 0",
-			"Last Delivered Message": "Consumer sequence: 0 Stream sequence: 0",
-			"Outstanding Acks":       "0 out of maximum 1,000",
-			"Redelivered Messages":   "0",
-			"Required API Level":     "0 hosted at level 1",
-			"Unprocessed Messages":   "0",
-			"Waiting Pulls":          "0 of maximum 512",
-		},
-	}
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer copy %s %s COPY_1", srv.ClientURL(), defaultStreamName, name))
+		expected := map[string]any{
+			"Header": fmt.Sprintf(`Information for Consumer %s > COPY_1 created`, defaultStreamName),
+			"State": map[string]any{
+				"Acknowledgment Floor":   "Consumer sequence: 0 Stream sequence: 0",
+				"Last Delivered Message": "Consumer sequence: 0 Stream sequence: 0",
+				"Outstanding Acks":       "0 out of maximum 1,000",
+				"Redelivered Messages":   "0",
+				"Required API Level":     "0 hosted at level 1",
+				"Unprocessed Messages":   "0",
+				"Waiting Pulls":          "0 of maximum 512",
+			},
+		}
 
-	if err := expectMatchJSON(t, string(output), expected); err != nil {
-		t.Errorf("columns mismatch: %v", err)
-	}
+		if err := expectMatchJSON(t, string(output), expected); err != nil {
+			t.Errorf("columns mismatch: %v", err)
+		}
+		return nil
+	})
 }
 
 func TestConsumerNext(t *testing.T) {
-	srv, nc, _, name := setupConsumerTest(t)
-	defer srv.Shutdown()
-	msgBody := "test message"
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		msgBody := "test message"
 
-	err := nc.Publish("ORDERS.new", []byte(msgBody))
-	if err != nil {
-		t.Fatalf("failed to publish message: %v", err)
-	}
+		err = nc.Publish(defaultSubject, []byte(msgBody))
+		if err != nil {
+			t.Fatalf("failed to publish message: %v", err)
+		}
 
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer next ORDERS %s", srv.ClientURL(), name))
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer next %s %s", srv.ClientURL(), defaultStreamName, name))
 
-	if !expectMatchRegex(t, msgBody, string(output)) {
-		t.Errorf("failed to find message body %s in %s", msgBody, string(output))
-	}
+		if !expectMatchRegex(t, msgBody, string(output)) {
+			t.Errorf("failed to find message body %s in %s", msgBody, string(output))
+		}
+		return nil
+	})
 }
 
 func TestConsumerSub(t *testing.T) {
-	srv, nc, _, name := setupConsumerTest(t)
-	defer srv.Shutdown()
-	msgBody := "test message"
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		msgBody := "test message"
 
-	err := nc.Publish("ORDERS.new", []byte(msgBody))
-	if err != nil {
-		t.Fatalf("failed to publish message: %v", err)
-	}
+		err = nc.Publish(defaultSubject, []byte(msgBody))
+		if err != nil {
+			t.Fatalf("failed to publish message: %v", err)
+		}
 
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer sub ORDERS %s", srv.ClientURL(), name))
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer sub %s %s", srv.ClientURL(), defaultStreamName, name))
 
-	if !expectMatchRegex(t, msgBody, string(output)) {
-		t.Errorf("failed to find message body %s in %s", msgBody, string(output))
-	}
+		if !expectMatchRegex(t, msgBody, string(output)) {
+			t.Errorf("failed to find message body %s in %s", msgBody, string(output))
+		}
+		return nil
+	})
 
 }
 
@@ -264,89 +298,107 @@ func TestConsumerSub(t *testing.T) {
 // func TestConsumerGraph(t *testing.T) {}
 
 func TestConsumerPause(t *testing.T) {
-	srv, _, _, name := setupConsumerTest(t)
-	defer srv.Shutdown()
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer pause ORDERS %s \"2050-04-22 11:48:55\" --force", srv.ClientURL(), name))
-	expected := fmt.Sprintf("Paused ORDERS > %s until 2050-04-22", name)
-	if !expectMatchRegex(t, expected, string(output)) {
-		t.Errorf("failed to pause consumer %s: %s", name, string(output))
-	}
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer pause %s %s \"2050-04-22 11:48:55\" --force", srv.ClientURL(), defaultStreamName, name))
+		expected := fmt.Sprintf("Paused %s > %s until 2050-04-22", defaultStreamName, name)
+		if !expectMatchRegex(t, expected, string(output)) {
+			t.Errorf("failed to pause consumer %s: %s", name, string(output))
+		}
+		return nil
+	})
 }
+
 func TestConsumerUnpin(t *testing.T) {
-	groupName := "PINNED_GROUP"
-	srv, nc, _, consumerName := setupConsumerTest(t, jsm.PinnedClientPriorityGroups(time.Duration(1*time.Minute), groupName))
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		groupName := "PINNED_GROUP"
+		consumerName, err := setupConsumerTest(t, 1, mgr, jsm.PinnedClientPriorityGroups(time.Duration(1*time.Minute), groupName))
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	err := nc.Publish("ORDERS.new", []byte("test"))
-	if err != nil {
-		t.Fatalf("failed to publish message: %v", err)
-	}
+		err = nc.Publish(defaultSubject, []byte("test"))
+		if err != nil {
+			t.Fatalf("failed to publish message: %v", err)
+		}
 
-	reqBody := map[string]any{
-		"batch":   1,
-		"expires": 1000000000,
-		"group":   groupName,
-	}
+		reqBody := map[string]any{
+			"batch":   1,
+			"expires": 1000000000,
+			"group":   groupName,
+		}
 
-	data, err := json.Marshal(reqBody)
-	if err != nil {
-		t.Fatalf("failed to marshal pull request: %v", err)
-	}
+		data, err := json.Marshal(reqBody)
+		if err != nil {
+			t.Fatalf("failed to marshal pull request: %v", err)
+		}
 
-	msg := &nats.Msg{
-		Subject: "$JS.API.CONSUMER.MSG.NEXT.ORDERS." + consumerName,
-		Data:    data,
-	}
+		msg := &nats.Msg{
+			Subject: fmt.Sprintf("$JS.API.CONSUMER.MSG.NEXT.%s.%s", defaultStreamName, consumerName),
+			Data:    data,
+		}
 
-	_, err = nc.RequestMsg(msg, 2*time.Second)
-	if err != nil {
-		t.Fatalf("request error: %v", err)
-	}
+		_, err = nc.RequestMsg(msg, 2*time.Second)
+		if err != nil {
+			t.Fatalf("request error: %v", err)
+		}
 
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer unpin ORDERS %s %s -f", srv.ClientURL(), consumerName, groupName))
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer unpin %s %s %s -f", srv.ClientURL(), defaultStreamName, consumerName, groupName))
 
-	expected := `Unpinned client .+ from Priority Group ORDERS > TEST_\d+ > PINNED_GROUP`
-	if !expectMatchRegex(t, expected, string(output)) {
-		t.Errorf("failed to unpin consumer %s: %s", consumerName, string(output))
-	}
+		expected := fmt.Sprintf(`Unpinned client .+ from Priority Group %s > %s > %s`, defaultStreamName, consumerName, groupName)
+		if !expectMatchRegex(t, expected, string(output)) {
+			t.Errorf("failed to unpin consumer %s: %s", consumerName, string(output))
+		}
+		return nil
+	})
 }
 
 func TestConsumerResume(t *testing.T) {
-	srv, _, _, name := setupConsumerTest(t)
-	defer srv.Shutdown()
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	runNatsCli(t, fmt.Sprintf("--server='%s' consumer pause ORDERS %s \"2050-04-22 11:48:55\" --force", srv.ClientURL(), name))
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer resume ORDERS %s --force", srv.ClientURL(), name))
+		runNatsCli(t, fmt.Sprintf("--server='%s' consumer pause %s %s \"2050-04-22 11:48:55\" --force", srv.ClientURL(), defaultStreamName, name))
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer resume %s %s --force", srv.ClientURL(), defaultStreamName, name))
 
-	expected := fmt.Sprintf("Consumer ORDERS > %s was resumed while previously paused until 2050-04-22", name)
-	if !expectMatchRegex(t, expected, string(output)) {
-		t.Errorf("failed to pause consumer %s: %s", name, string(output))
-	}
+		expected := fmt.Sprintf("Consumer %s > %s was resumed while previously paused until 2050-04-22", defaultStreamName, name)
+		if !expectMatchRegex(t, expected, string(output)) {
+			t.Errorf("failed to pause consumer %s: %s", name, string(output))
+		}
+		return nil
+	})
 }
 
 func TestConsumerReport(t *testing.T) {
-	srv, _, _, name := setupConsumerTest(t)
-	defer srv.Shutdown()
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name, err := setupConsumerTest(t, 1, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer report ORDERS", srv.ClientURL()))
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer report %s", srv.ClientURL(), defaultStreamName))
 
-	if !expectMatchLine(t, string(output), name, "Pull", "Explicit") {
-		t.Errorf("consumer row not found in output:\n%s", output)
-	}
+		if !expectMatchLine(t, string(output), name, "Pull", "Explicit") {
+			t.Errorf("consumer row not found in output:\n%s", output)
+		}
+		return nil
+	})
 }
 
 func TestConsumerClusterDown(t *testing.T) {
 	withJSCluster(t, func(t *testing.T, servers []*server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		_, err := mgr.NewStream("ORDERS", jsm.Subjects("ORDERS.*"), jsm.Replicas(3))
+		name, err := setupConsumerTest(t, 3, mgr)
 		if err != nil {
-			t.Errorf("unable to create stream: %s", err)
-		}
-		_, err = mgr.NewConsumer("ORDERS", jsm.DurableName("CLUSTER_TEST"), jsm.AcknowledgeExplicit(), jsm.FilterStreamBySubject("ORDERS.new"))
-		if err != nil {
-			t.Errorf("unable to create consumer: %s", err)
+			t.Fatal(err)
 		}
 
-		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer cluster step-down ORDERS CLUSTER_TEST", servers[0].ClientURL()))
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer cluster step-down %s %s", servers[0].ClientURL(), defaultStreamName, name))
 		success, field, expected := expectMatchMap(t,
 			map[string]string{
 				"stepdown": "Requesting leader step down of \"s\\d\" in a 3 peer RAFT group",
@@ -364,20 +416,16 @@ func TestConsumerClusterDown(t *testing.T) {
 
 func TestConsumerClusterBalance(t *testing.T) {
 	withJSCluster(t, func(t *testing.T, servers []*server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		_, err := mgr.NewStream("ORDERS", jsm.Subjects("ORDERS.*"), jsm.Replicas(3))
+		_, err := setupConsumerTest(t, 3, mgr)
 		if err != nil {
-			t.Errorf("unable to create stream: %s", err)
-		}
-		_, err = mgr.NewConsumer("ORDERS", jsm.DurableName("CLUSTER_TEST"), jsm.AcknowledgeExplicit(), jsm.FilterStreamBySubject("ORDERS.new"))
-		if err != nil {
-			t.Errorf("unable to create consumer: %s", err)
+			t.Fatal(err)
 		}
 
-		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer cluster balance ORDERS", servers[0].ClientURL()))
+		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer cluster balance %s", servers[0].ClientURL(), defaultStreamName))
 		success, field, expected := expectMatchMap(t,
 			map[string]string{
 				"cluster_found": `Found cluster TEST with a balanced distribution of \d`,
-				"balanced":      `Balanced \d consumers on ORDERS`,
+				"balanced":      fmt.Sprintf(`Balanced \d consumers on %s`, defaultStreamName),
 			},
 			string(output),
 		)

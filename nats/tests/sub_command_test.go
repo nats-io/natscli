@@ -44,7 +44,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--dump=file", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -73,7 +73,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--dump=-", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -99,7 +99,7 @@ func TestSubscribe(t *testing.T) {
 	})
 	t.Run("--translate", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -118,7 +118,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--translate empty message", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(&nats.Msg{
 				Subject: "TEST_STREAM.1",
@@ -140,7 +140,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--dump and --translate", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -192,7 +192,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--raw", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -210,7 +210,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--pretty", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -275,7 +275,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--durable", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -359,7 +359,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--headers-only", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			nc.PublishMsg(&nats.Msg{
 				Subject: "TEST_STREAM.1",
@@ -379,7 +379,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--subjects-only", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -397,7 +397,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--start-sequence", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -423,7 +423,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--all", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -448,7 +448,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--new", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -481,7 +481,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--since", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -498,7 +498,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--last-per-subject", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -523,7 +523,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--ignore-subject", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -548,7 +548,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--wait", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -563,7 +563,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--report-subjects", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -578,7 +578,7 @@ func TestSubscribe(t *testing.T) {
 	t.Run("--report-subscriptions", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 
-			createDefaultTestStream(t, mgr)
+			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
