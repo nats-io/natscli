@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,8 +32,10 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/internal/asciigraph"
 	iu "github.com/nats-io/natscli/internal/util"
+	"github.com/synadia-io/orbit.go/jetstreamext"
 	terminal "golang.org/x/term"
 )
 
@@ -68,6 +71,7 @@ type subCmd struct {
 	width                 int
 	height                int
 	messageRates          map[string]*subMessageRate
+	direct                bool
 }
 
 type subMessageRate struct {
@@ -130,6 +134,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("timestamp", "Show timestamps in output").Short('t').UnNegatableBoolVar(&c.timeStamps)
 	act.Flag("delta-time", "Show time since start in output").Short('d').UnNegatableBoolVar(&c.deltaTimeStamps)
 	act.Flag("graph", "Graph the rate of messages received").UnNegatableBoolVar(&c.graphOnly)
+	act.Flag("direct", "Subscribe using batched direct gets instead of a durable consumer").UnNegatableBoolVar(&c.direct)
 }
 
 func init() {
@@ -306,6 +311,30 @@ func (c *subCmd) validateInputs(nc *nats.Conn) error {
 		err := os.MkdirAll(c.dump, 0700)
 		if err != nil {
 			return err
+		}
+	}
+
+	isWorkQueue, err := iu.IsWorkQueue(c.stream, nc)
+	if err != nil {
+		return err
+	}
+	c.direct = c.direct || isWorkQueue
+
+	if c.direct {
+		if c.stream == "" {
+			return fmt.Errorf("cannot enable direct gets: stream name is required")
+		}
+
+		mgr, err := jsm.New(nc)
+		if err != nil {
+			return err
+		}
+		apiLevel, err := mgr.MetaApiLevel(true)
+		if err != nil {
+			return err
+		}
+		if apiLevel < 1 {
+			return fmt.Errorf("cannot enable direct gets: API level 1 is required")
 		}
 	}
 
@@ -630,6 +659,107 @@ func (c *subCmd) defaultSubscribe(nc *nats.Conn, handler nats.MsgHandler, subs *
 	return nil
 }
 
+func (c *subCmd) directSubscribe(subCtx context.Context, nc *nats.Conn, handler nats.MsgHandler, subs *[]*nats.Subscription, ignoreSubjects []string) error {
+	js, err := jetstream.New(nc)
+	if err != nil {
+		return err
+	}
+
+	stream, err := js.Stream(subCtx, c.stream)
+	if err != nil {
+		return err
+	}
+
+	snfo, err := stream.Info(subCtx)
+	if err != nil {
+		return err
+	}
+
+	ignoredSubjInfo := ""
+	if len(ignoreSubjects) > 0 {
+		ignoredSubjInfo = fmt.Sprintf("\nIgnored subjects: %s", f(ignoreSubjects))
+	}
+
+	subMsg := c.firstSubject()
+	if c.stream != "" {
+		if len(c.subjects) == 0 {
+			subMsg = f(snfo.Config.Subjects)
+		}
+	}
+
+	// GetBatch called later assumes that the first msg is at sequence 0. We get the real starting position here so
+	// we can pass it on later
+	batchSequence := snfo.State.FirstSeq
+	batchSize := 1
+	lastForSubjects := false
+	var start time.Time
+
+	switch {
+	case c.sseq > 0:
+		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s starting with sequence %d %s", subMsg, c.sseq, ignoredSubjInfo)
+		batchSequence = c.sseq
+	case c.deliverLast:
+		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s starting with the last message received %s", subMsg, ignoredSubjInfo)
+		batchSequence = snfo.State.LastSeq
+	case c.deliverAll:
+		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s starting with the first message received %s", subMsg, ignoredSubjInfo)
+		batchSequence = snfo.State.FirstSeq
+	case c.deliverNew:
+		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s delivering any new messages received %s", subMsg, ignoredSubjInfo)
+		batchSequence = snfo.State.LastSeq + 1
+	case c.deliverSince != "":
+		d, err := fisk.ParseDuration(c.deliverSince)
+		if err != nil {
+			return err
+		}
+		start = time.Now().Add(-1 * d)
+		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s starting with messages since %s %s", subMsg, f(d), ignoredSubjInfo)
+		batchSequence = snfo.State.LastSeq + 1
+	case c.deliverLastPerSubject:
+		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s for the last messages for each subject in the Stream %s", subMsg, ignoredSubjInfo)
+		lastForSubjects = true
+		batchSequence = snfo.State.LastSeq
+	}
+
+	for {
+		var msgs iter.Seq2[*jetstream.RawStreamMsg, error]
+		if lastForSubjects {
+			msgs, err = jetstreamext.GetLastMsgsFor(subCtx, js, c.stream, c.subjects, jetstreamext.GetLastMsgsUpToSeq(batchSequence), jetstreamext.GetLastMsgsBatchSize(batchSize))
+		} else {
+			if !start.IsZero() {
+				msgs, err = jetstreamext.GetBatch(subCtx, js, c.stream, batchSize, jetstreamext.GetBatchStartTime(start))
+				// We only get the messages from start up to now, then we continue to use batchSequence
+				start = time.Time{}
+			} else {
+				msgs, err = jetstreamext.GetBatch(subCtx, js, c.stream, batchSize, jetstreamext.GetBatchSeq(batchSequence))
+			}
+		}
+
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+			return err
+		}
+
+		for msg, err := range msgs {
+			if errors.Is(err, jetstreamext.ErrNoMessages) {
+				break
+			}
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			nmsg := iu.Raw2NatsMsg(msg)
+
+			handler(nmsg)
+			batchSequence += uint64(batchSize)
+		}
+	}
+}
+
 func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	nc, err := newNatsConn("", natsOpts()...)
 	if err != nil {
@@ -721,6 +851,8 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		err = c.graphSubscribe(ctx, nc, msgHandler, &subs, &subjMu)
 	case c.reportSubjects:
 		err = c.reportSubscribe(ctx, nc, msgHandler, &subs, &subjMu, subjectReportMap, subjectBytesReportMap)
+	case c.direct:
+		err = c.directSubscribe(ctx, nc, msgHandler, &subs, ignoreSubjects)
 	case c.jetStream:
 		err = c.jetStreamSubscribe(nc, msgHandler, &subs, ignoreSubjects)
 	case c.queue != "":
