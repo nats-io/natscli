@@ -27,6 +27,7 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/synadia-io/jwt-auth-builder.go v0.0.9
+	github.com/synadia-io/orbit.go/jetstreamext v0.1.0
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.39.0
 	golang.org/x/term v0.32.0
@@ -62,6 +63,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
+	github.com/synadia-io/orbit.go/natsext v0.1.1 // indirect
 	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect

@@ -319,7 +319,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--match-replies", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			_, err := nc.Subscribe("TEST_SUBJECT", func(msg *nats.Msg) {
+			_, err := nc.Subscribe("TEST_STREAMJECT", func(msg *nats.Msg) {
 				reply := fmt.Sprintf("test reply %s", string(msg.Data))
 				nc.Publish(msg.Reply, []byte(reply))
 			})
@@ -334,7 +334,7 @@ func TestSubscribe(t *testing.T) {
 			// Give the process time to spawn in the go routine. it can be slow in a test environment
 			time.Sleep(1 * time.Second)
 
-			_, err = nc.Request("TEST_SUBJECT", []byte("test request"), 1*time.Second)
+			_, err = nc.Request("TEST_STREAMJECT", []byte("test request"), 1*time.Second)
 			if err != nil {
 				t.Error(err)
 			}
@@ -578,7 +578,6 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--report-subscriptions", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-
 			createDefaultTestStream(t, mgr, 1)
 
 			err := nc.PublishMsg(defaultTestMsg)
@@ -630,5 +629,160 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--graph", func(t *testing.T) {
 		// This command requires a terminal
+	})
+
+	t.Run("--direct", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1, jsm.AllowDirect())
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --count=1", srv.ClientURL())))
+			if !expectMatchLine(t, output, primaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--direct without stream", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1, jsm.AllowDirect())
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST_STREAM.1 --direct --raw --count=1", srv.ClientURL())))
+			if !expectMatchLine(t, output, primaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--direct with start sequence", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1, jsm.AllowDirect())
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			err = nc.Publish("TEST_STREAM.new", []byte(secondaryTestMsgData))
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1 --start-sequence=2", srv.ClientURL())))
+			if !expectMatchLine(t, output, secondaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--direct with last", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1, jsm.AllowDirect())
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			err = nc.Publish("TEST_STREAM.new", []byte(secondaryTestMsgData))
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1 --last", srv.ClientURL())))
+			if !expectMatchLine(t, output, secondaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--direct with deliver all", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1, jsm.AllowDirect())
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			err = nc.Publish("TEST_STREAM.new", []byte(secondaryTestMsgData))
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1 --all", srv.ClientURL())))
+			if !expectMatchLine(t, output, primaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--direct with new", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1, jsm.AllowDirect())
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			outputCh := make(chan string)
+			go func() {
+				outputCh <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1 --new", srv.ClientURL())))
+			}()
+
+			// Give the process time to spawn in the go routine. it can be slow in a test environment
+			time.Sleep(1 * time.Second)
+			err = nc.Publish("TEST_STREAM.new", []byte(secondaryTestMsgData))
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := <-outputCh
+			if !expectMatchLine(t, output, secondaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--direct with since", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1, jsm.AllowDirect())
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1 --since=10s", srv.ClientURL())))
+			if !expectMatchLine(t, output, primaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--direct with last for subject", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1, jsm.AllowDirect())
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST_STREAM.* --stream=TEST_STREAM --raw --count=1 --last-per-subject", srv.ClientURL())))
+			if !expectMatchLine(t, output, primaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+			return nil
+		})
 	})
 }
