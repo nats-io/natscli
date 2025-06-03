@@ -6,10 +6,10 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/choria-io/fisk v0.7.1
-	github.com/choria-io/scaffold v0.0.4
+	github.com/choria-io/scaffold v0.0.5-0.20250528101939-8312afbc86bb
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.8.0
-	github.com/expr-lang/expr v1.17.2
+	github.com/expr-lang/expr v1.17.4
 	github.com/fatih/color v1.18.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.7.0
@@ -20,8 +20,8 @@ require (
 	github.com/klauspost/compress v1.18.0
 	github.com/nats-io/jsm.go v0.2.3
 	github.com/nats-io/jwt/v2 v2.7.4
-	github.com/nats-io/nats-server/v2 v2.11.3
-	github.com/nats-io/nats.go v1.42.0
+	github.com/nats-io/nats-server/v2 v2.11.4
+	github.com/nats-io/nats.go v1.43.0
 	github.com/nats-io/nkeys v0.4.11
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.22.0
@@ -57,12 +57,12 @@ require (
 	github.com/nats-io/nsc/v2 v2.11.0 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.63.0 // indirect
+	github.com/prometheus/common v0.64.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/spf13/cast v1.8.0 // indirect
-	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
+	github.com/spf13/cast v1.9.2 // indirect
+	golang.org/x/exp v0.0.0-20250531010427-b6e5de432a8b // indirect
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
