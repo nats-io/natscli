@@ -205,7 +205,7 @@ func (b *Bundle) scaffold(dest string, env map[string]any, debug bool) error {
 
 	s, err := scaffold.New(cfg, templateFuncs())
 	if err != nil {
-		return err
+		return fmt.Errorf("scaffold failed: %w", err)
 	}
 
 	s.Logger(newLogger(debug))
