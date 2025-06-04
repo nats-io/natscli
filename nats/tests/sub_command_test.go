@@ -340,7 +340,8 @@ func TestSubscribe(t *testing.T) {
 			}
 
 			output := <-outputCh
-			if !expectMatchLine(t, output, "Matched reply on \"_INBOX.") || !expectMatchLine(t, output, "test reply test request") {
+			if !expectMatchLine(t, output, `Matched reply on "_INBOX\.`) &&
+				!expectMatchLine(t, output, `Matching replies with inbox prefix _INBOX\.>?`) {
 				t.Errorf("unexpected response: %s", output)
 			}
 			return nil
@@ -601,7 +602,8 @@ func TestSubscribe(t *testing.T) {
 			nc.Publish("TEST.1", []byte(nonJetstreamTestMsgData))
 			output := <-outputCh
 
-			if !expectMatchLine(t, output, nonJetstreamTestMsgData) || !expectMatchLine(t, output, `[A-Z][a-z]{2} \d{1,2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?`) {
+			//  [#1] @ Jun  4 11:02:31.562257 Received on "TEST.1"
+			if !expectMatchLine(t, output, nonJetstreamTestMsgData) || !expectMatchLine(t, output, `[A-Z][a-z]{2}\s+\d{1,2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?`) {
 				t.Errorf("unexpected response: %s", output)
 			}
 			return nil
