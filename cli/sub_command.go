@@ -322,6 +322,14 @@ func (c *subCmd) validateInputs(nc *nats.Conn) error {
 
 	if c.direct {
 		if c.stream == "" {
+			// try to infer the stream from the subject
+			mgr, err := jsm.New(nc)
+			if err != nil {
+				return err
+			}
+			streams, err := mgr.StreamNames(&jsm.StreamNamesFilter{
+				Subject: c.subjects[],
+			})
 			return fmt.Errorf("cannot enable direct gets: stream name is required")
 		}
 

@@ -652,15 +652,11 @@ func IsWorkQueue(streamName string, nc *nats.Conn) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	stream, err := mgr.LoadOrNewStream(streamName)
+	stream, err := mgr.LoadStream(streamName)
 	if err != nil {
 		return false, err
 	}
-	info, err := stream.LatestInformation()
-	if err != nil {
-		return false, err
-	}
-	if info.Config.Retention == api.RetentionPolicy(nats.WorkQueuePolicy) {
+	if stream.Retention() == api.RetentionPolicy(nats.WorkQueuePolicy) {
 		return true, nil
 	}
 
