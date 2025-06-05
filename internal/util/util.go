@@ -643,15 +643,11 @@ func ParseStringAsBytes(s string) (int64, error) {
 }
 
 // IsWorkQueue inspecs a stream's config to see if it's a workqueue or not
-func IsWorkQueue(streamName string, nc *nats.Conn) (bool, error) {
+func IsWorkQueue(streamName string, mgr *jsm.Manager) (bool, error) {
 	if streamName == "" {
 		return false, nil
 	}
 
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		return false, err
-	}
 	stream, err := mgr.LoadStream(streamName)
 	if err != nil {
 		return false, err

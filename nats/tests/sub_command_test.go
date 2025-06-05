@@ -235,7 +235,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--queue", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			subject := "TEST_SUB"
+			subject := "TEST_STREAM"
 			queue := "TEST_QUEUE"
 			msgReceived := false
 
@@ -256,7 +256,7 @@ func TestSubscribe(t *testing.T) {
 			// Send a lot of messages. This should be enough to make sure both subscribers get at least 1 msg each and
 			// we can test that the subscription is to a named queue group
 			for range 20 {
-				nc.Publish("TEST_SUB", []byte(nonJetstreamTestMsgData))
+				nc.Publish("TEST_STREAM", []byte(nonJetstreamTestMsgData))
 			}
 
 			output := <-outputCh
@@ -319,7 +319,7 @@ func TestSubscribe(t *testing.T) {
 
 	t.Run("--match-replies", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			_, err := nc.Subscribe("TEST_SUBJECT", func(msg *nats.Msg) {
+			_, err := nc.Subscribe("TEST_STREAMJECT", func(msg *nats.Msg) {
 				reply := fmt.Sprintf("test reply %s", string(msg.Data))
 				nc.Publish(msg.Reply, []byte(reply))
 			})
@@ -334,7 +334,7 @@ func TestSubscribe(t *testing.T) {
 			// Give the process time to spawn in the go routine. it can be slow in a test environment
 			time.Sleep(1 * time.Second)
 
-			_, err = nc.Request("TEST_SUBJECT", []byte("test request"), 1*time.Second)
+			_, err = nc.Request("TEST_STREAMJECT", []byte("test request"), 1*time.Second)
 			if err != nil {
 				t.Error(err)
 			}
@@ -638,6 +638,22 @@ func TestSubscribe(t *testing.T) {
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1", srv.ClientURL())))
+			if !expectMatchLine(t, output, primaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--direct without stream", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1, jsm.AllowDirect())
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST_STREAM.1 --direct --raw --count=1", srv.ClientURL())))
 			if !expectMatchLine(t, output, primaryTestMsgData) {
 				t.Errorf("unexpected response: %s", output)
 			}

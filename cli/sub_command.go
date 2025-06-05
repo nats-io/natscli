@@ -314,7 +314,12 @@ func (c *subCmd) validateInputs(nc *nats.Conn) error {
 		}
 	}
 
-	isWorkQueue, err := iu.IsWorkQueue(c.stream, nc)
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		return err
+	}
+
+	isWorkQueue, err := iu.IsWorkQueue(c.stream, mgr)
 	if err != nil {
 		return err
 	}
@@ -322,21 +327,26 @@ func (c *subCmd) validateInputs(nc *nats.Conn) error {
 
 	if c.direct {
 		if c.stream == "" {
-			// try to infer the stream from the subject
-			mgr, err := jsm.New(nc)
+			if len(c.subjects) > 1 {
+				return fmt.Errorf("cannot enable direct gets: cannot perform direct gets from multiple subjects")
+
+			}
+			streams, err := mgr.StreamNames(&jsm.StreamNamesFilter{
+				Subject: c.subjects[0],
+			})
 			if err != nil {
 				return err
 			}
-			streams, err := mgr.StreamNames(&jsm.StreamNamesFilter{
-				Subject: c.subjects[],
-			})
-			return fmt.Errorf("cannot enable direct gets: stream name is required")
+
+			if len(streams) > 1 {
+				return fmt.Errorf("cannot enable direct gets: subject mapped to multiple streams")
+			} else if len(streams) == 0 {
+				return fmt.Errorf("cannot enable direct gets: subject mapped to no streams")
+			}
+
+			c.stream = streams[0]
 		}
 
-		mgr, err := jsm.New(nc)
-		if err != nil {
-			return err
-		}
 		apiLevel, err := mgr.MetaApiLevel(true)
 		if err != nil {
 			return err
@@ -760,6 +770,7 @@ func (c *subCmd) directSubscribe(subCtx context.Context, nc *nats.Conn, handler 
 			if err != nil {
 				return err
 			}
+
 			nmsg := iu.Raw2NatsMsg(msg)
 
 			handler(nmsg)
