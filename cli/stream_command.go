@@ -163,6 +163,7 @@ type streamCmd struct {
 	allowMsgTTL               bool
 	subjectDeleteMarkerTTLSet bool
 	subjectDeleteMarkerTTL    time.Duration
+	apiLevel                  int
 }
 
 type streamStat struct {
@@ -314,6 +315,7 @@ Finding streams with certain subjects configured:
 	strFind.Flag("names", "Show just the stream names").Short('n').UnNegatableBoolVar(&c.listNames)
 	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	strFind.Flag("expression", "Match streams using an expression language").StringVar(&c.fExpression)
+	strFind.Flag("api-level", "Match streams that support at least the given api level").IntVar(&c.apiLevel)
 
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
@@ -846,6 +848,9 @@ func (c *streamCmd) findAction(_ *fisk.ParseContext) (err error) {
 	}
 	if c.fLeader != "" {
 		opts = append(opts, jsm.StreamQueryLeaderServer(c.fLeader))
+	}
+	if c.apiLevel > 0 {
+		opts = append(opts, jsm.StreamQueryApiLevelMin(c.apiLevel))
 	}
 
 	found, err := c.mgr.QueryStreams(opts...)
