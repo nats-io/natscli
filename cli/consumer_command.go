@@ -125,6 +125,7 @@ type consumerCmd struct {
 	groupName          string
 	fPinned            bool
 	placementPreferred string
+	apiLevel           int
 }
 
 func configureConsumerCommand(app commandHost) {
@@ -227,6 +228,7 @@ func configureConsumerCommand(app commandHost) {
 	consFind.Flag("pinned", "Finds Pinned Client priority group consumers that are fully pinned").UnNegatableBoolVar(&c.fPinned)
 	consFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	consFind.Flag("expression", "Match consumers using an expression language").StringVar(&c.fExpression)
+	consFind.Flag("api-level", "Match consumers that support at least the given api level").IntVar(&c.apiLevel)
 
 	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
 	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -432,6 +434,9 @@ func (c *consumerCmd) findAction(_ *fisk.ParseContext) error {
 	}
 	if c.fPinned {
 		opts = append(opts, jsm.ConsumerQueryIsPinned())
+	}
+	if c.apiLevel > 0 {
+		opts = append(opts, jsm.ConsumerQueryApiLevelMin(c.apiLevel))
 	}
 
 	found, err := stream.QueryConsumers(opts...)

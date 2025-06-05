@@ -74,6 +74,38 @@ func TestStreamReport(t *testing.T) {
 	})
 }
 
+func TestStreamFind(t *testing.T) {
+	t.Run("--api-level", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := mgr.NewStream("T1")
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+
+			_, err = mgr.NewStream("T2", jsm.AllowMsgTTL())
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+
+			t.Run("with 0", func(t *testing.T) {
+				output := string(runNatsCli(t, fmt.Sprintf("--server='%s' stream find --api-level=0", srv.ClientURL())))
+				if !(expectMatchLine(t, output, "T1") && expectMatchLine(t, output, "T2")) {
+					t.Errorf("unexpected output. expected 2 streams: %s", output)
+				}
+
+			})
+			t.Run("with 1", func(t *testing.T) {
+				output := string(runNatsCli(t, fmt.Sprintf("--server='%s' stream find --api-level=1", srv.ClientURL())))
+				if !(expectMatchLine(t, output, "T2") && !expectMatchLine(t, output, "T1")) {
+					t.Errorf("unexpected output. expected 1 streams: %s", output)
+				}
+			})
+			return nil
+		})
+	})
+
+}
+
 func TestStreamInfo(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 		name := setupStreamTest(t, mgr)

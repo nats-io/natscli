@@ -140,17 +140,52 @@ func TestConsumerLS(t *testing.T) {
 }
 
 func TestConsumerFind(t *testing.T) {
-	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		name, err := setupConsumerTest(t, 1, mgr)
-		if err != nil {
-			t.Fatal(err)
-		}
+	t.Run("--pull", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			name, err := setupConsumerTest(t, 1, mgr)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer find %s --pull", srv.ClientURL(), defaultStreamName))
-		if !expectMatchRegex(t, name, string(output)) {
-			t.Errorf("failed to find consumer %s in %s", name, string(output))
-		}
-		return nil
+			output := runNatsCli(t, fmt.Sprintf("--server='%s' consumer find %s --pull", srv.ClientURL(), defaultStreamName))
+			if !expectMatchRegex(t, name, string(output)) {
+				t.Errorf("failed to find consumer %s in %s", name, string(output))
+			}
+			return nil
+		})
+	})
+
+	t.Run("--api-level", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := mgr.NewStream("T1")
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+
+			_, err = mgr.NewConsumer("T1", jsm.DurableName("C1"))
+			if err != nil {
+				t.Fatalf("unable to create consumer: %s", err)
+			}
+			_, err = mgr.NewConsumer("T1", jsm.DurableName("C2"), jsm.PauseUntil(time.Now()))
+			if err != nil {
+				t.Fatalf("unable to create consumer: %s", err)
+			}
+
+			t.Run("with 0", func(t *testing.T) {
+				output := string(runNatsCli(t, fmt.Sprintf("--server='%s' consumer find T1 --api-level=0", srv.ClientURL())))
+				if !(expectMatchLine(t, output, "C1") && expectMatchLine(t, output, "C2")) {
+					t.Errorf("unexpected output. expected 2 consumers: %s", output)
+				}
+			})
+			t.Run("with 1", func(t *testing.T) {
+				output := string(runNatsCli(t, fmt.Sprintf("--server='%s' consumer find T1 --api-level=1", srv.ClientURL())))
+				if !(expectMatchLine(t, output, "C2") && !expectMatchLine(t, output, "C1")) {
+					t.Errorf("unexpected output. expected 1 consumer: %s", output)
+				}
+			})
+
+			return nil
+		})
 	})
 }
 
