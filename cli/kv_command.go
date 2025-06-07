@@ -187,6 +187,7 @@ for an indefinite period or a per-bucket configured TTL.
 
 	ls := kv.Command("ls", "List available buckets or the keys in a bucket").Alias("list").Action(c.lsAction)
 	ls.Arg("bucket", "The bucket to list the keys").StringVar(&c.bucket)
+	ls.Arg("key", "The key to act on").Default(">").StringVar(&c.key)
 	ls.Flag("names", "Show just the bucket names").Short('n').UnNegatableBoolVar(&c.listNames)
 	ls.Flag("verbose", "Show detailed info about the key").Short('v').UnNegatableBoolVar(&c.lsVerbose)
 	ls.Flag("display-value", "Display value in verbose output (has no effect without 'verbose')").UnNegatableBoolVar(&c.lsVerboseDisplayValue)
@@ -256,7 +257,7 @@ func (c *kvCommand) lsBucketKeys() error {
 		return fmt.Errorf("unable to load bucket: %s", err)
 	}
 
-	lister, err := kv.ListKeys(ctx)
+	lister, err := kv.ListKeysFiltered(ctx, c.key)
 	if err != nil {
 		return err
 	}
