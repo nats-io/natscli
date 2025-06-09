@@ -258,6 +258,7 @@ func (c *kvCommand) lsBucketKeys() error {
 	}
 
 	var lister jetstream.KeyLister
+	//key not empty
 	if c.key != "" {
 		lister, err = kv.ListKeysFiltered(ctx, c.key)
 	} else {
