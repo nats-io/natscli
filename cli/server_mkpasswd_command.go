@@ -25,6 +25,7 @@ type SrvPasswdCmd struct {
 	pass     string
 	cost     uint
 	generate bool
+	force    bool
 }
 
 func configureServerPasswdCommand(srv *fisk.CmdClause) {
@@ -34,6 +35,7 @@ func configureServerPasswdCommand(srv *fisk.CmdClause) {
 	passwd.Flag("pass", "The password to encrypt (PASSWORD)").Short('p').Envar("PASSWORD").StringVar(&c.pass)
 	passwd.Flag("cost", "The cost to use in the bcrypt argument").Short('c').Default("11").UintVar(&c.cost)
 	passwd.Flag("generate", "Generates a secure passphrase and encrypt it").Short('g').UnNegatableBoolVar(&c.generate)
+	passwd.Flag("force", "Do not verify the password rule").Short('f').UnNegatableBoolVar(&c.force)
 }
 
 func (c *SrvPasswdCmd) mkpasswd(_ *fisk.ParseContext) error {
@@ -53,7 +55,7 @@ func (c *SrvPasswdCmd) mkpasswd(_ *fisk.ParseContext) error {
 		}
 	}
 
-	if len(c.pass) < 22 {
+	if !c.force && len(c.pass) < 22 {
 		return fmt.Errorf("password should be at least 22 characters long")
 	}
 
