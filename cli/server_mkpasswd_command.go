@@ -53,8 +53,8 @@ func (c *SrvPasswdCmd) mkpasswd(_ *fisk.ParseContext) error {
 		}
 	}
 
-	if len(c.pass) < 22 {
-		return fmt.Errorf("password should be at least 22 characters long")
+	if len(c.pass) < 10 {
+		return fmt.Errorf("password should be at least 10 characters long")
 	}
 
 	cb, err := bcrypt.GenerateFromPassword([]byte(c.pass), int(c.cost))
