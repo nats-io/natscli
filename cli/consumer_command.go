@@ -2412,7 +2412,7 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 	leaders := make(map[string]*raftLeader)
 
 	table := iu.NewTableWriter(opts(), fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, f(ss.Consumers)))
-	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
+	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "API Level", "Cluster")
 	missing, err := s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
 		if err != nil {
@@ -2435,8 +2435,13 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 			}
 		}
 
+		apiLevel := cs.Config.Metadata[api.JsMetaRequiredServerLevel]
+		if apiLevel == "" {
+			apiLevel = "0"
+		}
+
 		if c.raw {
-			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), cons.AckWait(), cs.NumAckPending, cs.NumRedelivered, cs.NumPending, cs.AckFloor.Stream, renderCluster(cs.Cluster))
+			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), cons.AckWait(), cs.NumAckPending, cs.NumRedelivered, cs.NumPending, cs.AckFloor.Stream, apiLevel, renderCluster(cs.Cluster))
 		} else {
 			unprocessed := "0"
 			if cs.NumPending > 0 {
@@ -2447,7 +2452,7 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 				unprocessed = fmt.Sprintf("%s / %0.0f%%", f(cs.NumPending), upct)
 			}
 
-			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), f(cons.AckWait()), f(cs.NumAckPending), f(cs.NumRedelivered), unprocessed, f(cs.AckFloor.Stream), renderCluster(cs.Cluster))
+			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), f(cons.AckWait()), f(cs.NumAckPending), f(cs.NumRedelivered), unprocessed, f(cs.AckFloor.Stream), apiLevel, renderCluster(cs.Cluster))
 		}
 	})
 	if err != nil {
