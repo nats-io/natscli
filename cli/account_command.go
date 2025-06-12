@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/choria-io/fisk"
@@ -407,6 +408,7 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 
 	id, _ := nc.GetClientID()
 	ip, _ := nc.GetClientIP()
+	lip := nc.LocalAddr()
 	rtt, _ := nc.RTT()
 	tlsc, _ := nc.TLSConnectionState()
 
@@ -447,7 +449,11 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 		}
 	}
 	cols.AddRow("Client ID", id)
-	cols.AddRow("Client IP", ip)
+	if lip == "" || strings.HasPrefix(lip, ip.String()) {
+		cols.AddRow("Client IP", ip)
+	} else {
+		cols.AddRowf("Client IP", "%s (%s)", ip, lip)
+	}
 	cols.AddRow("RTT", rtt)
 	cols.AddRow("Headers Supported", nc.HeadersSupported())
 	cols.AddRow("Maximum Payload", humanize.IBytes(uint64(nc.MaxPayload())))

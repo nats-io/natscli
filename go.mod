@@ -6,7 +6,7 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/choria-io/fisk v0.7.1
-	github.com/choria-io/scaffold v0.0.4
+	github.com/choria-io/scaffold v0.0.5-0.20250528101939-8312afbc86bb
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.8.0
 	github.com/expr-lang/expr v1.17.5
