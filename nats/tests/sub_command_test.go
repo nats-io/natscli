@@ -637,7 +637,7 @@ func TestSubscribe(t *testing.T) {
 				t.Fatalf("unable to publish message: %s", err)
 			}
 
-			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1", srv.ClientURL())))
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --count=1", srv.ClientURL())))
 			if !expectMatchLine(t, output, primaryTestMsgData) {
 				t.Errorf("unexpected response: %s", output)
 			}

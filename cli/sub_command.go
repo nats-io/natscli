@@ -30,6 +30,7 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -72,6 +73,7 @@ type subCmd struct {
 	height                int
 	messageRates          map[string]*subMessageRate
 	direct                bool
+	streamObj             *jsm.Stream
 }
 
 type subMessageRate struct {
@@ -276,7 +278,7 @@ func (c *subCmd) startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, 
 }
 
 func (c *subCmd) validateInputs(nc *nats.Conn) error {
-	c.jetStream = c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.stream != ""
+	c.jetStream = c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.stream != "" || c.direct
 
 	switch {
 	case len(c.subjects) == 0 && c.inbox:
@@ -314,18 +316,13 @@ func (c *subCmd) validateInputs(nc *nats.Conn) error {
 		}
 	}
 
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		return err
-	}
+	if c.jetStream {
+		mgr, err := jsm.New(nc)
+		if err != nil {
+			return err
+		}
 
-	isWorkQueue, err := iu.IsWorkQueue(c.stream, mgr)
-	if err != nil {
-		return err
-	}
-	c.direct = c.direct || isWorkQueue
-
-	if c.direct {
+		// if we are passed subjects without a stream, we determine the stream name before trying to load it for further checks
 		if c.stream == "" {
 			if len(c.subjects) > 1 {
 				return fmt.Errorf("cannot enable direct gets: cannot perform direct gets from multiple subjects")
@@ -347,12 +344,22 @@ func (c *subCmd) validateInputs(nc *nats.Conn) error {
 			c.stream = streams[0]
 		}
 
-		apiLevel, err := mgr.MetaApiLevel(true)
+		c.streamObj, err = mgr.LoadStream(c.stream)
 		if err != nil {
 			return err
 		}
-		if apiLevel < 1 {
-			return fmt.Errorf("cannot enable direct gets: API level 1 is required")
+
+		// Check if the stream is a Work Queue
+		c.direct = c.direct || c.streamObj.Retention() == api.RetentionPolicy(nats.WorkQueuePolicy)
+
+		if c.direct {
+			apiLevel, err := mgr.MetaApiLevel(true)
+			if err != nil {
+				return err
+			}
+			if apiLevel < 1 {
+				return fmt.Errorf("cannot enable direct gets: API level 1 is required")
+			}
 		}
 	}
 
@@ -599,11 +606,7 @@ func (c *subCmd) jetStreamSubscribe(nc *nats.Conn, handler nats.MsgHandler, subs
 	subMsg := c.firstSubject()
 	if c.stream != "" {
 		if len(c.subjects) == 0 {
-			str, err := js.StreamInfo(c.stream)
-			if err != nil {
-				return err
-			}
-			subMsg = f(str.Config.Subjects)
+			subMsg = f(c.streamObj.Subjects())
 		}
 		opts = append(opts, nats.BindStream(c.stream))
 	}
@@ -678,17 +681,7 @@ func (c *subCmd) defaultSubscribe(nc *nats.Conn, handler nats.MsgHandler, subs *
 }
 
 func (c *subCmd) directSubscribe(subCtx context.Context, nc *nats.Conn, handler nats.MsgHandler, subs *[]*nats.Subscription, ignoreSubjects []string) error {
-	js, err := jetstream.New(nc)
-	if err != nil {
-		return err
-	}
-
-	stream, err := js.Stream(subCtx, c.stream)
-	if err != nil {
-		return err
-	}
-
-	snfo, err := stream.Info(subCtx)
+	js, err := newJetStreamWithOpts(nc)
 	if err != nil {
 		return err
 	}
@@ -701,16 +694,20 @@ func (c *subCmd) directSubscribe(subCtx context.Context, nc *nats.Conn, handler 
 	subMsg := c.firstSubject()
 	if c.stream != "" {
 		if len(c.subjects) == 0 {
-			subMsg = f(snfo.Config.Subjects)
+			subMsg = f(c.streamObj.Subjects())
 		}
 	}
 
 	// GetBatch called later assumes that the first msg is at sequence 0. We get the real starting position here so
 	// we can pass it on later
-	batchSequence := snfo.State.FirstSeq
+	streamState, err := c.streamObj.State()
+	batchSequence := streamState.FirstSeq
 	batchSize := 1
 	lastForSubjects := false
 	var start time.Time
+	if err != nil {
+		return err
+	}
 
 	switch {
 	case c.sseq > 0:
@@ -718,13 +715,13 @@ func (c *subCmd) directSubscribe(subCtx context.Context, nc *nats.Conn, handler 
 		batchSequence = c.sseq
 	case c.deliverLast:
 		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s starting with the last message received %s", subMsg, ignoredSubjInfo)
-		batchSequence = snfo.State.LastSeq
+		batchSequence = streamState.LastSeq
 	case c.deliverAll:
 		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s starting with the first message received %s", subMsg, ignoredSubjInfo)
-		batchSequence = snfo.State.FirstSeq
+		batchSequence = streamState.FirstSeq
 	case c.deliverNew:
 		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s delivering any new messages received %s", subMsg, ignoredSubjInfo)
-		batchSequence = snfo.State.LastSeq + 1
+		batchSequence = streamState.LastSeq + 1
 	case c.deliverSince != "":
 		d, err := fisk.ParseDuration(c.deliverSince)
 		if err != nil {
@@ -732,11 +729,11 @@ func (c *subCmd) directSubscribe(subCtx context.Context, nc *nats.Conn, handler 
 		}
 		start = time.Now().Add(-1 * d)
 		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s starting with messages since %s %s", subMsg, f(d), ignoredSubjInfo)
-		batchSequence = snfo.State.LastSeq + 1
+		batchSequence = streamState.LastSeq + 1
 	case c.deliverLastPerSubject:
 		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s for the last messages for each subject in the Stream %s", subMsg, ignoredSubjInfo)
 		lastForSubjects = true
-		batchSequence = snfo.State.LastSeq
+		batchSequence = streamState.LastSeq
 	}
 
 	for {
@@ -771,7 +768,13 @@ func (c *subCmd) directSubscribe(subCtx context.Context, nc *nats.Conn, handler 
 				return err
 			}
 
-			nmsg := iu.Raw2NatsMsg(msg)
+			// Put the relevant fields in a nats.Msg for printing. Omitting the Reply and Sub pointer will gaurd against
+			// the handler functions doing something we can't do with a direct message
+			nmsg := &nats.Msg{
+				Subject: msg.Subject,
+				Header:  msg.Header,
+				Data:    msg.Data,
+			}
 
 			handler(nmsg)
 			batchSequence += uint64(batchSize)
@@ -905,7 +908,7 @@ func (c *subCmd) firstSubject() string {
 
 func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime time.Time) {
 	var info *jsm.MsgInfo
-	if msg.Reply != "" {
+	if msg.Reply != "" || c.direct {
 		info, _ = jsm.ParseJSMsgMetadata(msg)
 	}
 

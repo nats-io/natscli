@@ -35,9 +35,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/nats-io/jsm.go"
-	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/internal/asciigraph"
 	"github.com/nats-io/natscli/options"
 	"github.com/nats-io/nkeys"
@@ -640,29 +638,4 @@ func ParseStringAsBytes(s string) (int64, error) {
 	num *= 1 << mult
 
 	return num, nil
-}
-
-// IsWorkQueue inspecs a stream's config to see if it's a workqueue or not
-func IsWorkQueue(streamName string, mgr *jsm.Manager) (bool, error) {
-	if streamName == "" {
-		return false, nil
-	}
-
-	stream, err := mgr.LoadStream(streamName)
-	if err != nil {
-		return false, err
-	}
-	if stream.Retention() == api.RetentionPolicy(nats.WorkQueuePolicy) {
-		return true, nil
-	}
-
-	return false, nil
-}
-
-func Raw2NatsMsg(msg *jetstream.RawStreamMsg) *nats.Msg {
-	return &nats.Msg{
-		Subject: msg.Subject,
-		Header:  msg.Header,
-		Data:    msg.Data,
-	}
 }

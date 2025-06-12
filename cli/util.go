@@ -332,6 +332,32 @@ func jsOpts() []nats.JSOpt {
 	return jso
 }
 
+func newJetStreamWithOpts(nc *nats.Conn) (jetstream.JetStream, error) {
+	opts := opts()
+	var jsopts []jetstream.JetStreamOpt
+
+	jsopts = append(jsopts, jetstream.WithDefaultTimeout(opts.Timeout))
+	if opts.Trace {
+		jsopts = append(jsopts, jetstream.WithClientTrace(&jetstream.ClientTrace{
+			RequestSent: func(subj string, payload []byte) {
+				log.Printf(">>> %s\n%s\n", subj, payload)
+			},
+			ResponseReceived: func(subj string, payload []byte, hdr nats.Header) {
+				log.Printf("<<< %s\n%s\n", subj, payload)
+			},
+		}))
+	}
+
+	switch {
+	case opts.Config.JSDomain() != "":
+		return jetstream.NewWithDomain(nc, opts.Config.JSDomain(), jsopts...)
+	case opts.Config.JSAPIPrefix() != "":
+		return jetstream.NewWithAPIPrefix(nc, opts.Config.JSAPIPrefix(), jsopts...)
+	default:
+		return jetstream.New(nc, jsopts...)
+	}
+}
+
 func addCheat(name string, cmd *fisk.CmdClause) {
 	if opts().NoCheats {
 		return
