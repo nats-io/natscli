@@ -125,6 +125,7 @@ type consumerCmd struct {
 	groupName          string
 	fPinned            bool
 	placementPreferred string
+	apiLevel           int
 }
 
 func configureConsumerCommand(app commandHost) {
@@ -227,6 +228,7 @@ func configureConsumerCommand(app commandHost) {
 	consFind.Flag("pinned", "Finds Pinned Client priority group consumers that are fully pinned").UnNegatableBoolVar(&c.fPinned)
 	consFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	consFind.Flag("expression", "Match consumers using an expression language").StringVar(&c.fExpression)
+	consFind.Flag("api-level", "Match consumers that support at least the given api level").IntVar(&c.apiLevel)
 
 	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
 	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -432,6 +434,9 @@ func (c *consumerCmd) findAction(_ *fisk.ParseContext) error {
 	}
 	if c.fPinned {
 		opts = append(opts, jsm.ConsumerQueryIsPinned())
+	}
+	if c.apiLevel > 0 {
+		opts = append(opts, jsm.ConsumerQueryApiLevelMin(c.apiLevel))
 	}
 
 	found, err := stream.QueryConsumers(opts...)
@@ -2407,7 +2412,7 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 	leaders := make(map[string]*raftLeader)
 
 	table := iu.NewTableWriter(opts(), fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, f(ss.Consumers)))
-	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "Cluster")
+	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "API Level", "Cluster")
 	missing, err := s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
 		if err != nil {
@@ -2430,8 +2435,13 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 			}
 		}
 
+		apiLevel := cs.Config.Metadata[api.JsMetaRequiredServerLevel]
+		if apiLevel == "" {
+			apiLevel = "0"
+		}
+
 		if c.raw {
-			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), cons.AckWait(), cs.NumAckPending, cs.NumRedelivered, cs.NumPending, cs.AckFloor.Stream, renderCluster(cs.Cluster))
+			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), cons.AckWait(), cs.NumAckPending, cs.NumRedelivered, cs.NumPending, cs.AckFloor.Stream, apiLevel, renderCluster(cs.Cluster))
 		} else {
 			unprocessed := "0"
 			if cs.NumPending > 0 {
@@ -2442,7 +2452,7 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 				unprocessed = fmt.Sprintf("%s / %0.0f%%", f(cs.NumPending), upct)
 			}
 
-			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), f(cons.AckWait()), f(cs.NumAckPending), f(cs.NumRedelivered), unprocessed, f(cs.AckFloor.Stream), renderCluster(cs.Cluster))
+			table.AddRow(cons.Name(), mode, cons.AckPolicy().String(), f(cons.AckWait()), f(cs.NumAckPending), f(cs.NumRedelivered), unprocessed, f(cs.AckFloor.Stream), apiLevel, renderCluster(cs.Cluster))
 		}
 	})
 	if err != nil {

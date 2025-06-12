@@ -163,6 +163,7 @@ type streamCmd struct {
 	allowMsgTTL               bool
 	subjectDeleteMarkerTTLSet bool
 	subjectDeleteMarkerTTL    time.Duration
+	apiLevel                  int
 }
 
 type streamStat struct {
@@ -179,6 +180,7 @@ type streamStat struct {
 	Mirror    *api.StreamSourceInfo
 	Sources   []*api.StreamSourceInfo
 	Placement *api.Placement
+	APILevel  string
 }
 
 func configureStreamCommand(app commandHost) {
@@ -314,6 +316,7 @@ Finding streams with certain subjects configured:
 	strFind.Flag("names", "Show just the stream names").Short('n').UnNegatableBoolVar(&c.listNames)
 	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	strFind.Flag("expression", "Match streams using an expression language").StringVar(&c.fExpression)
+	strFind.Flag("api-level", "Match streams that support at least the given api level").IntVar(&c.apiLevel)
 
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
@@ -846,6 +849,9 @@ func (c *streamCmd) findAction(_ *fisk.ParseContext) (err error) {
 	}
 	if c.fLeader != "" {
 		opts = append(opts, jsm.StreamQueryLeaderServer(c.fLeader))
+	}
+	if c.apiLevel > 0 {
+		opts = append(opts, jsm.StreamQueryApiLevelMin(c.apiLevel))
 	}
 
 	found, err := c.mgr.QueryStreams(opts...)
@@ -1484,6 +1490,11 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 			deleted = len(info.State.Deleted)
 		}
 
+		apiLevel := info.Config.Metadata[api.JsMetaRequiredServerLevel]
+		if apiLevel == "" {
+			apiLevel = "0"
+		}
+
 		s := streamStat{
 			Name:      info.Config.Name,
 			Consumers: info.State.Consumers,
@@ -1496,6 +1507,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 			Mirror:    info.Mirror,
 			Sources:   info.Sources,
 			Placement: info.Config.Placement,
+			APILevel:  apiLevel,
 		}
 
 		if info.State.Lost != nil {
@@ -1646,7 +1658,7 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 
 func (c *streamCmd) renderStreams(stats []streamStat) {
 	table := iu.NewTableWriter(opts(), "Stream Report")
-	table.AddHeaders("Stream", "Storage", "Placement", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "Replicas")
+	table.AddHeaders("Stream", "Storage", "Placement", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "API Level", "Replicas")
 
 	for _, s := range stats {
 		lost := "0"
@@ -1669,7 +1681,7 @@ func (c *streamCmd) renderStreams(stats []streamStat) {
 			if s.LostMsgs > 0 {
 				lost = fmt.Sprintf("%s (%s)", f(s.LostMsgs), humanize.IBytes(s.LostBytes))
 			}
-			table.AddRow(s.Name, s.Storage, placement, f(s.Consumers), f(s.Msgs), humanize.IBytes(s.Bytes), lost, f(s.Deleted), renderCluster(s.Cluster))
+			table.AddRow(s.Name, s.Storage, placement, f(s.Consumers), f(s.Msgs), humanize.IBytes(s.Bytes), lost, f(s.Deleted), s.APILevel, renderCluster(s.Cluster))
 		}
 	}
 

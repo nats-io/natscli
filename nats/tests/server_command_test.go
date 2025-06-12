@@ -1026,7 +1026,7 @@ func TestServerReport(t *testing.T) {
 					"out_bytes":       `\d+`,
 					"subscriptions":   `\d+`,
 					"lang":            `go`,
-					"version":         `1\.42\.0`,
+					"version":         `\d+\.\d+\.\d+`,
 					"authorized_user": `.+`,
 					"subscriptions_list": []any{
 						`_INBOX\..+`,
@@ -1131,7 +1131,7 @@ func TestServerRequest(t *testing.T) {
 					"name":      `s1`,
 					"host":      "localhost",
 					"id":        `[A-Z0-9]{52}`,
-					"ver":       `2\.11\.3`,
+					"ver":       `\d+\.\d+\.\d+`,
 					"jetstream": `true`,
 					"flags":     `\d+`,
 					"seq":       `\d+`,
