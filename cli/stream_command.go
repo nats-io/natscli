@@ -161,6 +161,8 @@ type streamCmd struct {
 	placementPreferred        string
 	allowMsgTTlSet            bool
 	allowMsgTTL               bool
+	allowAtomicBatch          bool
+	allowAtomicBatchIsSet     bool
 	subjectDeleteMarkerTTLSet bool
 	subjectDeleteMarkerTTL    time.Duration
 	apiLevel                  int
@@ -215,6 +217,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("dupe-window", "Duration of the duplicate message tracking window").Default("").StringVar(&c.dupeWindow)
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
+		f.Flag("allow-batch", "Allow atomic batch publishing").IsSetByUser(&c.allowAtomicBatchIsSet).BoolVar(&c.allowAtomicBatch)
 		f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers").IsSetByUser(&c.allowRollupSet).BoolVar(&c.allowRollup)
 		f.Flag("deny-delete", "Deny messages from being deleted via the API").IsSetByUser(&c.denyDeleteSet).BoolVar(&c.denyDelete)
 		f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
@@ -1884,6 +1887,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		cfg.AllowMsgTTL = c.allowMsgTTL
 	}
 
+	if c.allowAtomicBatchIsSet {
+		cfg.AllowAtomicPublish = c.allowAtomicBatch
+	}
+
 	if c.discardPerSubjSet {
 		cfg.DiscardNewPer = c.discardPerSubj
 	}
@@ -2041,6 +2048,13 @@ func (c *streamCmd) editAction(pc *fisk.ParseContext) error {
 		}
 	}
 
+	if cfg.AllowAtomicPublish {
+		err := c.checkCompatability(c.mgr, &cfg)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = sourceStream.UpdateConfiguration(cfg)
 	fisk.FatalIfError(err, "could not edit Stream %s", c.stream)
 
@@ -2134,9 +2148,10 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRow("Duplicate Window", cfg.Duplicates)
 	cols.AddRowIf("Direct Get", cfg.AllowDirect, cfg.AllowDirect)
 	cols.AddRowIf("Mirror Direct Get", cfg.MirrorDirect, cfg.MirrorDirect)
+	cols.AddRow("Allows Batch Publish", cfg.AllowAtomicPublish)
 	cols.AddRow("Allows Msg Delete", !cfg.DenyDelete)
-	cols.AddRow("Allows Purge", !cfg.DenyPurge)
 	cols.AddRow("Allows Per-Message TTL", cfg.AllowMsgTTL)
+	cols.AddRow("Allows Purge", !cfg.DenyPurge)
 	if cfg.AllowMsgTTL && cfg.SubjectDeleteMarkerTTL > 0 {
 		cols.AddRow("Subject Delete Markers TTL", cfg.SubjectDeleteMarkerTTL)
 	}
@@ -2760,6 +2775,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		DenyDelete:             c.denyDelete,
 		AllowDirect:            c.allowDirect,
 		AllowMsgTTL:            c.allowMsgTTL,
+		AllowAtomicPublish:     c.allowAtomicBatch,
 		SubjectDeleteMarkerTTL: c.subjectDeleteMarkerTTL,
 		MirrorDirect:           c.allowMirrorDirectSet,
 		DiscardNewPer:          c.discardPerSubj,
@@ -3113,12 +3129,30 @@ func (c *streamCmd) addAction(pc *fisk.ParseContext) (err error) {
 		return os.WriteFile(c.outFile, j, 0600)
 	}
 
+	if cfg.AllowAtomicPublish {
+		err := c.checkCompatability(mgr, &cfg)
+		if err != nil {
+			return err
+		}
+	}
+
 	str, err := mgr.NewStreamFromDefault(c.stream, cfg)
 	fisk.FatalIfError(err, "could not create Stream")
 
 	fmt.Printf("Stream %s was created\n\n", c.stream)
 
 	c.showStream(str)
+
+	return nil
+}
+
+func (c streamCmd) checkCompatability(mgr *jsm.Manager, cfg *api.StreamConfig) error {
+	if cfg.AllowAtomicPublish {
+		err := iu.RequireAPILevel(mgr, 2, "Atomic Batch Publishing requires NATS Server 2.12")
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

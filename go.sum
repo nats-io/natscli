@@ -105,8 +105,8 @@ github.com/mitchellh/reflectwalk v1.0.2 h1:G2LzWKi524PWgd3mLHV8Y5k7s6XUvT0Gef6zx
 github.com/mitchellh/reflectwalk v1.0.2/go.mod h1:mSTlrgnPZtwu0c4WaC2kGObEpuNDbx0jmZXqmk4esnw=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/nats-io/jsm.go v0.2.3 h1:TmdS5JJaccBy/qpa5tXJa9sMOG4S8fYjWFAh4jolstE=
-github.com/nats-io/jsm.go v0.2.3/go.mod h1:wODCssHzwZdsHGql7cj46sH8RD0hbGhbAW1XvUyMi+k=
+github.com/nats-io/jsm.go v0.2.4-0.20250613073355-05c116133225 h1:9lpVI2wWWSN67XLZFMmMrYmfFCu9h8yPOosVevACR5Q=
+github.com/nats-io/jsm.go v0.2.4-0.20250613073355-05c116133225/go.mod h1:clwwndpD/VoIcWS8O92Ht+B8+DApCuJQoe4/bB6RwVg=
 github.com/nats-io/jwt/v2 v2.7.4 h1:jXFuDDxs/GQjGDZGhNgH4tXzSUK6WQi2rsj4xmsNOtI=
 github.com/nats-io/jwt/v2 v2.7.4/go.mod h1:me11pOkwObtcBNR8AiMrUbtVOUGkqYjMQZ6jnSdVUIA=
 github.com/nats-io/nats-server/v2 v2.11.4 h1:oQhvy6He6ER926sGqIKBKuYHH4BGnUQCNb0Y5Qa+M54=
