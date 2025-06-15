@@ -18,7 +18,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.18.0
-	github.com/nats-io/jsm.go v0.2.4-0.20250613073355-05c116133225
+	github.com/nats-io/jsm.go v0.2.4-0.20250615075006-ec94a0349e0d
 	github.com/nats-io/jwt/v2 v2.7.4
 	github.com/nats-io/nats-server/v2 v2.11.4
 	github.com/nats-io/nats.go v1.43.0
