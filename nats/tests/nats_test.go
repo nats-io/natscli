@@ -105,10 +105,11 @@ func prepareHelper(servers string) (*nats.Conn, *jsm.Manager, error) {
 	return nc, mgr, nil
 }
 
-func createDefaultTestStream(t *testing.T, mgr *jsm.Manager, replicas int) {
+func createDefaultTestStream(t *testing.T, mgr *jsm.Manager, replicas int, opts ...jsm.StreamOption) {
 	t.Helper()
+	opts = append(opts, jsm.Replicas(replicas), jsm.Subjects("TEST_STREAM.*"))
 
-	_, err := mgr.NewStream("TEST_STREAM", jsm.Subjects("TEST_STREAM.*"), jsm.Replicas(replicas))
+	_, err := mgr.NewStream("TEST_STREAM", opts...)
 	if err != nil {
 		t.Fatalf("unable to create stream: %s", err)
 	}
