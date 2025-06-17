@@ -730,6 +730,44 @@ func doReq(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
 	return res, err
 }
 
+// fetchPagedJSZ retrieves and processes paged responses from the JSZ endpoint.
+// It repeatedly queries $SYS.REQ.SERVER.PING.JSZ with increasing offset until all pages are consumed.
+func fetchPagedJSZ(nc *nats.Conn, opts server.JszEventOptions, limit int, cb func([]*server.ServerAPIJszResponse) error) error {
+	offset := 0
+	opts.JSzOptions.Limit = limit
+
+	for {
+		opts.JSzOptions.Offset = offset
+
+		wait, _ := currentActiveServers(nc)
+		inProgress := wait
+		resp, err := doReq(opts, "$SYS.REQ.SERVER.PING.JSZ", int(wait), nc)
+		if err != nil {
+			return err
+		}
+		var pages []*server.ServerAPIJszResponse
+		for _, m := range resp {
+			var s server.ServerAPIJszResponse
+			if err := json.Unmarshal(m, &s); err != nil {
+				return err
+			}
+			pages = append(pages, &s)
+			if len(s.Data.AccountDetails) < limit {
+				inProgress--
+			}
+		}
+		if err := cb(pages); err != nil {
+			return err
+		}
+		if inProgress == 0 {
+			break
+		}
+		offset += limit
+	}
+
+	return nil
+}
+
 type raftLeader struct {
 	name    string
 	cluster string
