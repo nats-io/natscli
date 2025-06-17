@@ -85,7 +85,7 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 		}
 	}
 
-	sys := sysclient.New(nc)
+	sys := sysclient.New(nc, opts().Trace)
 
 	start = time.Now()
 	servers, err := sys.FindServers(c.stdin, c.expected, opts().Timeout, time.Duration(c.readTimeout), false)
