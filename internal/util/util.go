@@ -639,3 +639,13 @@ func ParseStringAsBytes(s string) (int64, error) {
 
 	return num, nil
 }
+
+// ParseApiLevel takes an api level string and converts it to an unsigned int for comparison.
+// An empty level will be converted into 0
+func ParseApiLevel(lvl string) uint {
+	if lvl == "" {
+		return 0
+	}
+	i, _ := strconv.Atoi(lvl)
+	return uint(i)
+}
