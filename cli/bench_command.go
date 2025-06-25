@@ -68,6 +68,7 @@ type benchCmd struct {
 	randomizeGets        int
 	payloadFilename      string
 	hdrs                 []string
+	filterSubjects       []string
 }
 
 const (
@@ -124,6 +125,7 @@ func configureBenchCommand(app commandHost) {
 		f.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
 		f.Flag("acks", "Acknowledgement mode for the consumer").Default(benchAckModeExplicit).EnumVar(&c.ackMode, benchAckModeExplicit, benchAckModeNone, benchAckModeAll)
 		f.Flag("doubleack", "Synchronously acknowledge messages, waiting for a reply from the server").Default("false").BoolVar(&c.doubleAck)
+		f.Flag("filter", "Filter Stream by subjects").PlaceHolder("SUBJECTS").StringsVar(&c.filterSubjects)
 	}
 
 	addJSPubFlags := func(f *fisk.CmdClause) {
@@ -355,6 +357,9 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		argnvps = append(argnvps, nvp{"acks", c.ackMode})
 		argnvps = append(argnvps, nvp{"double-acked", f(c.doubleAck)})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
+		if len(c.filterSubjects) > 0 {
+			argnvps = append(argnvps, nvp{"filter", strings.Join(c.filterSubjects, ",")})
+		}
 		jsAttributes()
 		streamOrBucketAttribues()
 	case benchTypeJSFetch:
@@ -363,6 +368,9 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		argnvps = append(argnvps, nvp{"acks", c.ackMode})
 		argnvps = append(argnvps, nvp{"double-acked", f(c.doubleAck)})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
+		if len(c.filterSubjects) > 0 {
+			argnvps = append(argnvps, nvp{"filter", strings.Join(c.filterSubjects, ",")})
+		}
 		jsAttributes()
 		streamOrBucketAttribues()
 	case benchTypeKVPut:
@@ -491,6 +499,7 @@ func (c *benchCmd) createOrUpdateConsumer(js jetstream.JetStream) error {
 		ReplayPolicy:      jetstream.ReplayInstantPolicy,
 		MaxAckPending:     c.batchSize * c.numClients,
 		InactiveThreshold: time.Second * 10,
+		FilterSubjects:    c.filterSubjects,
 	})
 	if err != nil {
 		return fmt.Errorf("creating the durable consumer '%s': %w", c.consumerName, err)
