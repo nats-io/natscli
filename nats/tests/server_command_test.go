@@ -1599,3 +1599,90 @@ func TestServerConsumerCheck(t *testing.T) {
 		})
 	})
 }
+
+func TestReportDowngrade(t *testing.T) {
+	t.Run("all assets are compatible", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := mgr.NewStream("TEST_STREAM", jsm.Subjects("ORDERS.*"))
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' server report downgrade 1 --user=sys --password=pass", srv.ClientURL())))
+			if !expectMatchRegex(t, "All assets are compatible with the specified API level", output) {
+				t.Fatalf("unexpected output: %s", output)
+			}
+
+			return nil
+		})
+	})
+	t.Run("not all assets are compatible", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := mgr.NewStream("TEST_STREAM", jsm.Subjects("ORDERS.*"), jsm.AllowMsgTTL())
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' server report downgrade 0 --user=sys --password=pass", srv.ClientURL())))
+			if !expectMatchLine(t, output, "TEST_STREAM", "1") {
+				t.Fatalf("unexpected output: %s", output)
+			}
+			return nil
+		})
+	})
+	t.Run("don't show implicit consumers", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := mgr.NewStream("TEST_STREAM", jsm.Subjects("ORDERS.*"), jsm.AllowMsgTTL())
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+			_, err = mgr.NewConsumer("TEST_STREAM", jsm.DurableName("TEST_CONSUMER"))
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' server report downgrade 0 --user=sys --password=pass", srv.ClientURL())))
+			if expectMatchLine(t, output, "TEST_CONSUMER", "0") {
+				t.Fatalf("unexpected output: %s", output)
+			}
+			return nil
+		})
+	})
+	t.Run("-all", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := mgr.NewStream("TEST_STREAM", jsm.Subjects("ORDERS.*"), jsm.AllowMsgTTL())
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+			_, err = mgr.NewConsumer("TEST_STREAM", jsm.DurableName("TEST_CONSUMER"))
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' server report downgrade 0 --all --user=sys --password=pass", srv.ClientURL())))
+			if !expectMatchLine(t, output, "TEST_CONSUMER", "TEST_STREAM*", "0") {
+				t.Fatalf("unexpected output: %s", output)
+			}
+			return nil
+		})
+	})
+	t.Run("-json", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := mgr.NewStream("TEST_STREAM", jsm.Subjects("ORDERS.*"), jsm.AllowMsgTTL())
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' server report downgrade 0 --json --user=sys --password=pass", srv.ClientURL())))
+			err = expectMatchJSON(t, output, map[string]any{
+				"streams": []any{
+					map[string]any{
+						"name":      "TEST_STREAM",
+						"api_level": 1,
+					},
+				},
+			})
+			if err != nil {
+				t.Fatalf("unexpected output: %s", output)
+
+			}
+			return nil
+		})
+	})
+
+}
