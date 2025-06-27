@@ -527,7 +527,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				continue
 			}
 
-			deliveredRates = append(deliveredRates, calculateRate(float64(nfo.Delivered.Stream), float64(lastDeliveredSeq), time.Since(lastStateTs)))
+			deliveredRates = append(deliveredRates, calculateRate(float64(nfo.Delivered.Consumer), float64(lastDeliveredSeq), time.Since(lastStateTs)))
 			ackedRates = append(ackedRates, calculateRate(float64(nfo.AckFloor.Stream), float64(lastAckedSeq), time.Since(lastStateTs)))
 			unprocessedMessages = append(unprocessedMessages, float64(nfo.NumPending))
 			outstandingMessages = append(outstandingMessages, float64(nfo.NumAckPending))
