@@ -498,8 +498,8 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 	ackedRates := make([]float64, width)
 	outstandingMessages := make([]float64, width)
 	unprocessedMessages := make([]float64, width)
-	lastAckedSeq := nfo.AckFloor.Stream
-	lastDeliveredSeq := nfo.Delivered.Stream
+	lastAckedSeq := nfo.AckFloor.Consumer
+	lastDeliveredSeq := nfo.Delivered.Consumer
 	lastStateTs := time.Now()
 
 	ticker := time.NewTicker(time.Second)
@@ -527,12 +527,12 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				continue
 			}
 
-			deliveredRates = append(deliveredRates, calculateRate(float64(nfo.Delivered.Stream), float64(lastDeliveredSeq), time.Since(lastStateTs)))
-			ackedRates = append(ackedRates, calculateRate(float64(nfo.AckFloor.Stream), float64(lastAckedSeq), time.Since(lastStateTs)))
+			deliveredRates = append(deliveredRates, calculateRate(float64(nfo.Delivered.Consumer), float64(lastDeliveredSeq), time.Since(lastStateTs)))
+			ackedRates = append(ackedRates, calculateRate(float64(nfo.AckFloor.Consumer), float64(lastAckedSeq), time.Since(lastStateTs)))
 			unprocessedMessages = append(unprocessedMessages, float64(nfo.NumPending))
 			outstandingMessages = append(outstandingMessages, float64(nfo.NumAckPending))
-			lastDeliveredSeq = nfo.Delivered.Stream
-			lastAckedSeq = nfo.AckFloor.Stream
+			lastDeliveredSeq = nfo.Delivered.Consumer
+			lastAckedSeq = nfo.AckFloor.Consumer
 			lastStateTs = time.Now()
 
 			deliveredRates = resizeData(deliveredRates, width)
