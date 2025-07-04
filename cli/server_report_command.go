@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -59,6 +60,8 @@ type SrvReportCmd struct {
 	consumer                string
 	watchInterval           int
 	nc                      *nats.Conn
+	apiLevel                uint
+	all                     bool
 }
 
 type srvReportAccountInfo struct {
@@ -149,6 +152,11 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	routes.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	routes.Flag("sort", "Sort by a specific property (server,cluster,name,account,subs,in-bytes,out-bytes)").EnumVar(&c.sort, "server", "cluster", "name", "account", "subs", "in-bytes", "out-bytes")
 	addFilterOpts(routes)
+
+	reportCmd := report.Command("downgrade", "List assets incompatible with the specified API level").Action(c.downgradeCheckAction)
+	reportCmd.Arg("api", "Target API level to check compatibility against").Required().UintVar(&c.apiLevel)
+	reportCmd.Flag("json", "Output the downgrade report in JSON format").UnNegatableBoolVar(&c.json)
+	reportCmd.Flag("all", "Include consumers whose associated streams are incompatible with the selected API level").UnNegatableBoolVar(&c.all)
 }
 
 func (c *SrvReportCmd) withWatcher(fn func(*fisk.ParseContext) error) func(*fisk.ParseContext) error {
@@ -1538,5 +1546,189 @@ func (c *SrvReportCmd) reqFilter() server.EventFilterOptions {
 		Name:    c.server,
 		Cluster: c.cluster,
 		Tags:    c.tags,
+	}
+}
+
+type assets struct {
+	Streams   []streamAsset   `json:"streams,omitempty"`
+	Consumers []consumerAsset `json:"consumers,omitempty"`
+}
+
+type streamAsset struct {
+	Account  string `json:"account"`
+	Name     string `json:"name"`
+	APILevel uint   `json:"api_level"`
+}
+
+type consumerAsset struct {
+	Account  string `json:"account"`
+	Name     string `json:"name"`
+	Stream   string `json:"stream"`
+	APILevel uint   `json:"api_level"`
+}
+
+func getServerAccounts(nc *nats.Conn) ([]*server.AccountDetail, error) {
+	accountMap := map[string]*server.AccountDetail{}
+	opts := server.JszEventOptions{
+		JSzOptions: server.JSzOptions{
+			Accounts: true,
+			Streams:  true,
+			Consumer: true,
+			Config:   true,
+		},
+	}
+	err := fetchPagedJSZ(nc, opts, 1024, func(pages []*server.ServerAPIJszResponse) error {
+		for _, resp := range pages {
+			for _, acct := range resp.Data.AccountDetails {
+				if existing, found := accountMap[acct.Name]; found {
+					existing.Streams = mergeStreams(existing.Streams, acct.Streams)
+				} else {
+					copy := *acct
+					accountMap[acct.Name] = &copy
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var accounts []*server.AccountDetail
+	for _, acct := range accountMap {
+		accounts = append(accounts, acct)
+	}
+
+	sort.Slice(accounts, func(i, j int) bool { return accounts[i].Name < accounts[j].Name })
+	for _, acct := range accounts {
+		sort.Slice(acct.Streams, func(i, j int) bool { return acct.Streams[i].Name < acct.Streams[j].Name })
+	}
+
+	return accounts, nil
+}
+
+func mergeStreams(a, b []server.StreamDetail) []server.StreamDetail {
+	seen := map[string]any{}
+	var result []server.StreamDetail
+
+	for _, s := range append(a, b...) {
+		if _, found := seen[s.Name]; found {
+			continue
+		}
+		seen[s.Name] = struct{}{}
+		result = append(result, s)
+	}
+	return result
+}
+
+func (c *SrvReportCmd) downgradeCheckAction(_ *fisk.ParseContext) error {
+	nc, err := newNatsConn("", natsOpts()...)
+	if err != nil {
+		return fmt.Errorf("connection setup failed: %v", err)
+	}
+	defer nc.Close()
+
+	if !c.json {
+		fmt.Println("Obtaining JetStream Asset information")
+	}
+
+	accounts, err := getServerAccounts(nc)
+	if err != nil {
+		return fmt.Errorf("JSZ fetch failed: %v", err)
+	}
+
+	var as assets
+	for _, acc := range accounts {
+		for _, s := range acc.Streams {
+			streamApiLevel := parseLevel(s.Config.Metadata["_nats.req.level"])
+			incompatibleStream := c.apiLevel < streamApiLevel
+
+			if incompatibleStream {
+				as.Streams = append(as.Streams, streamAsset{
+					Account:  acc.Name,
+					Name:     s.Name,
+					APILevel: streamApiLevel,
+				})
+			}
+
+			sort.Slice(s.Consumer, func(i, j int) bool {
+				return s.Consumer[i].Name < s.Consumer[j].Name
+			})
+
+			for _, con := range s.Consumer {
+				consumerApiLevel := parseLevel(con.Config.Metadata["_nats.req.level"])
+				if c.apiLevel < consumerApiLevel || (c.all && incompatibleStream) {
+					displayStream := s.Name
+					if c.all && incompatibleStream {
+						displayStream += "*"
+					}
+					as.Consumers = append(as.Consumers, consumerAsset{
+						Account:  acc.Name,
+						Name:     con.Name,
+						Stream:   displayStream,
+						APILevel: consumerApiLevel,
+					})
+				}
+			}
+		}
+	}
+
+	c.renderDowngrade(as)
+	return nil
+}
+
+func parseLevel(lvl string) uint {
+	if lvl == "" {
+		return 0
+	}
+	i, _ := strconv.Atoi(lvl)
+	return uint(i)
+}
+
+func (c *SrvReportCmd) renderDowngrade(as assets) {
+	if c.json {
+		err := c.printDowngradeJSON(as)
+		if err != nil {
+			fmt.Printf("unable to generate json output: %s", err)
+		}
+		return
+	}
+	c.printDowngradeReport(as)
+}
+
+func (c *SrvReportCmd) printDowngradeJSON(as assets) error {
+	output, err := json.MarshalIndent(as, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(output))
+	return nil
+}
+
+func (c *SrvReportCmd) printDowngradeReport(as assets) {
+	empty := true
+	if len(as.Streams) > 0 {
+		empty = false
+		streamsTable := iu.NewTableWriter(opts(), "Assets: Streams")
+		streamsTable.AddHeaders("Account", "Stream", "Required API level")
+		for _, s := range as.Streams {
+			streamsTable.AddRow(s.Account, s.Name, s.APILevel)
+		}
+		fmt.Println(streamsTable.Render())
+	}
+
+	if len(as.Consumers) > 0 {
+		empty = false
+		consumersTable := iu.NewTableWriter(opts(), "Assets: Consumers")
+		consumersTable.AddHeaders("Account", "Stream", "Consumer", "Required API level")
+		for _, c := range as.Consumers {
+			consumersTable.AddRow(c.Account, c.Stream, c.Name, c.APILevel)
+		}
+		fmt.Println(consumersTable.Render())
+	}
+
+	if empty {
+		fmt.Println("All assets are compatible with the specified API level.")
 	}
 }
