@@ -300,6 +300,9 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 			if ack.Duplicate {
 				msg += " Duplicate: true"
 			}
+			if ack.Value != "" {
+				msg += fmt.Sprintf(" Counter Value: %s", ack.Value)
+			}
 			log.Printf(msg)
 		}
 
