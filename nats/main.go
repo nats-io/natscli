@@ -62,10 +62,10 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	if runtime.GOOS == "windows" {
 		ncli.Flag("certstore", "Uses a Windows Certificate Store for TLS (user, machine)").PlaceHolder("TYPE").EnumVar(&opts.WinCertStoreType, "user", "windowscurrentuser", "machine", "windowslocalmachine")
 		ncli.Flag("certstore-match", "Which certificate to use in the store").PlaceHolder("QUERY").StringVar(&opts.WinCertStoreMatch)
-		ncli.Flag("certstore-match-by", "Configures the way certificates are searched for (subject, issuer)").PlaceHolder("MATCH").Default("subject").EnumVar(&opts.WinCertStoreMatchBy, "subject", "issuer")
+		ncli.Flag("certstore-match-by", "Configures the way certificates are searched for (subject, issuer)").Default("subject").EnumVar(&opts.WinCertStoreMatchBy, "subject", "issuer")
 		ncli.Flag("certstore-ca-match", "Which certificate authority should be used from the store").StringsVar(&opts.WinCertCaStoreMatch)
 	}
-	ncli.Flag("timeout", "Time to wait on responses from NATS").Default("5s").Envar("NATS_TIMEOUT").PlaceHolder("DURATION").DurationVar(&opts.Timeout)
+	ncli.Flag("timeout", "Time to wait on responses from NATS").Default("5s").Envar("NATS_TIMEOUT").DurationVar(&opts.Timeout)
 	ncli.Flag("socks-proxy", "SOCKS5 proxy for connecting to NATS server").Envar("NATS_SOCKS_PROXY").PlaceHolder("PROXY").StringVar(&opts.SocksProxy)
 	ncli.Flag("js-api-prefix", "Subject prefix for access to JetStream API").PlaceHolder("PREFIX").StringVar(&opts.JsApiPrefix)
 	ncli.Flag("js-event-prefix", "Subject prefix for access to JetStream Advisories").PlaceHolder("PREFIX").StringVar(&opts.JsEventPrefix)

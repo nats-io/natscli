@@ -93,7 +93,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	connz.Flag("sort", "Sort by a specific property").Default("cid").EnumVar(&c.sortOpt, "cid", "start", "subs", "pending", "msgs_to", "msgs_from", "bytes_to", "bytes_from", "last", "idle", "uptime", "stop", "reason", "rtt")
 	connz.Flag("subscriptions", "Show subscriptions").UnNegatableBoolVar(&c.detail)
 	connz.Flag("filter-cid", "Filter on a specific CID").PlaceHolder("CID").Uint64Var(&c.cidFilter)
-	connz.Flag("filter-state", "Filter on a specific account state (open, closed, all)").PlaceHolder("STATE").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
+	connz.Flag("filter-state", "Filter on a specific account state (open, closed, all)").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
 	connz.Flag("filter-user", "Filter on a specific username").PlaceHolder("USER").StringVar(&c.userFilter)
 	connz.Flag("filter-account", "Filter on a specific account").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
 	connz.Flag("filter-subject", "Limits responses only to those connections with matching subscription interest").PlaceHolder("SUBJECT").StringVar(&c.subjectFilter)

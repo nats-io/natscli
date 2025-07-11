@@ -40,7 +40,7 @@ func configureAccountTLSCommand(srv *fisk.CmdClause) {
 	c := &ActTLSCmd{}
 
 	tls := srv.Command("tls", "Report TLS chain for connected server").Action(c.showTLS)
-	tls.Flag("expire-warn", "Warn about certs expiring this soon (1w; 0 to disable)").Default("1w").PlaceHolder("DURATION").DurationVar(&c.expireWarnDuration)
+	tls.Flag("expire-warn", "Warn about certs expiring this soon, 0 to disable").Default("1w").DurationVar(&c.expireWarnDuration)
 	tls.Flag("ocsp", "Report OCSP information, if any").UnNegatableBoolVar(&c.wantOCSP)
 	tls.Flag("pem", "Show PEM Certificate blocks (true)").Default("true").BoolVar(&c.wantPEM)
 
