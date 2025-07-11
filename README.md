@@ -25,17 +25,20 @@ operating systems can be found.
 #### Installation via go install
 
 The nats cli can be installed directly via `go install`.
-To install the latest version:
+To install the latest released version:
 
 ```
 go install github.com/nats-io/natscli/nats@latest
 ```
+You can also specify a git tag or branch name.
 
-To install a specific release:
 
+#### Using the convenience script
 ```
-go install github.com/nats-io/natscli/nats@v0.0.33
+curl -sf https://binaries.nats.dev/nats-io/natscli/nats@latest | sh
 ```
+This will download the binary and place it in the current directory. Like in `go install`, you can pass any tag or branch.
+For example, to obtain the most recent, unreleased  version of the code, use `@main`.
 
 #### macOS installation via Homebrew
 
