@@ -83,7 +83,7 @@ func (c *serviceCmd) echoHandler(req micro.Request) {
 	hdr.Add("ConnectedUrl", c.nc.ConnectedUrlRedacted())
 	hdr.Add("Handler", strconv.Itoa(os.Getpid()))
 	hdr.Add("Subject", req.Subject())
-	hdr.Add("Timestamp", time.Now().Format(time.RFC3339))
+	hdr.Add("Timestamp", f(time.Now()))
 	if c.nc.ConnectedClusterName() != "" {
 		hdr.Add("ConnectedCluster", c.nc.ConnectedClusterName())
 	}
