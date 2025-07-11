@@ -1152,7 +1152,7 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 		default:
 			meta, err := jsm.ParseJSMsgMetadata(msg)
 			if err == nil {
-				fmt.Printf("[%d] Subject: %s Received: %s\n", meta.StreamSequence(), msg.Subject, meta.TimeStamp().Format(time.RFC3339))
+				fmt.Printf("[%d] Subject: %s Received: %s\n", meta.StreamSequence(), msg.Subject, f(meta.TimeStamp()))
 			} else {
 				fmt.Printf("Subject: %s Reply: %s\n", msg.Subject, msg.Reply)
 			}

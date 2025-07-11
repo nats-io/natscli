@@ -218,7 +218,7 @@ func TestSubscribe(t *testing.T) {
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --last --count=1", srv.ClientURL())))
-			pattern := `\[#\d\] Received JetStream message: stream: TEST_STREAM seq (\d+) / subject: TEST_STREAM.1 / time: \d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ`
+			pattern := `\[#\d\] Received JetStream message: stream: TEST_STREAM seq (\d+) / subject: TEST_STREAM.1 / time: \d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d`
 			matcher := regexp.MustCompile(pattern)
 			outputSlice := strings.Split(output, "\n")
 

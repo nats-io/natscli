@@ -704,7 +704,7 @@ func (c *kvCommand) getAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	fmt.Printf("%s > %s revision: %d created @ %s\n", res.Bucket(), res.Key(), res.Revision(), res.Created().Format(time.RFC822))
+	fmt.Printf("%s > %s revision: %d created @ %s\n", res.Bucket(), res.Key(), res.Revision(), f(res.Created()))
 	fmt.Println()
 	pv := iu.Base64IfNotPrintable(res.Value())
 	lpv := len(pv)
@@ -987,7 +987,7 @@ func (c *kvCommand) showStatus(store jetstream.KeyValue) error {
 	if nfo == nil {
 		cols.SetHeading(fmt.Sprintf("Information for Key-Value Store Bucket %s", status.Bucket()))
 	} else {
-		cols.SetHeading(fmt.Sprintf("Information for Key-Value Store Bucket %s created %s", status.Bucket(), nfo.Created.Local().Format(time.RFC3339)))
+		cols.SetHeading(fmt.Sprintf("Information for Key-Value Store Bucket %s created %s", status.Bucket(), f(nfo.Created)))
 	}
 
 	cols.AddSectionTitle("Configuration")

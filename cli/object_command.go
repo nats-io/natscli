@@ -318,7 +318,7 @@ func (c *objCommand) showBucketInfo(store jetstream.ObjectStore) error {
 	if nfo == nil {
 		cols.SetHeading(fmt.Sprintf("Information for Object Store Bucket %s", status.Bucket()))
 	} else {
-		cols.SetHeading(fmt.Sprintf("Information for Object Store Bucket %s created %s", status.Bucket(), nfo.Created.Local().Format(time.RFC3339)))
+		cols.SetHeading(fmt.Sprintf("Information for Object Store Bucket %s created %s", status.Bucket(), f(nfo.Created)))
 	}
 
 	cols.AddSectionTitle("Configuration")
@@ -466,7 +466,7 @@ func (c *objCommand) lsAction(_ *fisk.ParseContext) error {
 	table.AddHeaders("Name", "Size", "Time")
 
 	for _, i := range contents {
-		table.AddRow(i.Name, humanize.IBytes(i.Size), i.ModTime.Format(time.RFC3339))
+		table.AddRow(i.Name, humanize.IBytes(i.Size), f(i.ModTime))
 	}
 
 	fmt.Println(table.Render())

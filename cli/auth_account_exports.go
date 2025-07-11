@@ -19,7 +19,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/nats-io/natscli/internal/util"
 
@@ -161,7 +160,7 @@ func (c *authAccountCommand) showExport(exp ab.Export) (string, error) {
 
 	if len(exp.Revocations().List()) > 0 {
 		for _, rev := range exp.Revocations().List() {
-			cols.AddRow(rev.At().Format(time.RFC3339), rev.PublicKey())
+			cols.AddRow(f(rev.At()), rev.PublicKey())
 		}
 	} else {
 		cols.Println()

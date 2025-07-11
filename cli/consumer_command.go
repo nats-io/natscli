@@ -1130,9 +1130,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 
 	var cols *columns.Writer
 	if c.showStateOnly {
-		cols = newColumns(fmt.Sprintf("State for Consumer %s > %s created %s", state.Stream, state.Name, state.Created.Local().Format(time.RFC3339)))
+		cols = newColumns(fmt.Sprintf("State for Consumer %s > %s created %s", state.Stream, state.Name, f(state.Created)))
 	} else {
-		cols = newColumns(fmt.Sprintf("Information for Consumer %s > %s created %s", state.Stream, state.Name, state.Created.Local().Format(time.RFC3339)))
+		cols = newColumns(fmt.Sprintf("Information for Consumer %s > %s created %s", state.Stream, state.Name, f(state.Created)))
 	}
 
 	if !c.showStateOnly {
