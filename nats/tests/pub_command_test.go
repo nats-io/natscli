@@ -106,3 +106,46 @@ func TestCLIPubSendOnNewline(t *testing.T) {
 		})
 	})
 }
+
+func TestCLIPubTemplates(t *testing.T) {
+	srv, _, _ := setupJStreamTest(t)
+	defer srv.Shutdown()
+	nc, _, _ := prepareHelper(srv.ClientURL())
+	t.Run("Publish --templates (Default)", func(t *testing.T) {
+		subject := "test-templates"
+		var messages []string
+		expected := "Count: 1"
+		sub, _ := nc.Subscribe(subject, func(m *nats.Msg) {
+			messages = append(messages, string(m.Data))
+		})
+
+		runNatsCliWithInput(t, expected, fmt.Sprintf("--server='%s' pub --force-stdin %s \"Count: {{ Count }}\"", srv.ClientURL(), subject))
+		_ = sub.Unsubscribe()
+
+		if len(messages) != 1 {
+			t.Errorf("expected 1 message and received %d", len(messages))
+		}
+		if len(messages) > 0 && messages[0] != expected {
+			t.Errorf("expected message %q got %q", expected, messages[0])
+		}
+	})
+
+	t.Run("Publish --no-templates", func(t *testing.T) {
+		subject := "test-no-templates"
+		var messages []string
+		expected := "Count: {{ Count }}"
+		sub, _ := nc.Subscribe(subject, func(m *nats.Msg) {
+			messages = append(messages, string(m.Data))
+		})
+
+		runNatsCliWithInput(t, expected, fmt.Sprintf("--server='%s' pub --force-stdin %s \"Count: {{ Count }}\" --no-templates", srv.ClientURL(), subject))
+		_ = sub.Unsubscribe()
+
+		if len(messages) != 1 {
+			t.Errorf("expected 1 message and received %d", len(messages))
+		}
+		if len(messages) > 0 && messages[0] != expected {
+			t.Errorf("expected message %q got %q", expected, messages[0])
+		}
+	})
+}

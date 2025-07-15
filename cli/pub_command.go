@@ -55,6 +55,7 @@ type pubCmd struct {
 	jetstream    bool
 	sendOn       string
 	quiet        bool
+	templates    bool
 }
 
 func configurePubCommand(app commandHost) {
@@ -94,6 +95,7 @@ Available template functions are:
 	pub.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).
 		Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
 	pub.Flag("quiet", "Show just the output received").Short('q').UnNegatableBoolVar(&c.quiet)
+	pub.Flag("templates", "Enables template functions in the body and subject (does not affect headers)").Default("true").BoolVar(&c.templates)
 
 	requestHelp := `Body and Header values of the messages may use Go templates to 
 create unique messages.
@@ -140,6 +142,22 @@ func (c *pubCmd) prepareMsg(subj string, body []byte, seq int) (*nats.Msg, error
 	return msg, iu.ParseStringsToMsgHeader(c.hdrs, seq, msg)
 }
 
+func (c *pubCmd) parseTemplates(request string, ctr int) (string, string) {
+	if c.templates {
+		body, err := iu.PubReplyBodyTemplate(c.body, request, ctr)
+		if err != nil {
+			log.Printf("Could not parse body template: %s", err)
+		}
+
+		subj, err := iu.PubReplyBodyTemplate(c.subject, request, ctr)
+		if err != nil {
+			log.Printf("Could not parse subject template: %s", err)
+		}
+		return string(body), string(subj)
+	}
+	return c.body, c.subject
+}
+
 func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
 	logOutput := !c.raw && progress == nil
 
@@ -148,17 +166,9 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
 			log.Printf("Sending request on %q\n", c.subject)
 		}
 
-		body, err := iu.PubReplyBodyTemplate(c.body, "", i)
-		if err != nil {
-			log.Printf("Could not parse body template: %s", err)
-		}
+		body, subj := c.parseTemplates("", i)
 
-		subj, err := iu.PubReplyBodyTemplate(c.subject, "", i)
-		if err != nil {
-			log.Printf("Could not parse subject template: %s", err)
-		}
-
-		msg, err := c.prepareMsg(string(subj), body, i)
+		msg, err := c.prepareMsg(subj, []byte(body), i)
 		if err != nil {
 			return err
 		}
@@ -257,22 +267,13 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
 func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 	for i := 1; i <= c.cnt; i++ {
 		start := time.Now()
-		body, err := iu.PubReplyBodyTemplate(c.body, "", i)
-		if err != nil {
-			log.Printf("Could not parse body template: %s", err)
-		}
+		body, subj := c.parseTemplates("", i)
 
-		subj, err := iu.PubReplyBodyTemplate(c.subject, "", i)
-		if err != nil {
-			log.Printf("Could not parse subject template: %s", err)
-		}
-
-		msg, err := c.prepareMsg(string(subj), body, i)
+		msg, err := c.prepareMsg(subj, []byte(body), i)
 		if err != nil {
 			return err
 		}
 
-		msg.Subject = string(subj)
 		if !c.quiet {
 			log.Printf("Published %d bytes to %q\n", len(body), c.subject)
 		}
@@ -436,17 +437,9 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 			}
 
 			for i := 1; i <= c.cnt; i++ {
-				body, err := iu.PubReplyBodyTemplate(c.body, "", i)
-				if err != nil {
-					log.Printf("Could not parse body template: %s", err)
-				}
+				body, subj := c.parseTemplates("", i)
 
-				subj, err := iu.PubReplyBodyTemplate(c.subject, "", i)
-				if err != nil {
-					log.Printf("Could not parse subject template: %s", err)
-				}
-
-				msg, err := c.prepareMsg(string(subj), body, i)
+				msg, err := c.prepareMsg(subj, []byte(body), i)
 				if err != nil {
 					errCh <- err
 					return
