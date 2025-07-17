@@ -857,3 +857,8 @@ Validation errors in request.json:
 
 Here I validate `request.json` against the Schema that describes the API to create Streams, the validation indicates
 that I have an incorrect value in the `retention` field.
+
+
+## Contributing changes
+
+_Prior to opening a pull request, it is recommended to open an issue first to ensure the maintainers can review intended changes. This saves time for both you and us. Exceptions to this rule include fixing non-functional source such as code comments, documentation or other supporting files._
