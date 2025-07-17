@@ -201,12 +201,21 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").IsSetByUser(&c.placementTagsSet).StringsVar(&c.placementTags)
 		f.Flag("tags", "Backward compatibility only, use --tag").Hidden().IsSetByUser(&c.placementTagsSet).StringsVar(&c.placementTags)
 		f.Flag("cluster", "Place the stream on a specific cluster").IsSetByUser(&c.placementClusterSet).StringVar(&c.placementCluster)
-		f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
+		if edit {
+			f.Flag("ack", "Acknowledge publishes").Default("true").BoolVar(&c.ack)
+		} else {
+			f.Flag("ack", "Acknowledge publishes").Default("true").UnNegatableBoolVar(&c.ack)
+		}
 		if !edit {
 			f.Flag("retention", "Defines a retention policy (limits, interest, work)").EnumVar(&c.retentionPolicyS, "limits", "interest", "workq", "work")
 		}
 		f.Flag("discard", "Defines the discard policy (new, old)").EnumVar(&c.discardPolicy, "new", "old")
-		f.Flag("discard-per-subject", "Sets the 'new' discard policy and applies it to every subject in the stream").IsSetByUser(&c.discardPerSubjSet).BoolVar(&c.discardPerSubj)
+		if edit {
+			f.Flag("discard-per-subject", "Sets the 'new' discard policy and applies it to every subject in the stream").IsSetByUser(&c.discardPerSubjSet).BoolVar(&c.discardPerSubj)
+		} else {
+			f.Flag("discard-per-subject", "Sets the 'new' discard policy and applies it to every subject in the stream").IsSetByUser(&c.discardPerSubjSet).UnNegatableBoolVar(&c.discardPerSubj)
+		}
+
 		if !edit {
 			f.Flag("first-sequence", "Sets the starting sequence").Uint64Var(&c.firstSeq)
 		}
@@ -219,13 +228,23 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("dupe-window", "Duration of the duplicate message tracking window").Default("").StringVar(&c.dupeWindow)
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
-		f.Flag("allow-batch", "Allow atomic batch publishing").IsSetByUser(&c.allowAtomicBatchIsSet).BoolVar(&c.allowAtomicBatch)
-		f.Flag("allow-counter", "Configures the Stream as a distributed counter").IsSetByUser(&c.allowCounterIsSet).BoolVar(&c.allowCounter)
-		f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers").IsSetByUser(&c.allowRollupSet).BoolVar(&c.allowRollup)
-		f.Flag("deny-delete", "Deny messages from being deleted via the API").IsSetByUser(&c.denyDeleteSet).BoolVar(&c.denyDelete)
-		f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
-		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).Default("true").BoolVar(&c.allowDirect)
-		f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
+		if edit {
+			f.Flag("allow-batch", "Allow atomic batch publishing").IsSetByUser(&c.allowAtomicBatchIsSet).BoolVar(&c.allowAtomicBatch)
+			f.Flag("allow-counter", "Configures the Stream as a distributed counter").IsSetByUser(&c.allowCounterIsSet).BoolVar(&c.allowCounter)
+			f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers").IsSetByUser(&c.allowRollupSet).BoolVar(&c.allowRollup)
+			f.Flag("deny-delete", "Deny messages from being deleted via the API").IsSetByUser(&c.denyDeleteSet).BoolVar(&c.denyDelete)
+			f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
+			f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).BoolVar(&c.allowDirect)
+			f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
+		} else {
+			f.Flag("allow-batch", "Allow atomic batch publishing").IsSetByUser(&c.allowAtomicBatchIsSet).UnNegatableBoolVar(&c.allowAtomicBatch)
+			f.Flag("allow-counter", "Configures the Stream as a distributed counter").IsSetByUser(&c.allowCounterIsSet).UnNegatableBoolVar(&c.allowCounter)
+			f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers").IsSetByUser(&c.allowRollupSet).UnNegatableBoolVar(&c.allowRollup)
+			f.Flag("deny-delete", "Deny messages from being deleted via the API").IsSetByUser(&c.denyDeleteSet).UnNegatableBoolVar(&c.denyDelete)
+			f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
+			f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).Default("true").UnNegatableBoolVar(&c.allowDirect)
+			f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).UnNegatableBoolVar(&c.allowMirrorDirect)
+		}
 		f.Flag("allow-msg-ttl", "Allows per-message TTL handling").IsSetByUser(&c.allowMsgTTlSet).UnNegatableBoolVar(&c.allowMsgTTL)
 		f.Flag("subject-del-markers-ttl", "How long delete markers should persist in the Stream").PlaceHolder("DURATION").IsSetByUser(&c.subjectDeleteMarkerTTLSet).DurationVar(&c.subjectDeleteMarkerTTL)
 		f.Flag("transform-source", "Stream subject transform source").PlaceHolder("SOURCE").StringVar(&c.subjectTransformSource)
