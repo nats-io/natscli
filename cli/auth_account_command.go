@@ -118,12 +118,12 @@ func configureAuthAccountCommand(auth commandHost) {
 	acct := auth.Command("account", "Manage NATS Accounts").Alias("a").Alias("acct").Alias("act")
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
-		f.Flag("bearer", "Allows bearer tokens").Default("false").IsSetByUser(&c.bearerAllowedIsSet).BoolVar(&c.bearerAllowed)
+		f.Flag("bearer", "Allows bearer tokens").Default("false").IsSetByUser(&c.bearerAllowedIsSet).UnNegatableBoolVar(&c.bearerAllowed)
 		f.Flag("connections", "Maximum allowed connections").Default("-1").IsSetByUser(&c.maxConnsIsSet).Int64Var(&c.maxConns)
 		f.Flag("expiry", "How long this account should be valid for as a duration").PlaceHolder("DURATION").DurationVar(&c.expiry)
 		f.Flag("exports", "Maximum allowed exports").Default("-1").IsSetByUser(&c.maxExportsIsSet).Int64Var(&c.maxExports)
 		f.Flag("imports", "Maximum allowed imports").Default("-1").IsSetByUser(&c.maxImportsIsSet).Int64Var(&c.maxImports)
-		f.Flag("jetstream", "Enables JetStream").Default("false").IsSetByUser(&c.jetStreamIsSet).BoolVar(&c.jetStream)
+		f.Flag("jetstream", "Enables JetStream").Default("false").IsSetByUser(&c.jetStreamIsSet).UnNegatableBoolVar(&c.jetStream)
 		f.Flag("js-consumers", "Sets the maximum Consumers the account can have").Default("-1").IsSetByUser(&c.maxConsumersIsSet).Int64Var(&c.maxConsumers)
 		f.Flag("js-disk", "Sets a Disk Storage quota").PlaceHolder("BYTES").StringVar(&c.storeMaxString)
 		f.Flag("js-disk-stream", "Sets the maximum size a Disk Storage stream may be").PlaceHolder("BYTES").Default("-1").StringVar(&c.storeMaxStreamString)
@@ -267,7 +267,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	skadd.Flag("description", "Description for the signing key").StringVar(&c.description)
 	skadd.Flag("subscriptions", "Maximum allowed subscriptions").Default("-1").Int64Var(&c.maxSubs)
 	skadd.Flag("payload", "Maximum allowed payload").PlaceHolder("BYTES").StringVar(&c.maxPayloadString)
-	skadd.Flag("bearer", "Allows bearer tokens").Default("false").BoolVar(&c.bearerAllowed)
+	skadd.Flag("bearer", "Allows bearer tokens").Default("false").UnNegatableBoolVar(&c.bearerAllowed)
 	skadd.Flag("locale", "Locale for the client").StringVar(&c.locale)
 	skadd.Flag("connection", "Set the allowed connections (nats, ws, wsleaf, mqtt)").EnumsVar(&c.connTypes, "nats", "ws", "leaf", "wsleaf", "mqtt")
 	skadd.Flag("pub-allow", "Sets subjects where publishing is allowed").StringsVar(&c.pubAllow)
