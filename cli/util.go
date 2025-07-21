@@ -311,6 +311,40 @@ func jetstreamOpts() []jetstream.JetStreamOpt {
 	return res
 }
 
+func newJetStreamWithOptions(nc *nats.Conn, opts *options.Options) (jetstream.JetStream, error) {
+	var js jetstream.JetStream
+	var err error
+	jsops := []jetstream.JetStreamOpt{
+		jetstream.WithDefaultTimeout(opts.Timeout),
+	}
+
+	if opts.Trace {
+		ct := &jetstream.ClientTrace{
+			RequestSent: func(subj string, payload []byte) {
+				log.Printf(">>> %s\n%s\n\n", subj, string(payload))
+			},
+			ResponseReceived: func(subj string, payload []byte, hdr nats.Header) {
+				log.Printf("<<< %s: %s", subj, string(payload))
+			},
+		}
+		jsops = append(jsops, jetstream.WithClientTrace(ct))
+	}
+
+	switch {
+	case opts.Config.JSDomain() != "":
+		js, err = jetstream.NewWithDomain(nc, opts.Config.JSDomain(), jsops...)
+	case opts.Config.JSAPIPrefix() != "":
+		js, err = jetstream.NewWithAPIPrefix(nc, opts.Config.JSAPIPrefix(), jsops...)
+	default:
+		js, err = jetstream.New(nc, jsops...)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return js, nil
+}
+
 func jsOpts() []nats.JSOpt {
 	opts := opts()
 	jso := []nats.JSOpt{
