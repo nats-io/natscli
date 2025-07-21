@@ -23,6 +23,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nats-io/natscli/internal/sysclient"
 	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
@@ -59,6 +60,8 @@ type SrvReportCmd struct {
 	consumer                string
 	watchInterval           int
 	nc                      *nats.Conn
+	apiLevel                uint
+	all                     bool
 }
 
 type srvReportAccountInfo struct {
@@ -149,6 +152,11 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	routes.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	routes.Flag("sort", "Sort by a specific property (server,cluster,name,account,subs,in-bytes,out-bytes)").EnumVar(&c.sort, "server", "cluster", "name", "account", "subs", "in-bytes", "out-bytes")
 	addFilterOpts(routes)
+
+	reportCmd := report.Command("downgrade", "List assets incompatible with the specified API level").Action(c.downgradeCheckAction)
+	reportCmd.Arg("api", "Target API level to check compatibility against").Required().UintVar(&c.apiLevel)
+	reportCmd.Flag("json", "Output the downgrade report in JSON format").UnNegatableBoolVar(&c.json)
+	reportCmd.Flag("all", "Include consumers whose associated streams are incompatible with the selected API level").UnNegatableBoolVar(&c.all)
 }
 
 func (c *SrvReportCmd) withWatcher(fn func(*fisk.ParseContext) error) func(*fisk.ParseContext) error {
@@ -1538,5 +1546,126 @@ func (c *SrvReportCmd) reqFilter() server.EventFilterOptions {
 		Name:    c.server,
 		Cluster: c.cluster,
 		Tags:    c.tags,
+	}
+}
+
+type jsDowngradeAsset struct {
+	Streams   []jsDowngradeStreamAsset   `json:"streams,omitempty"`
+	Consumers []jsDowngradeConsumerAsset `json:"consumers,omitempty"`
+}
+
+type jsDowngradeStreamAsset struct {
+	Account  string `json:"account"`
+	Name     string `json:"name"`
+	APILevel uint   `json:"api_level"`
+}
+
+type jsDowngradeConsumerAsset struct {
+	Account  string `json:"account"`
+	Name     string `json:"name"`
+	Stream   string `json:"stream"`
+	APILevel uint   `json:"api_level"`
+}
+
+func (c *SrvReportCmd) downgradeCheckAction(_ *fisk.ParseContext) error {
+	nc, err := newNatsConn("", natsOpts()...)
+	if err != nil {
+		return fmt.Errorf("connection setup failed: %v", err)
+	}
+	defer nc.Close()
+
+	if !c.json {
+		fmt.Println("Obtaining JetStream Asset information")
+	}
+
+	activeServers, err := currentActiveServers(nc)
+	if err != nil {
+		return err
+	}
+	if activeServers == 0 {
+		return fmt.Errorf("failed to find any active servers before timeout expired")
+	}
+
+	sys := sysclient.New(nc, opts().Trace)
+	accounts, err := sys.CollectClusterAccounts(opts().Timeout, activeServers)
+	if err != nil {
+		return fmt.Errorf("JSZ fetch failed: %v", err)
+	}
+
+	var as jsDowngradeAsset
+	for _, acc := range accounts {
+		for _, s := range acc.Streams {
+			streamApiLevel := iu.ParseApiLevel(s.Config.Metadata["_nats.req.level"])
+			incompatibleStream := c.apiLevel < streamApiLevel
+
+			if incompatibleStream {
+				as.Streams = append(as.Streams, jsDowngradeStreamAsset{
+					Account:  acc.Name,
+					Name:     s.Name,
+					APILevel: streamApiLevel,
+				})
+			}
+
+			sort.Slice(s.Consumer, func(i, j int) bool {
+				return s.Consumer[i].Name < s.Consumer[j].Name
+			})
+
+			for _, con := range s.Consumer {
+				consumerApiLevel := iu.ParseApiLevel(con.Config.Metadata["_nats.req.level"])
+				if c.apiLevel < consumerApiLevel || (c.all && incompatibleStream) {
+					displayStream := s.Name
+					if c.all && incompatibleStream {
+						displayStream += "*"
+					}
+					as.Consumers = append(as.Consumers, jsDowngradeConsumerAsset{
+						Account:  acc.Name,
+						Name:     con.Name,
+						Stream:   displayStream,
+						APILevel: consumerApiLevel,
+					})
+				}
+			}
+		}
+	}
+
+	c.renderDowngrade(as)
+	return nil
+}
+
+func (c *SrvReportCmd) renderDowngrade(as jsDowngradeAsset) {
+	if !c.json {
+		c.printDowngradeReport(as)
+		return
+	}
+
+	if err := iu.PrintJSON(as); err != nil {
+		fmt.Printf("unable to generate json output: %s\n", err)
+	}
+}
+
+func (c *SrvReportCmd) printDowngradeReport(as jsDowngradeAsset) {
+	empty := true
+	if len(as.Streams) > 0 {
+		empty = false
+		streamsTable := iu.NewTableWriter(opts(), "Assets: Streams")
+		streamsTable.AddHeaders("Account", "Stream", "Required API level")
+		for _, s := range as.Streams {
+			streamsTable.AddRow(s.Account, s.Name, s.APILevel)
+		}
+		fmt.Println(streamsTable.Render())
+	}
+
+	if len(as.Consumers) > 0 {
+		empty = false
+		consumersTable := iu.NewTableWriter(opts(), "Assets: Consumers")
+		consumersTable.AddHeaders("Account", "Stream", "Consumer", "Required API level")
+		for _, c := range as.Consumers {
+			consumersTable.AddRow(c.Account, c.Stream, c.Name, c.APILevel)
+		}
+		fmt.Println(consumersTable.Render())
+	}
+
+	if empty {
+		fmt.Println("All assets are compatible with the specified API level.")
 	}
 }

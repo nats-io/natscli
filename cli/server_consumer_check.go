@@ -91,7 +91,7 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 		fmt.Printf("Connected in %.3fs\n", time.Since(start).Seconds())
 	}
 
-	sys := sysclient.New(nc)
+	sys := sysclient.New(nc, opts().Trace)
 
 	if !c.stdin {
 		if c.expected == 0 {
