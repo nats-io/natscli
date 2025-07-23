@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -246,9 +245,6 @@ func (c *kvCommand) lsBucketKeys() error {
 		return fmt.Errorf("unable to prepare js helper: %s", err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	kv, err := js.KeyValue(ctx, c.bucket)
 	if err != nil {
 		return fmt.Errorf("unable to load bucket: %s", err)
@@ -300,9 +296,6 @@ func (c *kvCommand) displayKeyInfo(kv jetstream.KeyValue, keys jetstream.KeyList
 	} else {
 		table.AddHeaders("Key", "Created", "Delta", "Revision")
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
 
 	for keyName := range keys.Keys() {
 		found = true
@@ -385,9 +378,6 @@ func (c *kvCommand) revertAction(pc *fisk.ParseContext) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	history, err := store.History(ctx, c.key)
 	if err != nil {
 		return err
@@ -433,9 +423,6 @@ func (c *kvCommand) historyAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	history, err := store.History(ctx, c.key)
 	if err != nil {
 		return err
@@ -475,9 +462,6 @@ func (c *kvCommand) compactAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	return store.PurgeDeletes(ctx)
 }
 
@@ -502,9 +486,6 @@ func (c *kvCommand) deleteAction(pc *fisk.ParseContext) error {
 			return nil
 		}
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
 
 	return store.Delete(ctx, c.key)
 }
@@ -563,9 +544,6 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 		})
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	store, err := js.CreateKeyValue(ctx, cfg)
 	if err != nil {
 		return err
@@ -580,13 +558,11 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	kv, err := js.KeyValue(ctx, c.bucket)
 	if err != nil {
 		return err
 	}
+
 	status, err := kv.Status(ctx)
 	if err != nil {
 		return err
@@ -683,9 +659,6 @@ func (c *kvCommand) getAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	var res jetstream.KeyValueEntry
 	if c.revision > 0 {
 		res, err = store.GetRevision(ctx, c.key, c.revision)
@@ -728,9 +701,6 @@ func (c *kvCommand) putAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	_, err = store.Put(ctx, c.key, val)
 	if err != nil {
 		return err
@@ -751,9 +721,6 @@ func (c *kvCommand) createAction(_ *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
 
 	if c.keyTTL > 0 {
 		_, err = store.Create(ctx, c.key, val, jetstream.KeyTTL(c.keyTTL))
@@ -779,9 +746,6 @@ func (c *kvCommand) updateAction(_ *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
 
 	_, err = store.Update(ctx, c.key, val, c.revision)
 	if err != nil {
@@ -827,9 +791,6 @@ func (c *kvCommand) loadBucket() (*nats.Conn, jetstream.JetStream, jetstream.Key
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	store, err := js.KeyValue(ctx, c.bucket)
 	if err != nil {
 		return nil, nil, nil, err
@@ -873,8 +834,6 @@ func (c *kvCommand) watchAction(_ *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
-
-	ctx := context.Background()
 
 	var opts []jetstream.WatchOpt
 	if !c.includeDeletes {
@@ -930,9 +889,6 @@ func (c *kvCommand) purgeAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	if c.keyTTL > 0 {
 		return store.Purge(ctx, c.key, jetstream.PurgeTTL(c.keyTTL))
 	}
@@ -958,16 +914,10 @@ func (c *kvCommand) rmBucketAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	return js.DeleteKeyValue(ctx, c.bucket)
 }
 
 func (c *kvCommand) showStatus(store jetstream.KeyValue) error {
-	ctx, cancel := context.WithTimeout(ctx, opts().Timeout)
-	defer cancel()
-
 	status, err := store.Status(ctx)
 	if err != nil {
 		return err
