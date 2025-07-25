@@ -269,7 +269,7 @@ func (c *benchCmd) processActionArgs() error {
 
 	// for pubs/request/and put only
 	if c.msgSizeString != "" {
-		msgSize, err := iu.ParseStringAsBytes(c.msgSizeString)
+		msgSize, err := iu.ParseStringAsBytes(c.msgSizeString, 32)
 		if err != nil || msgSize <= 0 || msgSize > math.MaxInt {
 			return fmt.Errorf("can not parse or invalid the value specified for the message size: %s", c.msgSizeString)
 		} else {
@@ -282,7 +282,7 @@ func (c *benchCmd) processActionArgs() error {
 	}
 
 	if c.streamMaxBytesString != "" {
-		size, err := iu.ParseStringAsBytes(c.streamMaxBytesString)
+		size, err := iu.ParseStringAsBytes(c.streamMaxBytesString, 64)
 		if err != nil || size <= 0 {
 			return fmt.Errorf("can not parse or invalid the value specified for the max stream/bucket size: %s", c.streamMaxBytesString)
 		}

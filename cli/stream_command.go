@@ -794,14 +794,14 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 
 func (c *streamCmd) parseLimitStrings(_ *fisk.ParseContext) (err error) {
 	if c.maxBytesLimitString != "" {
-		c.maxBytesLimit, err = iu.ParseStringAsBytes(c.maxBytesLimitString)
+		c.maxBytesLimit, err = iu.ParseStringAsBytes(c.maxBytesLimitString, 32)
 		if err != nil {
 			return err
 		}
 	}
 
 	if c.maxMsgSizeString != "" {
-		c.maxMsgSize, err = iu.ParseStringAsBytes(c.maxMsgSizeString)
+		c.maxMsgSize, err = iu.ParseStringAsBytes(c.maxMsgSizeString, 32)
 		if err != nil {
 			return err
 		}
@@ -1440,7 +1440,7 @@ func (c *streamCmd) backupAction(_ *fisk.ParseContext) error {
 
 	chunkSize := int64(128 * 1024)
 	if c.chunkSize != "" {
-		chunkSize, err = iu.ParseStringAsBytes(c.chunkSize)
+		chunkSize, err = iu.ParseStringAsBytes(c.chunkSize, 32)
 		if err != nil {
 			return err
 		}

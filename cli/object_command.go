@@ -147,7 +147,7 @@ func init() {
 
 func (c *objCommand) parseLimitStrings(_ *fisk.ParseContext) (err error) {
 	if c.maxBucketSizeString != "" {
-		c.maxBucketSize, err = iu.ParseStringAsBytes(c.maxBucketSizeString)
+		c.maxBucketSize, err = iu.ParseStringAsBytes(c.maxBucketSizeString, 64)
 		if err != nil {
 			return err
 		}

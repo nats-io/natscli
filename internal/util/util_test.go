@@ -15,12 +15,14 @@ package util
 
 import (
 	"errors"
-	"github.com/google/go-cmp/cmp"
 	"io"
+	"math"
 	"os"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestIsJsonObjectString(t *testing.T) {
@@ -202,9 +204,11 @@ func TestEditFile(t *testing.T) {
 
 func TestParseStringAsBytes(t *testing.T) {
 	cases := []struct {
-		input  string
-		expect int64
-		error  bool
+		input     string
+		bits      int
+		expect    int64
+		error     bool
+		errorKind error
 	}{
 		{input: "1", expect: 1},
 		{input: "1000", expect: 1000},
@@ -225,6 +229,9 @@ func TestParseStringAsBytes(t *testing.T) {
 		{input: "1TB", expect: 1024 * 1024 * 1024 * 1024},
 		{input: "1TiB", expect: 1024 * 1024 * 1024 * 1024},
 		{input: "1t", expect: 1024 * 1024 * 1024 * 1024},
+		{input: "9223372036854775807", expect: math.MaxInt64},
+		{input: "9223372036854775807", bits: 32, error: true, errorKind: errBytesOutOfRangeString},
+		{input: "9223372036854775807", bits: 12, error: true, errorKind: errInvalidBitSize},
 		{input: "-1", expect: -1},
 		{input: "-10", expect: -1},
 		{input: "-10GB", expect: -1},
@@ -234,9 +241,16 @@ func TestParseStringAsBytes(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		v, err := ParseStringAsBytes(c.input)
+		if c.bits == 0 {
+			c.bits = 64
+		}
+		if c.error && c.errorKind == nil {
+			c.errorKind = errInvalidByteString
+		}
+
+		v, err := ParseStringAsBytes(c.input, c.bits)
 		if c.error {
-			if !errors.Is(err, errInvalidByteString) {
+			if !errors.Is(err, c.errorKind) {
 				t.Fatalf("expected an invalid bytes error got: %v", err)
 			}
 		} else {
