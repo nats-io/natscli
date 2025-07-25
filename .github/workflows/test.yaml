@@ -1,5 +1,8 @@
 name: NATS CLI Testing
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
