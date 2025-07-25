@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -595,11 +596,26 @@ func Base64IfNotPrintable(val []byte) string {
 
 var bytesUnitSplitter = regexp.MustCompile(`^(\d+)(\w+)`)
 var errInvalidByteString = errors.New("bytes must end in K, KB, M, MB, G, GB, T or TB")
+var errBytesOutOfRangeString = errors.New("bytes value out of allowed range")
+var errInvalidBitSize = errors.New("invalid bit size")
+var validBitSizes = []int{8, 16, 32, 64}
+var bitSizeRange = map[int]int64{
+	8:  math.MaxInt8,
+	16: math.MaxInt16,
+	32: math.MaxInt32,
+	64: math.MaxInt64,
+}
 
-// ParseStringAsBytes nats-server derived string parse, empty string and any negative is -1,others are parsed as 1024 based bytes
-func ParseStringAsBytes(s string) (int64, error) {
+// ParseStringAsBytes nats-server derived string parse, empty string and any negative is -1,others are parsed as 1024 based bytes.
+//
+// Bitsize should be set to control the resulting number and will be passed to strconv.ParseInt.
+func ParseStringAsBytes(s string, bitSize int) (int64, error) {
 	if s == "" {
 		return -1, nil
+	}
+
+	if !slices.Contains(validBitSizes, bitSize) {
+		return -1, fmt.Errorf("%w: %v", errInvalidBitSize, bitSize)
 	}
 
 	s = strings.TrimSpace(s)
@@ -609,7 +625,7 @@ func ParseStringAsBytes(s string) (int64, error) {
 	}
 
 	// first we try just parsing it to handle numbers without units
-	num, err := strconv.ParseInt(s, 10, 64)
+	num, err := strconv.ParseInt(s, 10, bitSize)
 	if err == nil {
 		if num < 0 {
 			return -1, nil
@@ -623,9 +639,9 @@ func ParseStringAsBytes(s string) (int64, error) {
 		return 0, fmt.Errorf("invalid bytes specification %v: %w", s, errInvalidByteString)
 	}
 
-	num, err = strconv.ParseInt(matches[1], 10, 64)
+	num, err = strconv.ParseInt(matches[1], 10, bitSize)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("%w: %v", errBytesOutOfRangeString, fmt.Sprintf("maximum value %v", humanize.Comma(bitSizeRange[bitSize])))
 	}
 
 	suffix := matches[2]

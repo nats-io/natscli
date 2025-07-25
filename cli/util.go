@@ -188,7 +188,7 @@ func askOneBytes(prompt string, dflt string, help string, required string) (int6
 			val = "0"
 		}
 
-		i, err := iu.ParseStringAsBytes(val)
+		i, err := iu.ParseStringAsBytes(val, 64)
 		if err != nil {
 			return 0, err
 		}
