@@ -348,43 +348,53 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 	}
 	defer nc.Close()
 
-	// Create a pipe so that we can interrupt the input at any time.
-	readPipe, writePipe := io.Pipe()
-	go func() {
-		_, errPipe := io.Copy(writePipe, os.Stdin)
-		if errPipe != nil {
-			writePipe.CloseWithError(errPipe)
-		} else {
-			// io.Copy does not return io.EOF, so on success we need to trigger EOF that by closing the pipe
-			_ = writePipe.Close()
+	var readPipe *io.PipeReader
+	var writePipe *io.PipeWriter
+	var reader *bufio.Reader
+
+	// Only initialize stdin pipes if configured
+	useStdin := !c.bodyIsSet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin)
+	if useStdin {
+		if !c.quiet {
+			log.Println("Reading payload from STDIN")
 		}
-	}()
-	reader := bufio.NewReader(readPipe)
+
+		readPipe, writePipe = io.Pipe()
+		reader = bufio.NewReader(readPipe)
+
+		go func() {
+			_, errPipe := io.Copy(writePipe, os.Stdin)
+			if errPipe != nil {
+				writePipe.CloseWithError(errPipe)
+			} else {
+				_ = writePipe.Close()
+			}
+		}()
+	}
+
 	complete := make(chan struct{})
 
 	// If a body is set, treat it as EOF, as no more input
 	eof := c.bodyIsSet
-	if !c.bodyIsSet && !c.quiet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
-		log.Println("Reading payload from STDIN")
+	if c.cnt < 1 {
+		c.cnt = math.MaxInt16
 	}
 
 	errCh := make(chan error, 1)
 	go func() {
 		defer close(complete)
-		for {
-			if c.cnt < 1 {
-				c.cnt = math.MaxInt16
-			}
 
-			if !c.bodyIsSet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin) {
-				if c.sendOn == sendOnEOF {
+		for {
+			if useStdin {
+				switch c.sendOn {
+				case sendOnEOF:
 					body, err := io.ReadAll(readPipe)
 					if err != nil {
 						errCh <- err
 						return
 					}
 					c.body = string(body)
-				} else if c.sendOn == sendOnNewline {
+				case sendOnNewline:
 					body, err := readLine(reader)
 					if err != nil && err != io.EOF {
 						errCh <- err
@@ -482,7 +492,9 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 	// Closes the remote connection(due to defer), the core loop go routine is just dropped.
 	select {
 	case <-ctx.Done():
-		readPipe.Close()
+		if readPipe != nil {
+			readPipe.Close()
+		}
 		return fmt.Errorf("interrupted")
 	case <-complete:
 		return <-errCh

@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -147,5 +149,47 @@ func TestCLIPubTemplates(t *testing.T) {
 		if len(messages) > 0 && messages[0] != expected {
 			t.Errorf("expected message %q got %q", expected, messages[0])
 		}
+	})
+}
+
+func TestCLIPubSTDIN(t *testing.T) {
+	t.Run("Publish doesn't eat stdin", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			var messages []string
+			sub, _ := nc.Subscribe("test.*", func(m *nats.Msg) {
+				messages = append(messages, string(m.Data))
+			})
+
+			tmpfile, err := os.CreateTemp(t.TempDir(), "repro.txt")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tmpfile.Close()
+
+			lines := []string{
+				"test.1;one",
+				"test.2;two",
+				"test.3;three",
+			}
+
+			for _, line := range lines {
+				fmt.Fprintln(tmpfile, line)
+			}
+
+			scriptPath := "testdata/publish_stdin_test.sh"
+			cmd := exec.Command("sh", scriptPath, srv.ClientURL(), tmpfile.Name())
+
+			msg, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Errorf("failed to run test script: %s \n %s", msg, err)
+			}
+
+			_ = sub.Unsubscribe()
+
+			if len(messages) != 3 {
+				t.Errorf("expected 3 message and received %d", len(messages))
+			}
+			return nil
+		})
 	})
 }
