@@ -203,17 +203,14 @@ func init() {
 
 func (c *kvCommand) parseLimitStrings(_ *fisk.ParseContext) (err error) {
 	if c.maxValueSizeString != "" {
-		c.maxValueSize, err = iu.ParseStringAsBytes(c.maxValueSizeString)
+		c.maxValueSize, err = iu.ParseStringAsBytes(c.maxValueSizeString, 32)
 		if err != nil {
 			return err
-		}
-		if c.maxValueSize > math.MaxInt32 {
-			return fmt.Errorf("max value size %s is too big maximum is %s", f(c.maxValueSize), f(math.MaxInt32))
 		}
 	}
 
 	if c.maxBucketSizeString != "" {
-		c.maxBucketSize, err = iu.ParseStringAsBytes(c.maxBucketSizeString)
+		c.maxBucketSize, err = iu.ParseStringAsBytes(c.maxBucketSizeString, 64)
 		if err != nil {
 			return err
 		}
