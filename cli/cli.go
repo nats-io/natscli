@@ -16,11 +16,13 @@ package cli
 import (
 	"context"
 	"embed"
-	"github.com/nats-io/natscli/options"
+	"errors"
 	glog "log"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/nats-io/natscli/options"
 
 	"github.com/choria-io/fisk"
 )
@@ -161,7 +163,10 @@ func ConfigureInApp(app *fisk.Application, cliOpts *options.Options, prepare boo
 }
 
 func preAction(_ *fisk.ParseContext) (err error) {
-	loadContext(true)
+	err = loadContext(true)
+	if errors.Is(err, ErrContextNotFound) {
+		return err
+	}
 	return nil
 }
 
