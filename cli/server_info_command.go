@@ -23,6 +23,7 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
+	"github.com/nats-io/jsm.go/api/server/zmonitor"
 	"github.com/nats-io/nats-server/v2/server"
 )
 
@@ -83,7 +84,7 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 		return fmt.Errorf("no data received in response: %#v", reqresp)
 	}
 
-	varz := &server.Varz{}
+	varz := &zmonitor.VarzV1{}
 	err = json.Unmarshal(data, varz)
 	if err != nil {
 		return err
@@ -164,6 +165,10 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 			} else {
 				cols.AddRow("Maximum Duplicate Window", js.Limits.Duplicates)
 			}
+			cols.AddRow("Maximum Messages Per Batch", js.Limits.MaxRequestBatch)
+			cols.AddRow("Maximum Batch Timeout", js.Limits.MaxBatchTimeout)
+			cols.AddRow("Maximum Open Batches Per Stream", js.Limits.MaxBatchInflightPerStream)
+			cols.AddRow("Maximum Open Batches Per Server", js.Limits.MaxBatchInflightTotal)
 		}
 		cols.AddRow("Strict API Parsing", js.Config.Strict)
 	}

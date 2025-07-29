@@ -15,10 +15,10 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gosuri/uiprogress v0.0.1
-	github.com/jedib0t/go-pretty/v6 v6.6.7
+	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.18.0
-	github.com/nats-io/jsm.go v0.2.4
+	github.com/nats-io/jsm.go v0.2.5-0.20250729114028-732decf05476
 	github.com/nats-io/jwt/v2 v2.7.4
 	github.com/nats-io/nats-server/v2 v2.11.6
 	github.com/nats-io/nats.go v1.43.0
@@ -64,7 +64,7 @@ require (
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
 	github.com/synadia-io/orbit.go/natsext v0.1.1 // indirect
-	golang.org/x/exp v0.0.0-20250717185816-542afb5b7346 // indirect
+	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792 // indirect
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
