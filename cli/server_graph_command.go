@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/choria-io/fisk"
+	"github.com/nats-io/jsm.go/api/server/zmonitor"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/internal/asciigraph"
@@ -50,7 +51,7 @@ func (c *SrvGraphCmd) graph(_ *fisk.ParseContext) error {
 	return c.graphJetStream()
 }
 
-func (c *SrvGraphCmd) graphWrapper(graphs int, h func(width int, height int, vz *server.Varz) ([]string, error)) error {
+func (c *SrvGraphCmd) graphWrapper(graphs int, h func(width int, height int, vz *zmonitor.VarzV1) ([]string, error)) error {
 	if !iu.IsTerminal() {
 		return fmt.Errorf("can only graph data on an interactive terminal")
 	}
@@ -147,7 +148,7 @@ func (c *SrvGraphCmd) graphJetStream() error {
 	lastStateTs := time.Now()
 	first := true
 
-	return c.graphWrapper(6, func(width int, height int, vz *server.Varz) ([]string, error) {
+	return c.graphWrapper(6, func(width int, height int, vz *zmonitor.VarzV1) ([]string, error) {
 		fmt.Printf("JetStream Statistics for %s\n", c.id)
 		fmt.Println()
 
@@ -237,7 +238,7 @@ func (c *SrvGraphCmd) graphServer() error {
 	lastStateTs := time.Now()
 	first := true
 
-	return c.graphWrapper(6, func(width int, height int, vz *server.Varz) ([]string, error) {
+	return c.graphWrapper(6, func(width int, height int, vz *zmonitor.VarzV1) ([]string, error) {
 		fmt.Printf("JetStream Statistics for %s\n", c.id)
 		fmt.Println()
 
@@ -311,7 +312,7 @@ func (c *SrvGraphCmd) graphServer() error {
 	})
 }
 
-func (c *SrvGraphCmd) getVz(nc *nats.Conn, subj string, body []byte) (*server.Varz, error) {
+func (c *SrvGraphCmd) getVz(nc *nats.Conn, subj string, body []byte) (*zmonitor.VarzV1, error) {
 	resp, err := nc.Request(subj, body, opts().Timeout)
 	if err != nil {
 		return nil, fmt.Errorf("no results received, ensure the account used has system privileges and appropriate permissions")
@@ -333,7 +334,7 @@ func (c *SrvGraphCmd) getVz(nc *nats.Conn, subj string, body []byte) (*server.Va
 		return nil, fmt.Errorf("no data received in response: %#v", reqresp)
 	}
 
-	varz := &server.Varz{}
+	varz := &zmonitor.VarzV1{}
 	err = json.Unmarshal(data, varz)
 	if err != nil {
 		return nil, err

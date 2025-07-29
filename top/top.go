@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nats-io/jsm.go/api/server/zmonitor"
 	"github.com/nats-io/nats-server/v2/server"
 	ui "gopkg.in/gizak/termui.v1"
 )
@@ -427,7 +428,7 @@ const (
 // StartUI periodically refreshes the screen using recent data.
 func StartUI(engine *Engine, lookupDNS bool, rawBytes bool, maxRefresh int) {
 	cleanStats := &Stats{
-		Varz:  &server.Varz{},
+		Varz:  &zmonitor.VarzV1{},
 		Connz: &server.Connz{},
 		Rates: &Rates{},
 		Error: fmt.Errorf(""),
