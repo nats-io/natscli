@@ -46,6 +46,8 @@ import (
 	"github.com/nats-io/natscli/options"
 )
 
+var ErrContextNotFound = errors.New("context not found")
+
 func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool) (string, *jsm.Consumer, error) {
 	if consumer != "" {
 		c, err := mgr.LoadConsumer(stream, consumer)
@@ -532,6 +534,9 @@ func loadContext(softFail bool) error {
 	}
 
 	if err != nil && softFail {
+		if !natscontext.IsKnown(opts.CfgCtx) {
+			return ErrContextNotFound
+		}
 		opts.Config, err = natscontext.New(opts.CfgCtx, false, ctxOpts...)
 	}
 
