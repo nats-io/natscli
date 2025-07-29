@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/klauspost/compress/s2"
+	"github.com/nats-io/jsm.go/api/server/zmonitor"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
@@ -139,7 +140,7 @@ func (e *Engine) Request(path string) (interface{}, error) {
 			return nil, err
 		}
 
-		statz = &server.Varz{}
+		statz = &zmonitor.VarzV1{}
 		err = json.Unmarshal(out.Data, &statz)
 		if err != nil {
 			return nil, err
@@ -218,7 +219,7 @@ func (e *Engine) fetchStats() *Stats {
 	var outBytesRate float64
 
 	stats := &Stats{
-		Varz:  &server.Varz{},
+		Varz:  &zmonitor.VarzV1{},
 		Connz: &server.Connz{},
 		Rates: &Rates{},
 		Error: errDud,
@@ -232,7 +233,7 @@ func (e *Engine) fetchStats() *Stats {
 			return stats
 		}
 
-		if varz, ok := result.(*server.Varz); ok {
+		if varz, ok := result.(*zmonitor.VarzV1); ok {
 			stats.Varz = varz
 		}
 	}
@@ -329,7 +330,7 @@ func (e *Engine) fetchStats() *Stats {
 
 // Stats represents the monitored data from a NATS server.
 type Stats struct {
-	Varz  *server.Varz
+	Varz  *zmonitor.VarzV1
 	Connz *server.Connz
 	Rates *Rates
 	Error error
