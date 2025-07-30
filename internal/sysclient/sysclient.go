@@ -14,7 +14,6 @@
 package sysclient
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -311,24 +310,21 @@ func (s *SysClient) FindServers(stdin bool, expected int, timeout time.Duration,
 	servers := []JSZResp{}
 
 	if stdin {
-		reader := bufio.NewReader(os.Stdin)
-
 		if expected == 0 {
 			expected = 999
 		}
 
+		decoder := json.NewDecoder(os.Stdin)
+
 		for i := 0; i < expected; i++ {
-			data, err := reader.ReadString('\n')
-			if err != nil && err != io.EOF {
+			var jszResp JSZResp
+			if err := decoder.Decode(&jszResp); err != nil {
+				if err == io.EOF {
+					break
+				}
 				return servers, err
 			}
-			if len(data) > 0 {
-				var jszResp JSZResp
-				if err := json.Unmarshal([]byte(data), &jszResp); err != nil {
-					return servers, err
-				}
-				servers = append(servers, jszResp)
-			}
+			servers = append(servers, jszResp)
 		}
 	} else {
 		jszOptions := server.JSzOptions{
