@@ -1567,6 +1567,14 @@ func TestServerStreamCheck(t *testing.T) {
 			return nil
 		})
 	})
+
+	t.Run("stream-check with STDIN", func(t *testing.T) {
+		content, err := os.ReadFile("testdata/jsz_response.out")
+		if err != nil {
+			log.Fatal(err)
+		}
+		runNatsCliWithInput(t, string(content), "server stream-check --stdin")
+	})
 }
 
 func TestServerConsumerCheck(t *testing.T) {
