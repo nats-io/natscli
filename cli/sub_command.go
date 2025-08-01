@@ -30,7 +30,6 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go"
-	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -73,7 +72,7 @@ type subCmd struct {
 	height                int
 	messageRates          map[string]*subMessageRate
 	direct                bool
-	streamObj             *jsm.Stream
+	streamObj             jetstream.Stream
 }
 
 type subMessageRate struct {
@@ -136,7 +135,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("timestamp", "Show timestamps in output").Short('t').UnNegatableBoolVar(&c.timeStamps)
 	act.Flag("delta-time", "Show time since start in output").Short('d').UnNegatableBoolVar(&c.deltaTimeStamps)
 	act.Flag("graph", "Graph the rate of messages received").UnNegatableBoolVar(&c.graphOnly)
-	act.Flag("direct", "Subscribe using batched direct gets instead of a durable consumer").UnNegatableBoolVar(&c.direct)
+	act.Flag("direct", "Subscribe using batched direct gets instead of a durable consumer (requires JetStream)").UnNegatableBoolVar(&c.direct)
 }
 
 func init() {
@@ -277,7 +276,7 @@ func (c *subCmd) startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, 
 	}()
 }
 
-func (c *subCmd) validateInputs(nc *nats.Conn, mgr *jsm.Manager) error {
+func (c *subCmd) validateInputs(ctx context.Context, nc *nats.Conn, mgr *jsm.Manager) error {
 	c.jetStream = c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.stream != "" || c.direct
 
 	switch {
@@ -317,46 +316,54 @@ func (c *subCmd) validateInputs(nc *nats.Conn, mgr *jsm.Manager) error {
 	}
 
 	if c.jetStream {
+		js, err := jetstream.New(nc)
+		if err != nil {
+			return err
+		}
 		// if we are passed subjects without a stream, we determine the stream name before trying to load it for further checks
 		if c.stream == "" {
-			if len(c.subjects) > 1 {
-				return fmt.Errorf("cannot enable direct gets: cannot perform direct gets from multiple subjects")
-
+			c.stream, err = js.StreamNameBySubject(ctx, c.subjects[0])
+			if errors.Is(err, jetstream.ErrStreamNotFound) {
+				return fmt.Errorf("no stream found with subject: %s", c.subjects[0])
 			}
-			streams, err := mgr.StreamNames(&jsm.StreamNamesFilter{
-				Subject: c.subjects[0],
-			})
 			if err != nil {
 				return err
 			}
-
-			if len(streams) > 1 {
-				return fmt.Errorf("cannot enable direct gets: subject mapped to multiple streams")
-			} else if len(streams) == 0 {
-				return fmt.Errorf("cannot enable direct gets: subject mapped to no streams")
-			}
-
-			c.stream = streams[0]
 		}
 
-		var err error
-		c.streamObj, err = mgr.LoadStream(c.stream)
+		c.streamObj, err = js.Stream(ctx, c.stream)
 		if err != nil {
 			return err
 		}
 
 		// Check if the stream is a Work Queue
-		c.direct = c.direct || c.streamObj.Retention() == api.RetentionPolicy(nats.WorkQueuePolicy)
+		c.direct = c.direct || c.streamObj.CachedInfo().Config.Retention == jetstream.WorkQueuePolicy
 
 		if c.direct {
+			if len(c.subjects) > 1 {
+				return fmt.Errorf("cannot enable direct gets: cannot perform direct gets from multiple subjects")
+
+			}
 			// Direct Addressing needs to be allowed on the stream
-			if !c.streamObj.DirectAllowed() {
+			if !c.streamObj.CachedInfo().Config.AllowDirect {
 				return fmt.Errorf("cannot enable direct gets: allow_direct is not set to true for stream %s", c.stream)
 			}
 			err := iu.RequireAPILevel(mgr, 1, "subscribing using direct get requires NATS Server 2.11")
 			if err != nil {
 				return err
 			}
+		}
+
+		if c.reportSubjects {
+			return fmt.Errorf("cannot enable --report-subjects for JetStream streams")
+		}
+
+		if c.graphOnly {
+			return fmt.Errorf("cannot enable --graph for JetStream streams")
+		}
+
+		if c.match {
+			return fmt.Errorf("cannot enable --match-replies for JetStream streams")
 		}
 	}
 
@@ -375,7 +382,7 @@ func (c *subCmd) createMsgHandler(hcfg msgHandlerState, nc *nats.Conn, subjMu *s
 		hcfg.msgMu.Lock()
 		defer hcfg.msgMu.Unlock()
 
-		if c.shouldIgnore(m, ignoreSubjects) {
+		if c.shouldIgnore(m.Subject, ignoreSubjects) {
 			return
 		}
 
@@ -422,9 +429,54 @@ func (c *subCmd) createMsgHandler(hcfg msgHandlerState, nc *nats.Conn, subjMu *s
 	}
 }
 
-func (c *subCmd) shouldIgnore(m *nats.Msg, ignoreSubjects []string) bool {
+func (c *subCmd) createJestreamMsgHandler(hcfg msgHandlerState, nc *nats.Conn, consumers *[]jetstream.ConsumeContext, ignoreSubjects []string, matchMap map[string]*nats.Msg, t *time.Timer, dump bool) jetstream.MessageHandler {
+	return func(m jetstream.Msg) {
+		hcfg.msgMu.Lock()
+		defer hcfg.msgMu.Unlock()
+
+		if c.shouldIgnore(m.Subject(), ignoreSubjects) {
+			return
+		}
+
+		if c.handleJetstreamFlowContolMsg(m, nc) {
+			return
+		}
+
+		if c.jsAck {
+			defer func() {
+				err := m.Ack()
+				if err != nil && !dump && !c.raw {
+					log.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
+				}
+			}()
+		}
+
+		*hcfg.counter++
+
+		c.printJetStreamMsg(m, nil, *hcfg.counter)
+
+		if c.limit > 0 && *hcfg.counter == c.limit {
+			for _, cCtx := range *consumers {
+				cCtx.Stop()
+			}
+
+			// if no reply matching, or if didn't yet get all replies
+			if !c.match || len(matchMap) == 0 {
+				hcfg.cancelFn()
+			}
+			return
+		}
+
+		if t != nil && !t.Reset(c.wait) {
+			hcfg.cancelFn()
+			return
+		}
+	}
+}
+
+func (c *subCmd) shouldIgnore(subject string, ignoreSubjects []string) bool {
 	for _, ignore := range ignoreSubjects {
-		if server.SubjectsCollide(m.Subject, ignore) {
+		if server.SubjectsCollide(subject, ignore) {
 			return true
 		}
 	}
@@ -437,6 +489,20 @@ func (c *subCmd) handleFlowControlMsg(m *nats.Msg, nc *nats.Conn) bool {
 			_ = m.Respond(nil)
 			log.Printf("Responding to Flow Control message")
 		} else if stalled := m.Header.Get("Nats-Consumer-Stalled"); stalled != "" {
+			_ = nc.Publish(stalled, nil)
+			log.Printf("Resuming stalled consumer")
+		}
+		return true
+	}
+	return false
+}
+
+func (c *subCmd) handleJetstreamFlowContolMsg(m jetstream.Msg, nc *nats.Conn) bool {
+	if c.jetStream && len(m.Data()) == 0 && m.Headers().Get("Status") == "100" {
+		if m.Reply() != "" {
+			_ = nc.Publish(m.Reply(), nil)
+			log.Printf("Responding to Flow Control message")
+		} else if stalled := m.Headers().Get("Nats-Consumer-Stalled"); stalled != "" {
 			_ = nc.Publish(stalled, nil)
 			log.Printf("Resuming stalled consumer")
 		}
@@ -560,52 +626,16 @@ func (c *subCmd) reportSubscribe(ctx context.Context, nc *nats.Conn, handler nat
 	return nil
 }
 
-func (c *subCmd) jetStreamSubscribe(nc *nats.Conn, handler nats.MsgHandler, subs *[]*nats.Subscription, ignoreSubjects []string) error {
-	js, err := nc.JetStream(jsOpts()...)
+func (c *subCmd) jetStreamSubscribe(ctx context.Context, nc *nats.Conn, handler jetstream.MessageHandler, consumerContexts *[]jetstream.ConsumeContext, ignoreSubjects []string) error {
+	opts := opts()
+	js, err := newJetStreamWithOptions(nc, opts)
 	if err != nil {
 		return err
 	}
 
-	opts := []nats.SubOpt{
-		nats.EnableFlowControl(),
-		nats.IdleHeartbeat(5 * time.Second),
-		nats.AckNone(),
-	}
-
-	if c.headersOnly || c.subjectsOnly {
-		opts = append(opts, nats.HeadersOnly())
-	}
-
-	// Check if durable exists and adjust accordingly
-	var bindDurable bool
-	if c.durable != "" {
-		con, err := js.ConsumerInfo(c.stream, c.durable)
-		if err == nil {
-			bindDurable = true
-			c.jsAck = con.Config.AckPolicy != nats.AckNonePolicy
-			log.Printf("Subscribing to JetStream Stream %q using existing durable %q", c.stream, c.durable)
-
-			switch {
-			case len(con.Config.FilterSubjects) > 1:
-				return fmt.Errorf("cannot subscribe to multi filter consumers")
-			case len(con.Config.FilterSubjects) == 1:
-				c.subjects = con.Config.FilterSubjects
-			case con.Config.FilterSubject != "":
-				c.subjects = []string{con.Config.FilterSubject}
-			}
-		} else if errors.Is(err, nats.ErrConsumerNotFound) {
-			opts = append(opts, nats.Durable(c.durable))
-		} else {
-			return err
-		}
-	}
-
 	subMsg := c.firstSubject()
-	if c.stream != "" {
-		if len(c.subjects) == 0 {
-			subMsg = f(c.streamObj.Subjects())
-		}
-		opts = append(opts, nats.BindStream(c.stream))
+	if subMsg == "" {
+		subMsg = f(c.streamObj.CachedInfo().Config.Subjects)
 	}
 
 	ignoredSubjInfo := ""
@@ -613,47 +643,136 @@ func (c *subCmd) jetStreamSubscribe(nc *nats.Conn, handler nats.MsgHandler, subs
 		ignoredSubjInfo = fmt.Sprintf("\nIgnored subjects: %s", f(ignoreSubjects))
 	}
 
+	var cons jetstream.Consumer
+	var pcons jetstream.PushConsumer
+
+	consumerConfig, err := c.makeConsumerConfig(subMsg, ignoredSubjInfo)
+	if err != nil {
+		return err
+	}
+
+	isPushConsumer := false
+	var info *jetstream.ConsumerInfo
+
+	if c.durable != "" {
+		cons, pcons, info, isPushConsumer, err = c.setupDurableConsumer(ctx, js, consumerConfig)
+		if err != nil {
+			return err
+		}
+		c.jsAck = info.Config.AckPolicy != jetstream.AckNonePolicy
+		if err := c.setConsumerSubjects(info); err != nil {
+			return err
+		}
+	} else {
+		cons, err = c.streamObj.CreateConsumer(ctx, consumerConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create consumer: %w", err)
+		}
+		c.jsAck = false
+	}
+
+	var cCtx jetstream.ConsumeContext
+	if isPushConsumer {
+		cCtx, err = pcons.Consume(handler)
+	} else {
+		cCtx, err = cons.Consume(handler)
+	}
+	if err != nil {
+		return err
+	}
+	*consumerContexts = append(*consumerContexts, cCtx)
+
+	return nil
+}
+
+func (c *subCmd) makeConsumerConfig(subject, ignoredInfo string) (jetstream.ConsumerConfig, error) {
+	cfg := jetstream.ConsumerConfig{
+		AckPolicy:   jetstream.AckNonePolicy,
+		HeadersOnly: c.headersOnly || c.subjectsOnly,
+	}
+
 	switch {
 	case c.sseq > 0:
-		log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with sequence %d %s", subMsg, c.sseq, ignoredSubjInfo)
-		opts = append(opts, nats.StartSequence(c.sseq))
+		log.Printf("Subscribing to subject %s starting at sequence %d %s", subject, c.sseq, ignoredInfo)
+		cfg.OptStartSeq = c.sseq
+		cfg.DeliverPolicy = jetstream.DeliverByStartSequencePolicy
 	case c.deliverLast:
-		log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the last message received %s", subMsg, ignoredSubjInfo)
-		opts = append(opts, nats.DeliverLast())
+		log.Printf("Subscribing to subject %s from last received message %s", subject, ignoredInfo)
+		cfg.DeliverPolicy = jetstream.DeliverLastPolicy
 	case c.deliverAll:
-		log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with the first message received %s", subMsg, ignoredSubjInfo)
-		opts = append(opts, nats.DeliverAll())
+		log.Printf("Subscribing to subject %s from first received message %s", subject, ignoredInfo)
+		cfg.DeliverPolicy = jetstream.DeliverAllPolicy
 	case c.deliverNew:
-		log.Printf("Subscribing to JetStream Stream holding messages with subject %s delivering any new messages received %s", subMsg, ignoredSubjInfo)
-		opts = append(opts, nats.DeliverNew())
+		log.Printf("Subscribing to subject %s for new messages %s", subject, ignoredInfo)
+		cfg.DeliverPolicy = jetstream.DeliverNewPolicy
 	case c.deliverSince != "":
 		d, err := fisk.ParseDuration(c.deliverSince)
 		if err != nil {
-			return err
+			return cfg, err
 		}
-		start := time.Now().Add(-1 * d)
-		log.Printf("Subscribing to JetStream Stream holding messages with subject %s starting with messages since %s %s", subMsg, f(d), ignoredSubjInfo)
-		opts = append(opts, nats.StartTime(start))
+		start := time.Now().Add(-d)
+		cfg.OptStartTime = &start
+		cfg.DeliverPolicy = jetstream.DeliverByStartTimePolicy
+		log.Printf("Subscribing to subject %s since %s %s", subject, f(d), ignoredInfo)
 	case c.deliverLastPerSubject:
-		log.Printf("Subscribing to JetStream Stream holding messages with subject %s for the last messages for each subject in the Stream %s", subMsg, ignoredSubjInfo)
-		opts = append(opts, nats.DeliverLastPerSubject())
+		log.Printf("Subscribing to subject %s for last message per subject %s", subject, ignoredInfo)
+		cfg.DeliverPolicy = jetstream.DeliverLastPerSubjectPolicy
+		cfg.FilterSubject = subject
 	}
 
-	if bindDurable {
-		sub, err := js.Subscribe(c.firstSubject(), handler, nats.Bind(c.stream, c.durable))
+	return cfg, nil
+}
+
+func (c *subCmd) setupDurableConsumer(ctx context.Context, js jetstream.JetStream, cfg jetstream.ConsumerConfig) (jetstream.Consumer, jetstream.PushConsumer, *jetstream.ConsumerInfo, bool, error) {
+	cons, err := c.streamObj.Consumer(ctx, c.durable)
+	if errors.Is(err, jetstream.ErrConsumerNotFound) {
+		cfg.Name = c.durable
+		cons, err := c.streamObj.CreateConsumer(ctx, cfg)
 		if err != nil {
-			return err
+			return nil, nil, nil, false, fmt.Errorf("failed to create durable consumer %q: %w", c.durable, err)
 		}
-		*subs = append(*subs, sub)
-	} else {
-		c.jsAck = false
-		sub, err := js.Subscribe(c.firstSubject(), handler, opts...)
+		info, err := cons.Info(ctx)
 		if err != nil {
-			return err
+			return nil, nil, nil, false, fmt.Errorf("error fetching consumer info: %w", err)
 		}
-		*subs = append(*subs, sub)
+		return cons, nil, info, false, nil
 	}
 
+	if err == jetstream.ErrNotPullConsumer {
+		pcons, err := js.PushConsumer(ctx, c.stream, c.durable)
+		if err != nil {
+			return nil, nil, nil, true, err
+		}
+		info, err := pcons.Info(ctx)
+		if err != nil {
+			return nil, nil, nil, true, err
+		}
+		log.Printf("Subscribing to JetStream Stream %q using existing push consumer %q", c.stream, c.durable)
+		log.Printf("Detected push consumer %q on stream %q — push consumers are deprecated and will be removed in a future release. Please update to use a pull-based consumer.", c.durable, c.stream)
+		return nil, pcons, info, true, nil
+	}
+
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("error loading durable consumer %q: %w", c.durable, err)
+	}
+
+	info, err := cons.Info(ctx)
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("error fetching consumer info: %w", err)
+	}
+	log.Printf("Subscribing to JetStream Stream %q using existing pull consumer %q", c.stream, c.durable)
+	return cons, nil, info, false, nil
+}
+
+func (c *subCmd) setConsumerSubjects(info *jetstream.ConsumerInfo) error {
+	switch {
+	case len(info.Config.FilterSubjects) > 1:
+		return fmt.Errorf("cannot subscribe to multi filter consumers")
+	case len(info.Config.FilterSubjects) == 1:
+		c.subjects = info.Config.FilterSubjects
+	case info.Config.FilterSubject != "":
+		c.subjects = []string{info.Config.FilterSubject}
+	}
 	return nil
 }
 
@@ -677,7 +796,7 @@ func (c *subCmd) defaultSubscribe(nc *nats.Conn, handler nats.MsgHandler, subs *
 	return nil
 }
 
-func (c *subCmd) directSubscribe(subCtx context.Context, nc *nats.Conn, handler nats.MsgHandler, subs *[]*nats.Subscription, ignoreSubjects []string) error {
+func (c *subCmd) directSubscribe(subCtx context.Context, handler nats.MsgHandler, ignoreSubjects []string) error {
 	_, js, err := prepareJSHelper()
 	if err != nil {
 		return err
@@ -691,13 +810,14 @@ func (c *subCmd) directSubscribe(subCtx context.Context, nc *nats.Conn, handler 
 	subMsg := c.firstSubject()
 	if c.stream != "" {
 		if len(c.subjects) == 0 {
-			subMsg = f(c.streamObj.Subjects())
+			subMsg = f(c.streamObj.CachedInfo().Config.Subjects)
 		}
 	}
 
 	// GetBatch called later assumes that the first msg is at sequence 0. We get the real starting position here so
 	// we can pass it on later
-	streamState, err := c.streamObj.State()
+	info, err := c.streamObj.Info(ctx)
+	streamState := info.State
 	batchSequence := streamState.FirstSeq
 	batchSize := 1
 	lastForSubjects := false
@@ -780,25 +900,20 @@ func (c *subCmd) directSubscribe(subCtx context.Context, nc *nats.Conn, handler 
 }
 
 func (c *subCmd) subscribe(p *fisk.ParseContext) error {
-	//nc, err := newNatsConn("", natsOpts()...)
 	nc, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
 	}
 	defer nc.Close()
 
-	err = c.validateInputs(nc, mgr)
-	if err != nil {
-		return err
-	}
-
 	var (
-		subs           []*nats.Subscription
-		subjMu         = sync.Mutex{}
-		ctr            = uint(0)
-		ignoreSubjects = iu.SplitCLISubjects(c.ignoreSubjects)
-		ctx, cancel    = context.WithCancel(ctx)
-		dump           = c.dump != ""
+		subs             []*nats.Subscription
+		consumerContexts []jetstream.ConsumeContext
+		subjMu           = sync.Mutex{}
+		ctr              = uint(0)
+		ignoreSubjects   = iu.SplitCLISubjects(c.ignoreSubjects)
+		ctx, cancel      = context.WithCancel(ctx)
+		dump             = c.dump != ""
 
 		matchMap = make(map[string]*nats.Msg)
 
@@ -813,6 +928,11 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		cancelFn:  cancel,
 		counter:   &ctr,
 		startTime: startTime,
+	}
+
+	err = c.validateInputs(ctx, nc, mgr)
+	if err != nil {
+		return err
 	}
 
 	defer cancel()
@@ -832,6 +952,8 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 
 	msgHandler := c.createMsgHandler(hcfg, nc, &subjMu, &subs, ignoreSubjects, subjectReportMap, subjectBytesReportMap, matchMap, t, dump)
+	jetstreamMsgHandler := c.createJestreamMsgHandler(hcfg, nc, &consumerContexts, ignoreSubjects, matchMap, t, dump)
+
 	matchHandler := c.createMatchHandler(hcfg, matchMap)
 
 	if c.match {
@@ -872,9 +994,9 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	case c.reportSubjects:
 		err = c.reportSubscribe(ctx, nc, msgHandler, &subs, &subjMu, subjectReportMap, subjectBytesReportMap)
 	case c.direct:
-		err = c.directSubscribe(ctx, nc, msgHandler, &subs, ignoreSubjects)
+		err = c.directSubscribe(ctx, msgHandler, ignoreSubjects)
 	case c.jetStream:
-		err = c.jetStreamSubscribe(nc, msgHandler, &subs, ignoreSubjects)
+		err = c.jetStreamSubscribe(ctx, nc, jetstreamMsgHandler, &consumerContexts, ignoreSubjects)
 	case c.queue != "":
 		err = c.queueSubscribe(nc, msgHandler, &subs)
 	default:
@@ -906,93 +1028,134 @@ func (c *subCmd) firstSubject() string {
 
 func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime time.Time) {
 	var info *jsm.MsgInfo
+	var replyMsg *nats.Msg
+
 	if msg.Reply != "" || c.direct {
 		info, _ = jsm.ParseJSMsgMetadata(msg)
+	} else if reply != nil {
+		replyMsg = c.makeMsg(reply.Subject, reply.Header, reply.Data, reply.Reply)
 	}
 
+	c.printMessageCommon(
+		ctr,
+		c.makeMsg(msg.Subject, msg.Header, msg.Data, msg.Reply),
+		replyMsg,
+		func() string {
+			if info == nil {
+				return ""
+			}
+			return fmt.Sprintf("%d", info.StreamSequence())
+		},
+		func() string {
+			if info == nil {
+				return ""
+			}
+			return fmt.Sprintf("consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d", info.Stream(), info.Consumer(), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
+		},
+		func() string {
+			if info == nil {
+				return ""
+			}
+			return fmt.Sprintf("consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d", info.Stream(), info.Consumer(), reply.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
+		},
+		func() string {
+			if c.timeStamps {
+				return fmt.Sprintf(" @ %s", time.Now().Format(time.StampMicro))
+			} else if c.deltaTimeStamps {
+				return fmt.Sprintf(" @ %s", time.Since(startTime).String())
+			}
+			return ""
+		},
+	)
+}
+
+func (c *subCmd) printJetStreamMsg(msg jetstream.Msg, reply jetstream.Msg, ctr uint) {
+	meta, _ := msg.Metadata()
+	var replyMsg *nats.Msg
+	if reply != nil {
+		replyMsg = c.makeMsg(reply.Subject(), reply.Headers(), reply.Data(), reply.Reply())
+	}
+
+	c.printMessageCommon(
+		ctr,
+		c.makeMsg(msg.Subject(), msg.Headers(), msg.Data(), msg.Reply()),
+		replyMsg,
+		func() string {
+			return fmt.Sprintf("%d", meta.Sequence.Stream)
+		},
+		func() string {
+			return fmt.Sprintf("stream: %s seq %d / subject: %s / time: %v", meta.Stream, meta.Sequence.Stream, msg.Subject(), f(meta.Timestamp))
+		},
+		func() string {
+			return fmt.Sprintf("stream: %s seq %d / subject: %s / time: %v", meta.Stream, meta.Sequence.Stream, reply.Subject(), f(meta.Timestamp))
+		},
+		func() string { return "" },
+	)
+}
+
+func (c *subCmd) printMessageCommon(ctr uint, msg *nats.Msg, reply *nats.Msg, streamSeq func() string, msgSummary func() string, replySummary func() string, timestamp func() string,
+) {
 	if opts().Trace && msg.Reply != "" {
 		fmt.Printf("<<< Reply Subject: %v\n", msg.Reply)
 	}
 
-	var timeStamp string
-	if c.timeStamps {
-		timeStamp = fmt.Sprintf(" @ %s", time.Now().Format(time.StampMicro))
-	} else if c.deltaTimeStamps {
-		timeStamp = fmt.Sprintf(" @ %s", time.Since(startTime).String())
-	}
-
 	if c.dump != "" {
 		// Output format 1: dumping, to stdout or files
-
-		var (
-			stdout      = c.dump == "-"
-			requestFile string
-			replyFile   string
-		)
-		if !stdout {
-			if info == nil {
-				requestFile = filepath.Join(c.dump, fmt.Sprintf("%d.json", ctr))
-				replyFile = filepath.Join(c.dump, fmt.Sprintf("%d_reply.json", ctr))
-			} else {
-				requestFile = filepath.Join(c.dump, fmt.Sprintf("%d.json", info.StreamSequence()))
-				replyFile = filepath.Join(c.dump, fmt.Sprintf("%d_reply.json", info.StreamSequence()))
-			}
+		stdout := c.dump == "-"
+		seq := streamSeq()
+		if seq == "" {
+			seq = fmt.Sprintf("%d", ctr)
 		}
 
-		c.dumpMsg(msg, stdout, requestFile, ctr)
+		reqFile := filepath.Join(c.dump, fmt.Sprintf("%s.json", seq))
+		repFile := filepath.Join(c.dump, fmt.Sprintf("%s_reply.json", seq))
+
+		c.dumpMsg(msg, stdout, reqFile, ctr)
 		if reply != nil {
-			c.dumpMsg(reply, stdout, replyFile, ctr)
+			c.dumpMsg(reply, stdout, repFile, ctr)
 		}
+		return
+	}
 
-	} else if c.raw {
+	if c.raw {
 		// Output format 2: raw
 		outPutMSGBodyCompact(msg.Data, c.translate, "", "")
 		if reply != nil {
 			fmt.Println(string(reply.Data))
 		}
+		return
+	}
 
+	// Output format 3: pretty
+	summary := msgSummary()
+	if summary != "" {
+		fmt.Printf("[#%d]%s Received JetStream message: %s\n", ctr, timestamp(), summary)
 	} else {
-		// Output format 3: pretty
-
-		if info == nil {
-			if msg.Reply != "" {
-				fmt.Printf("[#%d]%s Received on %q with reply %q\n", ctr, timeStamp, msg.Subject, msg.Reply)
-			} else {
-				fmt.Printf("[#%d]%s Received on %q\n", ctr, timeStamp, msg.Subject)
-			}
-		} else if c.jetStream {
-			fmt.Printf("[#%d] Received JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, info.Stream(), info.StreamSequence(), msg.Subject, f(info.TimeStamp()))
-		} else {
-			fmt.Printf("[#%d] Received JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, info.Stream(), info.Consumer(), msg.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
+		fmt.Printf("[#%d]%s Received on %q", ctr, timestamp(), msg.Subject)
+		if msg.Reply != "" {
+			fmt.Printf(" with reply %q", msg.Reply)
 		}
+		fmt.Println()
+	}
 
-		if c.subjectsOnly {
-			return
-		}
-
+	if !c.subjectsOnly {
 		c.prettyPrintMsg(msg, c.headersOnly, c.translate)
+	}
 
-		if reply != nil {
-			if info == nil {
-				fmt.Printf("[#%d]%s Matched reply on %q\n", ctr, timeStamp, reply.Subject)
-			} else if c.jetStream {
-				fmt.Printf("[#%d] Matched reply JetStream message: stream: %s seq %d / subject: %s / time: %v\n", ctr, info.Stream(), info.StreamSequence(), reply.Subject, f(info.TimeStamp()))
-			} else {
-				fmt.Printf("[#%d] Matched reply JetStream message: consumer: %s > %s / subject: %s / delivered: %d / consumer seq: %d / stream seq: %d\n", ctr, info.Stream(), info.Consumer(), reply.Subject, info.Delivered(), info.ConsumerSequence(), info.StreamSequence())
-			}
-
-			c.prettyPrintMsg(reply, c.headersOnly, c.translate)
-
+	if reply != nil {
+		rsummary := replySummary()
+		if rsummary != "" {
+			fmt.Printf("[#%d] Matched reply JetStream message: %s\n", ctr, rsummary)
+		} else {
+			fmt.Printf("[#%d]%s Matched reply on %q\n", ctr, timestamp(), reply.Subject)
 		}
-	} // output format type dispatch
+
+		c.prettyPrintMsg(reply, c.headersOnly, c.translate)
+	}
 }
 
 func (c *subCmd) dumpMsg(msg *nats.Msg, stdout bool, filepath string, ctr uint) {
-	// dont want sub etc
-	serMsg := nats.NewMsg(msg.Subject)
-	serMsg.Header = msg.Header
-	serMsg.Data = msg.Data
-	serMsg.Reply = msg.Reply
+	serMsg := c.makeMsg(msg.Subject, msg.Header, msg.Data, msg.Reply)
 
 	if c.translate != "" {
 		data, err := filterDataThroughCmd(msg.Data, c.translate, "", "")
@@ -1007,31 +1170,41 @@ func (c *subCmd) dumpMsg(msg *nats.Msg, stdout bool, filepath string, ctr uint) 
 	if err != nil {
 		log.Printf("Could not JSON encode message: %s", err)
 	} else if stdout {
-		os.Stdout.WriteString(fmt.Sprintf("%s\000", jm))
+		fmt.Fprintf(os.Stdout, "%s\000", jm)
 	} else {
 		err = os.WriteFile(filepath, jm, 0600)
 		if err != nil {
 			log.Printf("Could not save message: %s", err)
 		}
-
 		if ctr%100 == 0 {
 			fmt.Print(".")
 		}
 	}
 }
 
+func (c *subCmd) makeMsg(subject string, headers nats.Header, data []byte, reply string) *nats.Msg {
+	msg := nats.NewMsg(subject)
+	msg.Header = headers
+	msg.Data = data
+	msg.Reply = reply
+	return msg
+}
+
 func (c *subCmd) prettyPrintMsg(msg *nats.Msg, headersOnly bool, filter string) {
-	if len(msg.Header) > 0 {
-		for h, vals := range msg.Header {
+	c.printHeadersAndBody(msg.Header, msg.Data, msg.Subject, headersOnly, filter)
+}
+
+func (c *subCmd) printHeadersAndBody(hdr nats.Header, data []byte, subject string, headersOnly bool, filter string) {
+	if len(hdr) > 0 {
+		for h, vals := range hdr {
 			for _, val := range vals {
 				fmt.Printf("%s: %s\n", h, val)
 			}
 		}
-
 		fmt.Println()
 	}
 
 	if !headersOnly {
-		outPutMSGBody(msg.Data, filter, msg.Subject, "")
+		outPutMSGBody(data, filter, subject, "")
 	}
 }
