@@ -122,6 +122,7 @@ type consumerCmd struct {
 	pinnedGroups       []string
 	pinnedTTL          time.Duration
 	overflowGroups     []string
+	prioritizedGroups  []string
 	groupName          string
 	fPinned            bool
 	placementPreferred string
@@ -182,6 +183,7 @@ func configureConsumerCommand(app commandHost) {
 			f.Flag("pinned-groups", "Create a Pinned Client consumer based on these groups").StringsVar(&c.pinnedGroups)
 			f.Flag("pinned-ttl", "The time to allow for a client to pull before losing the pinned status").DurationVar(&c.pinnedTTL)
 			f.Flag("overflow-groups", "Create a Overflow consumer based on these groups").StringsVar(&c.overflowGroups)
+			f.Flag("prioritized-groups", "Create a Prioritized consumer based on these groups").StringsVar(&c.prioritizedGroups)
 		}
 	}
 
@@ -1872,6 +1874,9 @@ func (c *consumerCmd) prepareConfig() (cfg *api.ConsumerConfig, err error) {
 	case len(c.overflowGroups) > 0:
 		cfg.PriorityPolicy = api.PriorityOverflow
 		cfg.PriorityGroups = c.pinnedGroups
+	case len(c.prioritizedGroups) > 0:
+		cfg.PriorityPolicy = api.PriorityPrioritized
+		cfg.PriorityGroups = c.prioritizedGroups
 	}
 
 	cfg.Metadata = iu.RemoveReservedMetadata(cfg.Metadata)
@@ -2112,7 +2117,14 @@ func (c *consumerCmd) checkConfigLevel(cfg *api.ConsumerConfig) error {
 	}
 
 	if len(cfg.PriorityGroups) > 0 || cfg.PriorityPolicy != api.PriorityNone {
-		err := iu.RequireAPILevel(c.mgr, 1, "Consumer Groups requires NATS Server 2.11")
+		var err error
+
+		switch cfg.PriorityPolicy {
+		case api.PriorityPinnedClient:
+			err = iu.RequireAPILevel(c.mgr, 2, "Prioritized Consumer Groups requires NATS Server 2.12")
+		default:
+			err = iu.RequireAPILevel(c.mgr, 1, "Consumer Groups requires NATS Server 2.11")
+		}
 		if err != nil {
 			return err
 		}
