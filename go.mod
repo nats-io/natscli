@@ -8,7 +8,7 @@ require (
 	github.com/choria-io/fisk v0.7.1
 	github.com/choria-io/scaffold v0.0.5-0.20250528101939-8312afbc86bb
 	github.com/dustin/go-humanize v1.0.1
-	github.com/emicklei/dot v1.8.0
+	github.com/emicklei/dot v1.9.0
 	github.com/expr-lang/expr v1.17.5
 	github.com/fatih/color v1.18.0
 	github.com/ghodss/yaml v1.0.0
@@ -18,13 +18,13 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.18.0
-	github.com/nats-io/jsm.go v0.2.5-0.20250807100526-d09a46cd72f6
+	github.com/nats-io/jsm.go v0.2.5-0.20250807114221-712f44484b99
 	github.com/nats-io/jwt/v2 v2.7.4
-	github.com/nats-io/nats-server/v2 v2.11.6
+	github.com/nats-io/nats-server/v2 v2.11.7
 	github.com/nats-io/nats.go v1.44.0
 	github.com/nats-io/nkeys v0.4.11
 	github.com/nats-io/nuid v1.0.1
-	github.com/prometheus/client_golang v1.22.0
+	github.com/prometheus/client_golang v1.23.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/synadia-io/jwt-auth-builder.go v0.0.9
 	github.com/synadia-io/orbit.go/jetstreamext v0.1.0
@@ -69,5 +69,5 @@ require (
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/protobuf v1.36.7 // indirect
 )
