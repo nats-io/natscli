@@ -1049,7 +1049,8 @@ func TestJetStreamSubscribe(t *testing.T) {
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --count=1", srv.ClientURL())))
-			if !expectMatchLine(t, output, primaryTestMsgData) {
+			// [#18] Received JetStream message (direct): stream: ORDERS seq 2714 / subject: ORDERS.NEW / time: 2025-08-05 11:46:12
+			if !expectMatchLine(t, output, primaryTestMsgData) || !expectMatchLine(t, output, `^\[#\d+\].* Received JetStream message \(direct\): stream: [^ ]+ seq \d+ / subject: [^ ]+ / time: .`) {
 				t.Errorf("unexpected response: %s", output)
 			}
 			return nil
@@ -1086,7 +1087,9 @@ func TestJetStreamSubscribe(t *testing.T) {
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1 --start-sequence=2", srv.ClientURL())))
-			if !expectMatchLine(t, output, secondaryTestMsgData) {
+
+			// 11:49:38 Subscribing to JetStream Stream (direct) holding messages with subject TEST_STREAM.* starting with sequence 2
+			if !expectMatchLine(t, output, secondaryTestMsgData) || !expectMatchLine(t, output, `^\d{2}:\d{2}:\d{2} Subscribing to JetStream Stream \(direct\) holding messages with subject TEST_STREAM\.\* starting with sequence 2`) {
 				t.Errorf("unexpected response: %s", output)
 			}
 			return nil
@@ -1107,7 +1110,8 @@ func TestJetStreamSubscribe(t *testing.T) {
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1 --last", srv.ClientURL())))
-			if !expectMatchLine(t, output, secondaryTestMsgData) {
+			// 11:56:47 Subscribing to JetStream Stream (direct) holding messages with subject TEST_STREAM.* starting with the last message received
+			if !expectMatchLine(t, output, secondaryTestMsgData) || !expectMatchLine(t, output, `^\d{2}:\d{2}:\d{2} Subscribing to JetStream Stream \(direct\) holding messages with subject TEST_STREAM\.\* starting with the last message received`) {
 				t.Errorf("unexpected response: %s", output)
 			}
 			return nil
@@ -1128,7 +1132,8 @@ func TestJetStreamSubscribe(t *testing.T) {
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1 --all", srv.ClientURL())))
-			if !expectMatchLine(t, output, primaryTestMsgData) {
+			// 11:58:16 Subscribing to JetStream Stream (direct) holding messages with subject TEST_STREAM.* starting with the first message received
+			if !expectMatchLine(t, output, primaryTestMsgData) || !expectMatchLine(t, output, `^\d{2}:\d{2}:\d{2} Subscribing to JetStream Stream \(direct\) holding messages with subject TEST_STREAM\.\* starting with the first message received`) {
 				t.Errorf("unexpected response: %s", output)
 			}
 			return nil
@@ -1156,7 +1161,8 @@ func TestJetStreamSubscribe(t *testing.T) {
 			}
 
 			output := <-outputCh
-			if !expectMatchLine(t, output, secondaryTestMsgData) {
+			// 11:59:04 Subscribing to JetStream Stream (direct) holding messages with subject TEST_STREAM.* delivering any new messages received
+			if !expectMatchLine(t, output, secondaryTestMsgData) || !expectMatchLine(t, output, `^\d{2}:\d{2}:\d{2} Subscribing to JetStream Stream \(direct\) holding messages with subject TEST_STREAM\.\* delivering any new messages received`) {
 				t.Errorf("unexpected response: %s", output)
 			}
 			return nil
@@ -1172,7 +1178,8 @@ func TestJetStreamSubscribe(t *testing.T) {
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1 --since=10s", srv.ClientURL())))
-			if !expectMatchLine(t, output, primaryTestMsgData) {
+			// 11:59:51 Subscribing to JetStream Stream (direct) holding messages with subject TEST_STREAM.* starting with messages since 10.00s
+			if !expectMatchLine(t, output, primaryTestMsgData) || !expectMatchLine(t, output, `^\d{2}:\d{2}:\d{2} Subscribing to JetStream Stream \(direct\) holding messages with subject TEST_STREAM\.\* starting with messages since 10.00s`) {
 				t.Errorf("unexpected response: %s", output)
 			}
 			return nil
@@ -1187,8 +1194,9 @@ func TestJetStreamSubscribe(t *testing.T) {
 				t.Fatalf("unable to publish message: %s", err)
 			}
 
-			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST_STREAM.* --stream=TEST_STREAM --raw --count=1 --last-per-subject", srv.ClientURL())))
-			if !expectMatchLine(t, output, primaryTestMsgData) {
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST_STREAM.* --stream=TEST_STREAM --raw --count=1 --last-per-subject --direct", srv.ClientURL())))
+			// 12:01:32 Subscribing to JetStream Stream (direct) holding messages with subject TEST_STREAM.* for the last messages for each subject in the Stream
+			if !expectMatchLine(t, output, primaryTestMsgData) || !expectMatchLine(t, output, `^\d{2}:\d{2}:\d{2} Subscribing to JetStream Stream \(direct\) holding messages with subject TEST_STREAM\.\* for the last messages for each subject in the Stream`) {
 				t.Errorf("unexpected response: %s", output)
 			}
 			return nil
