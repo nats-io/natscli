@@ -841,16 +841,16 @@ func (c *subCmd) directSubscribe(subCtx context.Context, subState subscriptionSt
 
 	switch {
 	case c.sseq > 0:
-		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s starting with sequence %d %s", subMsg, c.sseq, ignoredSubjInfo)
+		log.Printf("Subscribing to JetStream Stream (direct) holding messages with subject %s starting with sequence %d %s", subMsg, c.sseq, ignoredSubjInfo)
 		batchSequence = c.sseq
 	case c.deliverLast:
-		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s starting with the last message received %s", subMsg, ignoredSubjInfo)
+		log.Printf("Subscribing to JetStream Stream (direct) holding messages with subject %s starting with the last message received %s", subMsg, ignoredSubjInfo)
 		batchSequence = streamState.LastSeq
 	case c.deliverAll:
-		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s starting with the first message received %s", subMsg, ignoredSubjInfo)
+		log.Printf("Subscribing to JetStream Stream (direct) holding messages with subject %s starting with the first message received %s", subMsg, ignoredSubjInfo)
 		batchSequence = streamState.FirstSeq
 	case c.deliverNew:
-		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s delivering any new messages received %s", subMsg, ignoredSubjInfo)
+		log.Printf("Subscribing to JetStream Stream (direct) holding messages with subject %s delivering any new messages received %s", subMsg, ignoredSubjInfo)
 		batchSequence = streamState.LastSeq + 1
 	case c.deliverSince != "":
 		d, err := fisk.ParseDuration(c.deliverSince)
@@ -858,10 +858,10 @@ func (c *subCmd) directSubscribe(subCtx context.Context, subState subscriptionSt
 			return err
 		}
 		start = time.Now().Add(-1 * d)
-		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s starting with messages since %s %s", subMsg, f(d), ignoredSubjInfo)
+		log.Printf("Subscribing to JetStream Stream (direct) holding messages with subject %s starting with messages since %s %s", subMsg, f(d), ignoredSubjInfo)
 		batchSequence = streamState.LastSeq + 1
 	case c.deliverLastPerSubject:
-		log.Printf("Subscribing to JetStream Stream (direct get) holding messages with subject %s for the last messages for each subject in the Stream %s", subMsg, ignoredSubjInfo)
+		log.Printf("Subscribing to JetStream Stream (direct) holding messages with subject %s for the last messages for each subject in the Stream %s", subMsg, ignoredSubjInfo)
 		lastForSubjects = true
 		batchSequence = streamState.LastSeq
 	}
@@ -1064,10 +1064,20 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 		fmt.Printf("<<< Reply Subject: %v\n", msg.Reply)
 	}
 
+	var info *jsm.MsgInfo
+	if msg.Reply != "" || c.direct {
+		info, _ = jsm.ParseJSMsgMetadata(msg)
+	}
+
 	// Output format 1: dumping, to stdout or files
 	if c.dump != "" {
 		stdout := c.dump == "-"
 		seq := fmt.Sprintf("%d", ctr)
+
+		if info != nil {
+			seq = fmt.Sprintf("%d", info.StreamSequence())
+		}
+
 		reqFile := filepath.Join(c.dump, fmt.Sprintf("%s.json", seq))
 		repFile := filepath.Join(c.dump, fmt.Sprintf("%s_reply.json", seq))
 
@@ -1088,22 +1098,28 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 	}
 
 	// Output format 3: pretty
-	if c.direct {
-		fmt.Printf("[#%d]%s Received JetStream message directly from stream\n", ctr, ts)
+	if c.direct && info != nil {
+		fmt.Printf("[#%d]%s Received JetStream message (direct): stream: %s seq %d / subject: %s / time: %v\n",
+			ctr, ts, info.Stream(), info.StreamSequence(), msg.Subject, f(info.TimeStamp()))
 	} else {
 		fmt.Printf("[#%d]%s Received on %q", ctr, ts, msg.Subject)
+		if msg.Reply != "" {
+			fmt.Printf(" with reply %q", msg.Reply)
+		}
+		fmt.Println()
 	}
-	if msg.Reply != "" {
-		fmt.Printf(" with reply %q", msg.Reply)
-	}
-	fmt.Println()
 
 	if !c.subjectsOnly {
 		c.prettyPrintMsg(msg, c.headersOnly, c.translate)
 	}
 
 	if replyMsg != nil {
-		fmt.Printf("[#%d]%s Matched reply on %q\n", ctr, ts, replyMsg.Subject)
+		if info != nil {
+			fmt.Printf("[#%d]%s Matched reply JetStream message: stream: %s seq %d / subject: %s / time: %v\n",
+				ctr, ts, info.Stream(), info.StreamSequence(), replyMsg.Subject, f(info.TimeStamp()))
+		} else {
+			fmt.Printf("[#%d]%s Matched reply on %q\n", ctr, ts, replyMsg.Subject)
+		}
 		c.prettyPrintMsg(replyMsg, c.headersOnly, c.translate)
 	}
 }
