@@ -776,6 +776,37 @@ func TestJetStreamSubscribe(t *testing.T) {
 		})
 	})
 
+	t.Run("--durable with priority groups", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1)
+			js, err := jetstream.New(nc)
+			if err != nil {
+				return err
+			}
+
+			err = nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			ctx := context.Background()
+			_, err = js.CreateConsumer(ctx, "TEST_STREAM", jetstream.ConsumerConfig{
+				Durable:        "TEST_PULL",
+				PriorityGroups: []string{"TEST_GROUP"},
+			})
+			if err != nil {
+				t.Error(err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --durable=TEST_PULL --priority-group=TEST_GROUP --last --count=1", srv.ClientURL())))
+			if !expectMatchLine(t, output, "Subscribing to JetStream Stream \"TEST_STREAM\" using existing pull consumer \"TEST_PULL\"") ||
+				!expectMatchLine(t, output, primaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+			return nil
+		})
+	})
+
 	t.Run("--durable with push", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			createDefaultTestStream(t, mgr, 1)

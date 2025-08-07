@@ -72,6 +72,7 @@ type subCmd struct {
 	messageRates          map[string]*subMessageRate
 	direct                bool
 	streamObj             jetstream.Stream
+	priogroup             string
 }
 
 type subMessageRate struct {
@@ -137,6 +138,7 @@ func configureSubCommand(app commandHost) {
 	act.Arg("subjects", "Subjects to subscribe to").StringsVar(&c.subjects)
 	act.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)
 	act.Flag("durable", "Use a durable consumer (requires JetStream)").StringVar(&c.durable)
+	act.Flag("priority-group", "Specify a priority group for a durable consumer (requires JetStream)").PlaceHolder("GROUP").StringVar(&c.priogroup)
 	act.Flag("raw", "Show the raw data received").Short('r').UnNegatableBoolVar(&c.raw)
 	act.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
 	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
@@ -162,6 +164,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("delta-time", "Show time since start in output").Short('d').UnNegatableBoolVar(&c.deltaTimeStamps)
 	act.Flag("graph", "Graph the rate of messages received").UnNegatableBoolVar(&c.graphOnly)
 	act.Flag("direct", "Subscribe using batched direct gets instead of a durable consumer (requires JetStream)").UnNegatableBoolVar(&c.direct)
+
 }
 
 func init() {
@@ -375,6 +378,10 @@ func (c *subCmd) validateInputs(ctx context.Context, nc *nats.Conn, mgr *jsm.Man
 			if err != nil {
 				return err
 			}
+		}
+
+		if c.priogroup != "" && c.durable == "" {
+			return fmt.Errorf("cannot specify a priority group without a durable consumer")
 		}
 
 		if c.match {
@@ -679,7 +686,11 @@ func (c *subCmd) jetStreamSubscribe(ctx context.Context, subState subscriptionSt
 	if isPushConsumer {
 		cCtx, err = pcons.Consume(handler)
 	} else {
-		cCtx, err = cons.Consume(handler)
+		var consumeOpts []jetstream.PullConsumeOpt
+		if c.priogroup != "" {
+			consumeOpts = []jetstream.PullConsumeOpt{jetstream.PullPriorityGroup(c.priogroup)}
+		}
+		cCtx, err = cons.Consume(handler, consumeOpts...)
 	}
 	if err != nil {
 		return err
