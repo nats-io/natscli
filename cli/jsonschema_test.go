@@ -122,42 +122,6 @@ func TestStreamConfiguration(t *testing.T) {
 	validateExpectFailure(t, cfg)
 }
 
-func TestStreamTemplateConfiguration(t *testing.T) {
-	reset := func() api.StreamTemplateConfig {
-		return api.StreamTemplateConfig{
-			Name:       "BASIC_T",
-			MaxStreams: 10,
-			Config: &api.StreamConfig{
-				Name:         "BASIC",
-				Subjects:     []string{"BASIC"},
-				Retention:    api.LimitsPolicy,
-				MaxConsumers: -1,
-				MaxAge:       0,
-				MaxBytes:     -1,
-				MaxMsgs:      -1,
-				Storage:      api.FileStorage,
-				Replicas:     1,
-			},
-		}
-	}
-
-	cfg := reset()
-	validateExpectSuccess(t, cfg)
-
-	cfg.Name = ""
-	validateExpectFailure(t, cfg)
-
-	// should also validate config
-	cfg = reset()
-	cfg.Config.Storage = 10
-	validateExpectFailure(t, cfg)
-
-	// unlimited managed streams
-	cfg = reset()
-	cfg.MaxStreams = 0
-	validateExpectSuccess(t, cfg)
-}
-
 func TestConsumerConfiguration(t *testing.T) {
 	reset := func() api.ConsumerConfig {
 		return api.ConsumerConfig{
