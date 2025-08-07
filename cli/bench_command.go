@@ -59,6 +59,7 @@ type benchCmd struct {
 	consumerName         string
 	history              uint8
 	fetchTimeout         bool
+	disconnected         bool
 	multiSubject         bool
 	multiSubjectMax      int
 	multisubjectFormat   string
@@ -232,6 +233,13 @@ func configureBenchCommand(app commandHost) {
 
 func init() {
 	registerCommand("bench", 2, configureBenchCommand)
+}
+
+func (c *benchCmd) disonnectionHandler(_ *nats.Conn, err error) {
+	c.disconnected = true
+	if err != nil {
+		log.Printf("Disconnected due to: %v, will attempt reconnect\n", err)
+	}
 }
 
 func (c *benchCmd) getJS(nc *nats.Conn) (jetstream.JetStream, error) {
@@ -434,7 +442,11 @@ func (c *benchCmd) printResults(bm *bench.Benchmark) error {
 	}
 
 	if c.fetchTimeout {
-		log.Print("WARNING: at least one of the pull consumer Fetch operation timed out. These results are not optimal!")
+		log.Println("WARNING: at least one of the pull consumer Fetch operation timed out. These results are not optimal!")
+	}
+
+	if c.disconnected {
+		log.Println("WARNING: at least one of the clients disconnected during the benchmark. These results may not be optimal!")
 	}
 
 	fmt.Println()
@@ -560,6 +572,8 @@ func (c *benchCmd) pubAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+
 		startwg.Add(1)
 		donewg.Add(1)
 
@@ -620,6 +634,8 @@ func (c *benchCmd) subAction(_ *fisk.ParseContext) error {
 			return fmt.Errorf("client number %d failed to connect: %w", i, err)
 		}
 		defer nc.Close()
+
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -683,6 +699,8 @@ func (c *benchCmd) requestAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+
 		startwg.Add(1)
 		donewg.Add(1)
 
@@ -744,6 +762,8 @@ func (c *benchCmd) serveAction(_ *fisk.ParseContext) error {
 			return fmt.Errorf("client number %d failed to connect: %w", i, err)
 		}
 		defer nc.Close()
+
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -839,6 +859,8 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+
 		startwg.Add(1)
 		donewg.Add(1)
 
@@ -904,6 +926,8 @@ func (c *benchCmd) jsOrderedAction(_ *fisk.ParseContext) error {
 			return fmt.Errorf("client number %d could not connect: %w", i, err)
 		}
 		defer nc.Close()
+
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -992,6 +1016,8 @@ func (c *benchCmd) jsConsumeAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+
 		startwg.Add(1)
 		donewg.Add(1)
 
@@ -1078,6 +1104,8 @@ func (c *benchCmd) jsFetchAction(_ *fisk.ParseContext) error {
 			return fmt.Errorf("client number %d could not connect: %w", i, err)
 		}
 		defer nc.Close()
+
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -1168,6 +1196,8 @@ func (c *benchCmd) kvPutAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+
 		startwg.Add(1)
 		donewg.Add(1)
 
@@ -1228,6 +1258,8 @@ func (c *benchCmd) kvGetAction(_ *fisk.ParseContext) error {
 			return fmt.Errorf("client number %d cloud not connect: %w", i, err)
 		}
 		defer nc.Close()
+
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -1294,6 +1326,8 @@ func (c *benchCmd) oldjsOrderedAction(_ *fisk.ParseContext) error {
 			return fmt.Errorf("client number %d could not connect: %w", i, err)
 		}
 		defer nc.Close()
+
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -1409,6 +1443,8 @@ func (c *benchCmd) oldjsPushAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+
 		startwg.Add(1)
 		donewg.Add(1)
 
@@ -1512,6 +1548,8 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
+		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+
 		startwg.Add(1)
 		donewg.Add(1)
 
@@ -1566,7 +1604,6 @@ func (c benchCmd) getPayload(msgSize int) ([]byte, error) {
 
 func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadSize int, numMsg int, offset int) error {
 	state := "Publishing"
-
 	payload, err := c.getPayload(payloadSize)
 	if err != nil {
 		return err
@@ -1608,7 +1645,6 @@ func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, pa
 func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, payloadSize int, numMsg int, offset int) error {
 	errBytes := []byte("error")
 	minusByte := byte('-')
-
 	state := "Requesting"
 	payload, err := c.getPayload(payloadSize)
 	if err != nil {
@@ -1752,7 +1788,6 @@ func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte,
 		return err
 	}
 
-	//if c.newJSAPI {
 	kvBucket, err := js.KeyValue(ctx, c.streamOrBucketName)
 	if err != nil {
 		return fmt.Errorf("getting the kv bucket '%s': %w", c.streamOrBucketName, err)
@@ -1782,7 +1817,6 @@ func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte,
 
 func (c *benchCmd) runCorePublisher(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, pubNumber string) {
 	startwg.Done()
-
 	var progress *uiprogress.Bar
 
 	log.Printf("Starting publisher, publishing %s messages", f(numMsg))
@@ -1915,7 +1949,6 @@ func (c *benchCmd) runCoreSubscriber(bm *bench.Benchmark, errChan chan error, nc
 
 func (c *benchCmd) runCoreRequester(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, pubNumber string) {
 	startwg.Done()
-
 	var progress *uiprogress.Bar
 
 	log.Printf("Starting requester, requesting %s messages", f(numMsg))
@@ -2003,7 +2036,6 @@ func (c *benchCmd) runServiceServer(nc *nats.Conn, errChan chan error, startwg *
 
 func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, idPrefix string, pubNumber string) {
 	startwg.Done()
-
 	var progress *uiprogress.Bar
 
 	log.Printf("Starting JS publisher, publishing %s messages", f(numMsg))
@@ -2044,9 +2076,7 @@ func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *n
 
 func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, benchType string, numMsg int) {
 	received := 0
-
 	ch := make(chan time.Time, 2)
-
 	var progress *uiprogress.Bar
 
 	log.Printf("Starting subscriber, expecting %s messages", f(numMsg))
@@ -2105,7 +2135,6 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 
 	var consumer jetstream.Consumer
 	var err error
-
 	ctx := context.Background()
 
 	js, err := c.getJS(nc)
@@ -2205,20 +2234,19 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 					}
 					c.fetchTimeout = true
 				}
-			}
+			} else {
+				for msg := range msgs.Messages() {
+					mh(msg)
+					i++
+				}
 
-			for msg := range msgs.Messages() {
-				mh(msg)
-				i++
+				if msgs.Error() != nil {
+					errChan <- fmt.Errorf("getting fetched messages: %w", msgs.Error())
+					c.fetchTimeout = true
+					donewg.Done()
+					return
+				}
 			}
-
-			if msgs.Error() != nil {
-				errChan <- fmt.Errorf("getting fetched messages: %w", msgs.Error())
-				c.fetchTimeout = true
-				donewg.Done()
-				return
-			}
-
 		}
 	}
 
@@ -2235,7 +2263,6 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 
 func (c *benchCmd) runKVPutter(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, pubNumber string, offset int) {
 	startwg.Done()
-
 	var progress *uiprogress.Bar
 
 	log.Printf("Starting JS publisher, publishing %s messages", f(numMsg))
@@ -2281,7 +2308,6 @@ func (c *benchCmd) runKVPutter(bm *bench.Benchmark, errChan chan error, nc *nats
 
 func (c *benchCmd) runKVGetter(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, offset int) {
 	ch := make(chan time.Time, 2)
-
 	var progress *uiprogress.Bar
 
 	log.Printf("Starting KV getter, trying to get %s messages", f(numMsg))
@@ -2298,8 +2324,6 @@ func (c *benchCmd) runKVGetter(bm *bench.Benchmark, errChan chan error, nc *nats
 			return state
 		})
 	}
-
-	// create the subscriber
 
 	ctx := context.Background()
 
@@ -2358,7 +2382,6 @@ func (c *benchCmd) runKVGetter(bm *bench.Benchmark, errChan chan error, nc *nats
 	}
 
 	ch <- time.Now()
-
 	start := <-ch
 	end := <-ch
 
@@ -2372,9 +2395,7 @@ func (c *benchCmd) runKVGetter(bm *bench.Benchmark, errChan chan error, nc *nats
 
 func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, benchType string) {
 	received := 0
-
 	ch := make(chan time.Time, 2)
-
 	var progress *uiprogress.Bar
 
 	log.Printf("Starting subscriber, expecting %s messages", f(numMsg))
@@ -2439,13 +2460,10 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, errChan chan error, n
 	}
 
 	var sub *nats.Subscription
-
 	var err error
-
-	// create the subscriber
-
 	var js nats.JetStreamContext
 
+	// create the subscriber
 	js, err = nc.JetStream(jsOpts()...)
 	if err != nil {
 		errChan <- fmt.Errorf("getting the JetStream context: %w", err)
