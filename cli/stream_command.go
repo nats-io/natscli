@@ -163,6 +163,8 @@ type streamCmd struct {
 	allowMsgTTL               bool
 	allowAtomicBatch          bool
 	allowAtomicBatchIsSet     bool
+	allowAsyncFlush           bool
+	allowAsyncFlushIsSet      bool
 	allowCounter              bool
 	allowCounterIsSet         bool
 	subjectDeleteMarkerTTLSet bool
@@ -220,6 +222,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
 		f.Flag("allow-batch", "Allow atomic batch publishing").IsSetByUser(&c.allowAtomicBatchIsSet).BoolVar(&c.allowAtomicBatch)
+		f.Flag("allow-async-flush", "Allow asynchronous flushes for replicated Stream cluster traffic").IsSetByUser(&c.allowAsyncFlushIsSet).BoolVar(&c.allowAsyncFlush)
 		f.Flag("allow-counter", "Configures the Stream as a distributed counter").IsSetByUser(&c.allowCounterIsSet).BoolVar(&c.allowCounter)
 		f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers").IsSetByUser(&c.allowRollupSet).BoolVar(&c.allowRollup)
 		f.Flag("deny-delete", "Deny messages from being deleted via the API").IsSetByUser(&c.denyDeleteSet).BoolVar(&c.denyDelete)
@@ -1894,6 +1897,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		cfg.AllowAtomicPublish = c.allowAtomicBatch
 	}
 
+	if c.allowAsyncFlushIsSet {
+		cfg.AllowAsyncFlush = c.allowAsyncFlush
+	}
+
 	if c.allowCounterIsSet {
 		cfg.AllowMsgCounter = c.allowCounter
 	}
@@ -2155,7 +2162,8 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRow("Duplicate Window", cfg.Duplicates)
 	cols.AddRowIf("Direct Get", cfg.AllowDirect, cfg.AllowDirect)
 	cols.AddRowIf("Mirror Direct Get", cfg.MirrorDirect, cfg.MirrorDirect)
-	cols.AddRow("Allows Batch Publish", cfg.AllowAtomicPublish)
+	cols.AddRowIf("Allows Asynchronous Flushing", cfg.AllowAsyncFlush, cfg.AllowAsyncFlush)
+	cols.AddRowIf("Allows Batch Publish", cfg.AllowAtomicPublish, cfg.AllowAtomicPublish)
 	cols.AddRow("Allows Counters", cfg.AllowMsgCounter)
 	cols.AddRow("Allows Msg Delete", !cfg.DenyDelete)
 	cols.AddRow("Allows Per-Message TTL", cfg.AllowMsgTTL)
@@ -2784,6 +2792,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		AllowDirect:            c.allowDirect,
 		AllowMsgTTL:            c.allowMsgTTL,
 		AllowAtomicPublish:     c.allowAtomicBatch,
+		AllowAsyncFlush:        c.allowAsyncFlush,
 		AllowMsgCounter:        c.allowCounter,
 		SubjectDeleteMarkerTTL: c.subjectDeleteMarkerTTL,
 		MirrorDirect:           c.allowMirrorDirectSet,
@@ -3165,6 +3174,13 @@ func (c streamCmd) checkCompatability(mgr *jsm.Manager, cfg *api.StreamConfig) e
 
 	if cfg.AllowMsgCounter {
 		err := iu.RequireAPILevel(mgr, 2, "Distributed Counters requires NATS Server 2.12")
+		if err != nil {
+			return err
+		}
+	}
+
+	if cfg.AllowAsyncFlush {
+		err := iu.RequireAPILevel(mgr, 2, "Asynchronous Flushing requires NATS Server 2.12")
 		if err != nil {
 			return err
 		}
