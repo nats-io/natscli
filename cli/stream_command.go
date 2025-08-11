@@ -1565,7 +1565,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if len(stats) == 0 {
+	if len(stats) == 0 && len(missing) == 0 {
 		if !c.json {
 			fmt.Println("No Streams defined")
 		}
@@ -3311,10 +3311,10 @@ func (c *streamCmd) lsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	if len(streams) == 0 && skipped {
+	if len(streams) == 0 && len(missing) == 0 && skipped {
 		fmt.Println("No Streams defined, pass -a to include system streams")
 		return nil
-	} else if len(streams) == 0 {
+	} else if len(streams) == 0 && len(missing) == 0 {
 		fmt.Println("No Streams defined")
 		return nil
 	}
