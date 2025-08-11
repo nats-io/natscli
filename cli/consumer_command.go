@@ -1285,6 +1285,11 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		cols.AddMapStringsAsValue("Priority Groups", groups)
 	}
 
+	if state.Offline {
+		cols.Println()
+		cols.Println(fmt.Sprintf("WARNING: Consumer is offline: %v", state.OfflineReason))
+	}
+
 	cols.Frender(os.Stdout)
 }
 

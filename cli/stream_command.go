@@ -2445,6 +2445,11 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		}
 	}
 
+	if info.Offline {
+		cols.Println()
+		cols.Println(fmt.Sprintf("WARNING: Stream is offline: %v", info.OfflineReason))
+	}
+
 	cols.Frender(os.Stdout)
 }
 
