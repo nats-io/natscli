@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -59,7 +60,8 @@ type benchCmd struct {
 	consumerName         string
 	history              uint8
 	fetchTimeout         bool
-	disconnected         bool
+	disconnected         atomic.Bool
+	errored              atomic.Bool
 	multiSubject         bool
 	multiSubjectMax      int
 	multisubjectFormat   string
@@ -235,10 +237,19 @@ func init() {
 	registerCommand("bench", 2, configureBenchCommand)
 }
 
-func (c *benchCmd) disonnectionHandler(_ *nats.Conn, err error) {
-	c.disconnected = true
+func (c *benchCmd) disconnectionHandler(_ *nats.Conn, err error) {
+	c.disconnected.Store(true)
+
 	if err != nil {
 		log.Printf("Disconnected due to: %v, will attempt reconnect\n", err)
+	}
+}
+
+func (c *benchCmd) errorHandler(_ *nats.Conn, _ *nats.Subscription, err error) {
+	c.errored.Store(true)
+
+	if err != nil {
+		log.Printf("Async connection error received: %v\n", err)
 	}
 }
 
@@ -445,8 +456,8 @@ func (c *benchCmd) printResults(bm *bench.Benchmark) error {
 		log.Println("WARNING: at least one of the pull consumer Fetch operation timed out. These results are not optimal!")
 	}
 
-	if c.disconnected {
-		log.Println("WARNING: at least one of the clients disconnected during the benchmark. These results may not be optimal!")
+	if c.disconnected.Load() || c.errored.Load() {
+		log.Println("WARNING: at least one of the clients disconnected or experienced an error during the benchmark. These results may not be optimal!")
 	}
 
 	fmt.Println()
@@ -572,7 +583,8 @@ func (c *benchCmd) pubAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -635,7 +647,8 @@ func (c *benchCmd) subAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -699,7 +712,8 @@ func (c *benchCmd) requestAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -763,7 +777,8 @@ func (c *benchCmd) serveAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -859,7 +874,8 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -927,7 +943,8 @@ func (c *benchCmd) jsOrderedAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -1016,7 +1033,8 @@ func (c *benchCmd) jsConsumeAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -1105,7 +1123,8 @@ func (c *benchCmd) jsFetchAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -1196,7 +1215,8 @@ func (c *benchCmd) kvPutAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -1259,7 +1279,8 @@ func (c *benchCmd) kvGetAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -1327,7 +1348,8 @@ func (c *benchCmd) oldjsOrderedAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -1443,7 +1465,8 @@ func (c *benchCmd) oldjsPushAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -1548,7 +1571,8 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 		}
 		defer nc.Close()
 
-		nc.SetDisconnectErrHandler(c.disonnectionHandler)
+		nc.SetDisconnectErrHandler(c.disconnectionHandler)
+		nc.SetErrorHandler(c.errorHandler)
 
 		startwg.Add(1)
 		donewg.Add(1)
@@ -1587,7 +1611,7 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c benchCmd) getPayload(msgSize int) ([]byte, error) {
+func (c *benchCmd) getPayload(msgSize int) ([]byte, error) {
 	if len(c.payloadFilename) > 0 {
 
 		buffer, err := os.ReadFile(c.payloadFilename)
