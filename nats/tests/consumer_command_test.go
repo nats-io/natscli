@@ -16,7 +16,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -184,6 +186,25 @@ func TestConsumerFind(t *testing.T) {
 				}
 			})
 
+			return nil
+		})
+	})
+	t.Run("--offline", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := mgr.NewStream("T_OFFLINE")
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+
+			_, err = mgr.NewConsumer("T_OFFLINE", jsm.DurableName("C1"), jsm.ConsumerMetadata(map[string]string{"_nats.req.level": strconv.Itoa(math.MaxInt - 1)}))
+			if err != nil {
+				t.Fatalf("unable to create consumer: %s", err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' consumer find T_OFFLINE --offline", srv.ClientURL())))
+			if !expectMatchLine(t, output, "C1") {
+				t.Errorf("unexpected output. expected 1 streams: %s", output)
+			}
 			return nil
 		})
 	})

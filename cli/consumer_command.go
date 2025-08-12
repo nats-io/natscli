@@ -127,6 +127,7 @@ type consumerCmd struct {
 	fPinned            bool
 	placementPreferred string
 	apiLevel           int
+	offline            bool
 }
 
 func configureConsumerCommand(app commandHost) {
@@ -231,6 +232,7 @@ func configureConsumerCommand(app commandHost) {
 	consFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	consFind.Flag("expression", "Match consumers using an expression language").StringVar(&c.fExpression)
 	consFind.Flag("api-level", "Match consumers that support at least the given api level").IntVar(&c.apiLevel)
+	consFind.Flag("offline", "Match consumers that are offline").BoolVar(&c.offline)
 
 	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
 	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -444,6 +446,20 @@ func (c *consumerCmd) findAction(_ *fisk.ParseContext) error {
 	found, err := stream.QueryConsumers(opts...)
 	if err != nil {
 		return err
+	}
+
+	if c.offline {
+		filtered := found[:0]
+		for _, s := range found {
+			offline, _, err := s.IsOffline()
+			if err != nil {
+				return err
+			}
+			if offline {
+				filtered = append(filtered, s)
+			}
+		}
+		found = filtered
 	}
 
 	for _, c := range found {

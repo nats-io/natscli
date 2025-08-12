@@ -168,6 +168,7 @@ type streamCmd struct {
 	subjectDeleteMarkerTTLSet bool
 	subjectDeleteMarkerTTL    time.Duration
 	apiLevel                  int
+	offline                   bool
 }
 
 type streamStat struct {
@@ -323,6 +324,7 @@ Finding streams with certain subjects configured:
 	strFind.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	strFind.Flag("expression", "Match streams using an expression language").StringVar(&c.fExpression)
 	strFind.Flag("api-level", "Match streams that support at least the given api level").IntVar(&c.apiLevel)
+	strFind.Flag("offline", "Match streams that are offline").BoolVar(&c.offline)
 
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
@@ -863,6 +865,20 @@ func (c *streamCmd) findAction(_ *fisk.ParseContext) (err error) {
 	found, err := c.mgr.QueryStreams(opts...)
 	if err != nil {
 		return err
+	}
+
+	if c.offline {
+		filtered := found[:0]
+		for _, con := range found {
+			offline, _, err := con.IsOffline()
+			if err != nil {
+				return err
+			}
+			if offline {
+				filtered = append(filtered, con)
+			}
+		}
+		found = filtered
 	}
 
 	out := ""
@@ -3362,10 +3378,10 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string
 		table = iu.NewTableWriter(opts(), fmt.Sprintf("Streams matching %s", c.filterSubject))
 	}
 
-	table.AddHeaders("Name", "Description", "Created", "Messages", "Size", "Last Message")
+	table.AddHeaders("Name", "Description", "Created", "Messages", "Size", "Last Message", "Offline", "Offline Reason")
 	for _, s := range streams {
 		nfo, _ := s.LatestInformation()
-		table.AddRow(s.Name(), s.Description(), f(nfo.Created.Local()), f(nfo.State.Msgs), humanize.IBytes(nfo.State.Bytes), f(sinceRefOrNow(nfo.TimeStamp, nfo.State.LastTime)))
+		table.AddRow(s.Name(), s.Description(), f(nfo.Created.Local()), f(nfo.State.Msgs), humanize.IBytes(nfo.State.Bytes), f(sinceRefOrNow(nfo.TimeStamp, nfo.State.LastTime)), nfo.Offline, nfo.OfflineReason)
 	}
 
 	fmt.Fprintln(&out, table.Render())
