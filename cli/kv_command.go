@@ -40,7 +40,7 @@ type kvCommand struct {
 	key                     string
 	val                     string
 	raw                     bool
-	history                 uint64
+	history                 int64
 	ttl                     time.Duration
 	replicas                uint
 	force                   bool
@@ -99,7 +99,7 @@ for an indefinite period or a per-bucket configured TTL.
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 		f.Flag("description", "A description for the bucket").IsSetByUser(&c.descriptionSet).StringVar(&c.description)
-		f.Flag("history", "How many historic values to keep per key").IsSetByUser(&c.historySet).Default("1").Uint64Var(&c.history)
+		f.Flag("history", "How many historic values to keep per key").IsSetByUser(&c.historySet).Default("1").Validator(iu.Int64RangeValidator(1, 64)).Int64Var(&c.history)
 		if !edit {
 			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
 		}
