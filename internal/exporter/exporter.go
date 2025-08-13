@@ -116,17 +116,17 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		defer result.Collect(ch)
 
 		nctx, err := e.natsContext(check)
-		if result.CriticalIfErr(err, "could not load context: %v", err) {
+		if result.CriticalIfErrf(err, "could not load context: %v", err) {
 			return
 		}
 
 		opts, err := nctx.NATSOptions()
-		if result.CriticalIfErr(err, "could not load context: %v", err) {
+		if result.CriticalIfErrf(err, "could not load context: %v", err) {
 			return
 		}
 
 		jsmopts, err := nctx.JSMOptions()
-		if result.CriticalIfErr(err, "could not load jetstream options: %v", err) {
+		if result.CriticalIfErrf(err, "could not load jetstream options: %v", err) {
 			return
 		}
 
@@ -183,12 +183,12 @@ func (e *Exporter) natsContext(check *Check) (*natscontext.Context, error) {
 func (e *Exporter) checkRequest(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckRequestOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
-	if result.CriticalIfErr(err, "invalid properties: %v", err) {
+	if result.CriticalIfErrf(err, "invalid properties: %v", err) {
 		return
 	}
 
 	nc, _, err := check.connect(servers, natsOpts, jsmOpts)
-	if result.CriticalIfErr(err, "connection failed: %v", err) {
+	if result.CriticalIfErrf(err, "connection failed: %v", err) {
 		return
 	}
 
@@ -197,29 +197,29 @@ func (e *Exporter) checkRequest(servers string, natsOpts []nats.Option, jsmOpts 
 	} else {
 		err = monitor.CheckRequest(servers, natsOpts, result, 5*time.Second, copts)
 	}
-	result.CriticalIfErr(err, "check failed: %v", err)
+	result.CriticalIfErrf(err, "check failed: %v", err)
 }
 
 func (e *Exporter) checkCredential(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckCredentialOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
-	if result.CriticalIfErr(err, "invalid properties: %v", err) {
+	if result.CriticalIfErrf(err, "invalid properties: %v", err) {
 		return
 	}
 
 	err = monitor.CheckCredential(result, copts)
-	result.CriticalIfErr(err, "check failed: %v", err)
+	result.CriticalIfErrf(err, "check failed: %v", err)
 }
 
 func (e *Exporter) checkServer(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckServerOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
-	if result.CriticalIfErr(err, "invalid properties: %v", err) {
+	if result.CriticalIfErrf(err, "invalid properties: %v", err) {
 		return
 	}
 
 	nc, _, err := check.connect(servers, natsOpts, jsmOpts)
-	if result.CriticalIfErr(err, "connection failed: %v", err) {
+	if result.CriticalIfErrf(err, "connection failed: %v", err) {
 		return
 	}
 
@@ -228,7 +228,7 @@ func (e *Exporter) checkServer(servers string, natsOpts []nats.Option, jsmOpts [
 	} else {
 		err = monitor.CheckServer(servers, natsOpts, result, time.Second, copts)
 	}
-	result.CriticalIfErr(err, "check failed: %v", err)
+	result.CriticalIfErrf(err, "check failed: %v", err)
 }
 
 func (e *Exporter) checkJetStream(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
@@ -243,12 +243,12 @@ func (e *Exporter) checkJetStream(servers string, natsOpts []nats.Option, jsmOpt
 		StreamWarning:     -1,
 	}
 	err := yaml.Unmarshal(check.Properties, &copts)
-	if result.CriticalIfErr(err, "invalid properties: %v", err) {
+	if result.CriticalIfErrf(err, "invalid properties: %v", err) {
 		return
 	}
 
 	_, mgr, err := check.connect(servers, natsOpts, jsmOpts)
-	if result.CriticalIfErr(err, "connection failed: %v", err) {
+	if result.CriticalIfErrf(err, "connection failed: %v", err) {
 		return
 	}
 
@@ -257,18 +257,18 @@ func (e *Exporter) checkJetStream(servers string, natsOpts []nats.Option, jsmOpt
 	} else {
 		err = monitor.CheckJetStreamAccount(servers, natsOpts, jsmOpts, result, copts)
 	}
-	result.CriticalIfErr(err, "check failed: %v", err)
+	result.CriticalIfErrf(err, "check failed: %v", err)
 }
 
 func (e *Exporter) checkMeta(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckJetstreamMetaOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
-	if result.CriticalIfErr(err, "invalid properties: %v", err) {
+	if result.CriticalIfErrf(err, "invalid properties: %v", err) {
 		return
 	}
 
 	nc, _, err := check.connect(servers, natsOpts, jsmOpts)
-	if result.CriticalIfErr(err, "connection failed: %v", err) {
+	if result.CriticalIfErrf(err, "connection failed: %v", err) {
 		return
 	}
 
@@ -277,18 +277,18 @@ func (e *Exporter) checkMeta(servers string, natsOpts []nats.Option, jsmOpts []j
 	} else {
 		err = monitor.CheckJetstreamMeta(servers, natsOpts, result, copts)
 	}
-	result.CriticalIfErr(err, "check failed: %v", err)
+	result.CriticalIfErrf(err, "check failed: %v", err)
 }
 
 func (e *Exporter) checkMessage(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckStreamMessageOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
-	if result.CriticalIfErr(err, "invalid properties: %v", err) {
+	if result.CriticalIfErrf(err, "invalid properties: %v", err) {
 		return
 	}
 
 	_, mgr, err := check.connect(servers, natsOpts, jsmOpts)
-	if result.CriticalIfErr(err, "connection failed: %v", err) {
+	if result.CriticalIfErrf(err, "connection failed: %v", err) {
 		return
 	}
 
@@ -297,7 +297,7 @@ func (e *Exporter) checkMessage(servers string, natsOpts []nats.Option, jsmOpts 
 	} else {
 		err = monitor.CheckStreamMessage(servers, natsOpts, jsmOpts, result, copts)
 	}
-	result.CriticalIfErr(err, "check failed: %v", err)
+	result.CriticalIfErrf(err, "check failed: %v", err)
 }
 
 func (e *Exporter) checkKv(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
@@ -306,12 +306,12 @@ func (e *Exporter) checkKv(servers string, natsOpts []nats.Option, jsmOpts []jsm
 		ValuesCritical: -1,
 	}
 	err := yaml.Unmarshal(check.Properties, &copts)
-	if result.CriticalIfErr(err, "invalid properties: %v", err) {
+	if result.CriticalIfErrf(err, "invalid properties: %v", err) {
 		return
 	}
 
 	nc, _, err := check.connect(servers, natsOpts, jsmOpts)
-	if result.CriticalIfErr(err, "connection failed: %v", err) {
+	if result.CriticalIfErrf(err, "connection failed: %v", err) {
 		return
 	}
 
@@ -321,18 +321,18 @@ func (e *Exporter) checkKv(servers string, natsOpts []nats.Option, jsmOpts []jsm
 		err = monitor.CheckKVBucketAndKey(servers, natsOpts, result, copts)
 	}
 
-	result.CriticalIfErr(err, "check failed: %v", err)
+	result.CriticalIfErrf(err, "check failed: %v", err)
 }
 
 func (e *Exporter) checkConsumer(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckConsumerHealthOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
-	if result.CriticalIfErr(err, "invalid properties: %v", err) {
+	if result.CriticalIfErrf(err, "invalid properties: %v", err) {
 		return
 	}
 
 	_, mgr, err := check.connect(servers, natsOpts, jsmOpts)
-	if result.CriticalIfErr(err, "connection failed: %v", err) {
+	if result.CriticalIfErrf(err, "connection failed: %v", err) {
 		return
 	}
 
@@ -341,18 +341,18 @@ func (e *Exporter) checkConsumer(servers string, natsOpts []nats.Option, jsmOpts
 	} else {
 		err = monitor.CheckConsumerHealth(servers, natsOpts, jsmOpts, result, copts, api.NewDiscardLogger())
 	}
-	result.CriticalIfErr(err, "check failed: %v", err)
+	result.CriticalIfErrf(err, "check failed: %v", err)
 }
 
 func (e *Exporter) checkStream(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckStreamHealthOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
-	if result.CriticalIfErr(err, "invalid properties: %v", err) {
+	if result.CriticalIfErrf(err, "invalid properties: %v", err) {
 		return
 	}
 
 	_, mgr, err := check.connect(servers, natsOpts, jsmOpts)
-	if result.CriticalIfErr(err, "connection failed: %v", err) {
+	if result.CriticalIfErrf(err, "connection failed: %v", err) {
 		return
 	}
 
@@ -361,16 +361,16 @@ func (e *Exporter) checkStream(servers string, natsOpts []nats.Option, jsmOpts [
 	} else {
 		err = monitor.CheckStreamHealth(servers, natsOpts, jsmOpts, result, copts, api.NewDiscardLogger())
 	}
-	result.CriticalIfErr(err, "check failed: %v", err)
+	result.CriticalIfErrf(err, "check failed: %v", err)
 }
 
 func (e *Exporter) checkConnection(servers string, natsOpts []nats.Option, jsmOpts []jsm.Option, check *Check, result *monitor.Result) {
 	copts := monitor.CheckConnectionOptions{}
 	err := yaml.Unmarshal(check.Properties, &copts)
-	if result.CriticalIfErr(err, "invalid properties: %v", err) {
+	if result.CriticalIfErrf(err, "invalid properties: %v", err) {
 		return
 	}
 
 	err = monitor.CheckConnection(servers, natsOpts, 2*time.Second, result, copts)
-	result.CriticalIfErr(err, "check failed: %v", err)
+	result.CriticalIfErrf(err, "check failed: %v", err)
 }
