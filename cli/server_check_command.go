@@ -293,7 +293,7 @@ func (c *SrvCheckCmd) checkRequest(_ *fisk.ParseContext) error {
 	} else {
 		err = monitor.CheckRequestWithConnection(nc, check, opts().Timeout, checkOpts)
 	}
-	check.CriticalIfErr(err, "Check failed: %v", err)
+	check.CriticalIfErrf(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -340,7 +340,7 @@ func (c *SrvCheckCmd) checkConsumer(_ *fisk.ParseContext) error {
 	} else {
 		err = monitor.CheckConsumerHealthWithConnection(mgr, check, checkOpts, logger)
 	}
-	check.CriticalIfErr(err, "Check failed: %v", err)
+	check.CriticalIfErrf(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -364,7 +364,7 @@ func (c *SrvCheckCmd) checkKV(_ *fisk.ParseContext) error {
 	} else {
 		err = monitor.CheckKVBucketAndKeyWithConnection(nc, check, checkOpts)
 	}
-	check.CriticalIfErr(err, "Check failed: %v", err)
+	check.CriticalIfErrf(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -398,7 +398,7 @@ func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
 	} else {
 		err = monitor.CheckServerWithConnection(nc, check, opts().Timeout, checkOpts)
 	}
-	check.CriticalIfErr(err, "Check failed: %v", err)
+	check.CriticalIfErrf(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -429,7 +429,7 @@ func (c *SrvCheckCmd) checkJS(_ *fisk.ParseContext) error {
 	} else {
 		err = monitor.CheckJetStreamAccountWithConnection(mgr, check, checkOpts)
 	}
-	check.CriticalIfErr(err, "Check failed: %v", err)
+	check.CriticalIfErrf(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -452,7 +452,7 @@ func (c *SrvCheckCmd) checkRaft(_ *fisk.ParseContext) error {
 	} else {
 		err = monitor.CheckJetstreamMetaWithConnection(nc, check, checkOpts)
 	}
-	check.CriticalIfErr(err, "Check failed: %v", err)
+	check.CriticalIfErrf(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -512,7 +512,7 @@ func (c *SrvCheckCmd) checkStream(_ *fisk.ParseContext) error {
 	} else {
 		err = monitor.CheckStreamHealthWithConnection(mgr, check, checkOpts, logger)
 	}
-	check.CriticalIfErr(err, "Check failed: %v", err)
+	check.CriticalIfErrf(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -538,7 +538,7 @@ func (c *SrvCheckCmd) checkMsg(_ *fisk.ParseContext) error {
 	} else {
 		err = monitor.CheckStreamMessageWithConnection(mgr, check, checkOpts)
 	}
-	check.CriticalIfErr(err, "Check failed: %v", err)
+	check.CriticalIfErrf(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -549,7 +549,7 @@ func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 
 	if opts().Config == nil {
 		err := loadContext(false)
-		if check.CriticalIfErr(err, "loading context failed: %v", err) {
+		if check.CriticalIfErrf(err, "loading context failed: %v", err) {
 			return nil
 		}
 	}
@@ -571,7 +571,7 @@ func (c *SrvCheckCmd) checkConnection(_ *fisk.ParseContext) error {
 	} else {
 		err = fmt.Errorf("connection checks are not supported when a connection is supplied")
 	}
-	check.CriticalIfErr(err, "Check failed: %v", err)
+	check.CriticalIfErrf(err, "Check failed: %v", err)
 
 	return nil
 }
@@ -586,7 +586,7 @@ func (c *SrvCheckCmd) checkCredentialAction(_ *fisk.ParseContext) error {
 		ValidityCritical: c.credentialValidityCrit.Seconds(),
 		RequiresExpiry:   c.credentialRequiresExpire,
 	})
-	check.CriticalIfErr(err, "Check failed: %v", err)
+	check.CriticalIfErrf(err, "Check failed: %v", err)
 
 	return nil
 }
