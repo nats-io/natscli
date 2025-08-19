@@ -868,7 +868,7 @@ func (c *streamCmd) findAction(_ *fisk.ParseContext) (err error) {
 	case c.listNames:
 		out = c.renderStreamsAsList(found, nil)
 	default:
-		out, err = c.renderStreamsAsTable(found, nil)
+		out, err = c.renderStreamsAsTable(found, nil, nil)
 	}
 	if err != nil {
 		return err
@@ -1470,7 +1470,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 	dg := dot.NewGraph(dot.Directed)
 	dg.Label("Stream Replication Structure")
 
-	missing, err := mgr.EachStream(filter, func(stream *jsm.Stream) {
+	missing, offline, err := mgr.EachStream(filter, func(stream *jsm.Stream) {
 		info, err := stream.LatestInformation()
 		fisk.FatalIfError(err, "could not get stream info for %s", stream.Name())
 
@@ -1563,7 +1563,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if len(stats) == 0 && len(missing) == 0 {
+	if len(stats) == 0 && len(missing) == 0 && len(offline) == 0 {
 		if !c.json {
 			fmt.Println("No Streams defined")
 		}
@@ -1596,7 +1596,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 		renderRaftLeaders(leaders, "Streams")
 	}
 
-	c.renderMissing(os.Stdout, missing)
+	c.renderMissing(os.Stdout, missing, offline)
 
 	return nil
 }
@@ -2441,11 +2441,6 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 				cols.AddRow("", msg)
 			}
 		}
-	}
-
-	if info.Offline {
-		cols.Println()
-		cols.Println(fmt.Sprintf("WARNING: Stream is offline: %v", info.OfflineReason))
 	}
 
 	cols.Frender(os.Stdout)
@@ -3295,7 +3290,7 @@ func (c *streamCmd) lsAction(_ *fisk.ParseContext) error {
 
 	skipped := false
 
-	missing, err := mgr.EachStream(filter, func(s *jsm.Stream) {
+	missing, offline, err := mgr.EachStream(filter, func(s *jsm.Stream) {
 		if !c.showAll && s.IsInternal() {
 			skipped = true
 			return
@@ -3314,15 +3309,15 @@ func (c *streamCmd) lsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	if len(streams) == 0 && len(missing) == 0 && skipped {
+	if len(streams) == 0 && len(missing) == 0 && len(offline) == 0 && skipped {
 		fmt.Println("No Streams defined, pass -a to include system streams")
 		return nil
-	} else if len(streams) == 0 && len(missing) == 0 {
+	} else if len(streams) == 0 && len(missing) == 0 && len(offline) == 0 {
 		fmt.Println("No Streams defined")
 		return nil
 	}
 
-	out, err := c.renderStreamsAsTable(streams, missing)
+	out, err := c.renderStreamsAsTable(streams, missing, offline)
 	if err != nil {
 		return err
 	}
@@ -3344,7 +3339,7 @@ func (c *streamCmd) renderStreamsAsList(streams []*jsm.Stream, missing []string)
 	return strings.Join(names, "\n")
 }
 
-func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string) (string, error) {
+func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string, offline map[string]string) (string, error) {
 	sort.Slice(streams, func(i, j int) bool {
 		info, _ := streams[i].LatestInformation()
 		jnfo, _ := streams[j].LatestInformation()
@@ -3368,12 +3363,12 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string
 
 	fmt.Fprintln(&out, table.Render())
 
-	c.renderMissing(&out, missing)
+	c.renderMissing(&out, missing, offline)
 
 	return out.String(), nil
 }
 
-func (c *streamCmd) renderMissing(out io.Writer, missing []string) {
+func (c *streamCmd) renderMissing(out io.Writer, missing []string, offline map[string]string) {
 	toany := func(items []string) (res []any) {
 		for _, i := range items {
 			res = append(res, any(i))
@@ -3388,6 +3383,22 @@ func (c *streamCmd) renderMissing(out io.Writer, missing []string) {
 		iu.SliceGroups(missing, 4, func(names []string) {
 			table.AddRow(toany(names)...)
 		})
+		fmt.Fprint(out, table.Render())
+	}
+
+	if len(offline) > 0 {
+		fmt.Fprintln(out)
+		table := iu.NewTableWriter(opts(), "Offline Streams")
+
+		var keys []string
+		for k := range offline {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		for _, k := range keys {
+			table.AddRow(k, offline[k])
+		}
 		fmt.Fprint(out, table.Render())
 	}
 }
