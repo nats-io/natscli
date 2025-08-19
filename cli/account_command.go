@@ -92,7 +92,7 @@ func (c *actCmd) backupAction(_ *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	fisk.FatalIfError(err, "setup failed")
 
-	streams, missing, err := mgr.Streams(nil)
+	streams, missing, offline, err := mgr.Streams(nil)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,9 @@ func (c *actCmd) backupAction(_ *fisk.ParseContext) error {
 	if len(missing) > 0 {
 		return fmt.Errorf("could not obtain stream information for %d streams", len(missing))
 	}
-
+	if !c.force && len(offline) > 0 {
+		return fmt.Errorf("could not obtain stream information for %d offline streams", len(offline))
+	}
 	if len(streams) == 0 {
 		return fmt.Errorf("no streams found")
 	}

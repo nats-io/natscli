@@ -1062,7 +1062,7 @@ func (c *consumerCmd) renderConsumerAsTable(stream *jsm.Stream) (string, error) 
 	table := iu.NewTableWriter(opts(), "Consumers")
 	table.AddHeaders("Name", "Description", "Created", "Ack Pending", "Unprocessed", "Last Delivery")
 
-	missing, err := stream.EachConsumer(func(cons *jsm.Consumer) {
+	missing, offline, err := stream.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
 		if err != nil {
 			log.Printf("Could not obtain consumer state for %s: %s", cons.Name(), err)
@@ -1083,8 +1083,8 @@ func (c *consumerCmd) renderConsumerAsTable(stream *jsm.Stream) (string, error) 
 
 	fmt.Fprintln(&out, table.Render())
 
-	if len(missing) > 0 {
-		c.renderMissing(&out, missing)
+	if len(missing) > 0 || len(offline) > 0 {
+		c.renderMissing(&out, missing, offline)
 	}
 
 	return out.String(), nil
@@ -1283,11 +1283,6 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 			groups[v.Group] = msg
 		}
 		cols.AddMapStringsAsValue("Priority Groups", groups)
-	}
-
-	if state.Offline {
-		cols.Println()
-		cols.Println(fmt.Sprintf("WARNING: Consumer is offline: %v", state.OfflineReason))
 	}
 
 	cols.Frender(os.Stdout)
@@ -2430,7 +2425,7 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 
 	table := iu.NewTableWriter(opts(), fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, f(ss.Consumers)))
 	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "API Level", "Cluster")
-	missing, err := s.EachConsumer(func(cons *jsm.Consumer) {
+	missing, offline, err := s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
 		if err != nil {
 			log.Printf("Could not obtain consumer state for %s: %s", cons.Name(), err)
@@ -2482,14 +2477,14 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 		renderRaftLeaders(leaders, "Consumers")
 	}
 
-	if len(missing) > 0 {
-		c.renderMissing(os.Stdout, missing)
+	if len(missing) > 0 || len(offline) > 0 {
+		c.renderMissing(os.Stdout, missing, offline)
 	}
 
 	return nil
 }
 
-func (c *consumerCmd) renderMissing(out io.Writer, missing []string) {
+func (c *consumerCmd) renderMissing(out io.Writer, missing []string, offline map[string]string) {
 	toany := func(items []string) (res []any) {
 		for _, i := range items {
 			res = append(res, any(i))
@@ -2504,6 +2499,24 @@ func (c *consumerCmd) renderMissing(out io.Writer, missing []string) {
 		iu.SliceGroups(missing, 4, func(names []string) {
 			table.AddRow(toany(names)...)
 		})
+		fmt.Fprint(out, table.Render())
+	}
+
+	// realistically this will never actually be called because CLI will stream info first and any offline consumer
+	//takes the stream offline also but lets assume this might improve in time and so we keep this here
+	if len(offline) > 0 {
+		fmt.Fprintln(out)
+		table := iu.NewTableWriter(opts(), "Offline Consumers")
+
+		var keys []string
+		for k := range offline {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		for _, k := range keys {
+			table.AddRow(k, offline[k])
+		}
 		fmt.Fprint(out, table.Render())
 	}
 }
