@@ -116,7 +116,7 @@ func (c *actCmd) backupAction(_ *fisk.ParseContext) error {
 		totalSize += state.Bytes
 	}
 
-	cols := newColumns("Performing backup of all streams to %s", c.backupDirectory)
+	cols := newColumnsf("Performing backup of all streams to %s", c.backupDirectory)
 	cols.AddRow("Streams", len(streams))
 	cols.AddRow("Size", humanize.IBytes(totalSize))
 	cols.AddRow("Consumers:", totalConsumers)
@@ -243,7 +243,7 @@ func (c *actCmd) reportServerStats(_ *fisk.ParseContext) error {
 		return fmt.Errorf("did not get results from any servers")
 	}
 
-	table := iu.NewTableWriter(opts(), "Server Statistics")
+	table := iu.NewTableWriterf(opts(), "Server Statistics")
 	table.AddHeaders("Server", "Cluster", "Version", "Tags", "Connections", "Subscriptions", "Leafnodes", "Sent Bytes", "Sent Messages", "Received Bytes", "Received Messages", "Slow Consumers")
 
 	var (
@@ -438,7 +438,7 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	cols := newColumns("Account Information")
+	cols := newColumnsf("Account Information")
 	defer cols.Frender(os.Stdout)
 
 	if ui != nil {

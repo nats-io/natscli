@@ -155,7 +155,7 @@ func (c *traceCmd) traceAction(_ *fisk.ParseContext) error {
 	)
 	fmt.Println()
 	if len(stat.egress) > 0 {
-		cols := newColumns("Egress Count:")
+		cols := newColumnsf("Egress Count:")
 		stat.Lock()
 		cols.AddMapInts(stat.egress, true, true)
 		stat.Unlock()

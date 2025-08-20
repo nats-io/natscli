@@ -20,7 +20,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.25"
 
       - name: Install linting tools
         shell: bash --noprofile --norc -x -eo pipefail {0}
@@ -44,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: [ "1.23", "1.24" ]
+        go: [ "1.24", "1.25" ]
         os:
           - ubuntu-latest
           - windows-latest

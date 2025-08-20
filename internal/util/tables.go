@@ -90,7 +90,7 @@ func (t *Table) RenderCSV() string {
 	return fmt.Sprintln(t.writer.RenderCSV())
 }
 
-func NewTableWriter(opts *options.Options, format string, a ...any) *Table {
+func NewTableWriter(opts *options.Options, title string) *Table {
 	tbl := &Table{
 		writer: table.NewWriter(),
 	}
@@ -115,9 +115,13 @@ func NewTableWriter(opts *options.Options, format string, a ...any) *Table {
 	tbl.writer.Style().Format.Header = text.FormatDefault
 	tbl.writer.Style().Format.Footer = text.FormatDefault
 
-	if format != "" {
-		tbl.writer.SetTitle(fmt.Sprintf(format, a...))
+	if title != "" {
+		tbl.writer.SetTitle(title)
 	}
 
 	return tbl
+}
+
+func NewTableWriterf(opts *options.Options, format string, a ...any) *Table {
+	return NewTableWriter(opts, fmt.Sprintf(format, a...))
 }

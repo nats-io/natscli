@@ -36,7 +36,7 @@ func (c *auditChecksCommand) checksAction(_ *fisk.ParseContext) error {
 		return iu.PrintJSON(checks)
 	}
 
-	tbl := iu.NewTableWriter(opts(), "Audit Checks")
+	tbl := iu.NewTableWriterf(opts(), "Audit Checks")
 	tbl.AddHeaders("Suite", "Code", "Description", "Configuration")
 
 	for _, check := range checks {

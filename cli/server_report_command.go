@@ -254,7 +254,7 @@ func (c *SrvReportCmd) reportLeafs(_ *fisk.ParseContext) error {
 		}
 	})
 
-	tbl := iu.NewTableWriter(opts(), "Leafnode Report")
+	tbl := iu.NewTableWriterf(opts(), "Leafnode Report")
 	tbl.AddHeaders("Server", "Name", "Account", "Address", "RTT", "Msgs In", "Msgs Out", "Bytes In", "Bytes Out", "Subs", "Compressed", "Spoke")
 
 	for _, lz := range leafs {
@@ -333,7 +333,7 @@ func (c *SrvReportCmd) reportHealth(_ *fisk.ParseContext) error {
 		return c.boolReverse(servers[i].Server.Name < servers[j].Server.Name)
 	})
 
-	tbl := iu.NewTableWriter(opts(), "Health Report")
+	tbl := iu.NewTableWriterf(opts(), "Health Report")
 	tbl.AddHeaders("Server", "Cluster", "Domain", "Status", "Type", "Error")
 
 	var ok, notok, totalErrors int
@@ -441,7 +441,7 @@ func (c *SrvReportCmd) reportGateway(_ *fisk.ParseContext) error {
 		}
 	})
 
-	tbl := iu.NewTableWriter(opts(), "Super Cluster Report")
+	tbl := iu.NewTableWriterf(opts(), "Super Cluster Report")
 	tbl.AddHeaders("Server", "Name", "Port", "Kind", "Connection", "ID", "Uptime", "RTT", "Bytes", "Accounts")
 
 	var lastServer, lastName, lastDirection string
@@ -624,7 +624,7 @@ func (c *SrvReportCmd) reportRoute(_ *fisk.ParseContext) error {
 		return c.boolReverse(wasSorted)
 	})
 
-	tbl := iu.NewTableWriter(opts(), "Cluster Report")
+	tbl := iu.NewTableWriterf(opts(), "Cluster Report")
 	tbl.AddHeaders("Server", "Cluster", "Name", "Account", "Address", "ID", "Uptime", "RTT", "Subs", "Bytes In", "Bytes Out")
 
 	var lastServer, lastCluster, lastRemote string
@@ -847,7 +847,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 
 	var table *iu.Table
 	if c.account != "" {
-		table = iu.NewTableWriter(opts(), fmt.Sprintf("JetStream Summary for Account %s", c.account))
+		table = iu.NewTableWriterf(opts(), "JetStream Summary for Account %s", c.account)
 	} else {
 		table = iu.NewTableWriter(opts(), "JetStream Summary")
 	}
@@ -992,7 +992,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			cNames = names
 		}
 
-		table := iu.NewTableWriter(opts(), "RAFT Meta Group Information")
+		table := iu.NewTableWriterf(opts(), "RAFT Meta Group Information")
 		table.AddHeaders("Connection Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
 		for i, replica := range cluster.Replicas {
 			leader := ""
@@ -1085,7 +1085,7 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := iu.NewTableWriter(opts(), fmt.Sprintf("%d Accounts Overview", len(accounts)))
+	table := iu.NewTableWriterf(opts(), "%d Accounts Overview", len(accounts))
 	table.AddHeaders("Account", "Connections", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs")
 
 	for _, acct := range accounts {
@@ -1201,7 +1201,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		limit = c.topk
 	}
 
-	table := iu.NewTableWriter(opts(), fmt.Sprintf("Top %d Connections out of %s by %s", limit, f(total), c.sort))
+	table := iu.NewTableWriterf(opts(), "Top %d Connections out of %s by %s", limit, f(total), c.sort)
 	showReason := c.stateFilter == "closed" || c.stateFilter == "all"
 	headers := []any{"CID", "Name", "Server", "Cluster", "IP", "Account", "Uptime", "In Msgs", "Out Msgs", "In Bytes", "Out Bytes", "Subs"}
 	if showReason {
@@ -1288,7 +1288,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 			return servers[serverNames[i]].conns < servers[serverNames[j]].conns
 		})
 
-		table := iu.NewTableWriter(opts(), "Connections per server")
+		table := iu.NewTableWriterf(opts(), "Connections per server")
 		table.AddHeaders("Server", "Cluster", "Connections")
 		sort.Slice(serverNames, func(i, j int) bool {
 			return servers[serverNames[i]].conns < servers[serverNames[j]].conns
@@ -1647,7 +1647,7 @@ func (c *SrvReportCmd) printDowngradeReport(as jsDowngradeAsset) {
 	empty := true
 	if len(as.Streams) > 0 {
 		empty = false
-		streamsTable := iu.NewTableWriter(opts(), "Assets: Streams")
+		streamsTable := iu.NewTableWriterf(opts(), "Assets: Streams")
 		streamsTable.AddHeaders("Account", "Stream", "Required API level")
 		for _, s := range as.Streams {
 			streamsTable.AddRow(s.Account, s.Name, s.APILevel)
@@ -1657,7 +1657,7 @@ func (c *SrvReportCmd) printDowngradeReport(as jsDowngradeAsset) {
 
 	if len(as.Consumers) > 0 {
 		empty = false
-		consumersTable := iu.NewTableWriter(opts(), "Assets: Consumers")
+		consumersTable := iu.NewTableWriterf(opts(), "Assets: Consumers")
 		consumersTable.AddHeaders("Account", "Stream", "Consumer", "Required API level")
 		for _, c := range as.Consumers {
 			consumersTable.AddRow(c.Account, c.Stream, c.Name, c.APILevel)

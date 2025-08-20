@@ -90,13 +90,13 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	cols := newColumns("")
+	cols := newColumnsf("")
 	defer cols.Frender(os.Stdout)
 
 	if varz.ID == varz.Name {
-		cols.SetHeading("Server information for %s", varz.ID)
+		cols.SetHeadingf("Server information for %s", varz.ID)
 	} else {
-		cols.SetHeading("Server information for %s (%s)", varz.Name, varz.ID)
+		cols.SetHeadingf("Server information for %s (%s)", varz.Name, varz.ID)
 	}
 
 	cols.AddSectionTitle("Process Details")

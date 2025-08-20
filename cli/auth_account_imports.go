@@ -177,7 +177,7 @@ func (c *authAccountCommand) importLsAction(_ *fisk.ParseContext) error {
 
 	imports := c.importsBySubject(acct)
 
-	tbl := util.NewTableWriter(opts(), "Imports for account %s", acct.Name())
+	tbl := util.NewTableWriterf(opts(), "Imports for account %s", acct.Name())
 	tbl.AddHeaders("Name", "Kind", "Source", "Local Subject", "Remote Subject", "Allows Tracing", "Sharing Connection Info")
 
 	for _, i := range imports {
@@ -379,7 +379,7 @@ func (c *authAccountCommand) fShowImport(w io.Writer, exp ab.Import, op ab.Opera
 }
 
 func (c *authAccountCommand) showImport(imp ab.Import, op ab.Operator) (string, error) {
-	cols := newColumns("Import info for import %q importing %q", imp.Name(), imp.LocalSubject())
+	cols := newColumnsf("Import info for import %q importing %q", imp.Name(), imp.LocalSubject())
 
 	_, isStream := imp.(ab.StreamImport)
 

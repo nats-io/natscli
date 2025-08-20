@@ -776,7 +776,7 @@ type raftLeader struct {
 }
 
 func renderRaftLeaders(leaders map[string]*raftLeader, grpTitle string) {
-	table := iu.NewTableWriter(opts(), "RAFT Leader Report")
+	table := iu.NewTableWriterf(opts(), "RAFT Leader Report")
 	table.AddHeaders("Server", "Cluster", grpTitle, "Distribution")
 
 	var llist []*raftLeader

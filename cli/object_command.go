@@ -294,7 +294,7 @@ func (c *objCommand) showBucketInfo(store jetstream.ObjectStore) error {
 		nfo = status.(*jetstream.ObjectBucketStatus).StreamInfo()
 	}
 
-	cols := newColumns("")
+	cols := newColumnsf("")
 	defer cols.Frender(os.Stdout)
 
 	if nfo == nil {
@@ -304,7 +304,7 @@ func (c *objCommand) showBucketInfo(store jetstream.ObjectStore) error {
 	}
 
 	cols.AddSectionTitle("Configuration")
-	cols.AddRowf("Bucket Name", status.Bucket())
+	cols.AddRow("Bucket Name", status.Bucket())
 	cols.AddRowIfNotEmpty("Description", status.Description())
 	cols.AddRow("Replicas", status.Replicas())
 	if status.TTL() == 0 {
@@ -344,7 +344,7 @@ func (c *objCommand) showObjectInfo(nfo *jetstream.ObjectInfo) {
 	digest := strings.SplitN(nfo.Digest, "=", 2)
 	digestBytes, _ := base64.URLEncoding.DecodeString(digest[1])
 
-	cols := newColumns(fmt.Sprintf("Object information for %s > %s", nfo.Bucket, nfo.Name))
+	cols := newColumnsf("Object information for %s > %s", nfo.Bucket, nfo.Name)
 	defer cols.Frender(os.Stdout)
 
 	if nfo.Description != "" {
@@ -401,7 +401,7 @@ func (c *objCommand) listBuckets() error {
 		return info.State.Bytes < jnfo.State.Bytes
 	})
 
-	table := iu.NewTableWriter(opts(), "Object Store Buckets")
+	table := iu.NewTableWriterf(opts(), "Object Store Buckets")
 	table.AddHeaders("Bucket", "Description", "Created", "Size", "Last Update")
 	for _, s := range found {
 		nfo, _ := s.LatestInformation()
@@ -441,7 +441,7 @@ func (c *objCommand) lsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := iu.NewTableWriter(opts(), "Bucket Contents")
+	table := iu.NewTableWriterf(opts(), "Bucket Contents")
 	table.AddHeaders("Name", "Size", "Time")
 
 	for _, i := range contents {

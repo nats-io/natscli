@@ -1059,7 +1059,7 @@ func (c *consumerCmd) lsAction(pc *fisk.ParseContext) error {
 
 func (c *consumerCmd) renderConsumerAsTable(stream *jsm.Stream) (string, error) {
 	var out bytes.Buffer
-	table := iu.NewTableWriter(opts(), "Consumers")
+	table := iu.NewTableWriterf(opts(), "Consumers")
 	table.AddHeaders("Name", "Description", "Created", "Ack Pending", "Unprocessed", "Last Delivery")
 
 	missing, offline, err := stream.EachConsumer(func(cons *jsm.Consumer) {
@@ -1132,9 +1132,9 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 
 	var cols *columns.Writer
 	if c.showStateOnly {
-		cols = newColumns(fmt.Sprintf("State for Consumer %s > %s created %s", state.Stream, state.Name, f(state.Created)))
+		cols = newColumnsf("State for Consumer %s > %s created %s", state.Stream, state.Name, f(state.Created))
 	} else {
-		cols = newColumns(fmt.Sprintf("Information for Consumer %s > %s created %s", state.Stream, state.Name, f(state.Created)))
+		cols = newColumnsf("Information for Consumer %s > %s created %s", state.Stream, state.Name, f(state.Created))
 	}
 
 	if !c.showStateOnly {
@@ -2423,7 +2423,7 @@ func (c *consumerCmd) reportAction(_ *fisk.ParseContext) error {
 
 	leaders := make(map[string]*raftLeader)
 
-	table := iu.NewTableWriter(opts(), fmt.Sprintf("Consumer report for %s with %s consumers", c.stream, f(ss.Consumers)))
+	table := iu.NewTableWriterf(opts(), "Consumer report for %s with %s consumers", c.stream, f(ss.Consumers))
 	table.AddHeaders("Consumer", "Mode", "Ack Policy", "Ack Wait", "Ack Pending", "Redelivered", "Unprocessed", "Ack Floor", "API Level", "Cluster")
 	missing, offline, err := s.EachConsumer(func(cons *jsm.Consumer) {
 		cs, err := cons.LatestState()
@@ -2495,7 +2495,7 @@ func (c *consumerCmd) renderMissing(out io.Writer, missing []string, offline map
 	if len(missing) > 0 {
 		fmt.Fprintln(out)
 		sort.Strings(missing)
-		table := iu.NewTableWriter(opts(), "Inaccessible Consumers")
+		table := iu.NewTableWriterf(opts(), "Inaccessible Consumers")
 		iu.SliceGroups(missing, 4, func(names []string) {
 			table.AddRow(toany(names)...)
 		})
@@ -2506,7 +2506,7 @@ func (c *consumerCmd) renderMissing(out io.Writer, missing []string, offline map
 	//takes the stream offline also but lets assume this might improve in time and so we keep this here
 	if len(offline) > 0 {
 		fmt.Fprintln(out)
-		table := iu.NewTableWriter(opts(), "Offline Consumers")
+		table := iu.NewTableWriterf(opts(), "Offline Consumers")
 
 		var keys []string
 		for k := range offline {
