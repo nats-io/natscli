@@ -144,7 +144,7 @@ func (c *serviceCmd) serveAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	cols := newColumns("NATS CLI Service %s handler %d waiting for requests on %s", c.name, os.Getpid(), c.nc.ConnectedUrlRedacted())
+	cols := newColumnsf("NATS CLI Service %s handler %d waiting for requests on %s", c.name, os.Getpid(), c.nc.ConnectedUrlRedacted())
 	cols.AddSectionTitle("Listening Subjects")
 	cols.AddRow(fmt.Sprintf("%s.echo", c.name), "Echo Service")
 	if len(c.hdrs) > 0 {
@@ -325,7 +325,7 @@ func (c *serviceCmd) statsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := iu.NewTableWriter(opts(), fmt.Sprintf("%s Service Statistics", c.name))
+	table := iu.NewTableWriterf(opts(), "%s Service Statistics", c.name)
 	table.AddHeaders("ID", "Endpoint", "Requests", "Queue Group", "Errors", "Processing Time", "Average Time")
 
 	var requests, errors int
@@ -400,7 +400,7 @@ func (c *serviceCmd) infoAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	cols := newColumns("Service Information")
+	cols := newColumnsf("Service Information")
 	defer cols.Frender(os.Stdout)
 	cols.AddRowf("Service", "%v (%v)", nfo.Name, nfo.ID)
 	cols.AddRow("Description", nfo.Description)
@@ -485,7 +485,7 @@ func (c *serviceCmd) listAction(_ *fisk.ParseContext) error {
 	if c.name == "" {
 		table = iu.NewTableWriter(opts(), "All Services")
 	} else {
-		table = iu.NewTableWriter(opts(), fmt.Sprintf("%s Service Instances", c.name))
+		table = iu.NewTableWriterf(opts(), "%s Service Instances", c.name)
 	}
 	table.AddHeaders("Name", "Version", "ID", "Description")
 	var pd, pv, pn string

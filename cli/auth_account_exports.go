@@ -140,7 +140,7 @@ func (c *authAccountCommand) fShowExport(w io.Writer, exp ab.Export) error {
 func (c *authAccountCommand) showExport(exp ab.Export) (string, error) {
 	_, isService := exp.(ab.ServiceExport)
 
-	cols := newColumns("Export info for %s exporting %s", exp.Name(), exp.Subject())
+	cols := newColumnsf("Export info for %s exporting %s", exp.Name(), exp.Subject())
 
 	cols.AddSectionTitle("Configuration")
 	cols.AddRow("Name", exp.Name())
@@ -354,7 +354,7 @@ func (c *authAccountCommand) exportLsAction(_ *fisk.ParseContext) error {
 
 	exports := c.exportBySubject(acct)
 
-	tbl := util.NewTableWriter(opts(), "Exports for account %s", acct.Name())
+	tbl := util.NewTableWriterf(opts(), "Exports for account %s", acct.Name())
 	tbl.AddHeaders("Name", "Kind", "Subject", "Activation Required", "Advertised", "Token Position", "Revocations")
 
 	for _, e := range exports {

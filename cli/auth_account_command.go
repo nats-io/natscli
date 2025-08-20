@@ -594,7 +594,7 @@ func (c *authAccountCommand) fShowSk(w io.Writer, limits ab.ScopeLimits) error {
 }
 
 func (c *authAccountCommand) showSk(limits ab.ScopeLimits) (string, error) {
-	cols := newColumns("Scoped Signing Key %s", limits.Key())
+	cols := newColumnsf("Scoped Signing Key %s", limits.Key())
 
 	cols.AddSectionTitle("Config")
 
@@ -640,7 +640,7 @@ func (c *authAccountCommand) skListAction(_ *fisk.ParseContext) error {
 	var table *iu.Table
 
 	if len(acct.ScopedSigningKeys().List()) > 0 {
-		table = iu.NewTableWriter(opts(), "Scoped Signing Keys")
+		table = iu.NewTableWriterf(opts(), "Scoped Signing Keys")
 		table.AddHeaders("Role", "Key", "Description", "Max Subscriptions", "Pub Perms", "Sub Perms")
 		for _, sk := range acct.ScopedSigningKeys().List() {
 			scope, _ := acct.ScopedSigningKeys().GetScope(sk)
@@ -800,7 +800,7 @@ func (c *authAccountCommand) lsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := iu.NewTableWriter(opts(), "Accounts")
+	table := iu.NewTableWriterf(opts(), "Accounts")
 	table.AddHeaders("Name", "Subject", "Users", "JetStream", "System")
 	for _, acct := range list {
 		system := ""
@@ -1037,7 +1037,7 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 	serviceImports := len(acct.Imports().Services().List())
 	streamImports := len(acct.Imports().Streams().List())
 
-	cols := newColumns("Account %s (%s)", acct.Name(), acct.Subject())
+	cols := newColumnsf("Account %s (%s)", acct.Name(), acct.Subject())
 
 	cols.AddSectionTitle("Configuration")
 	cols.AddRow("Name", acct.Name())
@@ -1277,7 +1277,7 @@ func (c *authAccountCommand) mappingListAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	tbl := iu.NewTableWriter(opts(), "Subject mappings for account %s", acct.Name())
+	tbl := iu.NewTableWriterf(opts(), "Subject mappings for account %s", acct.Name())
 	tbl.AddHeaders("Source Subject", "Target Subject", "Weight", "Cluster")
 
 	for _, fromMapping := range acct.SubjectMappings().List() {
@@ -1339,7 +1339,7 @@ func (c *authAccountCommand) fShowMappings(w io.Writer, mappings map[string][]ab
 }
 
 func (c *authAccountCommand) showMappings(mappings map[string][]ab.Mapping) (string, error) {
-	cols := newColumns("Subject mappings")
+	cols := newColumnsf("Subject mappings")
 	cols.AddSectionTitle("Configuration")
 	for source, m := range mappings {
 		totalWeight := 0

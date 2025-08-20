@@ -289,7 +289,7 @@ func (c *kvCommand) displayKeyInfo(kv jetstream.KeyValue, keys jetstream.KeyList
 		return found, errors.New("key value cannot be nil")
 	}
 
-	table := iu.NewTableWriter(opts(), fmt.Sprintf("Contents for bucket '%s'", c.bucket))
+	table := iu.NewTableWriterf(opts(), "Contents for bucket '%s'", c.bucket)
 
 	if c.lsVerboseDisplayValue {
 		table.AddHeaders("Key", "Created", "Delta", "Revision", "Value")
@@ -359,7 +359,7 @@ func (c *kvCommand) lsBuckets() error {
 		return info.State.Bytes < jnfo.State.Bytes
 	})
 
-	table := iu.NewTableWriter(opts(), "Key-Value Buckets")
+	table := iu.NewTableWriterf(opts(), "Key-Value Buckets")
 	table.AddHeaders("Bucket", "Description", "Created", "Size", "Values", "Last Update")
 	for _, s := range found {
 		nfo, _ := s.LatestInformation()
@@ -428,7 +428,7 @@ func (c *kvCommand) historyAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	table := iu.NewTableWriter(opts(), fmt.Sprintf("History for %s > %s", c.bucket, c.key))
+	table := iu.NewTableWriterf(opts(), "History for %s > %s", c.bucket, c.key)
 	table.AddHeaders("Key", "Revision", "Op", "Created", "Length", "Value")
 	for _, r := range history {
 		val := iu.Base64IfNotPrintable(r.Value())
@@ -928,7 +928,7 @@ func (c *kvCommand) showStatus(store jetstream.KeyValue) error {
 		nfo = status.(*jetstream.KeyValueBucketStatus).StreamInfo()
 	}
 
-	cols := newColumns("")
+	cols := newColumnsf("")
 	defer cols.Frender(os.Stdout)
 
 	if nfo == nil {

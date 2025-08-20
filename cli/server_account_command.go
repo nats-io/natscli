@@ -127,7 +127,7 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	cols := newColumns("Account information for account %s", nfo.AccountName)
+	cols := newColumnsf("Account information for account %s", nfo.AccountName)
 	defer cols.Frender(os.Stdout)
 
 	cols.AddSectionTitle("Details")

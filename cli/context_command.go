@@ -373,7 +373,7 @@ func (c *ctxCommand) renderListTable(current string, known []*natscontext.Contex
 		return
 	}
 
-	table := iu.NewTableWriter(opts(), "Known Contexts")
+	table := iu.NewTableWriterf(opts(), "Known Contexts")
 	table.AddHeaders("Name", "Description")
 
 	for _, nctx := range known {
@@ -461,7 +461,7 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 		return color.GreenString("OK")
 	}
 
-	cols := newColumns(fmt.Sprintf("NATS Configuration Context %q", c.name))
+	cols := newColumnsf("NATS Configuration Context %q", c.name)
 	cols.AddRowIfNotEmpty("Description", cfg.Description())
 	cols.AddRowIfNotEmpty("Server URLs", cfg.ServerURL())
 	cols.AddRowIfNotEmpty("SOCKS5 Proxy", cfg.SocksProxy())

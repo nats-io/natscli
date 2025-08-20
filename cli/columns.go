@@ -14,16 +14,21 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/natscli/columns"
 )
 
-func newColumns(heading string, a ...any) *columns.Writer {
-	w := columns.New(heading, a...)
+func newColumns(heading string) *columns.Writer {
+	w := columns.New(heading)
 	w.SetColorScheme(opts().Config.ColorScheme())
-	w.SetHeading(heading, a...)
+	w.SetHeading(heading)
 
 	return w
+}
+func newColumnsf(heading string, a ...any) *columns.Writer {
+	return newColumns(fmt.Sprintf(heading, a...))
 }
 
 func fiBytes(v uint64) string {

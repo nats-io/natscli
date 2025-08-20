@@ -119,6 +119,8 @@ type streamCmd struct {
 	allowDirectSet         bool
 	allowMirrorDirect      bool
 	allowMirrorDirectSet   bool
+	allowSchedules         bool
+	allowSchedulesSet      bool
 	discardPerSubj         bool
 	discardPerSubjSet      bool
 	showStateOnly          bool
@@ -225,6 +227,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("allow-direct", "Allows fast, direct, access to stream data via the direct get API").IsSetByUser(&c.allowDirectSet).Default("true").BoolVar(&c.allowDirect)
 		f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
 		f.Flag("allow-msg-ttl", "Allows per-message TTL handling").IsSetByUser(&c.allowMsgTTlSet).UnNegatableBoolVar(&c.allowMsgTTL)
+		f.Flag("allow-schedules", "Allows message schedules").IsSetByUser(&c.allowSchedulesSet).BoolVar(&c.allowSchedules)
 		f.Flag("subject-del-markers-ttl", "How long delete markers should persist in the Stream").PlaceHolder("DURATION").IsSetByUser(&c.subjectDeleteMarkerTTLSet).DurationVar(&c.subjectDeleteMarkerTTL)
 		f.Flag("transform-source", "Stream subject transform source").PlaceHolder("SOURCE").StringVar(&c.subjectTransformSource)
 		f.Flag("transform-destination", "Stream subject transform destination").PlaceHolder("DEST").StringVar(&c.subjectTransformDest)
@@ -688,9 +691,9 @@ func (c *streamCmd) detectGaps(_ *fisk.ParseContext) error {
 
 	var table *iu.Table
 	if len(gaps) == 1 {
-		table = iu.NewTableWriter(opts(), fmt.Sprintf("1 gap found in Stream %s", c.stream))
+		table = iu.NewTableWriterf(opts(), "1 gap found in Stream %s", c.stream)
 	} else {
-		table = iu.NewTableWriter(opts(), fmt.Sprintf("%s gaps found in Stream %s", f(len(gaps)), c.stream))
+		table = iu.NewTableWriterf(opts(), "%s gaps found in Stream %s", f(len(gaps)), c.stream)
 	}
 
 	table.AddHeaders("First Message", "Last Message")
@@ -740,7 +743,7 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 
 	cols := 1
 	countWidth := len(f(most))
-	table := iu.NewTableWriter(opts(), fmt.Sprintf("%d Subjects in stream %s", len(names), c.stream))
+	table := iu.NewTableWriterf(opts(), "%d Subjects in stream %s", len(names), c.stream)
 
 	switch {
 	case longest+countWidth < 20:
@@ -1602,7 +1605,7 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 }
 
 func (c *streamCmd) renderReplication(stats []streamStat) {
-	table := iu.NewTableWriter(opts(), "Replication Report")
+	table := iu.NewTableWriterf(opts(), "Replication Report")
 	table.AddHeaders("Stream", "Kind", "API Prefix", "Source Stream", "Filters and Transforms", "Active", "Lag", "Error")
 
 	for _, s := range stats {
@@ -1661,7 +1664,7 @@ func (c *streamCmd) renderReplication(stats []streamStat) {
 }
 
 func (c *streamCmd) renderStreams(stats []streamStat) {
-	table := iu.NewTableWriter(opts(), "Stream Report")
+	table := iu.NewTableWriterf(opts(), "Stream Report")
 	table.AddHeaders("Stream", "Storage", "Placement", "Consumers", "Messages", "Bytes", "Lost", "Deleted", "API Level", "Replicas")
 
 	for _, s := range stats {
@@ -1882,6 +1885,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 
 	if c.allowMirrorDirectSet {
 		cfg.MirrorDirect = c.allowMirrorDirect
+	}
+
+	if c.allowSchedulesSet {
+		cfg.AllowMsgSchedules = c.allowSchedules
 	}
 
 	if c.allowMsgTTL {
@@ -2158,6 +2165,7 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRow("Allows Msg Delete", !cfg.DenyDelete)
 	cols.AddRow("Allows Per-Message TTL", cfg.AllowMsgTTL)
 	cols.AddRow("Allows Purge", !cfg.DenyPurge)
+	cols.AddRow("Allows Schedules", cfg.AllowMsgSchedules)
 	if cfg.AllowMsgTTL && cfg.SubjectDeleteMarkerTTL > 0 {
 		cols.AddRow("Subject Delete Markers TTL", cfg.SubjectDeleteMarkerTTL)
 	}
@@ -2276,9 +2284,9 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 
 	var cols *columns.Writer
 	if c.showStateOnly {
-		cols = newColumns(fmt.Sprintf("State for Stream %s created %s", c.stream, f(info.Created.Local())))
+		cols = newColumnsf("State for Stream %s created %s", c.stream, f(info.Created.Local()))
 	} else {
-		cols = newColumns(fmt.Sprintf("Information for Stream %s created %s", c.stream, f(info.Created.Local())))
+		cols = newColumnsf("Information for Stream %s created %s", c.stream, f(info.Created.Local()))
 		c.showStreamConfig(cols, info.Config)
 	}
 
@@ -2330,7 +2338,7 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 				filter = s.FilterSubject
 			}
 
-			cols.AddRowf("Subject Filter", filter)
+			cols.AddRow("Subject Filter", filter)
 		case len(s.SubjectTransforms) > 0:
 			for i := range s.SubjectTransforms {
 				t := ""
@@ -2783,8 +2791,9 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		AllowMsgTTL:            c.allowMsgTTL,
 		AllowAtomicPublish:     c.allowAtomicBatch,
 		AllowMsgCounter:        c.allowCounter,
+		AllowMsgSchedules:      c.allowSchedules,
 		SubjectDeleteMarkerTTL: c.subjectDeleteMarkerTTL,
-		MirrorDirect:           c.allowMirrorDirectSet,
+		MirrorDirect:           c.allowMirrorDirect,
 		DiscardNewPer:          c.discardPerSubj,
 	}
 
@@ -3352,7 +3361,7 @@ func (c *streamCmd) renderStreamsAsTable(streams []*jsm.Stream, missing []string
 	if c.filterSubject == "" {
 		table = iu.NewTableWriter(opts(), "Streams")
 	} else {
-		table = iu.NewTableWriter(opts(), fmt.Sprintf("Streams matching %s", c.filterSubject))
+		table = iu.NewTableWriterf(opts(), "Streams matching %s", c.filterSubject)
 	}
 
 	table.AddHeaders("Name", "Description", "Created", "Messages", "Size", "Last Message")
@@ -3379,7 +3388,7 @@ func (c *streamCmd) renderMissing(out io.Writer, missing []string, offline map[s
 	if len(missing) > 0 {
 		fmt.Fprintln(out)
 		sort.Strings(missing)
-		table := iu.NewTableWriter(opts(), "Inaccessible Streams")
+		table := iu.NewTableWriterf(opts(), "Inaccessible Streams")
 		iu.SliceGroups(missing, 4, func(names []string) {
 			table.AddRow(toany(names)...)
 		})
@@ -3388,7 +3397,7 @@ func (c *streamCmd) renderMissing(out io.Writer, missing []string, offline map[s
 
 	if len(offline) > 0 {
 		fmt.Fprintln(out)
-		table := iu.NewTableWriter(opts(), "Offline Streams")
+		table := iu.NewTableWriterf(opts(), "Offline Streams")
 
 		var keys []string
 		for k := range offline {

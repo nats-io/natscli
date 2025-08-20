@@ -212,7 +212,7 @@ func (c *SrvWatchJSCmd) redraw(drawPending bool) error {
 		tc = fmt.Sprintf("%d / %d", c.topCount, len(servers))
 	}
 
-	table := iu.NewTableWriter(opts(), fmt.Sprintf("Top %s Server activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime)))
+	table := iu.NewTableWriterf(opts(), "Top %s Server activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime))
 
 	if drawPending {
 		table.AddHeaders("Server", "HA Assets", "Memory", "File", "API", "API Errors", "API Pending")

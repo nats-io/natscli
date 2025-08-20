@@ -195,7 +195,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		}
 	})
 
-	table := iu.NewTableWriter(opts(), "Server Overview")
+	table := iu.NewTableWriterf(opts(), "Server Overview")
 	table.AddHeaders("Name", "Cluster", "Host", "Version", "JS", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU %", "Cores", "Slow", "Uptime", "RTT")
 
 	// here so its after the sort
@@ -316,7 +316,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 
 func (c *SrvLsCmd) showClusters(cl map[string]*srvListCluster) {
 	fmt.Println()
-	table := iu.NewTableWriter(opts(), "Cluster Overview")
+	table := iu.NewTableWriterf(opts(), "Cluster Overview")
 	table.AddHeaders("Cluster", "Node Count", "Outgoing Gateways", "Incoming Gateways", "Connections")
 
 	var clusters []*srvListCluster

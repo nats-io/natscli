@@ -261,7 +261,7 @@ func (c *authUserCommand) lsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	table := iu.NewTableWriter(opts(), fmt.Sprintf("Users in account %s", acct.Name()))
+	table := iu.NewTableWriterf(opts(), "Users in account %s", acct.Name())
 	table.AddHeaders("Name", "Subject", "Scoped", "Sub Perms", "Pub Perms", "Max Subscriptions")
 	for _, user := range users {
 		limits := ab.UserLimits(user)
@@ -479,7 +479,7 @@ func (c *authUserCommand) fShowUser(w io.Writer, user ab.User, acct ab.Account) 
 }
 
 func (c *authUserCommand) showUser(user ab.User, acct ab.Account) (string, error) {
-	cols := newColumns("User %s (%s)", user.Name(), user.Subject())
+	cols := newColumnsf("User %s (%s)", user.Name(), user.Subject())
 	cols.AddSectionTitle("Configuration")
 	cols.AddRow("Account", fmt.Sprintf("%s (%s)", acct.Name(), user.IssuerAccount()))
 	cols.AddRow("Issuer", user.Issuer())

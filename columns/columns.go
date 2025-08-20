@@ -53,9 +53,13 @@ var colsStyles = map[string]text.Color{
 	"red":     text.FgRed,
 }
 
-func New(heading string, a ...any) *Writer {
+func Newf(heading string, a ...any) *Writer {
+	return New(fmt.Sprintf(heading, a...))
+}
+
+func New(heading string) *Writer {
 	w := &Writer{sep: ":", unlimited: "unlimited"}
-	w.SetHeading(heading, a...)
+	w.SetHeading(heading)
 
 	return w
 }
@@ -280,9 +284,14 @@ func (w *Writer) AddSectionTitle(format string, a ...any) {
 	w.rows = append(w.rows, &columnRow{kind: kindTitle, values: []any{fmt.Sprintf(format, a...)}})
 }
 
-// SetHeading sets the initial heading
-func (w *Writer) SetHeading(format string, a ...any) {
+// SetHeadingf sets the initial heading
+func (w *Writer) SetHeadingf(format string, a ...any) {
 	w.heading = fmt.Sprintf(format, a...)
+}
+
+// SetHeading sets the initial heading
+func (w *Writer) SetHeading(heading string) {
+	w.heading = heading
 }
 
 // Println Adds a line to the report rendered outside of columnar layout
@@ -335,9 +344,9 @@ func (w *Writer) AddStringsAsValue(t string, data []string) {
 		}
 
 		if i == 0 {
-			w.AddRowf(t, val)
+			w.AddRow(t, val)
 		} else {
-			w.AddRowf("", val)
+			w.AddRow("", val)
 		}
 	}
 }
@@ -386,7 +395,7 @@ func (w *Writer) AddMapInts(data map[string]int, sortValues bool, reverse bool) 
 	}
 
 	for _, k := range list {
-		w.AddRowf(k, F(data[k]))
+		w.AddRow(k, F(data[k]))
 	}
 }
 

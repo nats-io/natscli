@@ -228,7 +228,7 @@ func (c *SrvWatchServerCmd) redraw() error {
 		c.lastMsg = time.Now()
 	}
 
-	table := iu.NewTableWriter(opts(), fmt.Sprintf("Top %s Server activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime)))
+	table := iu.NewTableWriterf(opts(), "Top %s Server activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime))
 	table.AddHeaders("Server", "Connections", "Subscription", "Slow", "Memory", "CPU", "Cores", "Routes", "Gateways", "Sent", "Received")
 
 	var matched []*server.ServerStatsMsg
