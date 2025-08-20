@@ -130,6 +130,10 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 		msgHeadersMatch: make(map[string]string),
 	}
 
+	const multipleChecks = "Multiple checks and thresholds can be passed in one command\n\n"
+	const warnAndCritical = "You should to set both warn and critical thresholds where applicable\n\n"
+	const inversion = "For most flags setting critical to a smaller value than warn will invert the check from >= to <=\n\n"
+
 	check := srv.Command("check", "Health check for NATS servers")
 	check.Flag("format", "Render the check in a specific format (nagios, json, prometheus, text)").Default("nagios").EnumVar(&checkRenderFormatText, "nagios", "json", "prometheus", "text")
 	check.Flag("namespace", "The prometheus namespace to use in output").Default(opts().PrometheusNamespace).StringVar(&opts().PrometheusNamespace)
@@ -137,6 +141,7 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	check.PreAction(c.parseRenderFormat)
 
 	conn := check.Command("connection", "Checks basic server connection").Alias("conn").Action(c.checkConnection)
+	conn.HelpLong(multipleChecks + warnAndCritical)
 	conn.Flag("connect-warn", "Warning threshold to allow for establishing connections").Default("500ms").DurationVar(&c.connectWarning)
 	conn.Flag("connect-critical", "Critical threshold to allow for establishing connections").Default("1s").DurationVar(&c.connectCritical)
 	conn.Flag("rtt-warn", "Warning threshold to allow for server RTT").Default("500ms").DurationVar(&c.rttWarning)
@@ -145,7 +150,7 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	conn.Flag("req-critical", "Critical threshold to allow for full round trip test").Default("1s").DurationVar(&c.reqCritical)
 
 	stream := check.Command("stream", "Checks the health of mirrored streams, streams with sources or clustered streams").Action(c.checkStream)
-	stream.HelpLong(`These settings can be set using Stream Metadata in the following form:
+	stream.HelpLong(multipleChecks + warnAndCritical + inversion + `These settings can be set using Stream Metadata in the following form:
 
 	io.nats.monitor.lag-critical: 200
 
@@ -164,7 +169,7 @@ When set these settings will be used, but can be overridden using --lag-critical
 	stream.Flag("subjects-critical", "Warning threshold for subjects in the stream").PlaceHolder("SUBJECTS").IsSetByUser(&c.subjectsCritIsSet).IntVar(&c.subjectsCrit)
 
 	consumer := check.Command("consumer", "Checks the health of a consumer").Action(c.checkConsumer)
-	consumer.HelpLong(`These settings can be set using Consumer Metadata in the following form:
+	consumer.HelpLong(multipleChecks + `These settings can be set using Consumer Metadata in the following form:
 
 	io.nats.monitor.waiting-critical: 20
 
@@ -180,6 +185,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	consumer.Flag("pinned", "Requires Pinned Client priority with all groups having a pinned client").UnNegatableBoolVar(&c.consumerPinned)
 
 	msg := check.Command("message", "Checks properties of a message stored in a stream").Action(c.checkMsg)
+	msg.HelpLong(multipleChecks + warnAndCritical)
 	msg.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
 	msg.Flag("subject", "The subject to fetch a message from").Default(">").StringVar(&c.msgSubject)
 	msg.Flag("age-warn", "Warning threshold for message age as a duration").PlaceHolder("DURATION").DurationVar(&c.msgAgeWarn)
@@ -188,11 +194,13 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	msg.Flag("body-timestamp", "Use message body as a unix timestamp instead of message metadata").UnNegatableBoolVar(&c.msgBodyAsTs)
 
 	meta := check.Command("meta", "Check JetStream cluster state").Alias("raft").Action(c.checkRaft)
+	meta.HelpLong(multipleChecks)
 	meta.Flag("expect", "Number of servers to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
 	meta.Flag("lag-critical", "Critical threshold to allow for lag").PlaceHolder("OPS").Required().Uint64Var(&c.raftLagCritical)
 	meta.Flag("seen-critical", "Critical threshold for how long ago a peer should have been seen").Required().PlaceHolder("DURATION").DurationVar(&c.raftSeenCritical)
 
 	req := check.Command("request", "Checks a request-reply service").Alias("req").Action(c.checkRequest)
+	req.HelpLong(multipleChecks + warnAndCritical)
 	req.Flag("subject", "The subject to send the request to").Required().StringVar(&c.msgSubject)
 	req.Flag("payload", "Payload to send in the request").StringVar(&c.msgPayload)
 	req.Flag("headers", "Headers to publish in the request").StringMapVar(&c.msgHeaders)
@@ -202,24 +210,26 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	req.Flag("response-warn", "Warning threshold for response time").DurationVar(&c.msgWarn)
 
 	js := check.Command("jetstream", "Check JetStream account state").Alias("js").Action(c.checkJS)
-	js.Flag("mem-warn", "Warning threshold for memory storage, in percent").Default("75").IntVar(&c.jsMemWarn)
-	js.Flag("mem-critical", "Critical threshold for memory storage, in percent").Default("90").IntVar(&c.jsMemCritical)
-	js.Flag("store-warn", "Warning threshold for disk storage, in percent").Default("75").IntVar(&c.jsStoreWarn)
-	js.Flag("store-critical", "Critical threshold for memory storage, in percent").Default("90").IntVar(&c.jsStoreCritical)
-	js.Flag("streams-warn", "Warning threshold for number of streams used, in percent").Default("-1").IntVar(&c.jsStreamsWarn)
-	js.Flag("streams-critical", "Critical threshold for number of streams used, in percent").Default("-1").IntVar(&c.jsStreamsCritical)
-	js.Flag("consumers-warn", "Warning threshold for number of consumers used, in percent").Default("-1").IntVar(&c.jsConsumersWarn)
-	js.Flag("consumers-critical", "Critical threshold for number of consumers used, in percent").Default("-1").IntVar(&c.jsConsumersCritical)
+	js.HelpLong(multipleChecks + warnAndCritical + inversion)
+	js.Flag("mem-warn", "Warning threshold for memory storage, in percent of limit").Default("75").IntVar(&c.jsMemWarn)
+	js.Flag("mem-critical", "Critical threshold for memory storage, in percent of limit").Default("90").IntVar(&c.jsMemCritical)
+	js.Flag("store-warn", "Warning threshold for disk storage, in percent of limit").Default("75").IntVar(&c.jsStoreWarn)
+	js.Flag("store-critical", "Critical threshold for memory storage, in percent of limit").Default("90").IntVar(&c.jsStoreCritical)
+	js.Flag("streams-warn", "Warning threshold for number of streams used, in percent of limit").Default("-1").IntVar(&c.jsStreamsWarn)
+	js.Flag("streams-critical", "Critical threshold for number of streams used, in percent of limit").Default("-1").IntVar(&c.jsStreamsCritical)
+	js.Flag("consumers-warn", "Warning threshold for number of consumers used, in percent of limit").Default("-1").IntVar(&c.jsConsumersWarn)
+	js.Flag("consumers-critical", "Critical threshold for number of consumers used, in percent of limit").Default("-1").IntVar(&c.jsConsumersCritical)
 	js.Flag("replicas", "Checks if all streams have healthy replicas").Default("true").BoolVar(&c.jsReplicas)
 	js.Flag("replica-seen-critical", "Critical threshold for when a stream replica should have been seen, as a duration").Default("5s").DurationVar(&c.jsReplicaSeenCritical)
 	js.Flag("replica-lag-critical", "Critical threshold for how many operations behind a peer can be").Default("200").Uint64Var(&c.jsReplicaLagCritical)
 
 	serv := check.Command("server", "Checks a NATS Server health").Action(c.checkSrv)
+	serv.HelpLong(multipleChecks + warnAndCritical + inversion)
 	serv.Flag("name", "Server name to require in the result").Required().StringVar(&c.srvName)
 	serv.Flag("cpu-warn", "Warning threshold for CPU usage, in percent").IntVar(&c.srvCPUWarn)
 	serv.Flag("cpu-critical", "Critical threshold for CPU usage, in percent").IntVar(&c.srvCPUCrit)
-	serv.Flag("mem-warn", "Warning threshold for Memory usage, in percent").IntVar(&c.srvMemWarn)
-	serv.Flag("mem-critical", "Critical threshold Memory CPU usage, in percent").IntVar(&c.srvMemCrit)
+	serv.Flag("mem-warn", "Warning threshold for Memory usage, in bytes").IntVar(&c.srvMemWarn)
+	serv.Flag("mem-critical", "Critical threshold Memory CPU usage, in bytes").IntVar(&c.srvMemCrit)
 	serv.Flag("conn-warn", "Warning threshold for connections, supports inversion").IntVar(&c.srvConnWarn)
 	serv.Flag("conn-critical", "Critical threshold for connections, supports inversion").IntVar(&c.srvConnCrit)
 	serv.Flag("subs-warn", "Warning threshold for number of active subscriptions, supports inversion").IntVar(&c.srvSubsWarn)
@@ -231,12 +241,14 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	serv.Flag("js-required", "Checks that JetStream is enabled").UnNegatableBoolVar(&c.srvJSRequired)
 
 	kv := check.Command("kv", "Checks a NATS KV Bucket").Action(c.checkKV)
+	kv.HelpLong(multipleChecks + warnAndCritical + inversion)
 	kv.Flag("bucket", "Checks a specific bucket").Required().StringVar(&c.kvBucket)
 	kv.Flag("values-critical", "Critical threshold for number of values in the bucket").Default("-1").Int64Var(&c.kvValuesCrit)
 	kv.Flag("values-warn", "Warning threshold for number of values in the bucket").Default("-1").Int64Var(&c.kvValuesWarn)
 	kv.Flag("key", "Requires a key to have any non-delete value set").StringVar(&c.kvKey)
 
 	cred := check.Command("credential", "Checks the validity of a NATS credential file").Action(c.checkCredentialAction)
+	cred.HelpLong(multipleChecks + warnAndCritical + inversion)
 	cred.Flag("credential", "The file holding the NATS credential").Required().StringVar(&c.credential)
 	cred.Flag("validity-warn", "Warning threshold for time before expiry").DurationVar(&c.credentialValidityWarn)
 	cred.Flag("validity-critical", "Critical threshold for time before expiry").DurationVar(&c.credentialValidityCrit)
