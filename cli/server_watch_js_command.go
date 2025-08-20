@@ -49,7 +49,6 @@ func configureServerWatchJSCommand(watch *fisk.CmdClause) {
 			"file":   "File Storage",
 			"assets": "HA Asset",
 			"api":    "API Requests",
-			"err":    "API Errors",
 		},
 	}
 
@@ -200,8 +199,6 @@ func (c *SrvWatchJSCmd) redraw(drawPending bool) error {
 			return iu.SortMultiSort(si.Store, sj.Store, servers[i].Server.Name, servers[j].Server.Name)
 		case "api":
 			return iu.SortMultiSort(si.API.Total, sj.API.Total, servers[i].Server.Name, servers[j].Server.Name)
-		case "err":
-			return iu.SortMultiSort(si.API.Errors, sj.API.Errors, servers[i].Server.Name, servers[j].Server.Name)
 		default:
 			return iu.SortMultiSort(si.HAAssets, sj.HAAssets, servers[i].Server.Name, servers[j].Server.Name)
 		}
