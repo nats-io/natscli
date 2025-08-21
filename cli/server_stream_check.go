@@ -181,7 +181,7 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 			}
 			// Cannot trust results unless coming from the stream leader.
 			// Need Stream INFO and collect multiple responses instead.
-			if peer.Cluster.Leader != "" && replica.Cluster.Leader != "" && peer.Cluster.Leader != replica.Cluster.Leader {
+			if peer.Cluster.Leader != replica.Cluster.Leader {
 				status = "MULTILEADER"
 				unsynced = true
 			}
