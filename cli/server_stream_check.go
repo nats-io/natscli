@@ -213,6 +213,9 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 		} else if replica.Cluster.Leader == "" {
 			status = "LEADERLESS"
 			unsynced = true
+		} else if replica.RaftGroup == "" {
+			status = "MISSING_GROUP"
+			unsynced = true
 		}
 
 		var replicasInfo string // PEER

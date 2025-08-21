@@ -304,6 +304,9 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 		} else if replica.Cluster.Leader == "" {
 			status = "LEADERLESS"
 			unsynced = true
+		} else if replica.RaftGroup == "" {
+			status = "MISSING_GROUP"
+			unsynced = true
 		}
 		node := fmt.Sprintf("%s%s", serverName, suffix)
 
