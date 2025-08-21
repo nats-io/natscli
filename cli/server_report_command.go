@@ -763,7 +763,6 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	var (
 		names               []string
 		jszResponses        []*server.ServerAPIJszResponse
-		apiErrTotal         uint64
 		apiTotal            uint64
 		pendingTotal        int
 		memoryTotal         uint64
@@ -820,8 +819,6 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			return c.boolReverse(jszResponses[i].Data.JetStreamStats.Store < jszResponses[j].Data.JetStreamStats.Store)
 		case "api":
 			return c.boolReverse(jszResponses[i].Data.JetStreamStats.API.Total < jszResponses[j].Data.JetStreamStats.API.Total)
-		case "err":
-			return c.boolReverse(jszResponses[i].Data.JetStreamStats.API.Errors < jszResponses[j].Data.JetStreamStats.API.Errors)
 		default:
 			if jszResponses[i].Server.Cluster != jszResponses[j].Server.Cluster {
 				return c.boolReverse(jszResponses[i].Server.Cluster < jszResponses[j].Server.Cluster)
@@ -856,7 +853,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	if renderDomain {
 		hdrs = append(hdrs, "Domain")
 	}
-	hdrs = append(hdrs, "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "API Err")
+	hdrs = append(hdrs, "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req")
 	if renderPending {
 		hdrs = append(hdrs, "Pending")
 	}
@@ -873,7 +870,6 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			doAccountStats = true
 		}
 
-		apiErrTotal += jss.API.Errors
 		apiTotal += jss.API.Total
 		memoryTotal += jss.Memory
 		storeTotal += jss.Store
@@ -924,11 +920,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		if renderDomain {
 			row = append(row, js.Data.Config.Domain)
 		}
-		errCol := f(jss.API.Errors)
-		if jss.API.Total > 0 && jss.API.Errors > 0 {
-			errRate := float64(jss.API.Errors) * 100 / float64(jss.API.Total)
-			errCol += " / " + f(errRate) + "%"
-		}
+
 		row = append(row,
 			f(rStreams),
 			f(rConsumers),
@@ -937,7 +929,6 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			humanize.IBytes(jss.Memory),
 			humanize.IBytes(jss.Store),
 			f(jss.API.Total),
-			errCol,
 		)
 		if renderPending {
 			row = append(row, rPending)
@@ -950,7 +941,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	if renderDomain {
 		row = append(row, "")
 	}
-	row = append(row, f(streamsTotal), f(consumersTotal), f(msgsTotal), humanize.IBytes(bytesTotal), humanize.IBytes(memoryTotal), humanize.IBytes(storeTotal), f(apiTotal), f(apiErrTotal))
+	row = append(row, f(streamsTotal), f(consumersTotal), f(msgsTotal), humanize.IBytes(bytesTotal), humanize.IBytes(memoryTotal), humanize.IBytes(storeTotal), f(apiTotal))
 	if renderPending {
 		row = append(row, pendingTotal)
 	}

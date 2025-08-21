@@ -1086,7 +1086,7 @@ func TestServerReport(t *testing.T) {
 	t.Run("jetstream command", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server report jetstream", srv.ClientURL(), sysUserCreds)))
-			if !expectMatchLine(t, output, "Server", "Cluster", "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "API Err", "Pending") ||
+			if !expectMatchLine(t, output, "Server", "Cluster", "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "Pending") ||
 				!expectMatchLine(t, output, "s1") {
 				t.Errorf("failed health: %s", output)
 			}
