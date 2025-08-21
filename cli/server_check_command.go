@@ -131,7 +131,7 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	}
 
 	const multipleChecks = "Multiple checks and thresholds can be passed in one command\n\n"
-	const warnAndCritical = "You should to set both warn and critical thresholds where applicable\n\n"
+	const warnAndCritical = "You should set both warn and critical thresholds where applicable\n\n"
 	const inversion = "For most flags setting critical to a smaller value than warn will invert the check from >= to <=\n\n"
 
 	check := srv.Command("check", "Health check for NATS servers")
@@ -214,7 +214,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	js.Flag("mem-warn", "Warning threshold for memory storage, in percent of limit").Default("75").IntVar(&c.jsMemWarn)
 	js.Flag("mem-critical", "Critical threshold for memory storage, in percent of limit").Default("90").IntVar(&c.jsMemCritical)
 	js.Flag("store-warn", "Warning threshold for disk storage, in percent of limit").Default("75").IntVar(&c.jsStoreWarn)
-	js.Flag("store-critical", "Critical threshold for memory storage, in percent of limit").Default("90").IntVar(&c.jsStoreCritical)
+	js.Flag("store-critical", "Critical threshold for disk storage, in percent of limit").Default("90").IntVar(&c.jsStoreCritical)
 	js.Flag("streams-warn", "Warning threshold for number of streams used, in percent of limit").Default("-1").IntVar(&c.jsStreamsWarn)
 	js.Flag("streams-critical", "Critical threshold for number of streams used, in percent of limit").Default("-1").IntVar(&c.jsStreamsCritical)
 	js.Flag("consumers-warn", "Warning threshold for number of consumers used, in percent of limit").Default("-1").IntVar(&c.jsConsumersWarn)
