@@ -258,7 +258,7 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 					statuses["NO_CLUSTER_R"] = true
 					unsynced = true
 				}
-				if peer.Cluster.Leader != replica.Cluster.Leader {
+				if peer.Cluster.Leader != "" && replica.Cluster.Leader != "" && peer.Cluster.Leader != replica.Cluster.Leader {
 					statuses["MULTILEADER"] = true
 					unsynced = true
 				}
