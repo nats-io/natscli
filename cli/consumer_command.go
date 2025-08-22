@@ -1212,7 +1212,11 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 		cols.AddSectionTitle("Cluster Information")
 		cols.AddRow("Name", state.Cluster.Name)
 		cols.AddRowIfNotEmpty("Raft Group", state.Cluster.RaftGroup)
-		cols.AddRow("Leader", state.Cluster.Leader)
+		if state.Cluster.LeaderSince == nil {
+			cols.AddRow("Leader", state.Cluster.Leader)
+		} else {
+			cols.AddRowf("Leader", "%s (%s)", state.Cluster.Leader, f(sinceRefOrNow(state.TimeStamp, *state.Cluster.LeaderSince)))
+		}
 		for _, r := range state.Cluster.Replicas {
 			since := fmt.Sprintf("seen %s ago", f(r.Active))
 			if r.Active == 0 || r.Active == math.MaxInt64 {
