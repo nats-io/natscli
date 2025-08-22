@@ -59,7 +59,7 @@ func configureStreamCheckCommand(app commandHost) {
 	streamCheck.Flag("health", "Check health from streams").UnNegatableBoolVar(&sc.health)
 	streamCheck.Flag("expected", "Expected number of servers").IntVar(&sc.expected)
 	streamCheck.Flag("unsynced", "Filter results by streams that are out of sync").UnNegatableBoolVar(&sc.unsyncedFilter)
-	streamCheck.Flag("stdin", "Process the contents from STDIN").UnNegatableBoolVar(&sc.stdin)
+	streamCheck.Flag("stdin", "Process the result of 'nats server request jsz --all --config' from STDIN").UnNegatableBoolVar(&sc.stdin)
 	streamCheck.Flag("read-timeout", "Read timeout in seconds").Default("5").IntVar(&sc.readTimeout)
 	streamCheck.Flag("csv", "Renders CSV format").UnNegatableBoolVar(&sc.csv)
 }

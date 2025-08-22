@@ -71,7 +71,7 @@ func configureConsumerCheckCommand(app commandHost) {
 	consumerCheck.Flag("health", "Check health from consumers").UnNegatableBoolVar(&cc.health)
 	consumerCheck.Flag("expected", "Expected number of servers").IntVar(&cc.expected)
 	consumerCheck.Flag("unsynced", "Filter results by streams that are out of sync").UnNegatableBoolVar(&cc.unsyncedFilter)
-	consumerCheck.Flag("stdin", "Process the contents from STDIN").UnNegatableBoolVar(&cc.stdin)
+	consumerCheck.Flag("stdin", "Process the result of 'nats server request jsz --all --config' from STDIN").UnNegatableBoolVar(&cc.stdin)
 	consumerCheck.Flag("read-timeout", "Read timeout in seconds").Default("5").IntVar(&cc.readTimeout)
 	consumerCheck.Flag("csv", "Renders CSV format").UnNegatableBoolVar(&cc.csv)
 }
