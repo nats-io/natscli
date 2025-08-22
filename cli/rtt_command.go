@@ -73,13 +73,17 @@ func (c *rttCmd) rtt(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	f := fmt.Sprintf("%%%ds: %%v\n", c.calcIndent(targets, 3))
+	format := fmt.Sprintf("%%%ds: %%v\n", c.calcIndent(targets, 3))
 
 	for _, t := range targets {
 		fmt.Printf("%s:\n\n", t.URL)
 
 		for _, r := range t.Results {
-			fmt.Printf(f, r.Address, r.RTT)
+			if r.RTT > 0 {
+				fmt.Printf(format, r.Address, f(r.RTT))
+			} else {
+				fmt.Printf(format, r.Address, "failed")
+			}
 		}
 
 		fmt.Println()
@@ -123,7 +127,7 @@ func (c *rttCmd) performTest(targets []*rttTarget) (err error) {
 			r.Time = time.Now()
 			r.URL, r.RTT, err = c.calcRTT(r.Address, opts)
 			if err != nil {
-				return err
+				log.Printf("Failed to compute rtt for %s: %v", r.Address, err)
 			}
 		}
 	}
@@ -159,7 +163,7 @@ func (c *rttCmd) calcRTT(server string, copts []nats.Option) (string, time.Durat
 
 		totalTime += rtt
 		if opts().Trace {
-			fmt.Printf("#%d:\trtt=%s\n", i, rtt)
+			fmt.Printf("#%d:\trtt=%s\n", i, f(rtt))
 			if i == c.iterations {
 				fmt.Println()
 			}
@@ -194,7 +198,7 @@ func (c *rttCmd) targets() (targets []*rttTarget, err error) {
 			port = "4222"
 		}
 
-		targets = append(targets, &rttTarget{URL: u.String()})
+		targets = append(targets, &rttTarget{URL: u.String(), Results: []*rttResult{}})
 		target := targets[len(targets)-1]
 
 		// its a ip just add it
