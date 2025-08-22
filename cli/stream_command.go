@@ -2295,7 +2295,12 @@ func (c *streamCmd) showStreamInfo(info *api.StreamInfo) {
 		if info.Cluster != nil && info.Cluster.Name != "" {
 			cols.AddRow("Name", info.Cluster.Name)
 			cols.AddRowIfNotEmpty("Cluster Group", info.Cluster.RaftGroup)
-			cols.AddRow("Leader", info.Cluster.Leader)
+			if info.Cluster.LeaderSince == nil {
+				cols.AddRow("Leader", info.Cluster.Leader)
+			} else {
+				cols.AddRowf("Leader", "%s (%s)", info.Cluster.Leader, f(sinceRefOrNow(info.TimeStamp, *info.Cluster.LeaderSince)))
+			}
+
 			for _, r := range info.Cluster.Replicas {
 				state := []string{r.Name}
 
