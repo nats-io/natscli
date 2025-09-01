@@ -2282,7 +2282,7 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 
 	switch benchType {
 	case benchTypeJSOrdered:
-		state = "Receiving"
+		state = "Receiving "
 		consumer, err = s.OrderedConsumer(ctx, jetstream.OrderedConsumerConfig{FilterSubjects: c.filterSubjects, InactiveThreshold: time.Second * 10})
 		if err != nil {
 			errChan <- fmt.Errorf("creating the ephemeral ordered consumer: %w", err)
