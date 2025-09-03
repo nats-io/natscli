@@ -18,9 +18,9 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.18.0
-	github.com/nats-io/jsm.go v0.2.5-0.20250821134715-6eb1de0adf11
+	github.com/nats-io/jsm.go v0.2.5-0.20250903083238-2278bd185509
 	github.com/nats-io/jwt/v2 v2.8.0
-	github.com/nats-io/nats-server/v2 v2.12.0-preview.1.0.20250820090345-e1094a697d1d
+	github.com/nats-io/nats-server/v2 v2.12.0-preview.2.0.20250902213719-351276e83166
 	github.com/nats-io/nats.go v1.45.0
 	github.com/nats-io/nkeys v0.4.11
 	github.com/nats-io/nuid v1.0.1
@@ -40,6 +40,7 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
+	github.com/antithesishq/antithesis-sdk-go v0.5.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/google/go-tpm v0.9.5 // indirect

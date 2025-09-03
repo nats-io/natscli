@@ -220,7 +220,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
 		f.Flag("allow-batch", "Allow atomic batch publishing").IsSetByUser(&c.allowAtomicBatchIsSet).BoolVar(&c.allowAtomicBatch)
-		f.Flag("allow-counter", "Configures the Stream as a distributed counter").IsSetByUser(&c.allowCounterIsSet).BoolVar(&c.allowCounter)
+		f.Flag("allow-counter", "Configures the Stream as a distributed counter").IsSetByUser(&c.allowCounterIsSet).UnNegatableBoolVar(&c.allowCounter)
 		f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers").IsSetByUser(&c.allowRollupSet).BoolVar(&c.allowRollup)
 		f.Flag("deny-delete", "Deny messages from being deleted via the API").IsSetByUser(&c.denyDeleteSet).BoolVar(&c.denyDelete)
 		f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
