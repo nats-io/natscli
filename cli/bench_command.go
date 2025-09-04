@@ -2442,7 +2442,6 @@ func (c *benchCmd) runJSGetter(bm *bench.Benchmark, errChan chan error, nc *nats
 		}()
 
 		if i == 0 {
-			log.Printf("[%d] Starting at sequence 0", clientNumber+1)
 			// get messages from the start of the stream
 			msgs, err = jetstreamext.GetBatch(ctx, js, c.streamOrBucketName, batchSize, jetstreamext.GetBatchSubject(c.filterSubject))
 		} else {
