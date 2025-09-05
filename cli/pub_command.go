@@ -92,8 +92,7 @@ Available template functions are:
 	pub.Flag("sleep", "When publishing multiple messages, sleep between publishes").DurationVar(&c.sleep)
 	pub.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
 	pub.Flag("jetstream", "Publish messages to jetstream").Short('J').UnNegatableBoolVar(&c.jetstream)
-	pub.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).
-		Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
+	pub.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
 	pub.Flag("quiet", "Show just the output received").Short('q').UnNegatableBoolVar(&c.quiet)
 	pub.Flag("templates", "Enables template functions in the body and subject (does not affect headers)").Default("true").BoolVar(&c.templates)
 
@@ -128,6 +127,8 @@ Available template functions are:
 	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)
 	req.Flag("reply-timeout", "Maximum timeout between incoming replies.").Default("300ms").DurationVar(&c.replyTimeout)
 	req.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
+	req.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
+	req.Flag("templates", "Enables template functions in the body and subject (does not affect headers)").Default("true").BoolVar(&c.templates)
 }
 
 func init() {
@@ -167,7 +168,6 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
 		}
 
 		body, subj := c.parseTemplates("", i)
-
 		msg, err := c.prepareMsg(subj, []byte(body), i)
 		if err != nil {
 			return err
