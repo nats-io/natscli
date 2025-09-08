@@ -72,7 +72,7 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 
 	opts := server.AccountzEventOptions{
 		AccountzOptions:    server.AccountzOptions{Account: c.account},
-		EventFilterOptions: server.EventFilterOptions{Name: c.server},
+		EventFilterOptions: server.EventFilterOptions{Name: c.server, ExactMatch: true},
 	}
 
 	res, err := doReq(&opts, "$SYS.REQ.SERVER.PING.ACCOUNTZ", 1, nc)

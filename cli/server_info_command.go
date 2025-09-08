@@ -49,7 +49,7 @@ func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
 
 	if len(c.id) != 56 || strings.ToUpper(c.id) != c.id {
 		subj = "$SYS.REQ.SERVER.PING.VARZ"
-		opts := server.VarzEventOptions{EventFilterOptions: server.EventFilterOptions{Name: c.id}}
+		opts := server.VarzEventOptions{EventFilterOptions: server.EventFilterOptions{Name: c.id, ExactMatch: true}}
 		body, err = json.Marshal(opts)
 		if err != nil {
 			return err
