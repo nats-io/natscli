@@ -131,7 +131,8 @@ func (e *Engine) Request(path string) (interface{}, error) {
 	case "VARZ":
 		opts := &server.VarzEventOptions{
 			EventFilterOptions: server.EventFilterOptions{
-				Name: e.Host,
+				Name:       e.Host,
+				ExactMatch: true,
 			},
 		}
 
@@ -154,7 +155,8 @@ func (e *Engine) Request(path string) (interface{}, error) {
 				Subscriptions: e.DisplaySubs,
 			},
 			EventFilterOptions: server.EventFilterOptions{
-				Name: e.Host,
+				Name:       e.Host,
+				ExactMatch: true,
 			},
 		}
 

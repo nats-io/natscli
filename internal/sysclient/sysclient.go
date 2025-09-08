@@ -123,6 +123,7 @@ func (s *SysClient) FetchJszPaged(baseOpts server.JszEventOptions, limit int, ti
 		for name, offset := range offsets {
 			opts := baseOpts
 			opts.EventFilterOptions.Name = name
+			opts.ExactMatch = true
 			opts.Offset = offset
 
 			page, err := s.JszPing(opts, fopts...)

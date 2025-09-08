@@ -392,10 +392,11 @@ func (c *SrvRequestCmd) jsz(_ *fisk.ParseContext) error {
 
 func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
 	opt := server.EventFilterOptions{
-		Name:    c.name,
-		Host:    c.host,
-		Cluster: c.cluster,
-		Tags:    c.tags,
+		Name:       c.name,
+		Host:       c.host,
+		Cluster:    c.cluster,
+		Tags:       c.tags,
+		ExactMatch: true,
 	}
 	if opts().Config != nil {
 		opt.Domain = opts().Config.JSDomain()

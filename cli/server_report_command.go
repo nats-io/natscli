@@ -1533,10 +1533,11 @@ func (c *SrvReportCmd) isFiltered() bool {
 
 func (c *SrvReportCmd) reqFilter() server.EventFilterOptions {
 	return server.EventFilterOptions{
-		Domain:  opts().Config.JSDomain(),
-		Name:    c.server,
-		Cluster: c.cluster,
-		Tags:    c.tags,
+		Domain:     opts().Config.JSDomain(),
+		Name:       c.server,
+		Cluster:    c.cluster,
+		Tags:       c.tags,
+		ExactMatch: true,
 	}
 }
 
