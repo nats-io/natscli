@@ -28,6 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go/jetstream"
 	iu "github.com/nats-io/natscli/internal/util"
 	"github.com/synadia-io/orbit.go/jetstreamext"
@@ -56,6 +58,7 @@ type benchCmd struct {
 	ackMode              string
 	doubleAck            bool
 	batchSize            int
+	asyncPublish         bool
 	replicas             int
 	purge                bool
 	sleep                time.Duration
@@ -143,7 +146,8 @@ func configureBenchCommand(app commandHost) {
 		f.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes").Default("1GB").StringVar(&c.streamMaxBytesString)
 		f.Flag("dedup", "Sets a message id in the header to use JS Publish de-duplication").Default("false").UnNegatableBoolVar(&c.deDuplication)
 		f.Flag("dedupwindow", "Sets the duration of the stream's deduplication functionality").Default("2m").DurationVar(&c.deDuplicationWindow)
-		f.Flag("batch", "The number of asynchronous JS publish calls before waiting for all the publish acknowledgements (set to 1 for synchronous)").Default("500").IntVar(&c.batchSize)
+		f.Flag("batch", "The number of messages to publish in a batch (set to 1 for synchronous publish)").Default("500").IntVar(&c.batchSize)
+		f.Flag("async", "Use asynchronous JS publish (of up to the number of messages in a batch) rather than batch publish").UnNegatableBoolVar(&c.asyncPublish)
 		f.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
 	}
 
@@ -846,6 +850,10 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	if c.batchSize == 1 && c.asyncPublish {
+		return fmt.Errorf("cannot use --async with a batch size of 1")
+	}
+
 	banner := c.generateBanner(benchTypeJSPub)
 	log.Println(banner)
 	bm := bench.NewBenchmark("NATS", 0, c.numClients)
@@ -867,13 +875,39 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	myjsm, err := jsm.New(nc)
+	if err != nil {
+		return err
+	}
+
+	if c.batchSize > 1 && !c.asyncPublish {
+		err = iu.RequireAPILevel(myjsm, 2, "Atomic Batch Publishing requires NATS Server 2.12, specify --async for async publishing instead")
+		if err != nil {
+			return err
+		}
+	}
+
 	var s jetstream.Stream
 
 	if c.createStream {
 		// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
-		s, err = js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: jetstream.LimitsPolicy, Discard: jetstream.DiscardNew, Storage: c.storageType(), Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true})
+
+		if c.batchSize > 1 && !c.asyncPublish {
+			if c.storageType() == jetstream.FileStorage {
+				_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: 0, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: true})
+			} else {
+				_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: 1, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: true})
+			}
+		} else {
+			_, err = js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: jetstream.LimitsPolicy, Discard: jetstream.DiscardNew, Storage: c.storageType(), Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true})
+		}
 		if err != nil {
 			return fmt.Errorf("could not create the stream. If you want to delete and re-define the stream use `nats stream delete %s`: %w", c.streamOrBucketName, err)
+		}
+
+		s, err = js.Stream(ctx, c.streamOrBucketName)
+		if err != nil {
+			return fmt.Errorf("could not access the stream after creating it: %w", err)
 		}
 		// TODO: a way to wait for the stream to be ready (e.g. when updating the stream's config (e.g. from R1 to R3))
 	} else {
@@ -1841,7 +1875,8 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadS
 
 	c.multisubjectFormat = fmt.Sprintf("%%0%dd", len(strconv.Itoa(c.multiSubjectMax)))
 
-	if c.batchSize != 1 {
+	if c.batchSize != 1 && c.asyncPublish {
+		// Asynchronous publish
 		for i := 0; i < numMsg; {
 			state = "Publishing"
 			futures := make([]jetstream.PubAckFuture, min(c.batchSize, numMsg-i))
@@ -1882,7 +1917,59 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadS
 			}
 		}
 		state = "Finished  "
+	} else if c.batchSize != 1 && !c.asyncPublish {
+		// Batch publish
+		var msgs int
+		batchId := idPrefix + "-" + strconv.Itoa(clientNumber)
+
+		for i := 0; i < numMsg; {
+			state = "Publishing"
+			msgs = min(c.batchSize, numMsg-i)
+			message.Header.Del("Nats-Batch-Commit")
+
+			for j := 0; j < msgs; j++ {
+				if c.deDuplication {
+					message.Header.Set(nats.MsgIdHdr, batchId+"-"+strconv.Itoa(i+j+offset))
+				}
+
+				message.Header.Set("Nats-Batch-Id", batchId)
+				message.Header.Set("Nats-Batch-Sequence", strconv.Itoa(j+1))
+				message.Subject = c.getPublishSubject(i + j + offset)
+
+				if j == msgs-1 {
+					state = "Committing"
+					message.Header.Set("Nats-Batch-Commit", "1")
+					_, err := js.PublishMsg(ctx, &message)
+					if err != nil {
+						return fmt.Errorf("publishing with batch commit: %w", err)
+					}
+				} else {
+					err = nc.PublishMsg(&message)
+					if err != nil {
+						return fmt.Errorf("publishing: %w", err)
+					}
+				}
+
+				time.Sleep(c.sleep)
+			}
+
+			if c.deDuplication {
+				message.Header.Set(nats.MsgIdHdr, batchId+"-"+strconv.Itoa(i+msgs+offset))
+			}
+
+			time.Sleep(c.sleep)
+
+			if progress != nil {
+				for j := 0; j < msgs; j++ {
+					progress.Incr()
+				}
+			}
+
+			i += msgs
+		}
+		state = "Finished  "
 	} else {
+		// Synchronous publish
 		state = "Publishing"
 		for i := 0; i < numMsg; i++ {
 			if progress != nil {
@@ -1899,6 +1986,7 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadS
 			if err != nil {
 				return fmt.Errorf("publishing synchronously: %w", err)
 			}
+
 			time.Sleep(c.sleep)
 		}
 	}
@@ -2165,7 +2253,14 @@ func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *n
 	startwg.Done()
 	var progress *uiprogress.Bar
 
-	log.Printf("[%d] Starting JS publisher, publishing %s messages", clientNumber+1, f(numMsg))
+	pubType := "synchronous"
+	if c.asyncPublish {
+		pubType = "asynchronous"
+	} else if c.batchSize != 1 {
+		pubType = "batched"
+	}
+
+	log.Printf("[%d] Starting JS %s publisher, publishing %s messages", clientNumber+1, pubType, f(numMsg))
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
