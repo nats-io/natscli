@@ -45,6 +45,7 @@ func configureServerWatchServerCommand(watch *fisk.CmdClause) {
 	c := &SrvWatchServerCmd{
 		servers: map[string]*server.ServerStatsMsg{},
 		sortNames: map[string]string{
+			"name":  "Server Name",
 			"conns": "Connections",
 			"subs":  "Subscriptions",
 			"sentb": "Sent Bytes",
@@ -194,6 +195,8 @@ func (c *SrvWatchServerCmd) redraw() error {
 		jName := servers[j].Server.Name
 
 		switch c.sort {
+		case "name":
+			return iu.SortMultiSort(iName, jName, iName, jName)
 		case "subs":
 			return iu.SortMultiSort(si.NumSubs, sj.NumSubs, iName, jName)
 		case "sentb":
