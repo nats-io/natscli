@@ -196,7 +196,7 @@ func (c *SrvWatchServerCmd) redraw() error {
 
 		switch c.sort {
 		case "name":
-			return iu.SortMultiSort(iName, jName, iName, jName)
+			return iName < jName
 		case "subs":
 			return iu.SortMultiSort(si.NumSubs, sj.NumSubs, iName, jName)
 		case "sentb":
