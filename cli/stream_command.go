@@ -1137,7 +1137,7 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 	}()
 
 	shouldTerminate := false
-	filterEnabled := true
+	filterEnabled := false
 	re := (*regexp.Regexp)(nil)
 
 	if exp := strings.TrimSpace(c.vwFilterExp); exp != "" {
