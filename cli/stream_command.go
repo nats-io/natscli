@@ -47,6 +47,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/columns"
 	"gopkg.in/yaml.v3"
+	"regexp"
 )
 
 type streamCmd struct {
@@ -154,6 +155,7 @@ type streamCmd struct {
 	vwRaw        bool
 	vwTranslate  string
 	vwSubject    string
+	vwFilterExp  string
 
 	dryRun                    bool
 	selectedStream            *jsm.Stream
@@ -382,6 +384,7 @@ Finding streams with certain subjects configured:
 	strView.Flag("raw", "Show the raw data received").UnNegatableBoolVar(&c.vwRaw)
 	strView.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.vwTranslate)
 	strView.Flag("subject", "Filter the stream using a subject").StringVar(&c.vwSubject)
+	strView.Flag("filter", "Filter keyword or regexp in stream message").StringVar(&c.vwFilterExp)
 
 	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
 	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
@@ -1087,9 +1090,9 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("interactive stream paging requires a valid terminal")
 	}
 
-	if c.vwPageSize > 25 {
-		log.Printf("Page size is limited to 25, setting to 25...")
-		c.vwPageSize = 25
+	if c.vwPageSize > 100 {
+		log.Printf("Page size is limited to 100, setting to 100...")
+		c.vwPageSize = 100
 	}
 
 	c.connectAndAskStream()
@@ -1134,6 +1137,17 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 	}()
 
 	shouldTerminate := false
+	filterEnabled := true
+	re := (*regexp.Regexp)(nil)
+
+	if exp := strings.TrimSpace(c.vwFilterExp); exp != "" {
+		re, err = regexp.Compile(exp)
+		if err != nil {
+			return err
+		}
+
+		filterEnabled = true
+	}
 
 	for {
 		msg, last, err := pgr.NextMsg(ctx)
@@ -1143,6 +1157,12 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 			}
 			// later we know we reached final last after showing the final message
 			shouldTerminate = true
+		}
+
+		if filterEnabled && re != nil && msg != nil {
+			if !re.Match(msg.Data) {
+				continue
+			}
 		}
 
 		switch {
@@ -1183,9 +1203,17 @@ func (c *streamCmd) viewAction(_ *fisk.ParseContext) error {
 			return nil
 		}
 
-		if last {
+		if last && !filterEnabled {
 			next := false
 			iu.AskOne(&survey.Confirm{Message: "Next Page?", Default: true}, &next)
+			if !next {
+				return nil
+			}
+		}
+
+		if filterEnabled {
+			next := false
+			iu.AskOne(&survey.Confirm{Message: "Found One, Continue?", Default: true}, &next)
 			if !next {
 				return nil
 			}
