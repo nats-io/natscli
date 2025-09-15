@@ -28,6 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go/jetstream"
 	iu "github.com/nats-io/natscli/internal/util"
 	"github.com/synadia-io/orbit.go/jetstreamext"
@@ -88,7 +90,9 @@ const (
 	benchTypeCoreSub                = "sub"
 	benchTypeServiceRequest         = "request"
 	benchTypeServiceServe           = "reply"
-	benchTypeJSPub                  = "jspub"
+	benchTypeJSPubSync              = "jsyncpub"
+	benchTypeJSPubAsync             = "jsasyncpub"
+	benchTypeJSPubBatch             = "jsbatchpub"
 	benchTypeJSOrdered              = "jsordered"
 	benchTypeJSConsume              = "jsconsume"
 	benchTypeJSFetch                = "jsfetch"
@@ -143,7 +147,6 @@ func configureBenchCommand(app commandHost) {
 		f.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes").Default("1GB").StringVar(&c.streamMaxBytesString)
 		f.Flag("dedup", "Sets a message id in the header to use JS Publish de-duplication").Default("false").UnNegatableBoolVar(&c.deDuplication)
 		f.Flag("dedupwindow", "Sets the duration of the stream's deduplication functionality").Default("2m").DurationVar(&c.deDuplicationWindow)
-		f.Flag("batch", "The number of asynchronous JS publish calls before waiting for all the publish acknowledgements (set to 1 for synchronous)").Default("500").IntVar(&c.batchSize)
 		f.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
 	}
 
@@ -189,10 +192,23 @@ func configureBenchCommand(app commandHost) {
 	addCommonFlags(jsCommand)
 	addJSCommonFlags(jsCommand)
 
-	jspub := jsCommand.Command("pub", "Publish JetStream messages").Action(c.jspubAction)
-	jspub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
-	addPubFlags(jspub)
-	addJSPubFlags(jspub)
+	jspub := jsCommand.Command("pub", "Publish JetStream messages")
+	jssyncpub := jspub.Command("sync", "Use synchronous JetStream publish").Action(c.jspubSyncAction)
+	jssyncpub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
+	addPubFlags(jssyncpub)
+	addJSPubFlags(jssyncpub)
+
+	jsasyncpub := jspub.Command("async", "Use asynchronous JetStream publish").Action(c.jspubAsyncAction)
+	jsasyncpub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
+	jsasyncpub.Flag("batch", "Sets the number of asynchronous operations per batch").Default("500").IntVar(&c.batchSize)
+	addPubFlags(jsasyncpub)
+	addJSPubFlags(jsasyncpub)
+
+	jsbatchpub := jspub.Command("batch", "Use batch JetStream publish").Action(c.jspubBatchAction)
+	jsbatchpub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
+	jsbatchpub.Flag("batch", "Sets the size of the batches").Default("500").IntVar(&c.batchSize)
+	addPubFlags(jsbatchpub)
+	addJSPubFlags(jsbatchpub)
 
 	jsOrdered := jsCommand.Command("ordered", "Consume JetStream messages from a consumer using an ephemeral ordered consumer").Action(c.jsOrderedAction)
 	jsOrdered.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
@@ -369,8 +385,26 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		benchTypeLabel = "Core NATS service serve"
 		argnvps = append(argnvps, nvp{"subject", c.subject})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
-	case benchTypeJSPub:
-		benchTypeLabel = "JetStream publish"
+	case benchTypeJSPubSync:
+		benchTypeLabel = "JetStream synchronous publish"
+		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
+		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
+		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
+		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
+		jsAttributes()
+		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
+		streamOrBucketAttribues()
+	case benchTypeJSPubAsync:
+		benchTypeLabel = "JetStream asynchronous publish"
+		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
+		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
+		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
+		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
+		jsAttributes()
+		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
+		streamOrBucketAttribues()
+	case benchTypeJSPubBatch:
+		benchTypeLabel = "JetStream batched publish"
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
@@ -840,13 +874,25 @@ func (c *benchCmd) serveAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
+func (c *benchCmd) jspubSyncAction(pc *fisk.ParseContext) error {
+	return c.jspubActions(pc, benchTypeJSPubSync)
+}
+
+func (c *benchCmd) jspubAsyncAction(pc *fisk.ParseContext) error {
+	return c.jspubActions(pc, benchTypeJSPubAsync)
+}
+
+func (c *benchCmd) jspubBatchAction(pc *fisk.ParseContext) error {
+	return c.jspubActions(pc, benchTypeJSPubBatch)
+}
+
+func (c *benchCmd) jspubActions(_ *fisk.ParseContext, jsPubType string) error {
 	err := c.processActionArgs()
 	if err != nil {
 		return err
 	}
 
-	banner := c.generateBanner(benchTypeJSPub)
+	banner := c.generateBanner(jsPubType)
 	log.Println(banner)
 	bm := bench.NewBenchmark("NATS", 0, c.numClients)
 	benchId := strconv.FormatInt(time.Now().UnixMilli(), 16)
@@ -854,7 +900,7 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 	donewg := &sync.WaitGroup{}
 	errChan := make(chan error, c.numClients)
 
-	// create the stream for the benchmark (and purge it)
+	// create the stream or purge it for the benchmark if so requested
 	nc, err := nats.Connect(opts().Config.ServerURL(), natsOpts()...)
 	if err != nil {
 		return err
@@ -867,22 +913,39 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	myjsm, err := jsm.New(nc)
+	if err != nil {
+		return err
+	}
+
+	if jsPubType == benchTypeJSPubBatch {
+		err = iu.RequireAPILevel(myjsm, 2, "Atomic Batch Publishing requires NATS Server 2.12, specify --async for async publishing instead")
+		if err != nil {
+			return err
+		}
+	}
+
 	var s jetstream.Stream
 
 	if c.createStream {
 		// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
-		s, err = js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: jetstream.LimitsPolicy, Discard: jetstream.DiscardNew, Storage: c.storageType(), Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true})
+
+		if c.storageType() == jetstream.FileStorage {
+			_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: 0, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: true})
+		} else {
+			_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: 1, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: true})
+		}
 		if err != nil {
 			return fmt.Errorf("could not create the stream. If you want to delete and re-define the stream use `nats stream delete %s`: %w", c.streamOrBucketName, err)
 		}
-		// TODO: a way to wait for the stream to be ready (e.g. when updating the stream's config (e.g. from R1 to R3))
-	} else {
-		s, err = js.Stream(ctx, c.streamOrBucketName)
-		if err != nil {
-			return fmt.Errorf("stream '%s' does not exist, create it with --create", c.streamOrBucketName)
-		}
-		log.Printf("Using stream: %s", c.streamOrBucketName)
 	}
+
+	s, err = js.Stream(ctx, c.streamOrBucketName)
+	if err != nil {
+		return fmt.Errorf("could not access stream %s: %w", c.streamOrBucketName, err)
+	}
+	// TODO?: maybe a way to wait for the stream to be ready (e.g. when updating the stream's config (e.g. from R1 to R3))?
+	log.Printf("Using stream: %s", c.streamOrBucketName)
 
 	if c.purge {
 		log.Printf("Purging the stream")
@@ -907,7 +970,7 @@ func (c *benchCmd) jspubAction(_ *fisk.ParseContext) error {
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runJSPublisher(bm, errChan, nc, startwg, donewg, trigger, pubCounts[i], c.offset(i, pubCounts), benchId, i)
+		go c.runJSPublisher(bm, errChan, nc, startwg, donewg, trigger, jsPubType, pubCounts[i], c.offset(i, pubCounts), benchId, i)
 	}
 
 	if c.progressBar {
@@ -1814,7 +1877,7 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, pa
 	return nil
 }
 
-func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadSize int, numMsg int, idPrefix string, offset int, clientNumber int) error {
+func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubType string, payloadSize int, numMsg int, idPrefix string, offset int, clientNumber int) error {
 	js, err := c.getJS(nc)
 	if err != nil {
 		return err
@@ -1841,7 +1904,8 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadS
 
 	c.multisubjectFormat = fmt.Sprintf("%%0%dd", len(strconv.Itoa(c.multiSubjectMax)))
 
-	if c.batchSize != 1 {
+	// Asynchronous publish
+	if jsPubType == benchTypeJSPubAsync {
 		for i := 0; i < numMsg; {
 			state = "Publishing"
 			futures := make([]jetstream.PubAckFuture, min(c.batchSize, numMsg-i))
@@ -1882,7 +1946,59 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadS
 			}
 		}
 		state = "Finished  "
-	} else {
+		// Batch publish
+	} else if jsPubType == benchTypeJSPubBatch {
+		var msgs int
+		batchId := idPrefix + "-" + strconv.Itoa(clientNumber)
+
+		for i := 0; i < numMsg; {
+			state = "Batching  "
+			msgs = min(c.batchSize, numMsg-i)
+			message.Header.Del("Nats-Batch-Commit")
+
+			for j := 0; j < msgs; j++ {
+				if c.deDuplication {
+					message.Header.Set(nats.MsgIdHdr, batchId+"-"+strconv.Itoa(i+j+offset))
+				}
+
+				message.Header.Set("Nats-Batch-Id", batchId)
+				message.Header.Set("Nats-Batch-Sequence", strconv.Itoa(j+1))
+				message.Subject = c.getPublishSubject(i + j + offset)
+
+				if j == msgs-1 {
+					state = "Committing"
+					message.Header.Set("Nats-Batch-Commit", "1")
+					_, err := js.PublishMsg(ctx, &message)
+					if err != nil {
+						return fmt.Errorf("publishing with batch commit: %w", err)
+					}
+				} else {
+					err = nc.PublishMsg(&message)
+					if err != nil {
+						return fmt.Errorf("publishing: %w", err)
+					}
+				}
+
+				time.Sleep(c.sleep)
+			}
+
+			if c.deDuplication {
+				message.Header.Set(nats.MsgIdHdr, batchId+"-"+strconv.Itoa(i+msgs+offset))
+			}
+
+			time.Sleep(c.sleep)
+
+			if progress != nil {
+				for j := 0; j < msgs; j++ {
+					progress.Incr()
+				}
+			}
+
+			i += msgs
+		}
+		state = "Finished  "
+	} else if jsPubType == benchTypeJSPubSync {
+		// Synchronous publish
 		state = "Publishing"
 		for i := 0; i < numMsg; i++ {
 			if progress != nil {
@@ -1899,9 +2015,13 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadS
 			if err != nil {
 				return fmt.Errorf("publishing synchronously: %w", err)
 			}
+
 			time.Sleep(c.sleep)
 		}
+	} else {
+		return fmt.Errorf("unknown js publish type: %s", jsPubType)
 	}
+
 	return nil
 }
 
@@ -2161,11 +2281,18 @@ func (c *benchCmd) runServiceServer(nc *nats.Conn, errChan chan error, startwg *
 	errChan <- nil
 }
 
-func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, idPrefix string, clientNumber int) {
+func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, jsPubType string, numMsg int, offset int, idPrefix string, clientNumber int) {
 	startwg.Done()
 	var progress *uiprogress.Bar
 
-	log.Printf("[%d] Starting JS publisher, publishing %s messages", clientNumber+1, f(numMsg))
+	pubTypeName := "synchronous"
+	if jsPubType == benchTypeJSPubAsync {
+		pubTypeName = "asynchronous"
+	} else if jsPubType == benchTypeJSPubBatch {
+		pubTypeName = "batched"
+	}
+
+	log.Printf("[%d] Starting JS %s publisher, publishing %s messages", clientNumber+1, pubTypeName, f(numMsg))
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
@@ -2181,7 +2308,7 @@ func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *n
 	}
 
 	start := time.Now()
-	err := c.jsPublisher(nc, progress, c.msgSize, numMsg, idPrefix, offset, clientNumber)
+	err := c.jsPublisher(nc, progress, jsPubType, c.msgSize, numMsg, idPrefix, offset, clientNumber)
 	if err != nil {
 		errChan <- fmt.Errorf("publishing: %w", err)
 		donewg.Done()
