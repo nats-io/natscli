@@ -16,6 +16,8 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
+	"errors"
 	"fmt"
 	"iter"
 	"math"
@@ -30,15 +32,17 @@ import (
 
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/nats.go/bench"
 	"github.com/nats-io/nats.go/jetstream"
 	iu "github.com/nats-io/natscli/internal/util"
+	"github.com/nats-io/nuid"
 	"github.com/synadia-io/orbit.go/jetstreamext"
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/gosuri/uiprogress"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/bench"
+
 	services "github.com/nats-io/nats.go/micro"
 )
 
@@ -78,6 +82,36 @@ type benchCmd struct {
 	hdrs                 []string
 	filterSubjects       []string // used by JS consumer commands
 	filterSubject        string   // used by JS get command
+}
+
+// A sample for a particular client
+type sample struct {
+	jobMsgCnt int
+	msgCnt    uint64
+	msgBytes  uint64
+	iOBytes   uint64
+	start     time.Time
+	end       time.Time
+}
+
+// sampleGroup for a number of samples, the group is a sample itself aggregating the values the samples
+type sampleGroup struct {
+	sample
+	samples []*sample
+}
+
+// benchmark to hold the various Samples organized by publishers and subscribers
+type benchmark struct {
+	sample
+	name        string
+	runID       string
+	benchType   string
+	sampleGroup *sampleGroup
+	//Pubs       *sampleGroup
+	//Subs       *sampleGroup
+	//subChannel chan *sample
+	//pubChannel chan *sample
+	channel chan *sample
 }
 
 const (
@@ -340,6 +374,45 @@ func (c *benchCmd) processActionArgs() error {
 	return nil
 }
 
+func benchTypeLabel(benchType string) string {
+	switch benchType {
+	case benchTypeCorePub:
+		return "Core NATS publisher"
+	case benchTypeCoreSub:
+		return "Core NATS subscriber"
+	case benchTypeServiceRequest:
+		return "Core NATS service requester"
+	case benchTypeServiceServe:
+		return "Core NATS service server"
+	case benchTypeJSPubSync:
+		return "JetStream synchronous publisher"
+	case benchTypeJSPubAsync:
+		return "JetStream asynchronous publisher"
+	case benchTypeJSPubBatch:
+		return "JetStream batched publisher"
+	case benchTypeJSOrdered:
+		return "JetStream ordered ephemeral consumer"
+	case benchTypeJSConsume:
+		return "JetStream durable consumer (callback)"
+	case benchTypeJSFetch:
+		return "JetStream durable consumer (fetch)"
+	case benchTypeJSGet:
+		return "JetStream direct getter"
+	case benchTypeKVPut:
+		return "JetStream KV putter"
+	case BenchTypeKVGet:
+		return "JetStream KV getter"
+	case benchTypeOldJSOrdered:
+		return "JetStream ordered ephemeral consumer (old API)"
+	case benchTypeOldJSPush:
+		return "JetStream durable push consumer (old API)"
+	case benchTypeOldJSPull:
+		return "JetStream durable pull consumer (old API)"
+	default:
+		return "Unknown benchmark"
+	}
+}
+
 func (c *benchCmd) generateBanner(benchType string) string {
 	// Create the banner which includes the appropriate argument names and values for the type of benchmark being run
 	type nvp struct {
@@ -364,29 +437,24 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 	}
 
-	benchTypeLabel := "Unknown benchmark"
+	benchTypeLabel := benchTypeLabel(benchType)
 
 	switch benchType {
 	case benchTypeCorePub:
-		benchTypeLabel = "Core NATS publish"
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 	case benchTypeCoreSub:
-		benchTypeLabel = "Core NATS subscribe"
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 	case benchTypeServiceRequest:
-		benchTypeLabel = "Core NATS service request"
 		argnvps = append(argnvps, nvp{"subject", c.subject})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 	case benchTypeServiceServe:
-		benchTypeLabel = "Core NATS service serve"
 		argnvps = append(argnvps, nvp{"subject", c.subject})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 	case benchTypeJSPubSync:
-		benchTypeLabel = "JetStream synchronous publish"
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
@@ -394,17 +462,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		jsAttributes()
 		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
 		streamOrBucketAttribues()
-	case benchTypeJSPubAsync:
-		benchTypeLabel = "JetStream asynchronous publish"
-		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
-		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
-		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
-		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
-		jsAttributes()
-		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
-		streamOrBucketAttribues()
-	case benchTypeJSPubBatch:
-		benchTypeLabel = "JetStream batched publish"
+	case benchTypeJSPubAsync, benchTypeJSPubBatch:
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
@@ -413,27 +471,13 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
 		streamOrBucketAttribues()
 	case benchTypeJSOrdered:
-		benchTypeLabel = "JetStream ordered ephemeral consumer"
 		jsAttributes()
 		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
 		if len(c.filterSubjects) > 0 {
 			argnvps = append(argnvps, nvp{"filter", strings.Join(c.filterSubjects, ",")})
 		}
 		streamOrBucketAttribues()
-	case benchTypeJSConsume:
-		benchTypeLabel = "JetStream durable consumer (callback)"
-		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
-		argnvps = append(argnvps, nvp{"acks", c.ackMode})
-		argnvps = append(argnvps, nvp{"double-acked", f(c.doubleAck)})
-		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
-		if len(c.filterSubjects) > 0 {
-			argnvps = append(argnvps, nvp{"filter", strings.Join(c.filterSubjects, ",")})
-		}
-		jsAttributes()
-		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
-		streamOrBucketAttribues()
-	case benchTypeJSFetch:
-		benchTypeLabel = "JetStream durable consumer (fetch)"
+	case benchTypeJSConsume, benchTypeJSFetch:
 		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
 		argnvps = append(argnvps, nvp{"acks", c.ackMode})
 		argnvps = append(argnvps, nvp{"double-acked", f(c.doubleAck)})
@@ -445,36 +489,30 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
 		streamOrBucketAttribues()
 	case benchTypeJSGet:
-		benchTypeLabel = "JetStream direct get"
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
 		argnvps = append(argnvps, nvp{"filter", c.filterSubject})
 		jsAttributes()
 	case benchTypeKVPut:
-		benchTypeLabel = "KV put"
 		argnvps = append(argnvps, nvp{"bucket", c.streamOrBucketName})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
 		streamOrBucketAttribues()
 	case BenchTypeKVGet:
-		benchTypeLabel = "KV get"
 		argnvps = append(argnvps, nvp{"bucket", c.streamOrBucketName})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 		argnvps = append(argnvps, nvp{"randomize", f(c.randomizeGets)})
 		streamOrBucketAttribues()
 	case benchTypeOldJSOrdered:
-		benchTypeLabel = "old JetStream API ordered ephemeral consumer"
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		jsAttributes()
 		streamOrBucketAttribues()
 	case benchTypeOldJSPush:
-		benchTypeLabel = "old JetStream API durable push consumer"
 		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
 		argnvps = append(argnvps, nvp{"acked", fmt.Sprintf("%v", c.ack)})
 		argnvps = append(argnvps, nvp{"double-acked", f(c.doubleAck)})
 		jsAttributes()
 		streamOrBucketAttribues()
 	case benchTypeOldJSPull:
-		benchTypeLabel = "old JetStream API durable pull consumer"
 		argnvps = append(argnvps, nvp{"consumer", c.consumerName})
 		argnvps = append(argnvps, nvp{"acked", fmt.Sprintf("%v", c.ack)})
 		argnvps = append(argnvps, nvp{"double-acked", f(c.doubleAck)})
@@ -504,7 +542,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 	return banner
 }
 
-func (c *benchCmd) printResults(bm *bench.Benchmark) error {
+func (c *benchCmd) printResults(bm *benchmark) error {
 	if c.progressBar {
 		uiprogress.Stop()
 	}
@@ -522,11 +560,11 @@ func (c *benchCmd) printResults(bm *bench.Benchmark) error {
 	}
 
 	fmt.Println()
-	fmt.Println(bm.Report())
+	fmt.Println(bm.report())
 
 	if c.csvFile != "" {
-		csv := bm.CSV()
-		err := os.WriteFile(c.csvFile, []byte(csv), 0600)
+		csvData := bm.cSV()
+		err := os.WriteFile(c.csvFile, []byte(csvData), 0600)
 		if err != nil {
 			return fmt.Errorf("writing file %s: %w", c.csvFile, err)
 		}
@@ -628,7 +666,7 @@ func (c *benchCmd) pubAction(_ *fisk.ParseContext) error {
 
 	log.Println(banner)
 
-	bm := bench.NewBenchmark("NATS", 0, c.numClients)
+	bm := newBenchmark("NATS", benchTypeCorePub, c.numClients)
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
@@ -676,7 +714,7 @@ func (c *benchCmd) pubAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -695,7 +733,7 @@ func (c *benchCmd) subAction(_ *fisk.ParseContext) error {
 
 	log.Println(banner)
 
-	bm := bench.NewBenchmark("NATS", c.numClients, 0)
+	bm := newBenchmark("NATS", benchTypeCoreSub, c.numClients)
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
@@ -739,7 +777,7 @@ func (c *benchCmd) subAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -758,7 +796,7 @@ func (c *benchCmd) requestAction(_ *fisk.ParseContext) error {
 
 	log.Println(banner)
 
-	bm := bench.NewBenchmark("NATS", 0, c.numClients)
+	bm := newBenchmark("NATS", benchTypeServiceRequest, c.numClients)
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
@@ -805,7 +843,7 @@ func (c *benchCmd) requestAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -825,7 +863,7 @@ func (c *benchCmd) serveAction(_ *fisk.ParseContext) error {
 
 	log.Println(banner)
 
-	bm := bench.NewBenchmark("NATS", c.numClients, 0)
+	bm := newBenchmark("NATS", benchTypeServiceServe, c.numClients)
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
@@ -865,7 +903,7 @@ func (c *benchCmd) serveAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -894,7 +932,7 @@ func (c *benchCmd) jspubActions(_ *fisk.ParseContext, jsPubType string) error {
 
 	banner := c.generateBanner(jsPubType)
 	log.Println(banner)
-	bm := bench.NewBenchmark("NATS", 0, c.numClients)
+	bm := newBenchmark("NATS", jsPubType, c.numClients)
 	benchId := strconv.FormatInt(time.Now().UnixMilli(), 16)
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
@@ -996,7 +1034,7 @@ func (c *benchCmd) jspubActions(_ *fisk.ParseContext, jsPubType string) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1013,7 +1051,7 @@ func (c *benchCmd) jsOrderedAction(_ *fisk.ParseContext) error {
 
 	banner := c.generateBanner(benchTypeJSOrdered)
 	log.Println(banner)
-	bm := bench.NewBenchmark("NATS", c.numClients, 0)
+	bm := newBenchmark("NATS", benchTypeJSOrdered, c.numClients)
 
 	if c.purge {
 		err = c.purgeStream()
@@ -1064,7 +1102,7 @@ func (c *benchCmd) jsOrderedAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1081,7 +1119,7 @@ func (c *benchCmd) jsConsumeAction(_ *fisk.ParseContext) error {
 
 	banner := c.generateBanner(benchTypeJSConsume)
 	log.Println(banner)
-	bm := bench.NewBenchmark("NATS", c.numClients, 0)
+	bm := newBenchmark("NATS", benchTypeJSConsume, c.numClients)
 
 	if c.purge {
 		err = c.purgeStream()
@@ -1154,7 +1192,7 @@ func (c *benchCmd) jsConsumeAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1171,7 +1209,7 @@ func (c *benchCmd) jsFetchAction(_ *fisk.ParseContext) error {
 
 	banner := c.generateBanner(benchTypeJSFetch)
 	log.Println(banner)
-	bm := bench.NewBenchmark("NATS", c.numClients, 0)
+	bm := newBenchmark("NATS", benchTypeJSFetch, c.numClients)
 
 	if c.purge {
 		err = c.purgeStream()
@@ -1244,7 +1282,7 @@ func (c *benchCmd) jsFetchAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1261,7 +1299,7 @@ func (c *benchCmd) jsGetAction(_ *fisk.ParseContext) error {
 
 	banner := c.generateBanner(benchTypeJSGet)
 	log.Println(banner)
-	bm := bench.NewBenchmark("NATS", c.numClients, 0)
+	bm := newBenchmark("NATS", benchTypeJSGet, c.numClients)
 
 	if c.purge {
 		err = c.purgeStream()
@@ -1318,7 +1356,7 @@ func (c *benchCmd) jsGetAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1335,7 +1373,7 @@ func (c *benchCmd) kvPutAction(_ *fisk.ParseContext) error {
 
 	banner := c.generateBanner(benchTypeKVPut)
 	log.Println(banner)
-	bm := bench.NewBenchmark("NATS", 0, c.numClients)
+	bm := newBenchmark("NATS", benchTypeKVPut, c.numClients)
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
@@ -1411,7 +1449,7 @@ func (c *benchCmd) kvPutAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1428,7 +1466,7 @@ func (c *benchCmd) kvGetAction(_ *fisk.ParseContext) error {
 
 	banner := c.generateBanner(BenchTypeKVGet)
 	log.Println(banner)
-	bm := bench.NewBenchmark("NATS", c.numClients, 0)
+	bm := newBenchmark("NATS", BenchTypeKVGet, c.numClients)
 
 	startwg := &sync.WaitGroup{}
 	donewg := &sync.WaitGroup{}
@@ -1475,7 +1513,7 @@ func (c *benchCmd) kvGetAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1492,7 +1530,7 @@ func (c *benchCmd) oldjsOrderedAction(_ *fisk.ParseContext) error {
 
 	banner := c.generateBanner(benchTypeOldJSOrdered)
 	log.Println(banner)
-	bm := bench.NewBenchmark("NATS", c.numClients, 0)
+	bm := newBenchmark("NATS", benchTypeOldJSOrdered, c.numClients)
 
 	if c.purge {
 		err = c.purgeStream()
@@ -1543,7 +1581,7 @@ func (c *benchCmd) oldjsOrderedAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1560,7 +1598,7 @@ func (c *benchCmd) oldjsPushAction(_ *fisk.ParseContext) error {
 
 	banner := c.generateBanner(benchTypeOldJSPush)
 	log.Println(banner)
-	bm := bench.NewBenchmark("NATS", c.numClients, 0)
+	bm := newBenchmark("NATS", benchTypeOldJSPush, c.numClients)
 
 	if c.purge {
 		err = c.purgeStream()
@@ -1660,7 +1698,7 @@ func (c *benchCmd) oldjsPushAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -1677,7 +1715,7 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 
 	banner := c.generateBanner(benchTypeOldJSPull)
 	log.Println(banner)
-	bm := bench.NewBenchmark("NATS", c.numClients, 0)
+	bm := newBenchmark("NATS", benchTypeOldJSPull, c.numClients)
 
 	if c.purge {
 		err = c.purgeStream()
@@ -1766,7 +1804,7 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 		return err2
 	}
 
-	bm.Close()
+	bm.close()
 	err = c.printResults(bm)
 	if err != nil {
 		return err
@@ -2060,11 +2098,11 @@ func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte,
 	return nil
 }
 
-func (c *benchCmd) runCorePublisher(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, clientNumber int) {
+func (c *benchCmd) runCorePublisher(bm *benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, clientNumber int) {
 	startwg.Done()
 	var progress *uiprogress.Bar
 
-	log.Printf("[%d] Starting publisher, publishing %s messages", clientNumber+1, f(numMsg))
+	log.Printf("[%d] Starting %s, publishing %s messages", clientNumber+1, benchTypeLabel(benchTypeCorePub), f(numMsg))
 
 	if c.progressBar {
 		barTotal := numMsg
@@ -2112,18 +2150,18 @@ func (c *benchCmd) runCorePublisher(bm *bench.Benchmark, errChan chan error, nc 
 		return
 	}
 
-	bm.AddPubSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
+	bm.addSample(newSample(numMsg, c.msgSize, start, time.Now(), nc))
 
 	donewg.Done()
 	errChan <- nil
 }
 
-func (c *benchCmd) runCoreSubscriber(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, clientNumber int) {
+func (c *benchCmd) runCoreSubscriber(bm *benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, clientNumber int) {
 	received := 0
 	ch := make(chan time.Time, 2)
 	var progress *uiprogress.Bar
 
-	log.Printf("[%d] Starting subscriber, expecting %s messages", clientNumber+1, f(numMsg))
+	log.Printf("[%d] Starting %s, expecting %s messages", clientNumber+1, benchTypeLabel(benchTypeCoreSub), f(numMsg))
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
@@ -2188,17 +2226,17 @@ func (c *benchCmd) runCoreSubscriber(bm *bench.Benchmark, errChan chan error, nc
 
 	state = "Finished  "
 
-	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
+	bm.addSample(newSample(numMsg, c.msgSize, start, end, nc))
 
 	donewg.Done()
 	errChan <- nil
 }
 
-func (c *benchCmd) runCoreRequester(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, clientNumber int) {
+func (c *benchCmd) runCoreRequester(bm *benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, clientNumber int) {
 	startwg.Done()
 	var progress *uiprogress.Bar
 
-	log.Printf("[%d] Starting requester, requesting %s messages", clientNumber+1, f(numMsg))
+	log.Printf("[%d] Starting %s, requesting %s messages", clientNumber+1, benchTypeLabel(benchTypeServiceRequest), f(numMsg))
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
@@ -2228,7 +2266,7 @@ func (c *benchCmd) runCoreRequester(bm *bench.Benchmark, errChan chan error, nc 
 		return
 	}
 
-	bm.AddPubSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
+	bm.addSample(newSample(numMsg, c.msgSize, start, time.Now(), nc))
 
 	donewg.Done()
 	errChan <- nil
@@ -2237,7 +2275,7 @@ func (c *benchCmd) runCoreRequester(bm *bench.Benchmark, errChan chan error, nc 
 func (c *benchCmd) runServiceServer(nc *nats.Conn, errChan chan error, startwg *sync.WaitGroup, donewg *sync.WaitGroup, clientNumber int) {
 	ch := make(chan struct{}, 1)
 
-	log.Printf("[%d] Starting replier, hit control-c to stop", clientNumber+1)
+	log.Printf("[%d] Starting %s, hit control-c to stop", clientNumber+1, benchTypeLabel(benchTypeServiceServe))
 
 	reqHandler := func(request services.Request) {
 		time.Sleep(c.sleep)
@@ -2281,18 +2319,11 @@ func (c *benchCmd) runServiceServer(nc *nats.Conn, errChan chan error, startwg *
 	errChan <- nil
 }
 
-func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, jsPubType string, numMsg int, offset int, idPrefix string, clientNumber int) {
+func (c *benchCmd) runJSPublisher(bm *benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, benchType string, numMsg int, offset int, idPrefix string, clientNumber int) {
 	startwg.Done()
 	var progress *uiprogress.Bar
 
-	pubTypeName := "synchronous"
-	if jsPubType == benchTypeJSPubAsync {
-		pubTypeName = "asynchronous"
-	} else if jsPubType == benchTypeJSPubBatch {
-		pubTypeName = "batched"
-	}
-
-	log.Printf("[%d] Starting JS %s publisher, publishing %s messages", clientNumber+1, pubTypeName, f(numMsg))
+	log.Printf("[%d] Starting %s, publishing %s messages", clientNumber+1, benchTypeLabel(benchType), f(numMsg))
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
@@ -2308,7 +2339,7 @@ func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *n
 	}
 
 	start := time.Now()
-	err := c.jsPublisher(nc, progress, jsPubType, c.msgSize, numMsg, idPrefix, offset, clientNumber)
+	err := c.jsPublisher(nc, progress, benchType, c.msgSize, numMsg, idPrefix, offset, clientNumber)
 	if err != nil {
 		errChan <- fmt.Errorf("publishing: %w", err)
 		donewg.Done()
@@ -2322,18 +2353,18 @@ func (c *benchCmd) runJSPublisher(bm *bench.Benchmark, errChan chan error, nc *n
 		return
 	}
 
-	bm.AddPubSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
+	bm.addSample(newSample(numMsg, c.msgSize, start, time.Now(), nc))
 
 	donewg.Done()
 	errChan <- nil
 }
 
-func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, benchType string, numMsg int, clientNumber int) {
+func (c *benchCmd) runJSSubscriber(bm *benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, benchType string, numMsg int, clientNumber int) {
 	received := 0
 	ch := make(chan time.Time, 2)
 	var progress *uiprogress.Bar
 
-	log.Printf("[%d] Starting subscriber, expecting %s messages", clientNumber+1, f(numMsg))
+	log.Printf("[%d] Starting %s, expecting %s messages", clientNumber+1, benchTypeLabel(benchType), (numMsg))
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
@@ -2479,7 +2510,7 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 			msgs, err := consumer.Fetch(batchSize)
 			if err != nil {
 				if !c.progressBar {
-					if err == nats.ErrTimeout {
+					if errors.Is(err, nats.ErrTimeout) {
 						log.Print("Fetch  timeout!")
 					} else {
 						errChan <- fmt.Errorf("fetching from the consumer '%s': %w", c.consumerName, err)
@@ -2509,17 +2540,17 @@ func (c *benchCmd) runJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *
 
 	state = "Finished  "
 
-	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
+	bm.addSample(newSample(numMsg, c.msgSize, start, end, nc))
 
 	donewg.Done()
 	errChan <- nil
 }
 
-func (c *benchCmd) runJSGetter(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, clientNumber int) {
+func (c *benchCmd) runJSGetter(bm *benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, clientNumber int) {
 	ch := make(chan time.Time, 2)
 	var progress *uiprogress.Bar
 
-	log.Printf("[%d] Starting JS getter, expecting %s messages", clientNumber+1, f(numMsg))
+	log.Printf("[%d] Starting %s, expecting %s messages", clientNumber+1, benchTypeLabel(benchTypeJSGet), f(numMsg))
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
@@ -2625,17 +2656,17 @@ func (c *benchCmd) runJSGetter(bm *bench.Benchmark, errChan chan error, nc *nats
 
 	state = "Finished  "
 
-	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
+	bm.addSample(newSample(numMsg, c.msgSize, start, end, nc))
 
 	donewg.Done()
 	errChan <- nil
 }
 
-func (c *benchCmd) runKVPutter(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, clientNumber int) {
+func (c *benchCmd) runKVPutter(bm *benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, clientNumber int) {
 	startwg.Done()
 	var progress *uiprogress.Bar
 
-	log.Printf("[%d] Starting JS publisher, publishing %s messages", clientNumber+1, f(numMsg))
+	log.Printf("[%d] Starting %s, publishing %s messages", clientNumber+1, benchTypeLabel(benchTypeKVPut), f(numMsg))
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
@@ -2670,17 +2701,17 @@ func (c *benchCmd) runKVPutter(bm *bench.Benchmark, errChan chan error, nc *nats
 		return
 	}
 
-	bm.AddPubSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
+	bm.addSample(newSample(numMsg, c.msgSize, start, time.Now(), nc))
 
 	donewg.Done()
 	errChan <- nil
 }
 
-func (c *benchCmd) runKVGetter(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, offset int, clientNumber int) {
+func (c *benchCmd) runKVGetter(bm *benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, offset int, clientNumber int) {
 	ch := make(chan time.Time, 2)
 	var progress *uiprogress.Bar
 
-	log.Printf("[%d] Starting KV getter, trying to get %s messages", clientNumber+1, f(numMsg))
+	log.Printf("[%d] Starting %s, trying to get %s messages", clientNumber+1, benchTypeLabel(BenchTypeKVGet), f(numMsg))
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
@@ -2757,18 +2788,18 @@ func (c *benchCmd) runKVGetter(bm *bench.Benchmark, errChan chan error, nc *nats
 
 	state = "Finished  "
 
-	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
+	bm.addSample(newSample(numMsg, c.msgSize, start, end, nc))
 
 	donewg.Done()
 	errChan <- nil
 }
 
-func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, benchType string, clientNumber int) {
+func (c *benchCmd) runOldJSSubscriber(bm *benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, benchType string, clientNumber int) {
 	received := 0
 	ch := make(chan time.Time, 2)
 	var progress *uiprogress.Bar
 
-	log.Printf("[%d] Starting subscriber, expecting %s messages", clientNumber+1, f(numMsg))
+	log.Printf("[%d] Starting %s, expecting %s messages", clientNumber+1, benchTypeLabel(benchType), f(numMsg))
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
@@ -2930,7 +2961,7 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, errChan chan error, n
 				}
 			} else {
 				if !c.progressBar {
-					if err == nats.ErrTimeout {
+					if errors.Is(err, nats.ErrTimeout) {
 						log.Print("Fetch timeout!")
 					} else {
 						errChan <- fmt.Errorf("fetching: %w", err)
@@ -2949,8 +2980,312 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.Benchmark, errChan chan error, n
 
 	state = "Finished  "
 
-	bm.AddSubSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
+	bm.addSample(newSample(numMsg, c.msgSize, start, end, nc))
 
 	donewg.Done()
 	errChan <- nil
+}
+
+// Benchmark stats
+// newBenchmark initializes a Benchmark. After creating a bench call AddSubSample/AddPubSample.
+// When done collecting samples, call close() to calculate aggregates.
+func newBenchmark(name string, benchType string, clientCount int) *benchmark {
+	bm := benchmark{name: name, runID: nuid.Next()}
+	bm.sampleGroup = newSampleGroup()
+	bm.channel = make(chan *sample, clientCount)
+	bm.benchType = benchType
+	return &bm
+}
+
+// close organizes collected Samples and calculates aggregates. After Close(), no more samples can be added.
+func (bm *benchmark) close() {
+	close(bm.channel)
+
+	for s := range bm.channel {
+		bm.sampleGroup.addSample(s)
+	}
+
+	bm.start = bm.sampleGroup.start
+	bm.end = bm.sampleGroup.end
+
+	bm.msgBytes = bm.sampleGroup.msgBytes
+	bm.iOBytes = bm.sampleGroup.iOBytes
+	bm.msgCnt = bm.sampleGroup.msgCnt
+	bm.jobMsgCnt = bm.sampleGroup.jobMsgCnt
+}
+
+// addSample adds a sample to the benchmark
+func (bm *benchmark) addSample(s *sample) {
+	bm.channel <- s
+}
+
+// prefix generates the "P" or "S" prefix for the benchmark type
+func (bm *benchmark) prefix() string {
+	switch bm.benchType {
+	case benchTypeCorePub, benchTypeJSPubAsync, benchTypeJSPubBatch, benchTypeJSPubSync, benchTypeKVPut, benchTypeServiceRequest:
+		return "P"
+	case benchTypeCoreSub, benchTypeJSConsume, benchTypeJSFetch, benchTypeJSOrdered, benchTypeJSGet, BenchTypeKVGet, benchTypeOldJSPush, benchTypeOldJSPull, benchTypeOldJSOrdered:
+		return "S"
+	case benchTypeServiceServe:
+		return "?" // at this time service servers never complete and do not produce samples
+	default:
+		return "?"
+	}
+}
+
+// String generates a human-readable report of the sample
+func (s *sample) String() string {
+	rate := humanize.Comma(s.rate())
+	throughput := humanize.IBytes(uint64(s.throughput()))
+
+	return fmt.Sprintf("%s msgs/sec ~ %s/sec ~ %sus", rate, throughput, fmt.Sprintf("%.2f", s.avgLatency()))
+}
+
+// report returns a human-readable report of the samples taken in the Benchmark
+func (bm *benchmark) report() string {
+	var buffer bytes.Buffer
+
+	indent := ""
+
+	if bm.prefix() == "?" || !bm.sampleGroup.hasSamples() {
+		return "No publisher or subscribers. Nothing to report."
+	}
+
+	if len(bm.sampleGroup.samples) == 1 {
+		buffer.WriteString(fmt.Sprintf("%s %s stats: %s\n", bm.name, benchTypeLabel(bm.benchType), bm))
+		indent += " "
+	} else {
+		buffer.WriteString(fmt.Sprintf("%s %s aggregated stats: %s\n", bm.name, benchTypeLabel(bm.benchType), fmt.Sprintf("%s msgs/sec ~ %s/sec", humanize.Comma(bm.sampleGroup.rate()), humanize.IBytes(uint64(bm.sampleGroup.throughput())))))
+		indent += " "
+		for i, stat := range bm.sampleGroup.samples {
+			buffer.WriteString(fmt.Sprintf("%s [%d] %v (%s msgs)\n", indent, i+1, stat, humanize.Comma(int64(stat.jobMsgCnt))))
+		}
+		buffer.WriteString(fmt.Sprintf("%s message rates %s\n", indent, bm.sampleGroup.msgRateStatistics()))
+		buffer.WriteString(fmt.Sprintf("%s avg latencies %s\n", indent, bm.sampleGroup.latencyStatistics()))
+	}
+
+	return buffer.String()
+}
+
+// cSV generates a csv report of all the samples collected
+func (bm *benchmark) cSV() string {
+	var buffer bytes.Buffer
+	writer := csv.NewWriter(&buffer)
+	headers := []string{"#RunID", "ClientID", "MsgCount", "MsgBytes", "MsgsPerSec", "BytesPerSec", "DurationSecs", "AvgLatencyMicroSecs"}
+	if err := writer.Write(headers); err != nil {
+		log.Fatalf("Error while serializing headers %q: %v", headers, err)
+	}
+
+	pre := bm.prefix()
+
+	for j, c := range bm.sampleGroup.samples {
+		r := []string{bm.runID, fmt.Sprintf("%s%d", pre, j), fmt.Sprintf("%d", c.msgCnt), fmt.Sprintf("%d", c.msgBytes), fmt.Sprintf("%d", c.rate()), fmt.Sprintf("%f", c.throughput()), fmt.Sprintf("%f", c.duration().Seconds()), fmt.Sprintf("%f", c.avgLatency())}
+		if err := writer.Write(r); err != nil {
+			log.Fatalf("Error while serializing %v: %v", c, err)
+		}
+	}
+
+	writer.Flush()
+	return buffer.String()
+}
+
+// newSample creates a new Sample initialized to the provided values. The nats.Conn information captured
+func newSample(jobCount int, msgSize int, start, end time.Time, nc *nats.Conn) *sample {
+	s := sample{jobMsgCnt: jobCount, start: start, end: end}
+	s.msgBytes = uint64(msgSize * jobCount)
+	s.msgCnt = nc.OutMsgs + nc.InMsgs
+	s.iOBytes = nc.OutBytes + nc.InBytes
+	return &s
+}
+
+// throughput of bytes per second
+func (s *sample) throughput() float64 {
+	return float64(s.msgBytes) / s.duration().Seconds()
+}
+
+// rate of messages in the job per second
+func (s *sample) rate() int64 {
+	return int64(float64(s.jobMsgCnt) / s.duration().Seconds())
+}
+
+// duration that the sample was active
+func (s *sample) duration() time.Duration {
+	return s.end.Sub(s.start)
+}
+
+// average latency in microseconds
+func (s *sample) avgLatency() float64 {
+	if s.jobMsgCnt == 0 {
+		return 0
+	}
+
+	return s.duration().Seconds() / float64(s.jobMsgCnt) * 1_000_000
+}
+
+// newSampleGroup initializer
+func newSampleGroup() *sampleGroup {
+	s := new(sampleGroup)
+	s.samples = make([]*sample, 0)
+	return s
+}
+
+// statistics information for the message rates of the sample group (min, average, max and standard deviation)
+func (sg *sampleGroup) msgRateStatistics() string {
+	return fmt.Sprintf("min %s | avg %s | max %s | stddev %s msgs", humanize.Comma(sg.minMsgRate()), humanize.Comma(sg.avgMsgRate()), humanize.Comma(sg.maxMsgRate()), humanize.Comma(int64(sg.stdMsgDev())))
+}
+
+// statistics information for the average latencies in microseconds of the sample group (min, average, max and standard deviation)
+func (sg *sampleGroup) latencyStatistics() string {
+	return fmt.Sprintf("min %.2fus | avg %.2fus | max %.2fus | stddev %.2fus", sg.minLatency(), sg.avgLatency(), sg.maxLatency(), sg.stdLatency())
+}
+
+// minRate returns the smallest message rate in the SampleGroup
+func (sg *sampleGroup) minMsgRate() int64 {
+	m := int64(0)
+
+	for i, s := range sg.samples {
+		if i == 0 {
+			m = s.rate()
+		}
+
+		m = min(m, s.rate())
+	}
+
+	return m
+}
+
+// minLatency returns the smallest average latency in microseconds in the SampleGroup
+func (sg *sampleGroup) minLatency() float64 {
+	m := float64(0)
+
+	for i, s := range sg.samples {
+		if i == 0 {
+			m = s.avgLatency()
+		}
+
+		m = math.Min(m, s.avgLatency())
+	}
+
+	return m
+}
+
+// maxRate returns the largest message rate in the SampleGroup
+func (sg *sampleGroup) maxMsgRate() int64 {
+	m := int64(0)
+
+	for i, s := range sg.samples {
+		if i == 0 {
+			m = s.rate()
+		}
+
+		m = max(m, s.rate())
+	}
+
+	return m
+}
+
+// maxLatency returns the largest average latency in microseconds in the SampleGroup
+func (sg *sampleGroup) maxLatency() float64 {
+	m := float64(0)
+	for i, s := range sg.samples {
+		if i == 0 {
+			m = s.avgLatency()
+		}
+
+		m = math.Max(m, s.avgLatency())
+	}
+
+	return m
+}
+
+// avgRate returns the average of all the message rates in the SampleGroup
+func (sg *sampleGroup) avgMsgRate() int64 {
+	if !sg.hasSamples() {
+		return 0
+	}
+
+	sum := uint64(0)
+
+	for _, s := range sg.samples {
+		sum += uint64(s.rate())
+	}
+
+	return int64(sum / uint64(len(sg.samples)))
+}
+
+// avgLatency returns the average of all the average latencies in microseconds in the SampleGroup
+func (sg *sampleGroup) avgLatency() float64 {
+	if !sg.hasSamples() {
+		return 0
+	}
+
+	sum := float64(0)
+
+	for _, s := range sg.samples {
+		sum += s.avgLatency()
+	}
+
+	return sum / float64(len(sg.samples))
+}
+
+// stdDev returns the standard deviation the message rates in the SampleGroup
+func (sg *sampleGroup) stdMsgDev() float64 {
+	if !sg.hasSamples() {
+		return 0
+	}
+
+	avg := float64(sg.avgMsgRate())
+	sum := float64(0)
+
+	for _, c := range sg.samples {
+		sum += math.Pow(float64(c.rate())-avg, 2)
+	}
+
+	variance := sum / float64(len(sg.samples))
+	return math.Sqrt(variance)
+}
+
+// stdLatency returns the standard deviation of the average latencies in microseconds in the SampleGroup
+func (sg *sampleGroup) stdLatency() float64 {
+	if !sg.hasSamples() {
+		return 0
+	}
+
+	avg := sg.avgLatency()
+	sum := float64(0)
+
+	for _, c := range sg.samples {
+		sum += math.Pow(c.avgLatency()-avg, 2)
+	}
+
+	variance := sum / float64(len(sg.samples))
+	return math.Sqrt(variance)
+}
+
+// addSample adds a Sample to the SampleGroup. After adding a Sample it shouldn't be modified.
+func (sg *sampleGroup) addSample(e *sample) {
+	sg.samples = append(sg.samples, e)
+
+	if len(sg.samples) == 1 {
+		sg.start = e.start
+		sg.end = e.end
+	}
+
+	sg.iOBytes += e.iOBytes
+	sg.jobMsgCnt += e.jobMsgCnt
+	sg.msgCnt += e.msgCnt
+	sg.msgBytes += e.msgBytes
+
+	if e.start.Before(sg.start) {
+		sg.start = e.start
+	}
+
+	if e.end.After(sg.end) {
+		sg.end = e.end
+	}
+}
+
+// hasSamples returns true if the group has samples
+func (sg *sampleGroup) hasSamples() bool {
+	return len(sg.samples) > 0
 }
