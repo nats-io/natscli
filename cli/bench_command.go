@@ -130,7 +130,8 @@ const (
 	benchTypeJSOrdered              = "jsordered"
 	benchTypeJSConsume              = "jsconsume"
 	benchTypeJSFetch                = "jsfetch"
-	benchTypeJSGet                  = "jsget"
+	benchTypeJSGetSync              = "jsgetdirectsync"
+	benchTypeJSGetDirectBatched     = "jsgetdirectbatch"
 	benchTypeOldJSOrdered           = "oldjsordered"
 	benchTypeOldJSPush              = "oldjspush"
 	benchTypeOldJSPull              = "oldjspull"
@@ -140,6 +141,47 @@ const (
 	benchAckModeAll                 = "all"
 	benchAckModeExplicit            = "explicit"
 )
+
+func benchTypeLabel(benchType string) string {
+	switch benchType {
+	case benchTypeCorePub:
+		return "Core NATS publisher"
+	case benchTypeCoreSub:
+		return "Core NATS subscriber"
+	case benchTypeServiceRequest:
+		return "Core NATS service requester"
+	case benchTypeServiceServe:
+		return "Core NATS service server"
+	case benchTypeJSPubSync:
+		return "JetStream synchronous publisher"
+	case benchTypeJSPubAsync:
+		return "JetStream asynchronous publisher"
+	case benchTypeJSPubBatch:
+		return "JetStream batched publisher"
+	case benchTypeJSOrdered:
+		return "JetStream ordered ephemeral consumer"
+	case benchTypeJSConsume:
+		return "JetStream durable consumer (callback)"
+	case benchTypeJSFetch:
+		return "JetStream durable consumer (fetch)"
+	case benchTypeJSGetSync:
+		return "JetStream synchronous getter"
+	case benchTypeJSGetDirectBatched:
+		return "JetStream batched direct getter"
+	case benchTypeKVPut:
+		return "JetStream KV putter"
+	case BenchTypeKVGet:
+		return "JetStream KV getter"
+	case benchTypeOldJSOrdered:
+		return "JetStream ordered ephemeral consumer (old API)"
+	case benchTypeOldJSPush:
+		return "JetStream durable push consumer (old API)"
+	case benchTypeOldJSPull:
+		return "JetStream durable pull consumer (old API)"
+	default:
+		return "Unknown benchmark"
+	}
+}
 
 func configureBenchCommand(app commandHost) {
 	c := &benchCmd{}
@@ -255,9 +297,11 @@ func configureBenchCommand(app commandHost) {
 	jsFetch := jsCommand.Command("fetch", "Consume JetStream messages from a durable consumer using fetch").Action(c.jsFetchAction)
 	addJSConsumerFlags(jsFetch)
 
-	jsGet := jsCommand.Command("get", "Retrieve messages from JetStream using direct gets").Action(c.jsGetAction)
-	jsGet.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
-	jsGet.Flag("filter", "Filter for the messages").Default(">").StringVar(&c.filterSubject)
+	jsGet := jsCommand.Command("get", "Retrieve messages from JetStream using gets")
+	_ = jsGet.Command("sync", "Use synchronous JetStream get").Action(c.jsSyncGetAction)
+	jsGetBatchedDirect := jsGet.Command("batched", "Use batched JetStream direct get").Action(c.jsBatchedDirectAction)
+	jsGetBatchedDirect.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
+	jsGetBatchedDirect.Flag("filter", "Filter for the messages").Default(">").StringVar(&c.filterSubject)
 
 	kvCommand := benchCommand.Command("kv", "KV benchmark operations")
 	addCommonFlags(kvCommand)
@@ -374,45 +418,6 @@ func (c *benchCmd) processActionArgs() error {
 	return nil
 }
 
-func benchTypeLabel(benchType string) string {
-	switch benchType {
-	case benchTypeCorePub:
-		return "Core NATS publisher"
-	case benchTypeCoreSub:
-		return "Core NATS subscriber"
-	case benchTypeServiceRequest:
-		return "Core NATS service requester"
-	case benchTypeServiceServe:
-		return "Core NATS service server"
-	case benchTypeJSPubSync:
-		return "JetStream synchronous publisher"
-	case benchTypeJSPubAsync:
-		return "JetStream asynchronous publisher"
-	case benchTypeJSPubBatch:
-		return "JetStream batched publisher"
-	case benchTypeJSOrdered:
-		return "JetStream ordered ephemeral consumer"
-	case benchTypeJSConsume:
-		return "JetStream durable consumer (callback)"
-	case benchTypeJSFetch:
-		return "JetStream durable consumer (fetch)"
-	case benchTypeJSGet:
-		return "JetStream direct getter"
-	case benchTypeKVPut:
-		return "JetStream KV putter"
-	case BenchTypeKVGet:
-		return "JetStream KV getter"
-	case benchTypeOldJSOrdered:
-		return "JetStream ordered ephemeral consumer (old API)"
-	case benchTypeOldJSPush:
-		return "JetStream durable push consumer (old API)"
-	case benchTypeOldJSPull:
-		return "JetStream durable pull consumer (old API)"
-	default:
-		return "Unknown benchmark"
-	}
-}
-
 func (c *benchCmd) generateBanner(benchType string) string {
 	// Create the banner which includes the appropriate argument names and values for the type of benchmark being run
 	type nvp struct {
@@ -488,7 +493,9 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		jsAttributes()
 		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
 		streamOrBucketAttribues()
-	case benchTypeJSGet:
+	case benchTypeJSGetSync:
+		jsAttributes()
+	case benchTypeJSGetDirectBatched:
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
 		argnvps = append(argnvps, nvp{"filter", c.filterSubject})
 		jsAttributes()
@@ -1291,15 +1298,23 @@ func (c *benchCmd) jsFetchAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *benchCmd) jsGetAction(_ *fisk.ParseContext) error {
+func (c *benchCmd) jsSyncGetAction(pc *fisk.ParseContext) error {
+	return c.jsGetAction(pc, benchTypeJSGetSync)
+}
+
+func (c *benchCmd) jsBatchedDirectAction(pc *fisk.ParseContext) error {
+	return c.jsGetAction(pc, benchTypeJSGetDirectBatched)
+}
+
+func (c *benchCmd) jsGetAction(_ *fisk.ParseContext, benchType string) error {
 	err := c.processActionArgs()
 	if err != nil {
 		return err
 	}
 
-	banner := c.generateBanner(benchTypeJSGet)
+	banner := c.generateBanner(benchType)
 	log.Println(banner)
-	bm := newBenchmark("NATS", benchTypeJSGet, c.numClients)
+	bm := newBenchmark("NATS", benchType, c.numClients)
 
 	if c.purge {
 		err = c.purgeStream()
@@ -1331,7 +1346,7 @@ func (c *benchCmd) jsGetAction(_ *fisk.ParseContext) error {
 		startwg.Add(1)
 		donewg.Add(1)
 
-		go c.runJSGetter(bm, errChan, nc, startwg, donewg, c.numMsg, i)
+		go c.runJSGetter(bm, errChan, nc, startwg, donewg, benchType, c.numMsg, i)
 	}
 	startwg.Wait()
 
@@ -2546,11 +2561,11 @@ func (c *benchCmd) runJSSubscriber(bm *benchmark, errChan chan error, nc *nats.C
 	errChan <- nil
 }
 
-func (c *benchCmd) runJSGetter(bm *benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, numMsg int, clientNumber int) {
+func (c *benchCmd) runJSGetter(bm *benchmark, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, benchType string, numMsg int, clientNumber int) {
 	ch := make(chan time.Time, 2)
 	var progress *uiprogress.Bar
 
-	log.Printf("[%d] Starting %s, expecting %s messages", clientNumber+1, benchTypeLabel(benchTypeJSGet), f(numMsg))
+	log.Printf("[%d] Starting %s, expecting %s messages", clientNumber+1, benchTypeLabel(benchType), f(numMsg))
 
 	if c.progressBar {
 		progress = uiprogress.AddBar(numMsg).AppendCompleted().PrependElapsed()
@@ -2587,42 +2602,31 @@ func (c *benchCmd) runJSGetter(bm *benchmark, errChan chan error, nc *nats.Conn,
 	}
 
 	startwg.Done()
-	var msgs iter.Seq2[*jetstream.RawStreamMsg, error]
-	var nextSeq uint64 = 0
-
-	for i := 0; i < numMsg; {
-		batchSize := func() int {
-			if c.batchSize <= (numMsg - i) {
-				return c.batchSize
-			} else {
-				return numMsg - i
-			}
-		}()
-
-		if i == 0 {
-			// get messages from the start of the stream
-			msgs, err = jetstreamext.GetBatch(ctx, js, c.streamOrBucketName, batchSize, jetstreamext.GetBatchSubject(c.filterSubject))
-		} else {
-			// get messages from the next sequence
-			msgs, err = jetstreamext.GetBatch(ctx, js, c.streamOrBucketName, batchSize, jetstreamext.GetBatchSeq(nextSeq), jetstreamext.GetBatchSubject(c.filterSubject))
-		}
-
+	switch benchType {
+	case benchTypeJSGetSync:
+		stream, err := js.Stream(ctx, c.streamOrBucketName)
 		if err != nil {
-			errChan <- fmt.Errorf("doing a direct get on the stream: %w", err)
+			errChan <- fmt.Errorf("getting stream '%s': %w", c.streamOrBucketName, err)
 			donewg.Done()
 			return
 		}
 
-		gotten := 0
-		for msg, err := range msgs {
+		si, err := stream.Info(ctx)
+		if err != nil {
+			errChan <- fmt.Errorf("getting stream info for '%s': %w", c.streamOrBucketName, err)
+			donewg.Done()
+			return
+		}
+
+		startingSeq := si.State.FirstSeq
+
+		for i := uint64(0); i <= uint64(numMsg); i++ {
+			_, err := stream.GetMsg(ctx, i+startingSeq)
 			if err != nil {
-				errChan <- fmt.Errorf("getting message from the stream: %w", err)
+				errChan <- fmt.Errorf("getting message sequence number %d from the stream: %w", i+1, err)
 				donewg.Done()
 				return
 			}
-			i++
-			gotten++
-			nextSeq = msg.Sequence + 1
 			time.Sleep(c.sleep)
 
 			if i == 1 {
@@ -2634,7 +2638,7 @@ func (c *benchCmd) runJSGetter(bm *benchmark, errChan chan error, nc *nats.Conn,
 				}
 			}
 
-			if i >= numMsg {
+			if i >= uint64(numMsg) {
 				ch <- time.Now()
 			}
 
@@ -2642,13 +2646,66 @@ func (c *benchCmd) runJSGetter(bm *benchmark, errChan chan error, nc *nats.Conn,
 				progress.Incr()
 			}
 		}
+	case benchTypeJSGetDirectBatched:
+		var msgs iter.Seq2[*jetstream.RawStreamMsg, error]
+		var nextSeq uint64 = 1
 
-		if gotten != batchSize {
-			log.Printf("[%d] Warning: Got %d (expected %d) messages in this batch\n", clientNumber+1, gotten, batchSize)
-			c.lessThanExpected.Store(true)
+		for i := 0; i < numMsg; {
+			batchSize := func() int {
+				if c.batchSize <= (numMsg - i) {
+					return c.batchSize
+				} else {
+					return numMsg - i
+				}
+			}()
+
+			msgs, err = jetstreamext.GetBatch(ctx, js, c.streamOrBucketName, batchSize, jetstreamext.GetBatchSeq(nextSeq), jetstreamext.GetBatchSubject(c.filterSubject))
+
+			if err != nil {
+				errChan <- fmt.Errorf("doing a direct get on the stream: %w", err)
+				donewg.Done()
+				return
+			}
+
+			gotten := 0
+
+			for msg, err := range msgs {
+				if err != nil {
+					errChan <- fmt.Errorf("getting message from the stream: %w", err)
+					donewg.Done()
+					return
+				}
+
+				i++
+				gotten++
+				nextSeq = msg.Sequence + 1
+				time.Sleep(c.sleep)
+
+				if i == 1 {
+					startTime := time.Now()
+					ch <- startTime
+
+					if progress != nil {
+						progress.TimeStarted = startTime
+					}
+				}
+
+				if i >= numMsg {
+					ch <- time.Now()
+				}
+
+				if progress != nil {
+					progress.Incr()
+				}
+			}
+
+			if gotten != batchSize {
+				log.Printf("[%d] Warning: Got %d (expected %d) messages in this batch\n", clientNumber+1, gotten, batchSize)
+				c.lessThanExpected.Store(true)
+			}
+
+			time.Sleep(c.sleep)
 		}
-
-		time.Sleep(c.sleep)
 	}
 
 	start := <-ch
@@ -3024,7 +3081,7 @@ func (bm *benchmark) prefix() string {
 	switch bm.benchType {
 	case benchTypeCorePub, benchTypeJSPubAsync, benchTypeJSPubBatch, benchTypeJSPubSync, benchTypeKVPut, benchTypeServiceRequest:
 		return "P"
-	case benchTypeCoreSub, benchTypeJSConsume, benchTypeJSFetch, benchTypeJSOrdered, benchTypeJSGet, BenchTypeKVGet, benchTypeOldJSPush, benchTypeOldJSPull, benchTypeOldJSOrdered:
+	case benchTypeCoreSub, benchTypeJSConsume, benchTypeJSFetch, benchTypeJSOrdered, benchTypeJSGetSync, benchTypeJSGetDirectBatched, BenchTypeKVGet, benchTypeOldJSPush, benchTypeOldJSPull, benchTypeOldJSOrdered:
 		return "S"
 	case benchTypeServiceServe:
 		return "?" // at this time service servers never complete and do not produce samples
