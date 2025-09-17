@@ -28,7 +28,7 @@ import (
 func setupStreamTest(t *testing.T, mgr *jsm.Manager, args ...jsm.StreamOption) string {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	name := fmt.Sprintf("TEST_%d", rng.Intn(1000000))
-	_, err := mgr.NewStream(name, jsm.Subjects("ORDERS.*"))
+	_, err := mgr.NewStream(name, append(args, jsm.Subjects("ORDERS.*"))...)
 	if err != nil {
 		t.Fatalf("unable to create stream: %s", err)
 	}
@@ -41,10 +41,22 @@ func TestStreamAdd(t *testing.T) {
 		name := "name_for_add"
 
 		runNatsCli(t, fmt.Sprintf("--server='%s' stream add %s --defaults --subjects=test", srv.ClientURL(), name))
-		_, err := mgr.LoadStream(name)
+		s, err := mgr.LoadStream(name)
 		if err != nil {
 			t.Errorf("failed to add stream %s: %s", name, err)
 		}
+
+		// persis mode
+		checkErr(t, s.Delete(), "delete failed")
+		runNatsCli(t, fmt.Sprintf("--server='%s' stream add %s --defaults --subjects=test --persist-mode async", srv.ClientURL(), name))
+		s, err = mgr.LoadStream(name)
+		if err != nil {
+			t.Errorf("failed to add stream %s: %s", name, err)
+		}
+		if s.PersistenceMode() != api.AsyncPersistMode {
+			t.Errorf("expected async persistence mode but got %s", s.PersistenceMode())
+		}
+
 		return nil
 	})
 }
@@ -108,7 +120,7 @@ func TestStreamFind(t *testing.T) {
 
 func TestStreamInfo(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		name := setupStreamTest(t, mgr)
+		name := setupStreamTest(t, mgr, jsm.AsyncPersistence())
 
 		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' stream info %s --json", srv.ClientURL(), name)))
 		err := expectMatchJSON(t, output, map[string]any{
@@ -136,6 +148,7 @@ func TestStreamInfo(t *testing.T) {
 					// Removed server version fields so we don't break on update
 				},
 				"consumer_limits": map[string]any{},
+				"persist_mode":    "async",
 			},
 			"created": `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$`,
 			"state": map[string]any{

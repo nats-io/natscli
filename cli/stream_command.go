@@ -131,6 +131,7 @@ type streamCmd struct {
 	firstSeq               uint64
 	limitInactiveThreshold time.Duration
 	limitMaxAckPending     int
+	persistMode            string
 
 	fServer      string
 	fCluster     string
@@ -238,6 +239,7 @@ func configureStreamCommand(app commandHost) {
 		if !edit {
 			f.Flag("limit-consumer-inactive", "The maximum Consumer inactive threshold the Stream allows").PlaceHolder("THRESHOLD").DurationVar(&c.limitInactiveThreshold)
 			f.Flag("limit-consumer-max-pending", "The maximum Consumer Ack Pending the stream Allows").PlaceHolder("PENDING").IntVar(&c.limitMaxAckPending)
+			f.Flag("persist-mode", "Configures the persistence mode").EnumVar(&c.persistMode, "default", "async")
 		}
 
 		if edit {
@@ -2123,7 +2125,7 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRowIf("Sealed", true, cfg.Sealed)
 	cols.AddRow("Storage", cfg.Storage.String())
 	cols.AddRowIf("Compression", cfg.Compression, cfg.Compression != api.NoCompression)
-
+	cols.AddRowIf("Persistence Mode", cfg.PersistMode.String(), cfg.PersistMode != api.DefaultPersistMode)
 	if cfg.FirstSeq > 0 {
 		cols.AddRow("First Sequence", cfg.FirstSeq)
 	}
@@ -2858,6 +2860,10 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 			Source:      c.subjectTransformSource,
 			Destination: c.subjectTransformDest,
 		}
+	}
+
+	if c.persistMode == "async" {
+		cfg.PersistMode = api.AsyncPersistMode
 	}
 
 	cfg.Metadata = iu.RemoveReservedMetadata(cfg.Metadata)
