@@ -192,7 +192,7 @@ func (c *SrvGraphCmd) graphJetStream() error {
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
 			asciigraph.Precision(0),
-			asciigraph.ValueFormatter(f))
+			asciigraph.ValueFormatter(fFloatFixedDecimal))
 
 		memPlot := asciigraph.Plot(memUsed,
 			asciigraph.Caption("Memory Storage in GB"),
@@ -218,7 +218,7 @@ func (c *SrvGraphCmd) graphJetStream() error {
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
 			asciigraph.Precision(0),
-			asciigraph.ValueFormatter(f))
+			asciigraph.ValueFormatter(fFloatFixedDecimal))
 
 		pendingPlot := asciigraph.Plot(pending,
 			asciigraph.Caption("Pending API Requests"),
@@ -272,7 +272,7 @@ func (c *SrvGraphCmd) graphServer() error {
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
 			asciigraph.Precision(0),
-			asciigraph.ValueFormatter(f))
+			asciigraph.ValueFormatter(fFloatFixedDecimal))
 
 		memPlot := asciigraph.Plot(memUsed,
 			asciigraph.Caption("Memory Used in MB"),
@@ -299,7 +299,7 @@ func (c *SrvGraphCmd) graphServer() error {
 			asciigraph.Height(height/6-2),
 			asciigraph.Width(width),
 			asciigraph.Precision(0),
-			asciigraph.ValueFormatter(f))
+			asciigraph.ValueFormatter(fFloatFixedDecimal))
 
 		bytesPlot := asciigraph.Plot(bytesRate,
 			asciigraph.Caption("Bytes In+Out / second"),

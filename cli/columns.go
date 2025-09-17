@@ -39,6 +39,10 @@ func f(v any) string {
 	return columns.F(v)
 }
 
+func fFloatFixedDecimal(v any) string {
+	return humanize.FormatFloat("#,###.##", v.(float64))
+}
+
 func fFloat2Int(v any) string {
 	return columns.F(uint64(v.(float64)))
 }
