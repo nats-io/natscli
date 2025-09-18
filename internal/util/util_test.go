@@ -210,6 +210,8 @@ func TestParseStringAsBytes(t *testing.T) {
 		error     bool
 		errorKind error
 	}{
+		{input: "1B", expect: 1},
+		{input: "1b", expect: 1},
 		{input: "1", expect: 1},
 		{input: "1000", expect: 1000},
 		{input: "1K", expect: 1024},
@@ -217,6 +219,8 @@ func TestParseStringAsBytes(t *testing.T) {
 		{input: "1KB", expect: 1024},
 		{input: "1KiB", expect: 1024},
 		{input: "1kb", expect: 1024},
+		{input: "1024B", expect: 1024},
+		{input: "1024b", expect: 1024},
 		{input: "1M", expect: 1024 * 1024},
 		{input: "1MB", expect: 1024 * 1024},
 		{input: "1MiB", expect: 1024 * 1024},
@@ -232,10 +236,10 @@ func TestParseStringAsBytes(t *testing.T) {
 		{input: "9223372036854775807", expect: math.MaxInt64},
 		{input: "9223372036854775807", bits: 32, error: true, errorKind: errBytesOutOfRangeString},
 		{input: "9223372036854775807", bits: 12, error: true, errorKind: errInvalidBitSize},
+		{input: "", expect: -1},
 		{input: "-1", expect: -1},
 		{input: "-10", expect: -1},
 		{input: "-10GB", expect: -1},
-		{input: "1B", error: true},
 		{input: "1FOO", error: true},
 		{input: "FOO", error: true},
 	}

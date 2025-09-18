@@ -92,7 +92,7 @@ func configureBenchCommand(app commandHost) {
 		f.Flag("msgs", "Number of messages to publish or subscribe to").Default("100000").IntVar(&c.numMsg)
 		f.Flag("progress", "Enable or disable the progress bar").Default("true").BoolVar(&c.progressBar)
 		f.Flag("csv", "Save benchmark data to CSV file").StringVar(&c.csvFile)
-		f.Flag("size", "Size of the test messages").Default("128").StringVar(&c.msgSizeString)
+		f.Flag("size", "Size of the test messages").Default("128B").StringVar(&c.msgSizeString)
 		// TODO: support randomized payload data
 	}
 
