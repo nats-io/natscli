@@ -180,10 +180,10 @@ func configureConsumerCommand(app commandHost) {
 		f.Flag("metadata", "Adds metadata to the consumer").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
 		if !edit {
 			f.Flag("pause", fmt.Sprintf("Pause the consumer for a duration after start or until a specific timestamp (eg %s)", time.Now().Format(time.DateTime))).StringVar(&c.pauseUntil)
-			f.Flag("pinned-groups", "Create a Pinned Client consumer based on these groups").StringsVar(&c.pinnedGroups)
-			f.Flag("pinned-ttl", "The time to allow for a client to pull before losing the pinned status").DurationVar(&c.pinnedTTL)
-			f.Flag("overflow-groups", "Create a Overflow consumer based on these groups").StringsVar(&c.overflowGroups)
-			f.Flag("prioritized-groups", "Create a Prioritized consumer based on these groups").StringsVar(&c.prioritizedGroups)
+			f.Flag("pinned-groups", "Create a Pinned Client consumer based on these groups").PlaceHolder("GROUPS").StringsVar(&c.pinnedGroups)
+			f.Flag("pinned-ttl", "The time to allow for a client to pull before losing the pinned status").PlaceHolder("TTL").DurationVar(&c.pinnedTTL)
+			f.Flag("overflow-groups", "Create a Overflow consumer based on these groups").PlaceHolder("GROUPS").StringsVar(&c.overflowGroups)
+			f.Flag("prioritized-groups", "Create a Prioritized consumer based on these groups").PlaceHolder("GROUPS").StringsVar(&c.prioritizedGroups)
 		}
 	}
 
