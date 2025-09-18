@@ -257,6 +257,32 @@ func TestStreamEdit(t *testing.T) {
 	})
 }
 
+func TestStreamEditMirrorPromote(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		_, err := mgr.NewStream("TEST", jsm.Subjects("test.>"))
+		checkErr(t, err, "unable to create stream")
+
+		sm, err := mgr.NewStream("TEST_MIRROR", jsm.Mirror(&api.StreamSource{Name: "TEST"}))
+		checkErr(t, err, "unable to create mirror stream")
+		if !sm.IsMirror() {
+			t.Fatalf("stream is not a mirror stream")
+		}
+
+		runNatsCli(t, fmt.Sprintf("--server='%s' stream edit TEST_MIRROR --no-mirror --force", srv.ClientURL()))
+
+		nfo, err := sm.Information()
+		checkErr(t, err, "unable to get stream information")
+		if nfo.Mirror != nil {
+			t.Fatalf("stream is still a mirror stream")
+		}
+		if nfo.Config.Mirror != nil {
+			t.Fatalf("stream is still a mirror stream")
+		}
+
+		return nil
+	})
+}
+
 func TestStreamRM(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 		name := setupStreamTest(t, mgr)
