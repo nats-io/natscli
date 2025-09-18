@@ -595,7 +595,7 @@ func Base64IfNotPrintable(val []byte) string {
 }
 
 var bytesUnitSplitter = regexp.MustCompile(`^(\d+)(\w+)`)
-var errInvalidByteString = errors.New("bytes must end in K, KB, M, MB, G, GB, T or TB")
+var errInvalidByteString = errors.New("bytes must end in B, K, KB, M, MB, G, GB, T or TB")
 var errBytesOutOfRangeString = errors.New("bytes value out of allowed range")
 var errInvalidBitSize = errors.New("invalid bit size")
 var validBitSizes = []int{8, 16, 32, 64}
@@ -645,7 +645,7 @@ func ParseStringAsBytes(s string, bitSize int) (int64, error) {
 	}
 
 	suffix := matches[2]
-	suffixMap := map[string]int64{"K": 10, "KB": 10, "KIB": 10, "M": 20, "MB": 20, "MIB": 20, "G": 30, "GB": 30, "GIB": 30, "T": 40, "TB": 40, "TIB": 40}
+	suffixMap := map[string]int64{"B": 0, "K": 10, "KB": 10, "KIB": 10, "M": 20, "MB": 20, "MIB": 20, "G": 30, "GB": 30, "GIB": 30, "T": 40, "TB": 40, "TIB": 40}
 
 	mult, ok := suffixMap[strings.ToUpper(suffix)]
 	if !ok {
