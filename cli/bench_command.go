@@ -874,12 +874,21 @@ func (c *benchCmd) jspubActions(_ *fisk.ParseContext, jsPubType string) error {
 
 	if c.createStream {
 		// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
+		// uses the jsm library since it's updated with the new 2.12+ stream features and nats.go doesn't yet support them
+		atomicBatch := true
+		persistMode := api.DefaultPersistMode
+		storage := api.MemoryStorage
 
 		if c.storageType() == jetstream.FileStorage {
-			_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: 0, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: true})
-		} else {
-			_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: 1, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: true})
+			storage = api.FileStorage
 		}
+
+		if c.replicas == 1 && jsPubType != bench.TypeJSPubBatch {
+			persistMode = api.AsyncPersistMode
+			atomicBatch = false
+		}
+
+		_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: storage, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: atomicBatch, PersistMode: persistMode})
 		if err != nil {
 			return fmt.Errorf("could not create the stream. If you want to delete and re-define the stream use `nats stream delete %s`: %w", c.streamOrBucketName, err)
 		}
