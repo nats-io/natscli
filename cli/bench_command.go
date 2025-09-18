@@ -62,6 +62,7 @@ type benchCmd struct {
 	doubleAck            bool
 	batchSize            int
 	replicas             int
+	persistModeAsync     bool
 	purge                bool
 	sleep                time.Duration
 	consumerName         string
@@ -124,6 +125,7 @@ func configureBenchCommand(app commandHost) {
 		f.Flag("dedup", "Sets a message id in the header to use JS Publish de-duplication").Default("false").UnNegatableBoolVar(&c.deDuplication)
 		f.Flag("dedupwindow", "Sets the duration of the stream's deduplication functionality").Default("2m").DurationVar(&c.deDuplicationWindow)
 		f.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
+		f.Flag("persistasync", "Set the persistence mode for the steam to asynchronous (only for R1 streams)").UnNegatableBoolVar(&c.persistModeAsync)
 	}
 
 	addKVPutFlags := func(f *fisk.CmdClause) {
@@ -837,6 +839,10 @@ func (c *benchCmd) jspubActions(_ *fisk.ParseContext, jsPubType string) error {
 		return err
 	}
 
+	if c.persistModeAsync && c.replicas != 1 && jsPubType == bench.TypeJSPubBatch {
+		return fmt.Errorf("async persist mode is only supported for streams with 1 replica and incompatible with atomic batch publishing")
+	}
+
 	banner := c.generateBanner(jsPubType)
 	log.Println(banner)
 	bm := bench.NewBenchmark("NATS", jsPubType, c.numClients)
@@ -874,12 +880,21 @@ func (c *benchCmd) jspubActions(_ *fisk.ParseContext, jsPubType string) error {
 
 	if c.createStream {
 		// create the stream with our attributes, will create it if it doesn't exist or make sure the existing one has the same attributes
+		// uses the jsm library since it's updated with the new 2.12+ stream features and nats.go doesn't yet support them
+		atomicBatch := true
+		persistMode := api.DefaultPersistMode
+		storage := api.MemoryStorage
 
 		if c.storageType() == jetstream.FileStorage {
-			_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: 0, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: true})
-		} else {
-			_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: 1, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: true})
+			storage = api.FileStorage
 		}
+
+		if c.replicas == 1 && jsPubType != bench.TypeJSPubBatch && c.persistModeAsync {
+			persistMode = api.AsyncPersistMode
+			atomicBatch = false
+		}
+
+		_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: storage, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: atomicBatch, PersistMode: persistMode})
 		if err != nil {
 			return fmt.Errorf("could not create the stream. If you want to delete and re-define the stream use `nats stream delete %s`: %w", c.streamOrBucketName, err)
 		}
