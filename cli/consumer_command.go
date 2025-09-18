@@ -548,7 +548,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/4-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
-				asciigraph.ValueFormatter(f),
+				asciigraph.ValueFormatter(fFloatFixedDecimal),
 			)
 
 			ackedPlot := asciigraph.Plot(ackedRates,
@@ -557,7 +557,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 				asciigraph.Height(height/4-2),
 				asciigraph.LowerBound(0),
 				asciigraph.Precision(0),
-				asciigraph.ValueFormatter(f),
+				asciigraph.ValueFormatter(fFloatFixedDecimal),
 			)
 
 			unprocessedPlot := asciigraph.Plot(unprocessedMessages,

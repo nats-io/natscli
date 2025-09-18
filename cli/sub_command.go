@@ -223,7 +223,7 @@ func (c *subCmd) startGraph(ctx context.Context, mu *sync.Mutex) {
 						asciigraph.Height((c.height/(len(c.subjects)+1))-1),
 						asciigraph.LowerBound(0),
 						asciigraph.Precision(0),
-						asciigraph.ValueFormatter(f),
+						asciigraph.ValueFormatter(fFloatFixedDecimal),
 					)
 					fmt.Println(msgRatePlot)
 					fmt.Println()
