@@ -105,6 +105,7 @@ type streamCmd struct {
 	subjectTransformSource string
 	subjectTransformDest   string
 	noSubjectTransform     bool
+	noMirror               bool
 	repubSource            string
 	repubDest              string
 	repubHeadersOnly       bool
@@ -245,6 +246,7 @@ func configureStreamCommand(app commandHost) {
 		if edit {
 			f.Flag("no-republish", "Removes current republish configuration").UnNegatableBoolVar(&c.noRepub)
 			f.Flag("no-transform", "Removes current subject transform configuration").UnNegatableBoolVar(&c.noSubjectTransform)
+			f.Flag("no-mirror", "Removes current mirror configuration").UnNegatableBoolVar(&c.noMirror)
 		}
 
 		f.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
@@ -1946,6 +1948,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 
 	if c.subjectDeleteMarkerTTLSet {
 		cfg.SubjectDeleteMarkerTTL = c.subjectDeleteMarkerTTL
+	}
+
+	if c.noMirror {
+		cfg.Mirror = nil
 	}
 
 	return cfg, nil
