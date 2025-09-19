@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/choria-io/fisk"
-	"github.com/choria-io/fisk/units"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api/server/tracing"
 	"github.com/nats-io/nats-server/v2/server"
@@ -36,7 +35,7 @@ type traceCmd struct {
 	deliver bool
 	showTs  bool
 	header  map[string]string
-	payload units.Base2Bytes
+	payload string
 }
 
 type traceStats struct {
@@ -68,7 +67,7 @@ func configureTraceCommand(app commandHost) {
 
 	trace := app.Command("trace", "Trace message delivery within an NATS network").Action(c.traceAction)
 	trace.Arg("subject", "The subject to publish to").Required().StringVar(&c.subject)
-	trace.Arg("payload", "The message body to send").BytesVar(&c.payload)
+	trace.Arg("payload", "The message body to send").StringVar(&c.payload)
 	trace.Flag("deliver", "Deliver the message to the final destination").UnNegatableBoolVar(&c.deliver)
 	trace.Flag("timestamp", "Show event timestamps").Short('T').UnNegatableBoolVar(&c.showTs)
 	trace.Flag("header", "Adds headers to the trace message using K:V format").Short('H').StringMapVar(&c.header)
@@ -92,10 +91,7 @@ func (c *traceCmd) traceAction(_ *fisk.ParseContext) error {
 	for k, v := range c.header {
 		msg.Header.Set(k, v)
 	}
-	msg.Data, err = c.payload.MarshalText()
-	if err != nil {
-		return err
-	}
+	msg.Data = []byte(c.payload)
 
 	deliver := ""
 	if c.deliver {
