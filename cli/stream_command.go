@@ -220,6 +220,9 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("max-msgs-per-subject", "Maximum amount of messages to keep per subject").Default("0").Int64Var(&c.maxMsgPerSubjectLimit)
 		f.Flag("dupe-window", "Duration of the duplicate message tracking window").Default("").StringVar(&c.dupeWindow)
 		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
+		if edit {
+			f.Flag("no-mirror", "Removes current mirror configuration").UnNegatableBoolVar(&c.noMirror)
+		}
 		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
 		f.Flag("allow-batch", "Allow atomic batch publishing").IsSetByUser(&c.allowAtomicBatchIsSet).BoolVar(&c.allowAtomicBatch)
 		f.Flag("allow-counter", "Configures the Stream as a distributed counter").IsSetByUser(&c.allowCounterIsSet).UnNegatableBoolVar(&c.allowCounter)
@@ -233,22 +236,21 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("subject-del-markers-ttl", "How long delete markers should persist in the Stream").PlaceHolder("DURATION").IsSetByUser(&c.subjectDeleteMarkerTTLSet).DurationVar(&c.subjectDeleteMarkerTTL)
 		f.Flag("transform-source", "Stream subject transform source").PlaceHolder("SOURCE").StringVar(&c.subjectTransformSource)
 		f.Flag("transform-destination", "Stream subject transform destination").PlaceHolder("DEST").StringVar(&c.subjectTransformDest)
+		if edit {
+			f.Flag("no-transform", "Removes current subject transform configuration").UnNegatableBoolVar(&c.noSubjectTransform)
+		}
 		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
 		f.Flag("republish-source", "Republish messages to --republish-destination").PlaceHolder("SOURCE").StringVar(&c.repubSource)
 		f.Flag("republish-destination", "Republish destination for messages in --republish-source").PlaceHolder("DEST").StringVar(&c.repubDest)
 		f.Flag("republish-headers", "Republish only message headers, no bodies").UnNegatableBoolVar(&c.repubHeadersOnly)
+		if edit {
+			f.Flag("no-republish", "Removes current republish configuration").UnNegatableBoolVar(&c.noRepub)
+		}
 		if !edit {
 			f.Flag("limit-consumer-inactive", "The maximum Consumer inactive threshold the Stream allows").PlaceHolder("THRESHOLD").DurationVar(&c.limitInactiveThreshold)
 			f.Flag("limit-consumer-max-pending", "The maximum Consumer Ack Pending the stream Allows").PlaceHolder("PENDING").IntVar(&c.limitMaxAckPending)
 			f.Flag("persist-mode", "Configures the persistence mode").EnumVar(&c.persistMode, "default", "async")
 		}
-
-		if edit {
-			f.Flag("no-republish", "Removes current republish configuration").UnNegatableBoolVar(&c.noRepub)
-			f.Flag("no-transform", "Removes current subject transform configuration").UnNegatableBoolVar(&c.noSubjectTransform)
-			f.Flag("no-mirror", "Removes current mirror configuration").UnNegatableBoolVar(&c.noMirror)
-		}
-
 		f.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 		f.PreAction(c.parseLimitStrings)
