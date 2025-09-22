@@ -20,7 +20,7 @@ require (
 	github.com/klauspost/compress v1.18.0
 	github.com/nats-io/jsm.go v0.2.5-0.20250919104130-fa5c81909624
 	github.com/nats-io/jwt/v2 v2.8.0
-	github.com/nats-io/nats-server/v2 v2.12.0-preview.2.0.20250917115845-b2e3354fc02f
+	github.com/nats-io/nats-server/v2 v2.12.0
 	github.com/nats-io/nats.go v1.45.0
 	github.com/nats-io/nkeys v0.4.11
 	github.com/nats-io/nuid v1.0.1
