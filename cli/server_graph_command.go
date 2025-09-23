@@ -39,7 +39,7 @@ func configureServerGraphCommand(srv *fisk.CmdClause) {
 	c := &SrvGraphCmd{}
 
 	graph := srv.Command("graph", "Show graphs for a single server").Action(c.graph)
-	graph.Arg("server", "Server ID or Name to inspect").StringVar(&c.id)
+	graph.Arg("server", "Server ID or Name to inspect").Required().StringVar(&c.id)
 	graph.Flag("jetstream", "Draw JetStream statistics").Short('j').UnNegatableBoolVar(&c.js)
 }
 
