@@ -46,7 +46,7 @@ func TestStreamAdd(t *testing.T) {
 			t.Errorf("failed to add stream %s: %s", name, err)
 		}
 
-		// persis mode
+		// persist mode
 		checkErr(t, s.Delete(), "delete failed")
 		runNatsCli(t, fmt.Sprintf("--server='%s' stream add %s --defaults --subjects=test --persist-mode async", srv.ClientURL(), name))
 		s, err = mgr.LoadStream(name)
@@ -59,6 +59,29 @@ func TestStreamAdd(t *testing.T) {
 
 		return nil
 	})
+}
+
+func TestStreamAddDefaultMirror(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name := setupStreamTest(t, mgr)
+		mirrorName := fmt.Sprintf("%s_MIRROR", name)
+
+		runNatsCli(t, fmt.Sprintf("--server='%s' stream add %s --defaults --mirror %s", srv.ClientURL(), mirrorName, name))
+		s, err := mgr.LoadStream(mirrorName)
+		if err != nil {
+			t.Errorf("failed to add stream %s: %s", name, err)
+		}
+
+		if !s.IsMirror() && s.Mirror().Name != name {
+			t.Fatalf("Expected %s to be a mirror of %q got %v", mirrorName, name, s.Mirror())
+		}
+		if len(s.Subjects()) != 0 {
+			t.Fatalf("Expected no subjects, got %v", s.Subjects())
+		}
+
+		return nil
+	})
+
 }
 
 func TestStreamLS(t *testing.T) {

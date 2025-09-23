@@ -2836,9 +2836,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 			cfg.Mirror, err = c.parseStreamSource(c.mirror)
 			fisk.FatalIfError(err, "invalid mirror")
 		} else {
-			if !c.acceptDefaults {
-				cfg.Mirror = c.askMirror()
-			}
+			cfg.Mirror = c.askMirror()
 		}
 	}
 
@@ -2881,6 +2879,10 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 
 func (c *streamCmd) askMirror() *api.StreamSource {
 	mirror := &api.StreamSource{Name: c.mirror}
+	if c.acceptDefaults {
+		return mirror
+	}
+
 	ok, err := askConfirmation("Adjust mirror start", false)
 	fisk.FatalIfError(err, "Could not request mirror details")
 	if ok {
