@@ -82,10 +82,12 @@ type kvCommand struct {
 	republishHeadersSet     bool
 	markerTTLSet            bool
 	sourceSet               bool
+	metadataIsSet           bool
+	metadata                map[string]string
 }
 
 func configureKVCommand(app commandHost) {
-	c := &kvCommand{}
+	c := &kvCommand{metadata: make(map[string]string)}
 
 	help := `Interacts with a JetStream based Key-Value store
 
@@ -111,6 +113,7 @@ for an indefinite period or a per-bucket configured TTL.
 		f.Flag("tags", "Place the bucket on servers that has specific tags").IsSetByUser(&c.tagsSet).StringsVar(&c.placementTags)
 		f.Flag("cluster", "Place the bucket on a specific cluster").IsSetByUser(&c.clusterSet).StringVar(&c.placementCluster)
 		f.Flag("compress", "Compress the bucket data").IsSetByUser(&c.compressSet).BoolVar(&c.compression)
+		f.Flag("metadata", "Adds metadata to the stream").PlaceHolder("META").IsSetByUser(&c.metadataIsSet).StringMapVar(&c.metadata)
 		f.Flag("republish-source", "Republish messages to --republish-destination").IsSetByUser(&c.republishSourceSet).PlaceHolder("SRC").StringVar(&c.repubSource)
 		f.Flag("republish-destination", "Republish destination for messages in --republish-source").IsSetByUser(&c.republishDestinationSet).PlaceHolder("DEST").StringVar(&c.repubDest)
 		f.Flag("republish-headers", "Republish only message headers, no bodies").IsSetByUser(&c.republishHeadersSet).UnNegatableBoolVar(&c.repubHeadersOnly)
@@ -521,6 +524,7 @@ func (c *kvCommand) addAction(_ *fisk.ParseContext) error {
 		Placement:      placement,
 		Compression:    c.compression,
 		LimitMarkerTTL: c.limitsMarkerTTL,
+		Metadata:       c.metadata,
 	}
 
 	if c.repubDest != "" {
@@ -588,6 +592,7 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 		Sources:        nfo.Config.Sources,
 		Compression:    status.IsCompressed(),
 		LimitMarkerTTL: status.LimitMarkerTTL(),
+		Metadata:       nfo.Config.Metadata,
 	}
 
 	if c.descriptionSet {
@@ -612,6 +617,10 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 
 	if c.replicaSet {
 		cfg.Replicas = int(c.replicas)
+	}
+
+	if c.metadataIsSet {
+		cfg.Metadata = c.metadata
 	}
 
 	var placement *jetstream.Placement
@@ -1010,6 +1019,12 @@ func (c *kvCommand) showStatus(store jetstream.KeyValue) error {
 				}
 				cols.AddRow("Lag", source.Lag)
 			}
+		}
+
+		meta := iu.RemoveReservedMetadata(status.Metadata())
+		if len(meta) > 0 {
+			cols.AddSectionTitle("Metadata")
+			cols.AddMapStrings(meta)
 		}
 
 		if nfo.Cluster != nil {

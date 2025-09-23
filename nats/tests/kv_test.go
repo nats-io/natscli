@@ -15,14 +15,19 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/cli"
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/nats-io/nats.go"
 )
@@ -31,19 +36,19 @@ func init() {
 	cli.SkipContexts = true
 }
 
-func createTestBucket(t *testing.T, nc *nats.Conn, cfg *nats.KeyValueConfig) nats.KeyValue {
+func createTestJSBucket(t *testing.T, nc *nats.Conn, cfg *jetstream.KeyValueConfig) jetstream.KeyValue {
 	t.Helper()
 
 	if cfg == nil {
-		cfg = &nats.KeyValueConfig{Bucket: "T"}
+		cfg = &jetstream.KeyValueConfig{Bucket: "T"}
 	}
 
-	js, err := nc.JetStream()
+	js, err := jetstream.New(nc)
 	if err != nil {
 		t.Fatalf("js failed: %s", err)
 	}
 
-	store, err := js.CreateKeyValue(cfg)
+	store, err := js.CreateKeyValue(context.Background(), *cfg)
 	if err != nil {
 		t.Fatalf("new failed: %s", err)
 	}
@@ -51,10 +56,10 @@ func createTestBucket(t *testing.T, nc *nats.Conn, cfg *nats.KeyValueConfig) nat
 	return store
 }
 
-func mustPut(t *testing.T, store nats.KeyValue, key string, value string) uint64 {
+func mustPut(t *testing.T, store jetstream.KeyValue, key string, value string) uint64 {
 	t.Helper()
 
-	seq, err := store.Put(key, []byte(value))
+	seq, err := store.Put(context.Background(), key, []byte(value))
 	if err != nil {
 		t.Fatalf("put failed: %s", err)
 	}
@@ -64,7 +69,7 @@ func mustPut(t *testing.T, store nats.KeyValue, key string, value string) uint64
 
 func TestCLIKVGet(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		store := createTestBucket(t, nc, nil)
+		store := createTestJSBucket(t, nc, nil)
 		mustPut(t, store, "X.Y", "Y")
 
 		out := runNatsCli(t, fmt.Sprintf("--server='%s' kv get T X.Y --raw", srv.ClientURL()))
@@ -77,7 +82,7 @@ func TestCLIKVGet(t *testing.T) {
 
 func TestCLIKVCreate(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		store := createTestBucket(t, nc, nil)
+		store := createTestJSBucket(t, nc, nil)
 		kvCreateCmd := fmt.Sprintf("--server='%s' kv create %s", srv.ClientURL(), store.Bucket())
 
 		for _, test := range []struct {
@@ -103,7 +108,7 @@ func TestCLIKVCreate(t *testing.T) {
 					}
 				}
 
-				val, err := store.Get(test.key)
+				val, err := store.Get(context.Background(), test.key)
 				if err != nil {
 					t.Fatalf("get failed: %s", err)
 				}
@@ -118,7 +123,7 @@ func TestCLIKVCreate(t *testing.T) {
 
 func TestCLIKVPut(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		store := createTestBucket(t, nc, nil)
+		store := createTestJSBucket(t, nc, nil)
 		kvPutCmd := fmt.Sprintf("--server='%s' kv put %s", srv.ClientURL(), store.Bucket())
 
 		for _, test := range []struct {
@@ -144,7 +149,7 @@ func TestCLIKVPut(t *testing.T) {
 					}
 				}
 
-				val, err := store.Get(test.key)
+				val, err := store.Get(context.Background(), test.key)
 				if err != nil {
 					t.Fatalf("get failed: %s", err)
 				}
@@ -159,7 +164,7 @@ func TestCLIKVPut(t *testing.T) {
 
 func TestCLIKVUpdate(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		store := createTestBucket(t, nc, nil)
+		store := createTestJSBucket(t, nc, nil)
 		kvUpdateCmd := fmt.Sprintf("--server='%s' kv update %s", srv.ClientURL(), store.Bucket())
 
 		for _, test := range []struct {
@@ -187,7 +192,7 @@ func TestCLIKVUpdate(t *testing.T) {
 					}
 				}
 
-				val, err := store.Get(test.key)
+				val, err := store.Get(context.Background(), test.key)
 				if err != nil {
 					t.Fatalf("get failed: %s", err)
 				}
@@ -205,13 +210,13 @@ func TestCLIKVUpdate(t *testing.T) {
 
 func TestCLIKVDel(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		store := createTestBucket(t, nc, nil)
+		store := createTestJSBucket(t, nc, nil)
 		mustPut(t, store, "X", "VAL")
 
 		runNatsCli(t, fmt.Sprintf("--server='%s' kv del T X -f", srv.ClientURL()))
 
-		_, err := store.Get("X")
-		if err != nats.ErrKeyNotFound {
+		_, err := store.Get(context.Background(), "X")
+		if !errors.Is(err, jetstream.ErrKeyNotFound) {
 			t.Fatalf("get did not fail: %v", err)
 		}
 		return nil
@@ -220,7 +225,7 @@ func TestCLIKVDel(t *testing.T) {
 
 func TestCLIAdd(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		runNatsCli(t, fmt.Sprintf("--server='%s' kv add T --history 5 --ttl 2m", srv.ClientURL()))
+		runNatsCli(t, fmt.Sprintf("--server='%s' kv add T --history 5 --ttl 2m --metadata X:Y", srv.ClientURL()))
 		known, err := mgr.IsKnownStream("KV_T")
 		if err != nil {
 			t.Fatalf("known failed: %s", err)
@@ -229,7 +234,10 @@ func TestCLIAdd(t *testing.T) {
 			t.Fatalf("stream was not created")
 		}
 
-		stream, _ := mgr.LoadStream("KV_T")
+		stream, err := mgr.LoadStream("KV_T")
+		if err != nil {
+			t.Fatalf("load failed: %s", err)
+		}
 
 		// TODO: needs status api
 		// js, err := nc.JetStream()
@@ -249,23 +257,28 @@ func TestCLIAdd(t *testing.T) {
 		if stream.MaxAge() != 2*time.Minute {
 			t.Fatalf("ttl is %v", stream.MaxAge())
 		}
+
+		if !cmp.Equal(iu.RemoveReservedMetadata(stream.Metadata()), map[string]string{"X": "Y"}) {
+			t.Fatalf("Invalid metadata: %v", stream.Metadata())
+		}
+
 		return nil
 	})
 }
 
 func TestCLIPurge(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		store := createTestBucket(t, nc, nil)
+		store := createTestJSBucket(t, nc, nil)
 		mustPut(t, store, "X", "VALX")
 		mustPut(t, store, "Y", "VALY")
 
 		runNatsCli(t, fmt.Sprintf("--server='%s' kv purge T X -f", srv.ClientURL()))
 
-		_, err := store.Get("X")
-		if err != nats.ErrKeyNotFound {
+		_, err := store.Get(context.Background(), "X")
+		if !errors.Is(err, jetstream.ErrKeyNotFound) {
 			t.Fatalf("expected unknown key got: %v", err)
 		}
-		v, err := store.Get("Y")
+		v, err := store.Get(context.Background(), "Y")
 		if err != nil {
 			t.Fatalf("Y failed to get: %s", err)
 		}
@@ -278,7 +291,7 @@ func TestCLIPurge(t *testing.T) {
 
 func TestCLIRM(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		createTestBucket(t, nc, nil)
+		createTestJSBucket(t, nc, nil)
 
 		runNatsCli(t, fmt.Sprintf("--server='%s' kv rm T -f", srv.ClientURL()))
 
@@ -295,17 +308,18 @@ func TestCLIRM(t *testing.T) {
 
 func TestCLIEdit(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		cfg := nats.KeyValueConfig{
+		cfg := jetstream.KeyValueConfig{
 			Bucket:       "T",
 			Description:  "This is an old descrption",
 			MaxValueSize: 44,
 			History:      44,
-			TTL:          time.Duration(44 * time.Second),
+			TTL:          44 * time.Second,
 			MaxBytes:     44,
 			Compression:  true,
+			Metadata:     map[string]string{"X": "Y"},
 		}
 
-		createTestBucket(t, nc, &cfg)
+		createTestJSBucket(t, nc, &cfg)
 		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' kv edit T --description='This is a new description'", srv.ClientURL())))
 		err := expectMatchJSON(t, output, map[string]any{
 			"Header": "Information for Key-Value Store Bucket T",
@@ -323,6 +337,9 @@ func TestCLIEdit(t *testing.T) {
 				"Per-Key TTL Supported": "false",
 				"Storage":               "File",
 				"Values Stored":         "0",
+			},
+			"Metadata": map[string]any{
+				"X": "Y",
 			},
 			"Cluster Information": map[string]any{
 				"Leader": ".+",
