@@ -494,7 +494,7 @@ func F(v any) string {
 	case float64:
 		return humanize.CommafWithDigits(x, 3)
 	case *big.Int:
-		return x.String()
+		return humanize.BigComma(x)
 	default:
 		return fmt.Sprintf("%v", x)
 	}
