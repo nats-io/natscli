@@ -178,7 +178,7 @@ func (c *counterCmd) getCounterManager() (jetstream.Stream, counters.Counter, er
 		return nil, nil, err
 	}
 
-	js, err := jetstream.New(nc, jetstream.WithDefaultTimeout(opts().Timeout))
+	js, err := newJetStreamWithOptions(nc, opts())
 	if err != nil {
 		return nil, nil, err
 	}
