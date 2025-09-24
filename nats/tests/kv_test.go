@@ -97,7 +97,7 @@ func TestCLIKVCreate(t *testing.T) {
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				if test.stdin {
-					out := runNatsCliWithInput(t, test.value, fmt.Sprintf("%s %s", kvCreateCmd, test.key))
+					out, _ := runNatsCliWithInput(t, test.value, fmt.Sprintf("%s %s", kvCreateCmd, test.key))
 					if strings.TrimSpace(string(out)) != "" {
 						t.Fatalf("put failed: %s", string(out))
 					}
@@ -138,7 +138,7 @@ func TestCLIKVPut(t *testing.T) {
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				if test.stdin {
-					out := runNatsCliWithInput(t, test.value, fmt.Sprintf("%s %s", kvPutCmd, test.key))
+					out, _ := runNatsCliWithInput(t, test.value, fmt.Sprintf("%s %s", kvPutCmd, test.key))
 					if strings.TrimSpace(string(out)) != "" {
 						t.Fatalf("put failed: %s", string(out))
 					}
@@ -181,7 +181,7 @@ func TestCLIKVUpdate(t *testing.T) {
 				rev := mustPut(t, store, test.key, "OLD")
 
 				if test.stdin {
-					out := runNatsCliWithInput(t, test.value, fmt.Sprintf("%s %s '' %d", kvUpdateCmd, test.key, rev))
+					out, _ := runNatsCliWithInput(t, test.value, fmt.Sprintf("%s %s '' %d", kvUpdateCmd, test.key, rev))
 					if strings.TrimSpace(string(out)) != "" {
 						t.Fatalf("put failed: %s", string(out))
 					}

@@ -305,6 +305,10 @@ func (c *subCmd) startSubjectReporting(ctx context.Context, subjMu *sync.Mutex, 
 func (c *subCmd) validateInputs(ctx context.Context, nc *nats.Conn, mgr *jsm.Manager, js jetstream.JetStream) error {
 	c.jetStream = c.sseq > 0 || len(c.durable) > 0 || c.deliverAll || c.deliverNew || c.deliverLast || c.deliverSince != "" || c.deliverLastPerSubject || c.stream != "" || c.direct
 
+	if len(c.subjects) > 0 && c.durable != "" {
+		return fmt.Errorf("cannot specify both subjects and a durable consumer")
+	}
+
 	switch {
 	case len(c.subjects) == 0 && c.inbox:
 		c.subjects = []string{nc.NewRespInbox()}

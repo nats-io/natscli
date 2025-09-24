@@ -1202,4 +1202,14 @@ func TestJetStreamSubscribe(t *testing.T) {
 			return nil
 		})
 	})
+
+	t.Run("subjects and --durable", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			err := runNatsCliWithError(t, fmt.Sprintf("--server='%s' sub TEST_STREAM.* --stream=TEST_STREAM --raw --count=1 --last-per-subject --direct", srv.ClientURL()))
+			if err == nil {
+				t.Error("expected error, got none")
+			}
+			return nil
+		})
+	})
 }
