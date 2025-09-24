@@ -1,4 +1,4 @@
-// Copyright 2023 The NATS Authors
+// Copyright 2023-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"os"
 	"sort"
 	"strconv"
@@ -492,6 +493,8 @@ func F(v any) string {
 		return humanize.CommafWithDigits(float64(x), 3)
 	case float64:
 		return humanize.CommafWithDigits(x, 3)
+	case *big.Int:
+		return x.String()
 	default:
 		return fmt.Sprintf("%v", x)
 	}
