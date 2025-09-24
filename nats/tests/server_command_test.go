@@ -29,6 +29,7 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/internal/scaffold"
 )
 
@@ -507,11 +508,11 @@ func TestServerCheck(t *testing.T) {
 
 	t.Run("kv action", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			cfg := nats.KeyValueConfig{
+			cfg := jetstream.KeyValueConfig{
 				Bucket: "T",
 			}
 
-			createTestBucket(t, nc, &cfg)
+			createTestJSBucket(t, nc, &cfg)
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' server check kv --bucket=T --format=json", srv.ClientURL())))
 			expected := map[string]any{
