@@ -702,8 +702,9 @@ func (c *subCmd) reportJetstreamSubscribe(ctx context.Context, subState subscrip
 
 func (c *subCmd) makeConsumerConfig(subject, ignoredInfo string) (jetstream.ConsumerConfig, error) {
 	cfg := jetstream.ConsumerConfig{
-		AckPolicy:   jetstream.AckNonePolicy,
-		HeadersOnly: c.headersOnly || c.subjectsOnly,
+		AckPolicy:     jetstream.AckNonePolicy,
+		HeadersOnly:   c.headersOnly || c.subjectsOnly,
+		FilterSubject: subject,
 	}
 
 	switch {
