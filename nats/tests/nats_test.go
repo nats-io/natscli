@@ -56,17 +56,26 @@ func checkErr(t *testing.T, err error, format string, a ...any) {
 	t.Fatalf(format, a...)
 }
 
-func runNatsCli(t *testing.T, args ...string) (output []byte) {
+func runNatsCliWithError(t *testing.T, args ...string) error {
 	t.Helper()
-	return runNatsCliWithInput(t, "", args...)
+	_, err := runNatsCliWithInput(t, "", args...)
+	return err
 }
 
-func runNatsCliWithInput(t *testing.T, input string, args ...string) (output []byte) {
+func runNatsCli(t *testing.T, args ...string) (output []byte) {
+	t.Helper()
+	output, err := runNatsCliWithInput(t, "", args...)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	return output
+}
+
+func runNatsCliWithInput(t *testing.T, input string, args ...string) (output []byte, err error) {
 	t.Helper()
 
 	var runArgs []string
 	var cmd string
-	var err error
 	if os.Getenv("CI") == "true" {
 		cmd = "../nats"
 		runArgs, err = shellquote.Split(strings.Join(args, " "))
@@ -78,17 +87,17 @@ func runNatsCliWithInput(t *testing.T, input string, args ...string) (output []b
 		t.Fatalf("spliting command argument string failed: %v", err)
 	}
 
-	if _, err := exec.LookPath(cmd); err != nil {
+	if _, err = exec.LookPath(cmd); err != nil {
 		t.Fatalf("could not find %s in path", cmd)
 		return
 	}
 
 	out, err := runCommand(cmd, input, runArgs...)
 	if err != nil {
-		t.Fatalf("%v", err)
+		return out, err
 	}
 
-	return out
+	return out, nil
 }
 
 func prepareHelper(servers string) (*nats.Conn, *jsm.Manager, error) {
