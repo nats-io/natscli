@@ -24,7 +24,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nats-io/nats.go/jetstream"
 	iu "github.com/nats-io/natscli/internal/util"
+	"github.com/synadia-io/orbit.go/jetstreamext"
 
 	"github.com/choria-io/fisk"
 	"github.com/jedib0t/go-pretty/v6/progress"
@@ -56,6 +58,9 @@ type pubCmd struct {
 	sendOn       string
 	quiet        bool
 	templates    bool
+	atomic       bool
+
+	atomicPending []*nats.Msg
 }
 
 func configurePubCommand(app commandHost) {
@@ -95,6 +100,7 @@ Available template functions are:
 	pub.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
 	pub.Flag("quiet", "Show just the output received").Short('q').UnNegatableBoolVar(&c.quiet)
 	pub.Flag("templates", "Enables template functions in the body and subject (does not affect headers)").Default("true").BoolVar(&c.templates)
+	pub.Flag("atomic", "Atomic batch publish to Jetstream").UnNegatableBoolVar(&c.atomic)
 
 	requestHelp := `Body and Header values of the messages may use Go templates to 
 create unique messages.
@@ -264,6 +270,76 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
 	return nil
 }
 
+func (c *pubCmd) writeAtomic(nc *nats.Conn) error {
+	js, err := jetstream.New(nc)
+	if err != nil {
+		return err
+	}
+	streamName, err := js.StreamNameBySubject(ctx, c.subject)
+	if err != nil {
+		return err
+	}
+
+	stream, err := js.Stream(ctx, streamName)
+	if err != nil {
+		return err
+	}
+
+	if !stream.CachedInfo().Config.AllowAtomicPublish {
+		return fmt.Errorf("atomic publishing is not allowed for stream %s with subject %s", streamName, c.subject)
+	}
+
+	batch, err := jetstreamext.NewBatchPublisher(js)
+	if err != nil {
+		return err
+	}
+
+	messageCount := len(c.atomicPending)
+	for _, m := range c.atomicPending[:messageCount-1] {
+		if err := batch.AddMsg(m); err != nil {
+			return err
+		}
+	}
+
+	// commit with the last element's data
+	ack, err := batch.Commit(ctx, c.subject, c.atomicPending[messageCount-1].Data)
+	if err != nil {
+		return err
+	}
+
+	if !c.quiet {
+		msg := fmt.Sprintf("Wrote batch ID: %s Messages: %s Sequence: %s", ack.BatchID, f(ack.BatchSize), f(ack.Sequence))
+		if ack.Domain != "" {
+			msg += fmt.Sprintf(" Domain: %q", ack.Domain)
+		}
+		if ack.Value != "" {
+			msg += fmt.Sprintf(" Counter Value: %s", ack.Value)
+		}
+		log.Printf(msg)
+	}
+
+	return nil
+}
+
+func (c *pubCmd) addToBatch() error {
+	for i := 1; i <= c.cnt; i++ {
+		body, subj := c.parseTemplates("", i)
+
+		msg, err := c.prepareMsg(subj, []byte(body), i)
+		if err != nil {
+			return err
+		}
+
+		c.atomicPending = append(c.atomicPending, msg)
+
+		if !c.quiet {
+			log.Printf("Adding %d bytes to batch on subject %q\n", len(body), c.subject)
+		}
+	}
+
+	return nil
+}
+
 func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 	for i := 1; i <= c.cnt; i++ {
 		start := time.Now()
@@ -379,10 +455,40 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 	if c.cnt < 1 {
 		c.cnt = math.MaxInt16
 	}
+	if c.atomic {
+		if !(c.jetstream && useStdin && c.sendOn == sendOnNewline) {
+			return fmt.Errorf("atomic batch publishing requires Jetstream and STDIN with --send-on=newline")
+		}
+		mgr, err := jsm.New(nc)
+		if err != nil {
+			return err
+		}
+		if err = iu.RequireAPILevel(mgr, 2, "Atomic Batch Publishing requires NATS Server 2.12"); err != nil {
+			return err
+		}
+	}
 
 	errCh := make(chan error, 1)
 	go func() {
 		defer close(complete)
+
+		var tracker *progress.Tracker
+		var progbar progress.Writer
+
+		if c.cnt > 20 && !c.raw {
+			progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+				Total: int64(c.cnt),
+			})
+			if err != nil {
+				errCh <- err
+				return
+			}
+
+			defer func() {
+				progbar.Stop()
+				time.Sleep(300 * time.Millisecond)
+			}()
+		}
 
 		for {
 			if useStdin {
@@ -410,22 +516,15 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 				}
 			}
 
-			var tracker *progress.Tracker
-			var progbar progress.Writer
-
-			if c.cnt > 20 && !c.raw {
-				progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
-					Total: int64(c.cnt),
-				})
+			// We add the line from stdin here, but we can't commit until we've reached EOF
+			// commit() happens in the select(), when the goroutine is finished but before
+			// our connection is closed
+			if c.atomic {
+				err = c.addToBatch()
 				if err != nil {
-					errCh <- err
-					return
+					log.Printf("Could not publish message: %s", err)
 				}
-
-				defer func() {
-					progbar.Stop()
-					time.Sleep(300 * time.Millisecond)
-				}()
+				continue
 			}
 
 			if c.jetstream {
@@ -439,6 +538,7 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 					}
 					continue
 				}
+
 			}
 
 			if c.req || c.replyCount >= 1 {
@@ -497,6 +597,12 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 		}
 		return fmt.Errorf("interrupted")
 	case <-complete:
+		if c.atomic {
+			err := c.writeAtomic(nc)
+			if err != nil {
+				errCh <- err
+			}
+		}
 		return <-errCh
 	}
 }
