@@ -100,7 +100,7 @@ Available template functions are:
 	pub.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
 	pub.Flag("quiet", "Show just the output received").Short('q').UnNegatableBoolVar(&c.quiet)
 	pub.Flag("templates", "Enables template functions in the body and subject (does not affect headers)").Default("true").BoolVar(&c.templates)
-	pub.Flag("atomic", "Atomic batch publish to Jetstream").UnNegatableBoolVar(&c.atomic)
+	pub.Flag("atomic", "Atomic batch publish to Jetstream (implies --jetstream)").UnNegatableBoolVar(&c.atomic)
 
 	requestHelp := `Body and Header values of the messages may use Go templates to 
 create unique messages.
@@ -456,7 +456,8 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 		c.cnt = math.MaxInt16
 	}
 	if c.atomic {
-		if !(c.jetstream && useStdin && c.sendOn == sendOnNewline) {
+		c.jetstream = true
+		if !(useStdin && c.sendOn == sendOnNewline) {
 			return fmt.Errorf("atomic batch publishing requires Jetstream and STDIN with --send-on=newline")
 		}
 		mgr, err := jsm.New(nc)

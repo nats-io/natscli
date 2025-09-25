@@ -229,23 +229,6 @@ func TestCLIPubAtomic(t *testing.T) {
 		})
 	})
 
-	t.Run("Atomic publish without --jetstream", func(t *testing.T) {
-		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-			expected := []string{"test", "pub", "input"}
-			subject := "test-sendon"
-
-			_, err := runNatsCliWithInput(t, strings.Join(expected, "\n"), fmt.Sprintf("--server='%s' pub --send-on newline --force-stdin %s  --atomic", srv.ClientURL(), subject))
-			if err == nil {
-				t.Fatalf("expected error, got nil")
-			}
-
-			if !strings.Contains(err.Error(), "error: atomic batch publishing requires Jetstream ") {
-				t.Fatalf("expected atomic batch publishing error, got %s", err)
-			}
-			return nil
-		})
-	})
-
 	t.Run("Atomic publish without --send-on newline", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			expected := []string{"test", "pub", "input"}
