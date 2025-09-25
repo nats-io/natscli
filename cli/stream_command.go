@@ -2118,7 +2118,7 @@ func (c *streamCmd) cpAction(pc *fisk.ParseContext) error {
 	fisk.FatalIfError(err, "could not create Stream")
 
 	if !c.json {
-		fmt.Printf("Stream %s was created\n\n", c.stream)
+		fmt.Printf("Stream %s was created\n\n", cfg.Name)
 	}
 
 	c.showStream(newStream)
