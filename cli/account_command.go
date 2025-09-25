@@ -1,4 +1,4 @@
-// Copyright 2019-2024 The NATS Authors
+// Copyright 2019-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -49,6 +49,9 @@ type actCmd struct {
 	placementCluster string
 	placementTags    []string
 	reverse          bool
+	stateFilter      string
+	user             string
+	filterReason     string
 }
 
 func configureActCommand(app commandHost) {
@@ -63,7 +66,10 @@ func configureActCommand(app commandHost) {
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
+	conns.Flag("username", "Limits responses only to those connections for a specific authentication username").StringVar(&c.user)
 	conns.Flag("reverse", "Reverse sort connections").Short('R').UnNegatableBoolVar(&c.reverse)
+	conns.Flag("state", "Limits responses only to those connections that are in a specific state (open, closed, all)").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
+	conns.Flag("closed-reason", "Filter results based on a closed reason").PlaceHolder("REASON").StringVar(&c.filterReason)
 
 	report.Command("statistics", "Report on server statistics").Alias("stats").Alias("statsz").Action(c.reportServerStats)
 
@@ -221,6 +227,9 @@ func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
 		sort:                    c.sort,
 		subject:                 c.subject,
 		reverse:                 c.reverse,
+		stateFilter:             c.stateFilter,
+		filterReason:            c.filterReason,
+		user:                    c.user,
 		skipDiscoverClusterSize: true,
 		nc:                      nc,
 	}
