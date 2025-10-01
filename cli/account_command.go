@@ -407,9 +407,9 @@ func (c *actCmd) renderTier(cols *columns.Writer, name string, tier api.JetStrea
 	}
 
 	if tier.Limits.MaxConsumers == -1 {
-		cols.AddRowf("Consumers", "%s of Unlimited", f(tier.Consumers))
+		cols.AddRowf("Consumers", "Unlimited")
 	} else {
-		cols.AddRowf("Consumers", "%s of %s", f(tier.Consumers), f(tier.Limits.MaxConsumers))
+		cols.AddRowf("Consumers", "Maximum %s per stream", f(tier.Limits.MaxConsumers))
 	}
 }
 
