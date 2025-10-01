@@ -614,12 +614,9 @@ func (c *subCmd) graphSubscribe(ctx context.Context, subState subscriptionState,
 		return fmt.Errorf("maximum 4 subject patterns may be graphed")
 	}
 
-	for _, subj := range c.subjects {
-		sub, err := nc.Subscribe(subj, handler)
-		if err != nil {
-			return err
-		}
-		*subs = append(*subs, sub)
+	err = c.defaultSubscribe(nc, handler, subs)
+	if err != nil {
+		return err
 	}
 
 	c.startGraph(ctx, subState.subjMu)
@@ -627,12 +624,9 @@ func (c *subCmd) graphSubscribe(ctx context.Context, subState subscriptionState,
 }
 
 func (c *subCmd) reportSubscribe(ctx context.Context, subState subscriptionState, nc *nats.Conn, handler nats.MsgHandler, subs *[]*nats.Subscription) error {
-	for _, subj := range c.subjects {
-		sub, err := nc.Subscribe(subj, handler)
-		if err != nil {
-			return err
-		}
-		*subs = append(*subs, sub)
+	err := c.defaultSubscribe(nc, handler, subs)
+	if err != nil {
+		return err
 	}
 
 	c.startSubjectReporting(ctx, subState.subjMu, subState.subjectReportMap, subState.subjectBytesReportMap, c.reportSubjectsCount)
@@ -799,23 +793,23 @@ func (c *subCmd) setConsumerSubjects(info *jetstream.ConsumerInfo) error {
 	return nil
 }
 
-func (c *subCmd) queueSubscribe(nc *nats.Conn, handler nats.MsgHandler, subs *[]*nats.Subscription) error {
-	sub, err := nc.QueueSubscribe(c.firstSubject(), c.queue, handler)
-	if err != nil {
-		return err
-	}
-	*subs = append(*subs, sub)
-	return nil
-}
-
 func (c *subCmd) defaultSubscribe(nc *nats.Conn, handler nats.MsgHandler, subs *[]*nats.Subscription) error {
 	for _, subj := range c.subjects {
-		sub, err := nc.Subscribe(subj, handler)
+		var sub *nats.Subscription
+		var err error
+
+		if c.queue == "" {
+			sub, err = nc.Subscribe(subj, handler)
+		} else {
+			sub, err = nc.QueueSubscribe(subj, c.queue, handler)
+		}
 		if err != nil {
 			return err
 		}
+
 		*subs = append(*subs, sub)
 	}
+
 	return nil
 }
 
@@ -1023,8 +1017,6 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		err = c.directSubscribe(ctx, subState, msgHandler, js)
 	case c.jetStream:
 		err = c.jetStreamSubscribe(ctx, subState, jetstreamMsgHandler, &consumerContexts, js)
-	case c.queue != "":
-		err = c.queueSubscribe(nc, msgHandler, &subs)
 	default:
 		err = c.defaultSubscribe(nc, msgHandler, &subs)
 	}
