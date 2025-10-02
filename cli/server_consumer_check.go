@@ -210,7 +210,7 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 		v := strings.Split(av[1], "/")
 		raftGroup, serverName := v[0], v[1]
 
-		if c.raftGroup != "" && raftGroup == c.raftGroup {
+		if c.raftGroup != "" && raftGroup != c.raftGroup {
 			continue
 		}
 
