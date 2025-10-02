@@ -21,6 +21,7 @@ import (
 	"math"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -51,6 +52,7 @@ type pubCmd struct {
 	cnt          int
 	sleep        time.Duration
 	replyCount   int
+	repliesAll   bool
 	replyTimeout time.Duration
 	forceStdin   bool
 	translate    string
@@ -131,6 +133,7 @@ Available template functions are:
 	req.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
 	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)
+	req.Flag("replies-all", "Wait for all replies from services. Requires the service to include the header NATS-Reply-Counter with the number of replies in the first reply.").Default("false").UnNegatableBoolVar(&c.repliesAll)
 	req.Flag("reply-timeout", "Maximum timeout between incoming replies.").Default("300ms").DurationVar(&c.replyTimeout)
 	req.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
 	req.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
@@ -238,6 +241,18 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
 				}
 
 				outPutMSGBody(m.Data, c.translate, m.Subject, "")
+			}
+
+			if c.repliesAll && rc == 0 {
+				repliesAll := m.Header.Get("NATS-Reply-Counter")
+				if repliesAll != "" {
+					reployCount, err := strconv.ParseInt(repliesAll, 0, 64)
+					if err != nil {
+						// TODO(joeriddles): gracefully handle non-numeric reply counter
+						return err
+					}
+					c.replyCount = int(reployCount)
+				}
 			}
 
 			rc++
