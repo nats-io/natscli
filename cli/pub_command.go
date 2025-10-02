@@ -37,8 +37,9 @@ import (
 )
 
 const (
-	sendOnEOF     = "eof"
-	sendOnNewline = "newline"
+	sendOnEOF       = "eof"
+	sendOnNewline   = "newline"
+	hdrRepliesTotal = "NATS-Replies-Total"
 )
 
 type pubCmd struct {
@@ -133,7 +134,7 @@ Available template functions are:
 	req.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
 	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)
-	req.Flag("replies-all", fmt.Sprintf("Wait for all replies from services. Requires the service to include the header '%s' with the number of replies in the first reply.", hdrReplyCount)).Default("false").UnNegatableBoolVar(&c.repliesAll)
+	req.Flag("replies-all", fmt.Sprintf("Wait for all replies from services. Requires the service to include the header '%s' with the number of replies in the first reply.", hdrRepliesTotal)).Default("false").UnNegatableBoolVar(&c.repliesAll)
 	req.Flag("reply-timeout", "Maximum timeout between incoming replies.").Default("300ms").DurationVar(&c.replyTimeout)
 	req.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
 	req.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
@@ -244,7 +245,7 @@ func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
 			}
 
 			if c.repliesAll && rc == 0 {
-				repliesAll := m.Header.Get(hdrReplyCount)
+				repliesAll := m.Header.Get(hdrRepliesTotal)
 				if repliesAll != "" {
 					reployCount, err := strconv.ParseInt(repliesAll, 0, 64)
 					if err != nil {

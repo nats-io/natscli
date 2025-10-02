@@ -281,7 +281,7 @@ func TestCLIRequestRepliesAll(t *testing.T) {
 
 	err = svc.AddEndpoint("test-replies-all", micro.HandlerFunc(func(req micro.Request) {
 		// send three replies
-		headers := nats.Header{"NATS-Reply-Count": {"3"}}
+		headers := nats.Header{"NATS-Replies-Total": {"3"}}
 		req.Respond([]byte("Response 0"), micro.WithHeaders(micro.Headers(headers)))
 		req.Respond([]byte("Response 1"))
 		req.Respond([]byte("Response 2"))
