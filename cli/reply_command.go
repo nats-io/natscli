@@ -29,10 +29,6 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-const (
-	hdrReplyCount = "NATS-Reply-Count"
-)
-
 type replyCmd struct {
 	subject string
 	body    string
@@ -144,7 +140,7 @@ func (c *replyCmd) reply(_ *fisk.ParseContext) error {
 					}
 				}
 
-				msg.Header.Add(hdrReplyCount, strconv.Itoa(i))
+				msg.Header.Add("NATS-Reply-Counter", strconv.Itoa(i))
 			}
 
 			msg.Data = m.Data
