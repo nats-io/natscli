@@ -10,6 +10,7 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/micro"
 )
 
 func TestCLIPubSendOnNewline(t *testing.T) {
@@ -261,5 +262,72 @@ func TestCLIPubAtomic(t *testing.T) {
 			}
 			return nil
 		})
+	})
+}
+
+func TestCLIRequestRepliesAll(t *testing.T) {
+	srv, _, _ := setupJStreamTest(t)
+	defer srv.Shutdown()
+	nc, _, _ := prepareHelper(srv.ClientURL())
+
+	svc, err := micro.AddService(nc, micro.Config{
+		Name:    "svc",
+		Version: "1.0.0",
+	})
+	if err != nil {
+		t.Errorf("failed to add service: %v", err)
+	}
+	defer svc.Stop()
+
+	err = svc.AddEndpoint("test-replies-all", micro.HandlerFunc(func(req micro.Request) {
+		// send three replies
+		headers := nats.Header{"NATS-Reply-Count": {"3"}}
+		req.Respond([]byte("Response 0"), micro.WithHeaders(micro.Headers(headers)))
+		req.Respond([]byte("Response 1"))
+		req.Respond([]byte("Response 2"))
+	}))
+	if err != nil {
+		t.Errorf("failed to add service endpoint test-replies-all: %v", err)
+	}
+
+	err = svc.AddEndpoint("test-replies-no-header", micro.HandlerFunc(func(req micro.Request) {
+		req.Respond([]byte("Response 0"))
+		req.Respond([]byte("Response 1"))
+		req.Respond([]byte("Response 2"))
+	}))
+	if err != nil {
+		t.Errorf("failed to add service endpoint test-replies-no-header: %v", err)
+	}
+
+	t.Run("Request with --replies-all", func(t *testing.T) {
+		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' request --replies-all %s ''", srv.ClientURL(), "test-replies-all")))
+
+		responseCount := 0
+		for i := range 3 {
+			if strings.Contains(output, fmt.Sprintf("Response %d", i)) {
+				responseCount++
+			}
+		}
+
+		if responseCount != 3 {
+			t.Errorf("expected %d replies, got %d\nOutput: %s", 3, responseCount, output)
+		}
+	})
+
+	t.Run("Request with --replies-all without reply count header", func(t *testing.T) {
+		out := string(runNatsCli(t, fmt.Sprintf("--server='%s' request --replies-all %s 'test request'", srv.ClientURL(), "test-replies-no-header")))
+
+		// Should still get the one reply even without the header
+		if !strings.Contains(out, "Response 0") {
+			t.Errorf("expected reply to be received\nOutput: %s", out)
+		}
+
+		// Should not get the other replies
+		if strings.Contains(out, "Response 1") {
+			t.Errorf("expected single reply to be received\nOutput: %s", out)
+		}
+		if strings.Contains(out, "Response 2") {
+			t.Errorf("expected single reply to be received\nOutput: %s", out)
+		}
 	})
 }
