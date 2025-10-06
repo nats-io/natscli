@@ -732,11 +732,16 @@ func (c *objCommand) editAction(_ *fisk.ParseContext) error {
 	if c.replicasIsSetByUser {
 		update.Replicas = int(c.replicas)
 	}
-	if c.clusterIsSetByUser {
-		update.Placement.Cluster = c.placementCluster
-	}
-	if c.tagsIsSetByUser {
-		update.Placement.Tags = c.placementTags
+	if c.clusterIsSetByUser || c.tagsIsSetByUser {
+		if update.Placement == nil {
+			update.Placement = &jetstream.Placement{}
+		}
+		if c.clusterIsSetByUser {
+			update.Placement.Cluster = c.placementCluster
+		}
+		if c.tagsIsSetByUser {
+			update.Placement.Tags = c.placementTags
+		}
 	}
 	if c.maxBucketSizeIsSetByUser {
 		update.MaxBytes = c.maxBucketSize
