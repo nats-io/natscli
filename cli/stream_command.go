@@ -2054,14 +2054,14 @@ func (c *streamCmd) editAction(pc *fisk.ParseContext) error {
 		os.Exit(1)
 	}
 
-	if jsm.IsKVBucketStream(c.stream) {
-		err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
-		if err != nil {
-			return err
-		}
-	}
-
 	if !c.force {
+		if jsm.IsKVBucketStream(c.stream) {
+			err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
+			if err != nil {
+				return err
+			}
+		}
+
 		ok, err := askConfirmation(fmt.Sprintf("Really edit Stream %s", c.stream), false)
 		fisk.FatalIfError(err, "could not obtain confirmation")
 
@@ -3242,18 +3242,18 @@ func (c *streamCmd) purgeAction(_ *fisk.ParseContext) (err error) {
 	c.connectAndAskStream()
 
 	if !c.force {
+		if jsm.IsKVBucketStream(c.stream) {
+			err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
+			if err != nil {
+				return err
+			}
+		}
+
 		ok, err := askConfirmation(fmt.Sprintf("Really purge Stream %s", c.stream), false)
 		fisk.FatalIfError(err, "could not obtain confirmation")
 
 		if !ok {
 			return nil
-		}
-	}
-
-	if jsm.IsKVBucketStream(c.stream) {
-		err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
-		if err != nil {
-			return err
 		}
 	}
 
@@ -3455,14 +3455,14 @@ func (c *streamCmd) rmMsgAction(_ *fisk.ParseContext) (err error) {
 	stream, err := c.loadStream(c.stream)
 	fisk.FatalIfError(err, "could not load Stream %s", c.stream)
 
-	if jsm.IsKVBucketStream(c.stream) {
-		err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
-		if err != nil {
-			return err
-		}
-	}
-
 	if !c.force {
+		if jsm.IsKVBucketStream(c.stream) {
+			err := c.kvAbstractionWarn(c.stream, "Really operate on the KV stream?")
+			if err != nil {
+				return err
+			}
+		}
+
 		ok, err := askConfirmation(fmt.Sprintf("Really remove message %d from Stream %s", c.msgID, c.stream), false)
 		fisk.FatalIfError(err, "could not obtain confirmation")
 
