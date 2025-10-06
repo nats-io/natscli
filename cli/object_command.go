@@ -50,6 +50,7 @@ type objCommand struct {
 	maxBucketSize       int64
 	maxBucketSizeString string
 	metadata            map[string]string
+	chunkSize           uint32
 
 	description string
 	replicas    uint
@@ -64,6 +65,7 @@ type objCommand struct {
 	clusterIsSetByUser       bool
 	metadataIsSetByUser      bool
 	compressionIsSetByUser   bool
+	chunkSizeIsSetByUser     bool
 }
 
 func configureObjectCommand(app commandHost) {
@@ -110,6 +112,7 @@ for an indefinite period or a per-bucket configured TTL.
 	put.Flag("name", "Override the name supplied to the object store").StringVar(&c.overrideName)
 	put.Flag("description", "Sets an optional description for the object").StringVar(&c.description)
 	put.Flag("header", "Adds headers to the object using K:V format").Short('H').StringsVar(&c.hdrs)
+	put.Flag("chunk-size", "Sets the chunk size for the file").IsSetByUser(&c.chunkSizeIsSetByUser).Uint32Var(&c.chunkSize)
 	put.Flag("progress", "Disable progress bars").Default("true").BoolVar(&c.progress)
 	put.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
@@ -512,6 +515,12 @@ func (c *objCommand) putAction(_ *fisk.ParseContext) error {
 		Name:        filepath.Clean(name),
 		Description: c.description,
 		Headers:     hdr,
+	}
+
+	if c.chunkSizeIsSetByUser {
+		meta.Opts = &jetstream.ObjectMetaOptions{
+			ChunkSize: c.chunkSize,
+		}
 	}
 
 	var progbar progress.Writer
