@@ -1839,30 +1839,33 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		cfg.Replicas = int(c.replicas)
 	}
 
-	if cfg.Placement == nil {
-		cfg.Placement = &api.Placement{}
-	}
-
 	// For placement constraints, we explicitly support empty strings to
 	// remove, so use the *Set bool variables to distinguish "was set on
 	// command-line" from "is not empty".
+	// Only modify placement if the user explicitly set placement flags.
 
-	if c.placementClusterSet {
-		cfg.Placement.Cluster = c.placementCluster
-	}
-
-	if c.placementTagsSet {
-		// With the repeated set, we do accumulate the empty string as a list item.
-		// We do still need the separate IsSetByUser variable to get that.
-		if len(c.placementTags) == 0 || (len(c.placementTags) == 1 && c.placementTags[0] == "") {
-			cfg.Placement.Tags = nil
-		} else {
-			cfg.Placement.Tags = c.placementTags
+	if c.placementClusterSet || c.placementTagsSet {
+		if cfg.Placement == nil {
+			cfg.Placement = &api.Placement{}
 		}
-	}
 
-	if cfg.Placement.Cluster == "" && len(cfg.Placement.Tags) == 0 {
-		cfg.Placement = nil
+		if c.placementClusterSet {
+			cfg.Placement.Cluster = c.placementCluster
+		}
+
+		if c.placementTagsSet {
+			// With the repeated set, we do accumulate the empty string as a list item.
+			// We do still need the separate IsSetByUser variable to get that.
+			if len(c.placementTags) == 0 || (len(c.placementTags) == 1 && c.placementTags[0] == "") {
+				cfg.Placement.Tags = nil
+			} else {
+				cfg.Placement.Tags = c.placementTags
+			}
+		}
+
+		if cfg.Placement.Cluster == "" && len(cfg.Placement.Tags) == 0 {
+			cfg.Placement = nil
+		}
 	}
 
 	if len(c.sources) > 0 || c.mirror != "" {
