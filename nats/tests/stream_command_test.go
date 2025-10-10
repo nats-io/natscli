@@ -306,6 +306,54 @@ func TestStreamEditMirrorPromote(t *testing.T) {
 	})
 }
 
+func TestStreamEditReplicasPreservesPlacement(t *testing.T) {
+	withJSCluster(t, func(t *testing.T, servers []*server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name := "TEST_PLACEMENT"
+		placementCluster := "TEST"
+
+		// Create stream with explicit placement cluster
+		_, err := mgr.NewStream(name,
+			jsm.Subjects("test.>"),
+			jsm.Replicas(1),
+			jsm.PlacementCluster(placementCluster),
+		)
+		checkErr(t, err, "unable to create stream")
+
+		// Load and verify initial placement
+		s, err := mgr.LoadStream(name)
+		checkErr(t, err, "unable to load stream")
+		info, err := s.LatestInformation()
+		checkErr(t, err, "unable to get stream info")
+
+		if info.Config.Placement == nil || info.Config.Placement.Cluster != placementCluster {
+			t.Fatalf("expected placement cluster %q, got %v", placementCluster, info.Config.Placement)
+		}
+
+		// Edit only replicas without specifying placement
+		runNatsCli(t, fmt.Sprintf("--server='%s' stream edit %s --replicas=2 --force", servers[0].ClientURL(), name))
+
+		// Verify placement is preserved
+		s, err = mgr.LoadStream(name)
+		checkErr(t, err, "unable to reload stream")
+		info, err = s.LatestInformation()
+		checkErr(t, err, "unable to get updated stream info")
+
+		if info.Config.Replicas != 2 {
+			t.Fatalf("expected replicas to be 2, got %d", info.Config.Replicas)
+		}
+
+		if info.Config.Placement == nil {
+			t.Fatalf("placement was removed when editing replicas")
+		}
+
+		if info.Config.Placement.Cluster != placementCluster {
+			t.Fatalf("expected placement cluster %q to be preserved, got %q", placementCluster, info.Config.Placement.Cluster)
+		}
+
+		return nil
+	})
+}
+
 func TestStreamRM(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 		name := setupStreamTest(t, mgr)
