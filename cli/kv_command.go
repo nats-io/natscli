@@ -623,13 +623,27 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 		cfg.Metadata = c.metadata
 	}
 
-	var placement *jetstream.Placement
+	// For placement constraints, only modify placement if the user explicitly set placement flags.
 	if c.clusterSet || c.tagsSet {
-		placement = &jetstream.Placement{Cluster: c.placementCluster}
-		if len(c.placementTags) > 0 {
-			placement.Tags = c.placementTags
+		if cfg.Placement == nil {
+			cfg.Placement = &jetstream.Placement{}
 		}
-		cfg.Placement = placement
+
+		if c.clusterSet {
+			cfg.Placement.Cluster = c.placementCluster
+		}
+
+		if c.tagsSet {
+			if len(c.placementTags) == 0 || (len(c.placementTags) == 1 && c.placementTags[0] == "") {
+				cfg.Placement.Tags = nil
+			} else {
+				cfg.Placement.Tags = c.placementTags
+			}
+		}
+
+		if cfg.Placement.Cluster == "" && len(cfg.Placement.Tags) == 0 {
+			cfg.Placement = nil
+		}
 	}
 
 	if c.republishDestinationSet {
