@@ -771,7 +771,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		streamsTotal        int
 		bytesTotal          uint64
 		msgsTotal           uint64
-		cluster             *server.MetaClusterInfo
+		clusters            []*server.MetaClusterInfo
 		expectedClusterSize int
 	)
 
@@ -907,7 +907,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		if js.Data.Meta != nil {
 			if js.Data.Meta.Leader == js.Server.Name {
 				leader = "*"
-				cluster = js.Data.Meta
+				clusters = append(clusters, js.Data.Meta)
 			}
 			if expectedClusterSize < js.Data.Meta.Size {
 				expectedClusterSize = js.Data.Meta.Size
@@ -956,52 +956,54 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	switch {
 	case c.isFiltered():
 	case expectedClusterSize == 0:
-	case len(jszResponses) > 0 && cluster == nil:
+	case len(jszResponses) > 0 && len(clusters) == 0:
 		fmt.Println()
 		fmt.Printf("WARNING: No cluster meta leader found. The cluster expects %d nodes but only %d responded. JetStream operation requires at least %d up nodes.", expectedClusterSize, len(jszResponses), expectedClusterSize/2+1)
 		fmt.Println()
 	default:
-		cluster.Replicas = append(cluster.Replicas, &server.PeerInfo{
-			Name:    cluster.Leader,
-			Current: true,
-			Offline: false,
-			Active:  0,
-			Lag:     0,
-		})
+		for _, cluster := range clusters {
+			cluster.Replicas = append(cluster.Replicas, &server.PeerInfo{
+				Name:    cluster.Leader,
+				Current: true,
+				Offline: false,
+				Active:  0,
+				Lag:     0,
+			})
 
-		sort.Slice(cluster.Replicas, func(i, j int) bool {
-			return cluster.Replicas[i].Name < cluster.Replicas[j].Name
-		})
+			sort.Slice(cluster.Replicas, func(i, j int) bool {
+				return cluster.Replicas[i].Name < cluster.Replicas[j].Name
+			})
 
-		names := []string{}
-		for _, r := range cluster.Replicas {
-			names = append(names, r.Name)
-		}
-		if c.compact {
-			cNames = iu.CompactStrings(names)
-		} else {
-			cNames = names
-		}
-
-		table := iu.NewTableWriterf(opts(), "RAFT Meta Group Information")
-		table.AddHeaders("Connection Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
-		for i, replica := range cluster.Replicas {
-			leader := ""
-			peer := replica.Peer
-			if replica.Name == cluster.Leader {
-				leader = "yes"
-				peer = cluster.Peer
+			names := []string{}
+			for _, r := range cluster.Replicas {
+				names = append(names, r.Name)
+			}
+			if c.compact {
+				cNames = iu.CompactStrings(names)
+			} else {
+				cNames = names
 			}
 
-			online := "true"
-			if replica.Offline {
-				online = color.New(color.Bold).Sprint("false")
+			table := iu.NewTableWriterf(opts(), "RAFT Meta Group Information")
+			table.AddHeaders("Connection Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
+			for i, replica := range cluster.Replicas {
+				leader := ""
+				peer := replica.Peer
+				if replica.Name == cluster.Leader {
+					leader = "yes"
+					peer = cluster.Peer
+				}
+
+				online := "true"
+				if replica.Offline {
+					online = color.New(color.Bold).Sprint("false")
+				}
+
+				table.AddRow(cNames[i], peer, leader, replica.Current, online, f(replica.Active), f(replica.Lag))
 			}
 
-			table.AddRow(cNames[i], peer, leader, replica.Current, online, f(replica.Active), f(replica.Lag))
+			fmt.Print(table.Render())
 		}
-
-		fmt.Print(table.Render())
 	}
 
 	return nil
