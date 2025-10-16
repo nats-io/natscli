@@ -987,7 +987,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			}
 
 			header := "RAFT Meta Group Information - Lead cluster: " + cluster.Name
-			table := iu.NewTableWriterf(opts(), header)
+			table := iu.NewTableWriterf(opts(), "%s", header)
 
 			table.AddHeaders("Connection Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
 			for i, replica := range cluster.Replicas {
