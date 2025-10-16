@@ -961,7 +961,9 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		fmt.Printf("WARNING: No cluster meta leader found. The cluster expects %d nodes but only %d responded. JetStream operation requires at least %d up nodes.", expectedClusterSize, len(jszResponses), expectedClusterSize/2+1)
 		fmt.Println()
 	default:
+		clusterCount := 0
 		for _, cluster := range clusters {
+
 			cluster.Replicas = append(cluster.Replicas, &server.PeerInfo{
 				Name:    cluster.Leader,
 				Current: true,
@@ -984,7 +986,9 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 				cNames = names
 			}
 
-			table := iu.NewTableWriterf(opts(), "RAFT Meta Group Information")
+			header := "RAFT Meta Group Information - Lead cluster: " + cluster.Name
+			table := iu.NewTableWriterf(opts(), header)
+
 			table.AddHeaders("Connection Name", "ID", "Leader", "Current", "Online", "Active", "Lag")
 			for i, replica := range cluster.Replicas {
 				leader := ""
@@ -1002,6 +1006,10 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 				table.AddRow(cNames[i], peer, leader, replica.Current, online, f(replica.Active), f(replica.Lag))
 			}
 
+			if clusterCount != 0 {
+				fmt.Println()
+			}
+			clusterCount++
 			fmt.Print(table.Render())
 		}
 	}
