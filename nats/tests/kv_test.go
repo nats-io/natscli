@@ -353,3 +353,59 @@ func TestCLIEdit(t *testing.T) {
 		return nil
 	})
 }
+
+func TestKVEditReplicasPreservesPlacement(t *testing.T) {
+	withJSCluster(t, func(t *testing.T, servers []*server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		bucket := "TEST_PLACEMENT"
+		placementCluster := "TEST"
+
+		// Create KV bucket with explicit placement cluster
+		js, err := jetstream.New(nc)
+		checkErr(t, err, "unable to create jetstream context")
+
+		cfg := jetstream.KeyValueConfig{
+			Bucket:    bucket,
+			Replicas:  1,
+			Placement: &jetstream.Placement{Cluster: placementCluster},
+		}
+
+		_, err = js.CreateKeyValue(context.Background(), cfg)
+		checkErr(t, err, "unable to create kv bucket")
+
+		// Load and verify initial placement
+		kv, err := js.KeyValue(context.Background(), bucket)
+		checkErr(t, err, "unable to load kv bucket")
+		status, err := kv.Status(context.Background())
+		checkErr(t, err, "unable to get kv status")
+
+		nfo := status.(*jetstream.KeyValueBucketStatus).StreamInfo()
+		if nfo.Config.Placement == nil || nfo.Config.Placement.Cluster != placementCluster {
+			t.Fatalf("expected placement cluster %q, got %v", placementCluster, nfo.Config.Placement)
+		}
+
+		// Edit only replicas without specifying placement
+		runNatsCli(t, fmt.Sprintf("--server='%s' kv edit %s --replicas=2", servers[0].ClientURL(), bucket))
+
+		// Verify placement is preserved
+		kv, err = js.KeyValue(context.Background(), bucket)
+		checkErr(t, err, "unable to reload kv bucket")
+		status, err = kv.Status(context.Background())
+		checkErr(t, err, "unable to get updated kv status")
+
+		nfo = status.(*jetstream.KeyValueBucketStatus).StreamInfo()
+
+		if nfo.Config.Replicas != 2 {
+			t.Fatalf("expected replicas to be 2, got %d", nfo.Config.Replicas)
+		}
+
+		if nfo.Config.Placement == nil {
+			t.Fatalf("placement was removed when editing replicas")
+		}
+
+		if nfo.Config.Placement.Cluster != placementCluster {
+			t.Fatalf("expected placement cluster %q to be preserved, got %q", placementCluster, nfo.Config.Placement.Cluster)
+		}
+
+		return nil
+	})
+}
