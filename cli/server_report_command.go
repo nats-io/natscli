@@ -920,8 +920,8 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			msgsTotal += js.Data.Messages
 			rMessages = js.Data.Messages
 			if js.Data.StreamsLeader > 0 || js.Data.ConsumersLeader > 0 {
-				consumerLeaderStats[js.Server.Name] = &raftLeader{name: js.Server.Name, cluster: js.Server.Cluster, groups: js.Data.StreamsLeader}
-				streamLeaderStats[js.Server.Name] = &raftLeader{name: js.Server.Name, cluster: js.Server.Cluster, groups: js.Data.ConsumersLeader}
+				consumerLeaderStats[js.Server.Name] = &raftLeader{name: js.Server.Name, cluster: js.Server.Cluster, groups: js.Data.ConsumersLeader}
+				streamLeaderStats[js.Server.Name] = &raftLeader{name: js.Server.Name, cluster: js.Server.Cluster, groups: js.Data.StreamsLeader}
 			}
 		}
 
