@@ -810,10 +810,14 @@ func renderRaftLeaders(leaders map[string]*raftLeader, grpTitle string) {
 			prev = l.cluster
 		}
 
-		dots := int(math.Round((float64(l.groups) / float64(cstreams[l.cluster]) * 100) / 10))
-		if dots <= 0 {
-			dots = 1
+		dots := 0
+		if l.groups > 0 {
+			dots = int(math.Round((float64(l.groups) / float64(cstreams[l.cluster]) * 100) / 10))
+			if dots <= 0 {
+				dots = 1
+			}
 		}
+
 		table.AddRow(l.name, l.cluster, f(l.groups), strings.Repeat("*", dots))
 	}
 	fmt.Println(table.Render())
