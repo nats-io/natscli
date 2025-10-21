@@ -46,6 +46,7 @@ type SrvReportCmd struct {
 	topk                    int
 	reverse                 bool
 	compact                 bool
+	reportLeaderDistrib     bool
 	subject                 string
 	server                  string
 	cluster                 string
@@ -135,6 +136,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	jsz.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
 	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
 	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
+	jsz.Flag("leaders", "Show details about cluster leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
 	addFilterOpts(jsz)
 
 	leafs := report.Command("leafnodes", "Report on Leafnode connections").Alias("leaf").Alias("leafz").Action(c.withWatcher(c.reportLeafs))
@@ -746,7 +748,7 @@ func (c *SrvReportCmd) reportCpuOrMem(mem bool) error {
 }
 
 func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
-	jszOpts := server.JSzOptions{}
+	jszOpts := server.JSzOptions{RaftGroups: true}
 	if c.account != "" {
 		jszOpts.Account = c.account
 		jszOpts.Streams = true
@@ -772,11 +774,13 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		bytesTotal          uint64
 		msgsTotal           uint64
 		clusters            []*server.MetaClusterInfo
+		consumerLeaderStats = make(map[string]*raftLeader)
+		streamLeaderStats   = make(map[string]*raftLeader)
 		expectedClusterSize int
+		renderAssetLeaders  bool
 	)
 
 	// TODO: remove after 2.12 is out
-	renderPending := iu.ServerMinVersion(c.nc, 2, 10, 21)
 	renderDomain := false
 	for _, r := range res {
 		response := &server.ServerAPIJszResponse{}
@@ -853,10 +857,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	if renderDomain {
 		hdrs = append(hdrs, "Domain")
 	}
-	hdrs = append(hdrs, "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req")
-	if renderPending {
-		hdrs = append(hdrs, "Pending")
-	}
+	hdrs = append(hdrs, "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "Pending")
 	table.AddHeaders(hdrs...)
 
 	for i, js := range jszResponses {
@@ -891,6 +892,23 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 				rConsumers += sd.State.Consumers
 				msgsTotal += sd.State.Msgs
 				rMessages += sd.State.Msgs
+				if sd.Cluster != nil && sd.Cluster.Leader == js.Server.Name {
+					if _, ok := streamLeaderStats[sd.Cluster.Leader]; ok {
+						streamLeaderStats[sd.Cluster.Leader].groups++
+					} else {
+						streamLeaderStats[sd.Cluster.Leader] = &raftLeader{name: sd.Cluster.Leader, cluster: sd.Cluster.Name, groups: 1}
+					}
+				}
+
+				for _, consumer := range sd.Consumer {
+					if consumer.Cluster != nil && consumer.Cluster.Leader == js.Server.Name {
+						if _, ok := consumerLeaderStats[sd.Cluster.Leader]; ok {
+							consumerLeaderStats[sd.Cluster.Leader].groups++
+						} else {
+							consumerLeaderStats[sd.Cluster.Leader] = &raftLeader{name: sd.Cluster.Leader, cluster: sd.Cluster.Name, groups: 1}
+						}
+					}
+				}
 			}
 		} else {
 			consumersTotal += js.Data.Consumers
@@ -901,6 +919,10 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			rBytes = js.Data.Bytes
 			msgsTotal += js.Data.Messages
 			rMessages = js.Data.Messages
+			if js.Data.StreamsLeader > 0 || js.Data.ConsumersLeader > 0 {
+				consumerLeaderStats[js.Server.Name] = &raftLeader{name: js.Server.Name, cluster: js.Server.Cluster, groups: js.Data.StreamsLeader}
+				streamLeaderStats[js.Server.Name] = &raftLeader{name: js.Server.Name, cluster: js.Server.Cluster, groups: js.Data.ConsumersLeader}
+			}
 		}
 
 		leader := ""
@@ -929,22 +951,21 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 			humanize.IBytes(jss.Memory),
 			humanize.IBytes(jss.Store),
 			f(jss.API.Total),
+			rPending,
 		)
-		if renderPending {
-			row = append(row, rPending)
-		}
 
 		table.AddRow(row...)
+
+		if !renderAssetLeaders && consumerLeaderStats[js.Server.Name] != nil || streamLeaderStats[js.Server.Name] != nil {
+			renderAssetLeaders = true
+		}
 	}
 
 	row := []any{"", ""}
 	if renderDomain {
 		row = append(row, "")
 	}
-	row = append(row, f(streamsTotal), f(consumersTotal), f(msgsTotal), humanize.IBytes(bytesTotal), humanize.IBytes(memoryTotal), humanize.IBytes(storeTotal), f(apiTotal))
-	if renderPending {
-		row = append(row, pendingTotal)
-	}
+	row = append(row, f(streamsTotal), f(consumersTotal), f(msgsTotal), humanize.IBytes(bytesTotal), humanize.IBytes(memoryTotal), humanize.IBytes(storeTotal), f(apiTotal), pendingTotal)
 	table.AddFooter(row...)
 
 	if c.watchInterval > 0 {
@@ -961,9 +982,7 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		fmt.Printf("WARNING: No cluster meta leader found. The cluster expects %d nodes but only %d responded. JetStream operation requires at least %d up nodes.", expectedClusterSize, len(jszResponses), expectedClusterSize/2+1)
 		fmt.Println()
 	default:
-		clusterCount := 0
-		for _, cluster := range clusters {
-
+		for i, cluster := range clusters {
 			cluster.Replicas = append(cluster.Replicas, &server.PeerInfo{
 				Name:    cluster.Leader,
 				Current: true,
@@ -1006,11 +1025,20 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 				table.AddRow(cNames[i], peer, leader, replica.Current, online, f(replica.Active), f(replica.Lag))
 			}
 
-			if clusterCount != 0 {
+			if i >= 1 {
 				fmt.Println()
 			}
-			clusterCount++
 			fmt.Print(table.Render())
+		}
+	}
+
+	if c.reportLeaderDistrib {
+		fmt.Println()
+		if !renderAssetLeaders {
+			fmt.Println("No JetStream asset leader data reported")
+		} else {
+			renderRaftLeaders(streamLeaderStats, "Stream Leaders")
+			renderRaftLeaders(consumerLeaderStats, "Consumer Leaders")
 		}
 	}
 
