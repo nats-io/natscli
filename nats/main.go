@@ -14,11 +14,12 @@
 package main
 
 import (
-	iu "github.com/nats-io/natscli/internal/util"
 	"log"
 	"os"
 	"runtime"
 	"runtime/debug"
+
+	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/natscli/plugins"
@@ -55,6 +56,7 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	ncli.Flag("connection-name", "Nickname to use for the underlying NATS Connection").Default("NATS CLI Version " + getVersion()).PlaceHolder("NAME").StringVar(&opts.ConnectionName)
 	ncli.Flag("creds", "User credentials").Envar("NATS_CREDS").PlaceHolder("FILE").StringVar(&opts.Creds)
 	ncli.Flag("nkey", "User NKEY").Envar("NATS_NKEY").PlaceHolder("FILE").StringVar(&opts.Nkey)
+	ncli.Flag("jwt", "User JWT").Envar("NATS_JWT").PlaceHolder("JWT").StringVar(&opts.UserJwt)
 	ncli.Flag("tlscert", "TLS public certificate").Envar("NATS_CERT").PlaceHolder("FILE").ExistingFileVar(&opts.TlsCert)
 	ncli.Flag("tlskey", "TLS private key").Envar("NATS_KEY").PlaceHolder("FILE").ExistingFileVar(&opts.TlsKey)
 	ncli.Flag("tlsca", "TLS certificate authority chain").Envar("NATS_CA").PlaceHolder("FILE").ExistingFileVar(&opts.TlsCA)

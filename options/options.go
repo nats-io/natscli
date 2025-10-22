@@ -50,6 +50,8 @@ type Options struct {
 	Token string
 	// Nkey is the file holding a nkey to connect with
 	Nkey string
+	// UserJwt is the user JWT to connect with
+	UserJwt string
 	// JsApiPrefix is the JetStream API prefix
 	JsApiPrefix string
 	// JsEventPrefix is the JetStream events prefix
