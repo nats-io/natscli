@@ -17,11 +17,11 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.18.0
-	github.com/nats-io/jsm.go v0.3.0
+	github.com/klauspost/compress v1.18.1
+	github.com/nats-io/jsm.go v0.3.1-0.20251022125454-e0d9a790a753
 	github.com/nats-io/jwt/v2 v2.8.0
-	github.com/nats-io/nats-server/v2 v2.12.0
-	github.com/nats-io/nats.go v1.46.0
+	github.com/nats-io/nats-server/v2 v2.12.1
+	github.com/nats-io/nats.go v1.47.0
 	github.com/nats-io/nkeys v0.4.11
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.23.2
@@ -30,8 +30,8 @@ require (
 	github.com/synadia-io/orbit.go/counters v0.1.0
 	github.com/synadia-io/orbit.go/jetstreamext v0.2.0
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
-	golang.org/x/crypto v0.42.0
-	golang.org/x/term v0.35.0
+	golang.org/x/crypto v0.43.0
+	golang.org/x/term v0.36.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -68,9 +68,9 @@ require (
 	github.com/synadia-io/orbit.go/natsext v0.1.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect
-	golang.org/x/net v0.44.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
-	golang.org/x/time v0.13.0 // indirect
+	golang.org/x/net v0.45.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/protobuf v1.36.9 // indirect
 )
