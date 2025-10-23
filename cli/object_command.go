@@ -563,7 +563,14 @@ func (c *objCommand) getAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	res, err := obj.Get(ctx, c.file)
+	getCtx := ctx
+	if opts().Timeout < time.Hour {
+		var cancel context.CancelFunc
+		getCtx, cancel = context.WithTimeout(context.Background(), time.Hour)
+		defer cancel()
+	}
+
+	res, err := obj.Get(getCtx, c.file)
 	if err != nil {
 		return err
 	}
