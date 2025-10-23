@@ -561,7 +561,6 @@ func loadContext(softFail bool) error {
 	var err error
 
 	exist, _ := iu.IsFileAccessible(opts.CfgCtx)
-
 	if exist && strings.HasSuffix(opts.CfgCtx, ".json") {
 		opts.Config, err = natscontext.NewFromFile(opts.CfgCtx, ctxOpts...)
 	} else {
