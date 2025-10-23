@@ -32,6 +32,12 @@ nats bench service serve testservice --sleep 50us
 # generate load by publishing messages at an interval of 100 nanoseconds rather than back to back
 nats bench pub foo --sleep=100ns
 
+# put messages into a KV using synchronous put operations
+nats bench kv put --clients 10
+
+# get messages from a kv using synchronous get operations and randomizing the key each time
+nats bench kv get --randomize=100000 --clients 10
+
 # remember when benchmarking JetStream
 Once you are finished benchmarking, remember to free up the resources (i.e. memory and files) consumed by the stream using 'nats stream rm'.
 

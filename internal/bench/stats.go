@@ -108,11 +108,10 @@ func (bm *BenchmarkResults) Report() string {
 		buffer.WriteString(fmt.Sprintf("%s %s stats: %s\n", bm.Name, GetBenchTypeLabel(bm.BenchType), bm))
 		indent += " "
 	} else {
-		buffer.WriteString(fmt.Sprintf("%s %s aggregated stats: %s\n", bm.Name, GetBenchTypeLabel(bm.BenchType), fmt.Sprintf("%s msgs/sec ~ %s/sec", humanize.Comma(bm.SampleGroup.Rate()), humanize.IBytes(uint64(bm.SampleGroup.Throughput())))))
-		indent += " "
 		for i, stat := range bm.SampleGroup.samples {
-			buffer.WriteString(fmt.Sprintf("%s [%d] %v (%s msgs)\n", indent, i+1, stat, humanize.Comma(int64(stat.jobMsgCnt))))
+			buffer.WriteString(fmt.Sprintf("%s [%d] %v (%s msgs)\n", indent+" ", i+1, stat, humanize.Comma(int64(stat.jobMsgCnt))))
 		}
+		buffer.WriteString(fmt.Sprintf("\n%s %s %s aggregated stats: %s\n", indent, bm.Name, GetBenchTypeLabel(bm.BenchType), fmt.Sprintf("%s msgs/sec ~ %s/sec", humanize.Comma(bm.SampleGroup.Rate()), humanize.IBytes(uint64(bm.SampleGroup.Throughput())))))
 		buffer.WriteString(fmt.Sprintf("%s message rates %s\n", indent, bm.SampleGroup.MsgRateStatistics()))
 		buffer.WriteString(fmt.Sprintf("%s avg latencies %s\n", indent, bm.SampleGroup.LatencyStatistics()))
 	}
