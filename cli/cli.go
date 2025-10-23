@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,6 +17,8 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"fmt"
+	"github.com/nats-io/jsm.go/natscontext"
 	glog "log"
 	"sort"
 	"sync"
@@ -165,6 +167,9 @@ func ConfigureInApp(app *fisk.Application, cliOpts *options.Options, prepare boo
 func preAction(_ *fisk.ParseContext) (err error) {
 	err = loadContext(true)
 	if errors.Is(err, ErrContextNotFound) {
+		fmt.Printf("The selected context %q was not found, unselecting it\n", natscontext.SelectedContext())
+		natscontext.UnSelectContext()
+		fmt.Println()
 		return err
 	}
 	return nil
