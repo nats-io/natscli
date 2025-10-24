@@ -22,10 +22,6 @@ import (
 	"testing"
 )
 
-const (
-	TEST_DIR = "/tmp/natscli/auth_command_test"
-)
-
 var (
 	JSON = `
 {
@@ -47,13 +43,17 @@ test.a:
 `
 )
 
+var tempDir string
+
 func setup(operator, account string, t *testing.T) {
+	t.Helper()
 	teardown(t)
-	err := os.Setenv("XDG_CONFIG_HOME", TEST_DIR)
+	tempDir = t.TempDir()
+	err := os.Setenv("XDG_CONFIG_HOME", tempDir)
 	if err != nil {
 		t.Error(err)
 	}
-	err = os.Setenv("XDG_DATA_HOME", TEST_DIR)
+	err = os.Setenv("XDG_DATA_HOME", tempDir)
 	if err != nil {
 		t.Error(err)
 	}
@@ -63,11 +63,8 @@ func setup(operator, account string, t *testing.T) {
 }
 
 func teardown(t *testing.T) {
-	err := os.RemoveAll(TEST_DIR)
-	if err != nil {
-		t.Error(err)
-	}
-	err = os.Unsetenv("NSC_HOME")
+	t.Helper()
+	err := os.Unsetenv("NSC_HOME")
 	if err != nil {
 		t.Error(err)
 	}
@@ -123,7 +120,7 @@ func TestMapping(t *testing.T) {
 					},
 				}
 
-				fp := filepath.Join(TEST_DIR, fmt.Sprintf("test.%s", tt.fileExt))
+				fp := filepath.Join(tempDir, fmt.Sprintf("test.%s", tt.fileExt))
 				file, err := os.OpenFile(fp, os.O_CREATE|os.O_WRONLY, 0644)
 				if err != nil {
 					t.Fatalf("Error opening file: %s", err)

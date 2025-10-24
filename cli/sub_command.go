@@ -52,6 +52,7 @@ type subCmd struct {
 	sseq                  uint64
 	deliverAll            bool
 	deliverNew            bool
+	stopAtPendingZero     bool
 	reportSubjects        bool
 	reportSubjectsCount   int
 	reportSub             bool
@@ -152,6 +153,7 @@ func configureSubCommand(app commandHost) {
 	act.Flag("last", "Delivers the most recent and all future messages (requires JetStream)").UnNegatableBoolVar(&c.deliverLast)
 	act.Flag("since", "Delivers messages received since a duration like 1d3h5m2s(requires JetStream)").PlaceHolder("DURATION").StringVar(&c.deliverSince)
 	act.Flag("last-per-subject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
+	act.Flag("terminate-at-end", "Stops consuming messages from JetStream once all messages were received").Short('T').UnNegatableBoolVar(&c.stopAtPendingZero)
 	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
 	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
 	act.Flag("wait", "Unsubscribe after this amount of time without any traffic").DurationVar(&c.wait)
@@ -318,6 +320,9 @@ func (c *subCmd) validateInputs(ctx context.Context, nc *nats.Conn, mgr *jsm.Man
 		return fmt.Errorf("streams subscribe support only 1 subject")
 	}
 
+	if c.stopAtPendingZero && !c.jetStream {
+		return fmt.Errorf("--terminate-at-end is only supported for JetStream subscriptions")
+	}
 	if c.inbox && c.jetStream {
 		return fmt.Errorf("generating inboxes is not compatible with JetStream subscriptions")
 	}
@@ -437,8 +442,8 @@ func (c *subCmd) createMsgHandler(subState subscriptionState, subs *[]*nats.Subs
 	}
 }
 
-// createJestreamMsgHandler sets up a message handler specifically for jetstream.Msg message types
-func (c *subCmd) createJestreamMsgHandler(subState subscriptionState, nc *nats.Conn, consumers *[]jetstream.ConsumeContext, t *time.Timer) jetstream.MessageHandler {
+// createJetStreamMsgHandler sets up a message handler specifically for jetstream.Msg message types
+func (c *subCmd) createJetStreamMsgHandler(subState subscriptionState, nc *nats.Conn, consumers *[]jetstream.ConsumeContext, t *time.Timer) jetstream.MessageHandler {
 	return func(m jetstream.Msg) {
 		subState.msgMu.Lock()
 		defer subState.msgMu.Unlock()
@@ -468,7 +473,8 @@ func (c *subCmd) createJestreamMsgHandler(subState subscriptionState, nc *nats.C
 			c.printJetStreamMsg(m, nil, subState.counter)
 		}
 
-		if c.limit > 0 && subState.counter == c.limit {
+		meta, _ := m.Metadata()
+		if (c.limit > 0 && subState.counter == c.limit) || (c.stopAtPendingZero && meta != nil && meta.NumPending == 0) {
 			for _, cCtx := range *consumers {
 				cCtx.Stop()
 			}
@@ -477,6 +483,7 @@ func (c *subCmd) createJestreamMsgHandler(subState subscriptionState, nc *nats.C
 			if !c.match || len(subState.matchMap) == 0 {
 				subState.cancelFn()
 			}
+
 			return
 		}
 
@@ -687,8 +694,8 @@ func (c *subCmd) jetStreamSubscribe(ctx context.Context, subState subscriptionSt
 	return nil
 }
 
-// reportJetstreamSubscribe sets up a jetstream specific subscription for subject reporting
-func (c *subCmd) reportJetstreamSubscribe(ctx context.Context, subState subscriptionState, handler jetstream.MessageHandler, consumerContexts *[]jetstream.ConsumeContext, js jetstream.JetStream) error {
+// reportJetStreamSubscribe sets up a jetstream specific subscription for subject reporting
+func (c *subCmd) reportJetStreamSubscribe(ctx context.Context, subState subscriptionState, handler jetstream.MessageHandler, consumerContexts *[]jetstream.ConsumeContext, js jetstream.JetStream) error {
 	err := c.jetStreamSubscribe(ctx, subState, handler, consumerContexts, js)
 	if err != nil {
 		return err
@@ -968,7 +975,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 
 	msgHandler := c.createMsgHandler(subState, &subs, t)
-	jetstreamMsgHandler := c.createJestreamMsgHandler(subState, nc, &consumerContexts, t)
+	jetstreamMsgHandler := c.createJetStreamMsgHandler(subState, nc, &consumerContexts, t)
 
 	matchHandler := c.createMatchHandler(subState)
 
@@ -1009,7 +1016,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		err = c.graphSubscribe(ctx, subState, nc, msgHandler, &subs)
 	case c.reportSubjects:
 		if c.jetStream {
-			err = c.reportJetstreamSubscribe(ctx, subState, jetstreamMsgHandler, &consumerContexts, js)
+			err = c.reportJetStreamSubscribe(ctx, subState, jetstreamMsgHandler, &consumerContexts, js)
 		} else {
 			err = c.reportSubscribe(ctx, subState, nc, msgHandler, &subs)
 		}
@@ -1146,7 +1153,7 @@ func (c *subCmd) printJetStreamMsg(msg jetstream.Msg, reply jetstream.Msg, ctr u
 		fmt.Printf("<<< Reply Subject: %v\n", dataMsg.Reply)
 	}
 
-	summary := fmt.Sprintf("stream: %s seq %d / subject: %s / time: %v", meta.Stream, meta.Sequence.Stream, dataMsg.Subject, meta.Timestamp)
+	summary := fmt.Sprintf("stream: %s seq: %s / pending: %s / subject: %s / time: %s", meta.Stream, f(meta.Sequence.Stream), f(meta.NumPending), dataMsg.Subject, f(meta.Timestamp))
 
 	// Output format 1: dumping, to stdout or files
 	if c.dump != "" {
@@ -1179,8 +1186,7 @@ func (c *subCmd) printJetStreamMsg(msg jetstream.Msg, reply jetstream.Msg, ctr u
 	}
 
 	if replyMsg != nil {
-		rsum := fmt.Sprintf("stream: %s seq %d / subject: %s / time: %v", meta.Stream, meta.Sequence.Stream, reply.Subject(), meta.Timestamp)
-		fmt.Printf("[#%d] Matched reply JetStream message: %s\n", ctr, rsum)
+		fmt.Printf("[#%d] Matched reply JetStream message: %s\n", ctr, summary)
 		c.prettyPrintMsg(replyMsg, c.headersOnly, c.translate)
 	}
 }
