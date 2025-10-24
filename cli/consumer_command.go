@@ -2148,8 +2148,11 @@ func (c *consumerCmd) getNextMsgDirect(stream string, consumer string) error {
 	fisk.FatalIfError(err, "could not request next message")
 
 	fatalIfNotPull := func() {
-		cons, err := c.mgr.LoadConsumer(stream, consumer)
-		fisk.FatalIfError(err, "could not load consumer %q", consumer)
+		cons := c.selectedConsumer
+		if cons == nil {
+			cons, err = c.mgr.LoadConsumer(stream, consumer)
+			fisk.FatalIfError(err, "could not load consumer %q", consumer)
+		}
 
 		if !cons.IsPullMode() {
 			fisk.Fatalf("consumer %q is not a Pull consumer", consumer)
