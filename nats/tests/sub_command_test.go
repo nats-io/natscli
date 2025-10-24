@@ -46,14 +46,17 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--dump=file", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			dumpDir := "/tmp/test1"
-			t.Cleanup(func() { _ = os.RemoveAll(dumpDir) })
+			dumpDir := t.TempDir()
 
 			done := make(chan struct{})
-			go func() {
-				runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --dump=%s", srv.ClientURL(), dumpDir))
+			go func(t *testing.T) {
+				t.Helper()
+				out := runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --dump='%s'", srv.ClientURL(), dumpDir))
+				if strings.Contains(string(out), "Could not save message") {
+					t.Errorf("unexpected error: %s", string(out))
+				}
 				close(done)
-			}()
+			}(t)
 
 			time.Sleep(500 * time.Millisecond)
 
@@ -174,12 +177,11 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--dump and --translate", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			dumpDir := "/tmp/test_dump_and_translate"
-			t.Cleanup(func() { _ = os.RemoveAll(dumpDir) })
+			dumpDir := t.TempDir()
 
 			done := make(chan struct{})
 			go func() {
-				runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --dump=%s --translate=\"wc -c\"", srv.ClientURL(), dumpDir))
+				runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --dump='%s' --translate=\"wc -c\"", srv.ClientURL(), dumpDir))
 				close(done)
 			}()
 
@@ -208,7 +210,7 @@ func TestNatsSubscribe(t *testing.T) {
 			}
 
 			if dumpFile == "" {
-				t.Fatal("no .json file found in dump directory")
+				t.Fatalf("no .json file found in dump directory %q with entries %v", dumpDir, entries)
 			}
 
 			resp, err := os.ReadFile(dumpFile)
@@ -555,6 +557,28 @@ func TestJetStreamSubscribe(t *testing.T) {
 		}
 	)
 
+	t.Run("--terminate-at-end", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1)
+
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			start := time.Now()
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --last --terminate-at-end --wait 2s", srv.ClientURL())))
+			if !expectMatchLine(t, output, `\[#\d\] Received JetStream message: stream: TEST_STREAM seq: (\d+) / pending: 0 / subject: TEST_STREAM.1 / time: \d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d`) {
+				t.Fatalf("missing expected summary line:\n%s", output)
+			}
+
+			if time.Since(start) > time.Second {
+				t.Fatalf("expected to terminate first message, but took %s", time.Since(start))
+			}
+			return nil
+		})
+	})
+
 	t.Run("--dump=file", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			createDefaultTestStream(t, mgr, 1)
@@ -564,10 +588,10 @@ func TestJetStreamSubscribe(t *testing.T) {
 				t.Fatalf("unable to publish message: %s", err)
 			}
 
-			runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --last --count=1 --dump=/tmp/test1", srv.ClientURL()))
-			defer os.RemoveAll("/tmp/test1/")
+			dumpDir := t.TempDir()
+			runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --last --count=1 --dump='%s'", srv.ClientURL(), dumpDir))
 
-			resp, err := os.ReadFile("/tmp/test1/1.json")
+			resp, err := os.ReadFile(filepath.Join(dumpDir, "1.json"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -661,10 +685,9 @@ func TestJetStreamSubscribe(t *testing.T) {
 				t.Fatalf("unable to publish message: %s", err)
 			}
 
-			dumpDir := "/tmp/test_dump_and_translate"
+			dumpDir := t.TempDir()
 
-			runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --last --count=1 --dump=%s --translate=\"wc -c\"", srv.ClientURL(), dumpDir))
-			defer os.RemoveAll(dumpDir)
+			runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --last --count=1 --dump='%s' --translate=\"wc -c\"", srv.ClientURL(), dumpDir))
 
 			entries, err := os.ReadDir(dumpDir)
 			if err != nil {
@@ -682,7 +705,7 @@ func TestJetStreamSubscribe(t *testing.T) {
 			}
 
 			if dumpFile == "" {
-				t.Fatal("no .json file found in dump directory")
+				t.Fatalf("no .json file found in dump directory %q with entries %v", dumpDir, entries)
 			}
 
 			resp, err := os.ReadFile(dumpFile)
@@ -733,7 +756,7 @@ func TestJetStreamSubscribe(t *testing.T) {
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --last --count=1", srv.ClientURL())))
 
-			if !expectMatchLine(t, output, `\[#\d\] Received JetStream message: stream: TEST_STREAM seq (\d+) / subject: TEST_STREAM.1 / time: \d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d`) {
+			if !expectMatchLine(t, output, `\[#\d\] Received JetStream message: stream: TEST_STREAM seq: (\d+) / pending: (\d+) / subject: TEST_STREAM.1 / time: \d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d`) {
 				t.Fatalf("missing expected summary line:\n%s", output)
 			}
 
