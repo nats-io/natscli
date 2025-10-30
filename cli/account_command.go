@@ -198,7 +198,7 @@ func (c *actCmd) restoreAction(kp *fisk.ParseContext) error {
 	fisk.FatalIfError(err, "setup failed")
 	for _, d := range de {
 		if !d.IsDir() {
-			fisk.FatalIfError(err, "expected a directory")
+			fisk.Fatalf("expected a directory %q", d.Name())
 		}
 		if _, ok := existingStreams[d.Name()]; ok {
 			fisk.Fatalf("stream %q exists already", d.Name())
