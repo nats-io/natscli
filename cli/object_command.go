@@ -386,7 +386,10 @@ func (c *objCommand) listBuckets() error {
 	}
 
 	if len(found) == 0 {
-		fmt.Println("No Object Store buckets found")
+		if !c.listNames {
+			fmt.Println("No Object Store buckets found")
+		}
+
 		return nil
 	}
 
@@ -428,19 +431,20 @@ func (c *objCommand) lsAction(_ *fisk.ParseContext) error {
 	}
 
 	contents, err := obj.List(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, jetstream.ErrNoObjectsFound) {
 		return err
-	}
-
-	if len(contents) == 0 {
-		fmt.Println("No entries found")
-		return nil
 	}
 
 	if c.listNames {
 		for _, s := range contents {
 			fmt.Println(s.Name)
 		}
+		return nil
+	}
+
+	if len(contents) == 0 {
+		fmt.Println("No entries found")
+
 		return nil
 	}
 

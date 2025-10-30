@@ -277,7 +277,7 @@ func (c *kvCommand) lsBucketKeys() error {
 			fmt.Println(v)
 		}
 	}
-	if !found {
+	if !found && !c.listNames {
 		fmt.Println("No keys found in bucket")
 		return nil
 	}
@@ -343,15 +343,16 @@ func (c *kvCommand) lsBuckets() error {
 		return err
 	}
 
-	if len(found) == 0 {
-		fmt.Println("No Key-Value buckets found")
-		return nil
-	}
-
 	if c.listNames {
 		for _, s := range found {
 			fmt.Println(strings.TrimPrefix(s.Name(), "KV_"))
 		}
+		return nil
+	}
+
+	if len(found) == 0 {
+		fmt.Println("No Key-Value buckets found")
+
 		return nil
 	}
 
