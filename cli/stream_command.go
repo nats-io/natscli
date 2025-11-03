@@ -3273,14 +3273,15 @@ func (c *streamCmd) purgeAction(_ *fisk.ParseContext) (err error) {
 		}
 	}
 
-	err = stream.Purge(req)
+	resp, err := stream.PurgeExt(req)
 	fisk.FatalIfError(err, "could not purge Stream")
+
+	fmt.Printf("Purged %d messages from %s\n\n", resp.Purged, stream.Name())
 
 	stream.Reset()
 
-	c.showStream(stream)
-
-	return nil
+	c.showStateOnly = true
+	return c.showStream(stream)
 }
 
 func (c *streamCmd) lsNames(mgr *jsm.Manager, filter *jsm.StreamNamesFilter) error {
