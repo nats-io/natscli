@@ -1,4 +1,4 @@
-// Copyright 2024 The NATS Authors
+// Copyright 2024-2025 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"fmt"
 	"github.com/nats-io/jsm.go/api"
 	gatherer "github.com/nats-io/jsm.go/audit/gather"
 
@@ -47,6 +48,8 @@ func (c *auditGatherCmd) gather(_ *fisk.ParseContext) error {
 		return err
 	}
 	defer nc.Close()
+
+	c.config.Version = fmt.Sprintf("nats %s", Version)
 
 	switch {
 	case opts().Trace:

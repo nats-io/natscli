@@ -199,9 +199,10 @@ func (c *auditAnalyzeCmd) renderConsole(report *audit.Analysis) error {
 	fmt.Println()
 
 	cols := newColumnsf("Report Summary")
-	cols.AddSectionTitle("Archive Connection Information")
+	cols.AddSectionTitle("Archive Information")
 	cols.AddRow("Connection Server", report.Metadata.ConnectURL)
 	cols.AddRow("Server Version", report.Metadata.ConnectedServerVersion)
+	cols.AddRow("Creator", report.Metadata.Version)
 	cols.AddRow("User", report.Metadata.UserName)
 	cols.AddSectionTitle("Summary of Checks")
 	cols.AddMapInts(report.Outcomes, true, false)
