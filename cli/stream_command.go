@@ -362,7 +362,7 @@ Finding streams with certain subjects configured:
 	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
 	strRm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	strPurge := str.Command("purge", "Purge a Stream without deleting it").Action(c.purgeAction)
+	strPurge := str.Command("purge", "Bulk removes messages from a Stream").Action(c.purgeAction)
 	strPurge.Arg("stream", "Stream name").StringVar(&c.stream)
 	strPurge.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	strPurge.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
