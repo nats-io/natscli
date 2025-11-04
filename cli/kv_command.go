@@ -53,6 +53,7 @@ type kvCommand struct {
 	listNames               bool
 	lsVerbose               bool
 	lsVerboseDisplayValue   bool
+	json                    bool
 	storage                 string
 	placementCluster        string
 	placementTags           []string
@@ -193,6 +194,7 @@ for an indefinite period or a per-bucket configured TTL.
 	ls.Flag("names", "Show just the bucket names").Short('n').UnNegatableBoolVar(&c.listNames)
 	ls.Flag("verbose", "Show detailed info about the key").Short('v').UnNegatableBoolVar(&c.lsVerbose)
 	ls.Flag("display-value", "Display value in verbose output (has no effect without 'verbose')").UnNegatableBoolVar(&c.lsVerboseDisplayValue)
+	ls.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	rmHistory := kv.Command("compact", "Reclaim space used by deleted keys").Action(c.compactAction)
 	rmHistory.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
@@ -265,6 +267,10 @@ func (c *kvCommand) lsBucketKeys() error {
 		return err
 	}
 
+	if c.json {
+		return c.displayKeysJSON(kv, lister)
+	}
+
 	var found bool
 	if c.lsVerbose {
 		found, err = c.displayKeyInfo(kv, lister)
@@ -326,6 +332,46 @@ func (c *kvCommand) displayKeyInfo(kv jetstream.KeyValue, keys jetstream.KeyList
 	return found, nil
 }
 
+func (c *kvCommand) displayKeysJSON(kv jetstream.KeyValue, keys jetstream.KeyLister) error {
+	if c.lsVerbose {
+		err := c.displayKeyInfoJSON(kv, keys)
+		if err != nil {
+			return fmt.Errorf("unable to display key info: %w", err)
+		}
+		return nil
+	}
+
+	out := []string{}
+	for v := range keys.Keys() {
+		out = append(out, v)
+	}
+	return iu.PrintJSON(out)
+}
+
+func (c *kvCommand) displayKeyInfoJSON(kv jetstream.KeyValue, keys jetstream.KeyLister) error {
+	out := []map[string]any{}
+	for keyName := range keys.Keys() {
+		kve, err := kv.Get(ctx, keyName)
+		if err != nil {
+			return fmt.Errorf("unable to fetch key %s: %w", keyName, err)
+		}
+
+		kveJSON := map[string]any{
+			"key":      kve.Key(),
+			"created":  f(kve.Created()),
+			"delta":    kve.Delta(),
+			"revision": kve.Revision(),
+		}
+
+		if c.lsVerboseDisplayValue {
+			kveJSON["value"] = string(kve.Value())
+		}
+
+		out = append(out, kveJSON)
+	}
+	return iu.PrintJSON(out)
+}
+
 func (c *kvCommand) lsBuckets() error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
@@ -343,9 +389,13 @@ func (c *kvCommand) lsBuckets() error {
 		return err
 	}
 
+	if c.json {
+		return c.lsBucketsJSON(found)
+	}
+
 	if c.listNames {
 		for _, s := range found {
-			fmt.Println(strings.TrimPrefix(s.Name(), "KV_"))
+			fmt.Println(kvBucketName(s))
 		}
 		return nil
 	}
@@ -368,12 +418,45 @@ func (c *kvCommand) lsBuckets() error {
 	for _, s := range found {
 		nfo, _ := s.LatestInformation()
 
-		table.AddRow(strings.TrimPrefix(s.Name(), "KV_"), s.Description(), f(nfo.Created), humanize.IBytes(nfo.State.Bytes), f(nfo.State.Msgs), f(time.Since(nfo.State.LastTime)))
+		table.AddRow(kvBucketName(s), s.Description(), f(nfo.Created), humanize.IBytes(nfo.State.Bytes), f(nfo.State.Msgs), f(time.Since(nfo.State.LastTime)))
 	}
 
 	fmt.Println(table.Render())
 
 	return nil
+}
+
+func (c *kvCommand) lsBucketsJSON(found []*jsm.Stream) error {
+	switch {
+	case len(found) == 0:
+		fmt.Println("[]") // Write empty JSON array
+		return nil
+	case c.listNames:
+		names := make([]string, 0, len(found))
+		for _, s := range found {
+			names = append(names, kvBucketName(s))
+		}
+		return iu.PrintJSON(names)
+	default:
+		info := make([]map[string]any, 0, len(found))
+		for _, s := range found {
+			nfo, _ := s.LatestInformation()
+			info = append(info,
+				map[string]any{
+					"bucket":      kvBucketName(s),
+					"description": s.Description(),
+					"created":     f(nfo.Created),
+					"size":        humanize.IBytes(nfo.State.Bytes),
+					"values":      nfo.State.Msgs,
+					"lastUpdate":  f(nfo.State.LastTime),
+				})
+		}
+		return iu.PrintJSON(info)
+	}
+}
+
+func kvBucketName(s *jsm.Stream) string {
+	return strings.TrimPrefix(s.Name(), "KV_")
 }
 
 func (c *kvCommand) revertAction(pc *fisk.ParseContext) error {
