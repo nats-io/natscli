@@ -799,6 +799,19 @@ func TestJetStreamSubscribe(t *testing.T) {
 		})
 	})
 
+	t.Run("--durable and --direct", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1)
+
+			_, err := runNatsCliWithInput(t, "", fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --durable TEST --direct", srv.ClientURL()))
+			if !strings.Contains(err.Error(), "cannot use direct get when a durable name is supplied") {
+				t.Fatalf("expected durable+direct error, got %v", err)
+			}
+
+			return nil
+		})
+	})
+
 	t.Run("--durable with push", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			createDefaultTestStream(t, mgr, 1)
@@ -825,6 +838,34 @@ func TestJetStreamSubscribe(t *testing.T) {
 				!expectMatchLine(t, output, primaryTestMsgData) {
 				t.Errorf("unexpected response: %s", output)
 			}
+			return nil
+		})
+	})
+
+	t.Run("--durable with interest streams", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1, jsm.InterestRetention())
+
+			js, err := jetstream.New(nc)
+			checkErr(t, err, "unable to create jetstream context")
+
+			_, err = js.CreateConsumer(context.TODO(), "TEST_STREAM", jetstream.ConsumerConfig{
+				Durable:        "TEST_PUSH",
+				AckPolicy:      jetstream.AckExplicitPolicy,
+				DeliverSubject: nats.NewInbox(),
+				DeliverGroup:   "X",
+			})
+			checkErr(t, err, "unable to create consumer")
+
+			_, err = js.PublishMsg(context.TODO(), defaultTestMsg)
+			checkErr(t, err, "unable to publish message")
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --durable=TEST_PUSH --last --count=1", srv.ClientURL())))
+			if !expectMatchLine(t, output, "Subscribing to JetStream Stream \"TEST_STREAM\" using existing push consumer \"TEST_PUSH\"") ||
+				!expectMatchLine(t, output, primaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+
 			return nil
 		})
 	})

@@ -368,8 +368,12 @@ func (c *subCmd) validateInputs(ctx context.Context, nc *nats.Conn, mgr *jsm.Man
 			return err
 		}
 
+		if c.direct && c.durable != "" {
+			return fmt.Errorf("cannot use direct get when a durable name is supplied")
+		}
+
 		config := c.streamObj.CachedInfo().Config
-		c.direct = c.direct || config.Retention == jetstream.WorkQueuePolicy || config.Retention == jetstream.InterestPolicy
+		c.direct = c.durable == "" && (c.direct || config.Retention == jetstream.WorkQueuePolicy || config.Retention == jetstream.InterestPolicy)
 
 		if c.direct {
 			if len(c.subjects) > 1 {
