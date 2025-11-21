@@ -30,7 +30,7 @@ require (
 	github.com/synadia-io/orbit.go/counters v0.1.0
 	github.com/synadia-io/orbit.go/jetstreamext v0.2.0
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
-	golang.org/x/crypto v0.44.0
+	golang.org/x/crypto v0.45.0
 	golang.org/x/term v0.37.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v2 v2.4.0
