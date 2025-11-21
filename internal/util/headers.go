@@ -17,12 +17,14 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nuid"
 	"net/textproto"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nuid"
 )
 
 // ParseStringsToHeader creates a nats.Header from a list of strings like X:Y
@@ -91,6 +93,7 @@ func PubReplyBodyTemplate(body string, request string, ctr int) ([]byte, error) 
 		"TimeStamp": func() string { return now.Format(time.RFC3339) },
 		"Time":      func() string { return now.Format(time.Kitchen) },
 		"ID":        func() string { return nuid.Next() },
+		"UUID":      func() string { return uuid.New().String() },
 	}
 
 	if request != "" {

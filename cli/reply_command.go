@@ -73,6 +73,7 @@ Available template functions are:
    UnixNano         nano seconds since 1970 in UTC
    Time             the current time
    ID               an unique ID
+   UUID             a random UUID
    Request          the request payload
    Random(min, max) random string at least min long, at most max
 `
