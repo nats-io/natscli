@@ -67,6 +67,7 @@ See 'nats cheat' for a quick cheatsheet of commands`
 		ncli.Flag("certstore-match-by", "Configures the way certificates are searched for (subject, issuer)").Default("subject").EnumVar(&opts.WinCertStoreMatchBy, "subject", "issuer")
 		ncli.Flag("certstore-ca-match", "Which certificate authority should be used from the store").StringsVar(&opts.WinCertCaStoreMatch)
 	}
+	ncli.Flag("tlsinsecure", "Disable TLS Server Certificate Verification").Default("true").Envar("NATS_TLSINSECURE").BoolVar(&opts.TlsInsecure)
 	ncli.Flag("timeout", "Time to wait on responses from NATS").Default("5s").Envar("NATS_TIMEOUT").DurationVar(&opts.Timeout)
 	ncli.Flag("socks-proxy", "SOCKS5 proxy for connecting to NATS server").Envar("NATS_SOCKS_PROXY").PlaceHolder("PROXY").StringVar(&opts.SocksProxy)
 	ncli.Flag("js-api-prefix", "Subject prefix for access to JetStream API").PlaceHolder("PREFIX").StringVar(&opts.JsApiPrefix)

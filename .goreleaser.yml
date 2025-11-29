@@ -15,7 +15,7 @@ changelog:
 builds:
   - main: ./nats
     id: nats
-    binary: nats
+    binary: xnats
     env:
       - GO111MODULE=on
       - CGO_ENABLED=0

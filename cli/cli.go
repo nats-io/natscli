@@ -60,7 +60,7 @@ var (
 
 	// These are persisted by contexts, as properties thereof.
 	// So don't include NATS_CONTEXT in this list.
-	overrideEnvVars = []string{"NATS_URL", "NATS_USER", "NATS_PASSWORD", "NATS_CREDS", "NATS_NKEY", "NATS_CERT", "NATS_KEY", "NATS_CA", "NATS_TIMEOUT", "NATS_SOCKS_PROXY", "NATS_COLOR"}
+	overrideEnvVars = []string{"NATS_URL", "NATS_USER", "NATS_PASSWORD", "NATS_CREDS", "NATS_NKEY", "NATS_CERT", "NATS_KEY", "NATS_CA", "NATS_TIMEOUT", "NATS_SOCKS_PROXY", "NATS_COLOR", "NATS_TLSINSECURE"}
 )
 
 func registerCommand(name string, order int, c func(app commandHost)) {

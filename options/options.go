@@ -88,4 +88,6 @@ type Options struct {
 	WinCertStoreMatch string
 	// WinCertCaStoreMatch is the queries for CAs to use
 	WinCertCaStoreMatch []string
+	// Skip server Verification
+	TlsInsecure bool
 }
