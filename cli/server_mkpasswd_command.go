@@ -15,6 +15,7 @@ package cli
 
 import (
 	"fmt"
+
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
 	iu "github.com/nats-io/natscli/internal/util"
@@ -75,12 +76,12 @@ func (c *SrvPasswdCmd) askPassword() (string, error) {
 	bp1 := ""
 	bp2 := ""
 
-	err := iu.AskOne(&survey.Password{Message: "Enter password", Help: "Enter a password string that's minimum 22 characters long"}, &bp1)
+	err := iu.AskOne(&survey.Password{Message: "Enter password"}, &bp1, survey.WithValidator(survey.MinLength(10)))
 	if err != nil {
 		return "", fmt.Errorf("could not read password: %w", err)
 	}
 	fmt.Println()
-	err = iu.AskOne(&survey.Password{Message: "Re-enter password", Help: "Enter the same password again"}, &bp2)
+	err = iu.AskOne(&survey.Password{Message: "Re-enter password"}, &bp2, survey.WithValidator(survey.MinLength(10)))
 	if err != nil {
 		return "", fmt.Errorf("could not read password: %w", err)
 	}
