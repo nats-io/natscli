@@ -228,12 +228,13 @@ func askOneInt(prompt string, dflt string, help string) (int64, error) {
 }
 
 func natsOpts() []nats.Option {
-	if opts().Config == nil {
-		return []nats.Option{}
-	}
+	var copts []nats.Option
+	var err error
 
-	copts, err := opts().Config.NATSOptions()
-	fisk.FatalIfError(err, "configuration error")
+	if opts().Config != nil {
+		copts, err = opts().Config.NATSOptions()
+		fisk.FatalIfError(err, "configuration error")
+	}
 
 	connectionName := strings.TrimSpace(opts().ConnectionName)
 	if len(connectionName) == 0 {
@@ -243,6 +244,7 @@ func natsOpts() []nats.Option {
 	return append(copts, []nats.Option{
 		nats.Name(connectionName),
 		nats.MaxReconnects(-1),
+		nats.IgnoreAuthErrorAbort(),
 		nats.CustomReconnectDelay(func(attempts int) time.Duration {
 			d := iu.DefaultBackoff.Duration(attempts)
 
@@ -264,25 +266,28 @@ func natsOpts() []nats.Option {
 		}),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			if err != nil {
-				log.Printf("Disconnected due to: %s, will attempt reconnect", err)
+				log.Printf(">>> Disconnected due to: %s, will attempt reconnect", err)
 			}
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
 			if opts().Trace {
-				log.Printf("Reconnected to %s (%s)", nc.ConnectedUrlRedacted(), nc.ConnectedAddr())
+				log.Printf(">>> Reconnected to %s (%s)", nc.ConnectedUrlRedacted(), nc.ConnectedAddr())
 			}
 		}),
+		nats.ClosedHandler(func(nc *nats.Conn) {
+			time.AfterFunc(time.Second, func() { log.Fatalf(">>> Connection is closed: %v", nc.LastError()) })
+		}),
+		nats.ErrorHandler(func(nc *nats.Conn, _ *nats.Subscription, err error) {
+			log.Printf(">>> Unexpected NATS error: %s", err)
+		}),
 		nats.ReconnectErrHandler(func(conn *nats.Conn, err error) {
-			if err != nil {
-				log.Printf("Reconnect error: %s", err)
+			if opts().Trace {
+				log.Printf(">>> Reconnect error: %s", err)
 			}
 		}),
 		nats.ErrorHandler(func(nc *nats.Conn, _ *nats.Subscription, err error) {
-			url := nc.ConnectedUrl()
-			if url == "" {
-				log.Printf("Unexpected NATS error: %s", err)
-			} else {
-				log.Printf("Unexpected NATS error from server %s: %s", nc.ConnectedUrlRedacted(), err)
+			if opts().Trace {
+				log.Printf(">>> Unexpected NATS error: %s", err)
 			}
 		}),
 	}...)
