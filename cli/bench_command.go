@@ -571,6 +571,11 @@ func (c *benchCmd) pubAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	// catch the number of clients being more than number of messages
+	if c.numClients > c.numMsg {
+		c.numClients = c.numMsg
+	}
+
 	banner := c.generateBanner(bench.TypeCorePub)
 
 	log.Println(banner)
@@ -699,6 +704,11 @@ func (c *benchCmd) requestAction(_ *fisk.ParseContext) error {
 	err := c.processActionArgs()
 	if err != nil {
 		return err
+	}
+
+	// catch the number of clients being more than number of messages
+	if c.numClients > c.numMsg {
+		c.numClients = c.numMsg
 	}
 
 	banner := c.generateBanner(bench.TypeServiceRequest)
@@ -837,6 +847,11 @@ func (c *benchCmd) jspubActions(_ *fisk.ParseContext, jsPubType string) error {
 	err := c.processActionArgs()
 	if err != nil {
 		return err
+	}
+
+	// catch the number of clients being more than number of messages
+	if c.numClients > c.numMsg {
+		c.numClients = c.numMsg
 	}
 
 	if c.persistModeAsync && c.replicas != 1 && jsPubType == bench.TypeJSPubBatch {
@@ -1299,6 +1314,11 @@ func (c *benchCmd) kvPutAction(_ *fisk.ParseContext) error {
 	err := c.processActionArgs()
 	if err != nil {
 		return err
+	}
+
+	// catch the number of clients being more than number of messages
+	if c.numClients > c.numMsg {
+		c.numClients = c.numMsg
 	}
 
 	banner := c.generateBanner(bench.TypeKVPut)
