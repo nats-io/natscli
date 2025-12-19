@@ -15,6 +15,7 @@ package cli
 
 import (
 	"fmt"
+
 	"github.com/nats-io/jsm.go/api"
 	gatherer "github.com/nats-io/jsm.go/audit/gather"
 
@@ -34,6 +35,7 @@ func configureAuditGatherCommand(app *fisk.CmdClause) {
 	gather := app.Command("gather", "capture a variety of data from a deployment into an archive file").Alias("capture").Alias("cap").Action(c.gather)
 	gather.Flag("output", "output file path of generated archive").Short('o').StringVar(&c.config.TargetPath)
 	gather.Flag("progress", "Display progress messages during gathering").Default("true").BoolVar(&c.progress)
+	gather.Flag("cluster", "Limit audit to servers from the named cluster").PlaceHolder("CLUSTER").Default("").StringVar(&c.config.ClusterFilter)
 	gather.Flag("server-endpoints", "Capture monitoring endpoints for each server").Default("true").BoolVar(&c.config.Include.ServerEndpoints)
 	gather.Flag("server-profiles", "Capture profiles for each server").Default("true").BoolVar(&c.config.Include.ServerProfiles)
 	gather.Flag("account-endpoints", "Capture monitoring endpoints for each account").Default("true").BoolVar(&c.config.Include.AccountEndpoints)
