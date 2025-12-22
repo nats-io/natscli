@@ -57,6 +57,7 @@ See 'nats cheat' for a quick cheatsheet of commands`
 	ncli.Flag("creds", "User credentials").Envar("NATS_CREDS").PlaceHolder("FILE").StringVar(&opts.Creds)
 	ncli.Flag("nkey", "User NKEY").Envar("NATS_NKEY").PlaceHolder("FILE").StringVar(&opts.Nkey)
 	ncli.Flag("jwt", "User JWT").Envar("NATS_JWT").PlaceHolder("JWT").StringVar(&opts.UserJwt)
+	ncli.Flag("seed", "User seed").Envar("NATS_SEED").PlaceHolder("SEED").StringVar(&opts.UserSeed)
 	ncli.Flag("tlscert", "TLS public certificate").Envar("NATS_CERT").PlaceHolder("FILE").ExistingFileVar(&opts.TlsCert)
 	ncli.Flag("tlskey", "TLS private key").Envar("NATS_KEY").PlaceHolder("FILE").ExistingFileVar(&opts.TlsKey)
 	ncli.Flag("tlsca", "TLS certificate authority chain").Envar("NATS_CA").PlaceHolder("FILE").ExistingFileVar(&opts.TlsCA)
