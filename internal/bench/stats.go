@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -21,6 +22,7 @@ type BenchSample struct {
 	iOBytes   uint64
 	start     time.Time
 	end       time.Time
+	latencies []uint64 // in nanoseconds
 }
 
 // BenchSampleGroup for a number of samples, the group is a BenchSample itself aggregating the values the samples
@@ -39,8 +41,7 @@ type BenchmarkResults struct {
 	SamplesChannel chan *BenchSample
 }
 
-// Benchmark stats
-// NewBenchmark initializes a Benchmark. After creating a bench call AddSubSample/AddPubSample.
+// NewBenchmark initializes a Benchmark. After creating a bench call AddSample.
 // When done collecting samples, call Close() to calculate aggregates.
 func NewBenchmark(name string, benchType string, clientCount int) *BenchmarkResults {
 	bm := BenchmarkResults{Name: name, RunID: nuid.Next()}
@@ -65,6 +66,8 @@ func (bm *BenchmarkResults) Close() {
 	bm.iOBytes = bm.SampleGroup.iOBytes
 	bm.msgCnt = bm.SampleGroup.msgCnt
 	bm.jobMsgCnt = bm.SampleGroup.jobMsgCnt
+	slices.Sort(bm.SampleGroup.latencies)
+	bm.latencies = bm.SampleGroup.latencies
 }
 
 // AddSample adds a BenchSample to the BenchmarkResults
@@ -90,8 +93,11 @@ func (bm *BenchmarkResults) Prefix() string {
 func (s *BenchSample) String() string {
 	rate := humanize.Comma(s.Rate())
 	throughput := humanize.IBytes(uint64(s.Throughput()))
-
-	return fmt.Sprintf("%s msgs/sec ~ %s/sec ~ %sus", rate, throughput, fmt.Sprintf("%.2f", s.AvgLatency()))
+	if len(s.latencies) == 0 {
+		return fmt.Sprintf("%s msgs/sec ~ %s/sec", rate, throughput)
+	} else {
+		return fmt.Sprintf("%s msgs/sec ~ %s/sec ~ min: %sus ~ avg: %sus ~ max: %sus ~ P50: %sus ~ P90: %sus ~ P99: %sus ~ P99.9: %sus", rate, throughput, humanize.CommafWithDigits(MinLatency(s.latencies), 2), humanize.CommafWithDigits(AvgLatency(s.latencies), 2), humanize.CommafWithDigits(MaxLatency(s.latencies), 2), humanize.CommafWithDigits(PercentileLatency(s.latencies, 50), 2), humanize.CommafWithDigits(PercentileLatency(s.latencies, 90), 2), humanize.CommafWithDigits(PercentileLatency(s.latencies, 99), 2), humanize.CommafWithDigits(PercentileLatency(s.latencies, 99.9), 2))
+	}
 }
 
 // Report returns a human-readable report of the samples taken in the Benchmark
@@ -113,7 +119,9 @@ func (bm *BenchmarkResults) Report() string {
 		}
 		buffer.WriteString(fmt.Sprintf("\n%s %s %s aggregated stats: %s\n", indent, bm.Name, GetBenchTypeLabel(bm.BenchType), fmt.Sprintf("%s msgs/sec ~ %s/sec", humanize.Comma(bm.SampleGroup.Rate()), humanize.IBytes(uint64(bm.SampleGroup.Throughput())))))
 		buffer.WriteString(fmt.Sprintf("%s message rates %s\n", indent, bm.SampleGroup.MsgRateStatistics()))
-		buffer.WriteString(fmt.Sprintf("%s avg latencies %s\n", indent, bm.SampleGroup.LatencyStatistics()))
+		if len(bm.SampleGroup.latencies) > 0 {
+			buffer.WriteString(fmt.Sprintf("%s latencies per operation %s\n", indent, bm.SampleGroup.LatencyStatistics()))
+		}
 	}
 
 	return buffer.String()
@@ -123,7 +131,12 @@ func (bm *BenchmarkResults) Report() string {
 func (bm *BenchmarkResults) CSV() string {
 	var buffer bytes.Buffer
 	writer := csv.NewWriter(&buffer)
-	headers := []string{"#RunID", "ClientID", "MsgCount", "MsgBytes", "MsgsPerSec", "BytesPerSec", "DurationSecs", "AvgLatencyMicroSecs"}
+	var headers []string
+	if len(bm.latencies) == 0 {
+		headers = []string{"#RunID", "ClientID", "MsgCount", "MsgBytes", "MsgsPerSec", "BytesPerSec", "DurationSecs"}
+	} else {
+		headers = []string{"#RunID", "ClientID", "MsgCount", "MsgBytes", "MsgsPerSec", "BytesPerSec", "DurationSecs", "MinLatencyMicroSecs", "AvgLatencyMicroSecs", "MaxLatencyMicroSecs", "P50LatencyMicroSecs", "P90LatencyMicroSecs", "P99LatencyMicroSecs", "P99.9LatencyMicroSecs", "StdDevLatencyMicroSecs"}
+	}
 	if err := writer.Write(headers); err != nil {
 		log.Fatalf("Error while serializing headers %q: %v", headers, err)
 	}
@@ -131,7 +144,14 @@ func (bm *BenchmarkResults) CSV() string {
 	pre := bm.Prefix()
 
 	for j, c := range bm.SampleGroup.samples {
-		r := []string{bm.RunID, fmt.Sprintf("%s%d", pre, j), fmt.Sprintf("%d", c.msgCnt), fmt.Sprintf("%d", c.msgBytes), fmt.Sprintf("%d", c.Rate()), fmt.Sprintf("%f", c.Throughput()), fmt.Sprintf("%f", c.Duration().Seconds()), fmt.Sprintf("%f", c.AvgLatency())}
+		var r []string
+
+		if len(bm.latencies) == 0 {
+			r = []string{bm.RunID, fmt.Sprintf("%s%d", pre, j), fmt.Sprintf("%d", c.msgCnt), fmt.Sprintf("%d", c.msgBytes), fmt.Sprintf("%d", c.Rate()), fmt.Sprintf("%f", c.Throughput()), fmt.Sprintf("%f", c.Duration().Seconds())}
+		} else {
+			r = []string{bm.RunID, fmt.Sprintf("%s%d", pre, j), fmt.Sprintf("%d", c.msgCnt), fmt.Sprintf("%d", c.msgBytes), fmt.Sprintf("%d", c.Rate()), fmt.Sprintf("%f", c.Throughput()), fmt.Sprintf("%f", c.Duration().Seconds()), fmt.Sprintf("%f", MinLatency(c.latencies)), fmt.Sprintf("%f", AvgLatency(c.latencies)), fmt.Sprintf("%f", MaxLatency(c.latencies)), fmt.Sprintf("%f", PercentileLatency(c.latencies, 50)), fmt.Sprintf("%f", PercentileLatency(c.latencies, 90)), fmt.Sprintf("%f", PercentileLatency(c.latencies, 99)), fmt.Sprintf("%f", PercentileLatency(c.latencies, 99.9)), fmt.Sprintf("%f", StdLatency(c.latencies))}
+		}
+
 		if err := writer.Write(r); err != nil {
 			log.Fatalf("Error while serializing %v: %v", c, err)
 		}
@@ -142,8 +162,9 @@ func (bm *BenchmarkResults) CSV() string {
 }
 
 // NewSample creates a new BenchSample initialized to the provided values. The nats.Conn information captured
-func NewSample(jobCount int, msgSize int, start, end time.Time, nc *nats.Conn) *BenchSample {
-	s := BenchSample{jobMsgCnt: jobCount, start: start, end: end}
+func NewSample(jobCount int, msgSize int, start, end time.Time, latencies []uint64, nc *nats.Conn) *BenchSample {
+	slices.Sort(latencies)
+	s := BenchSample{jobMsgCnt: jobCount, start: start, end: end, latencies: latencies}
 	s.msgBytes = uint64(msgSize * jobCount)
 	s.msgCnt = nc.OutMsgs + nc.InMsgs
 	s.iOBytes = nc.OutBytes + nc.InBytes
@@ -165,13 +186,65 @@ func (s *BenchSample) Duration() time.Duration {
 	return s.end.Sub(s.start)
 }
 
-// AvgLatency returns the average latency in microseconds
-func (s *BenchSample) AvgLatency() float64 {
-	if s.jobMsgCnt == 0 {
+// MinLatency returns the minimum latency in microseconds
+func MinLatency(latencies []uint64) float64 {
+	if len(latencies) == 0 {
 		return 0
 	}
 
-	return s.Duration().Seconds() / float64(s.jobMsgCnt) * 1_000_000
+	return float64(latencies[0]) / 1000.0
+}
+
+// MaxLatency returns the maximum latency in microseconds
+func MaxLatency(latencies []uint64) float64 {
+	if len(latencies) == 0 {
+		return 0
+	}
+
+	return float64(latencies[len(latencies)-1]) / 1000.0
+}
+
+// AvgLatency returns the average latency in microseconds
+func AvgLatency(latencies []uint64) float64 {
+	if len(latencies) == 0 {
+		return 0
+	}
+
+	sum := uint64(0)
+	for _, l := range latencies {
+		sum += l
+	}
+
+	return (float64(sum) / float64(len(latencies))) / 1000.0
+}
+
+// PercentileLatency returns the given percentile latency in microseconds
+func PercentileLatency(latencies []uint64, percentile float64) float64 {
+	if len(latencies) == 0 {
+		return 0
+	}
+
+	index := int(math.Ceil((percentile/100)*float64(len(latencies)))) - 1
+	return float64(latencies[index]) / 1000.0
+}
+
+// StdLatency returns the standard deviation of the latencies in microseconds
+func StdLatency(latencies []uint64) float64 {
+	{
+		if len(latencies) == 0 {
+			return 0
+		}
+
+		avg := AvgLatency(latencies)
+		sum := float64(0)
+
+		for _, c := range latencies {
+			sum += math.Pow(float64(c)-avg, 2)
+		}
+
+		variance := sum / float64(len(latencies))
+		return math.Sqrt(variance) / 1000.0
+	}
 }
 
 // NewSampleGroup initializer
@@ -183,12 +256,12 @@ func NewSampleGroup() *BenchSampleGroup {
 
 // MsgRateStatistics prints statistics for the message rates of the BenchSample group (min, average, max and standard deviation)
 func (sg *BenchSampleGroup) MsgRateStatistics() string {
-	return fmt.Sprintf("min %s | avg %s | max %s | stddev %s msgs", humanize.Comma(sg.MinMsgRate()), humanize.Comma(sg.AvgMsgRate()), humanize.Comma(sg.MaxMsgRate()), humanize.Comma(int64(sg.StdMsgDev())))
+	return fmt.Sprintf("min %s | avg %s | max %s | stddev %s msgs", humanize.Comma(sg.MinMsgRate()), humanize.Comma(sg.AvgMsgRate()), humanize.Comma(sg.MaxMsgRate()), humanize.Comma(int64(sg.StdDevMsgs())))
 }
 
 // LatencyStatistics prints statistics for the average latencies in microseconds of the BenchSample group (min, average, max and standard deviation)
 func (sg *BenchSampleGroup) LatencyStatistics() string {
-	return fmt.Sprintf("min %.2fus | avg %.2fus | max %.2fus | stddev %.2fus", sg.MinLatency(), sg.avgLatency(), sg.MaxLatency(), sg.StdLatency())
+	return fmt.Sprintf("min %sus | avg %sus | max %sus | stddev %sus | P50 %sus | P90 %sus | P99 %sus | P99.9: %sus", humanize.CommafWithDigits(MinLatency(sg.latencies), 2), humanize.CommafWithDigits(AvgLatency(sg.latencies), 2), humanize.CommafWithDigits(MaxLatency(sg.latencies), 2), humanize.CommafWithDigits(StdLatency(sg.latencies), 2), humanize.CommafWithDigits(PercentileLatency(sg.latencies, 50), 2), humanize.CommafWithDigits(PercentileLatency(sg.latencies, 90), 2), humanize.CommafWithDigits(PercentileLatency(sg.latencies, 99), 2), humanize.CommafWithDigits(PercentileLatency(sg.latencies, 99.9), 2))
 }
 
 // MinMsgRate returns the smallest message Rate in the SampleGroup
@@ -207,18 +280,21 @@ func (sg *BenchSampleGroup) MinMsgRate() int64 {
 }
 
 // MinLatency returns the smallest average latency in microseconds in the SampleGroup
-func (sg *BenchSampleGroup) MinLatency() float64 {
-	m := float64(0)
-
-	for i, s := range sg.samples {
-		if i == 0 {
-			m = s.AvgLatency()
-		}
-
-		m = math.Min(m, s.AvgLatency())
+func (sg *BenchSampleGroup) MinLatency() uint64 {
+	if len(sg.latencies) == 0 {
+		return 0
 	}
 
-	return m
+	return sg.latencies[0]
+}
+
+// MaxLatency returns the largest average latency in microseconds in the SampleGroup
+func (sg *BenchSampleGroup) MaxLatency() uint64 {
+	if len(sg.latencies) == 0 {
+		return 0
+	}
+
+	return sg.latencies[len(sg.latencies)-1]
 }
 
 // MaxMsgRate returns the largest message Rate in the SampleGroup
@@ -231,20 +307,6 @@ func (sg *BenchSampleGroup) MaxMsgRate() int64 {
 		}
 
 		m = max(m, s.Rate())
-	}
-
-	return m
-}
-
-// MaxLatency returns the largest average latency in microseconds in the SampleGroup
-func (sg *BenchSampleGroup) MaxLatency() float64 {
-	m := float64(0)
-	for i, s := range sg.samples {
-		if i == 0 {
-			m = s.AvgLatency()
-		}
-
-		m = math.Max(m, s.AvgLatency())
 	}
 
 	return m
@@ -265,23 +327,8 @@ func (sg *BenchSampleGroup) AvgMsgRate() int64 {
 	return int64(sum / uint64(len(sg.samples)))
 }
 
-// avgLatency returns the average of all the average latencies in microseconds in the SampleGroup
-func (sg *BenchSampleGroup) avgLatency() float64 {
-	if !sg.HasSamples() {
-		return 0
-	}
-
-	sum := float64(0)
-
-	for _, s := range sg.samples {
-		sum += s.AvgLatency()
-	}
-
-	return sum / float64(len(sg.samples))
-}
-
-// StdMsgDev returns the standard deviation the message rates in the SampleGroup
-func (sg *BenchSampleGroup) StdMsgDev() float64 {
+// StdDevMsgs returns the standard deviation the message rates in the SampleGroup
+func (sg *BenchSampleGroup) StdDevMsgs() float64 {
 	if !sg.HasSamples() {
 		return 0
 	}
@@ -291,23 +338,6 @@ func (sg *BenchSampleGroup) StdMsgDev() float64 {
 
 	for _, c := range sg.samples {
 		sum += math.Pow(float64(c.Rate())-avg, 2)
-	}
-
-	variance := sum / float64(len(sg.samples))
-	return math.Sqrt(variance)
-}
-
-// StdLatency returns the standard deviation of the average latencies in microseconds in the SampleGroup
-func (sg *BenchSampleGroup) StdLatency() float64 {
-	if !sg.HasSamples() {
-		return 0
-	}
-
-	avg := sg.avgLatency()
-	sum := float64(0)
-
-	for _, c := range sg.samples {
-		sum += math.Pow(c.AvgLatency()-avg, 2)
 	}
 
 	variance := sum / float64(len(sg.samples))
@@ -327,6 +357,7 @@ func (sg *BenchSampleGroup) AddSample(e *BenchSample) {
 	sg.jobMsgCnt += e.jobMsgCnt
 	sg.msgCnt += e.msgCnt
 	sg.msgBytes += e.msgBytes
+	sg.latencies = append(sg.latencies, e.latencies...)
 
 	if e.start.Before(sg.start) {
 		sg.start = e.start
