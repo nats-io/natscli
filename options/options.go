@@ -52,6 +52,8 @@ type Options struct {
 	Nkey string
 	// UserJwt is the user JWT to connect with
 	UserJwt string
+	// UserSeed is the user seed to connect with
+	UserSeed string
 	// JsApiPrefix is the JetStream API prefix
 	JsApiPrefix string
 	// JsEventPrefix is the JetStream events prefix
