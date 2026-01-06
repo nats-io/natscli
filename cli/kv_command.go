@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go"
@@ -33,6 +32,8 @@ import (
 	"github.com/nats-io/natscli/columns"
 	iu "github.com/nats-io/natscli/internal/util"
 	"golang.org/x/term"
+
+	"github.com/choria-io/fisk"
 )
 
 type kvCommand struct {
@@ -84,6 +85,7 @@ type kvCommand struct {
 	sourceSet               bool
 	metadataIsSet           bool
 	metadata                map[string]string
+	noMirror                bool
 }
 
 func configureKVCommand(app commandHost) {
@@ -117,7 +119,9 @@ for an indefinite period or a per-bucket configured TTL.
 		f.Flag("republish-source", "Republish messages to --republish-destination").IsSetByUser(&c.republishSourceSet).PlaceHolder("SRC").StringVar(&c.repubSource)
 		f.Flag("republish-destination", "Republish destination for messages in --republish-source").IsSetByUser(&c.republishDestinationSet).PlaceHolder("DEST").StringVar(&c.repubDest)
 		f.Flag("republish-headers", "Republish only message headers, no bodies").IsSetByUser(&c.republishHeadersSet).UnNegatableBoolVar(&c.repubHeadersOnly)
-		if !edit {
+		if edit {
+			f.Flag("no-mirror", "Removes mirror configuration from a bucket").BoolVar(&c.noMirror)
+		} else {
 			f.Flag("mirror", "Creates a mirror of a different bucket").StringVar(&c.mirror)
 			f.Flag("mirror-domain", "When mirroring find the bucket in a different domain").StringVar(&c.mirrorDomain)
 		}
@@ -591,6 +595,7 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 		Placement:      nfo.Config.Placement,
 		RePublish:      nfo.Config.RePublish,
 		Sources:        nfo.Config.Sources,
+		Mirror:         nfo.Config.Mirror,
 		Compression:    status.IsCompressed(),
 		LimitMarkerTTL: status.LimitMarkerTTL(),
 		Metadata:       nfo.Config.Metadata,
@@ -653,6 +658,10 @@ func (c *kvCommand) editAction(_ *fisk.ParseContext) error {
 
 	if c.markerTTLSet {
 		cfg.LimitMarkerTTL = c.limitsMarkerTTL
+	}
+
+	if c.noMirror {
+		cfg.Mirror = nil
 	}
 
 	store, err := js.UpdateKeyValue(ctx, cfg)
