@@ -1568,6 +1568,25 @@ func TestServerStreamCheck(t *testing.T) {
 			return nil
 		})
 	})
+	t.Run("stream-check command with partial results", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+
+			_, err := mgr.NewStream("CHECK_STREAM", jsm.Subjects("TEST.*"))
+			if err != nil {
+				t.Error("Unable to creat new stream")
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server stream-check --expected=2  --read-timeout=1", srv.ClientURL(), sysUserCreds)))
+			if !expectMatchLine(t, output, "Servers: 1") ||
+				!expectMatchLine(t, output, "Streams: 1") ||
+				!expectMatchLine(t, output, "Warning") ||
+				!expectMatchLine(t, output, "Stream Replica", "Raft", "Account", "Account ID", "Node", "Messages", "Bytes", "Subjects", "Deleted", "Consumers", "First", "Last", "Status", "Leader", "Peers") ||
+				!expectMatchLine(t, output, "CHECK_STREAM") {
+				t.Errorf("failed stream-check: %s", output)
+			}
+			return nil
+		})
+	})
 
 	t.Run("stream-check with STDIN", func(t *testing.T) {
 		content, err := os.ReadFile("testdata/jsz_response.out")
@@ -1600,6 +1619,35 @@ func TestServerConsumerCheck(t *testing.T) {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server consumer-check", srv.ClientURL(), sysUserCreds)))
 			if !expectMatchLine(t, output, `^Servers: 1`) ||
 				!expectMatchLine(t, output, `^Consumers: 1`) ||
+				!expectMatchLine(t, output, `Consumer`, `Stream`, `Raft`, `Account`, `Account ID`, `Node`, `Delivered`, `ACK Floor`, `Counters`, `Status`, `Leader`, `Stream Cluster Leader`, `Peers`) ||
+				!expectMatchLine(t, output, `CONSUMER_CHECK_CONSUMER`, `CONSUMER_CHECK_STREAM`) {
+				t.Errorf("failed consumer-check: %s", output)
+			}
+			return nil
+		})
+	})
+	t.Run("consumer-check command with partial results", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := mgr.NewStream("CONSUMER_CHECK_STREAM", jsm.Subjects("TEST.*"))
+			if err != nil {
+				t.Error("Unable to creat new stream")
+			}
+
+			opts := []jsm.ConsumerOption{
+				jsm.DurableName("CONSUMER_CHECK_CONSUMER"),
+				jsm.AcknowledgeExplicit(),
+				jsm.FilterStreamBySubject("TEST.new"),
+			}
+
+			_, err = mgr.NewConsumer("CONSUMER_CHECK_STREAM", opts...)
+			if err != nil {
+				t.Error("Unable to creat new consumer")
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server consumer-check --expected=2 --read-timeout=1", srv.ClientURL(), sysUserCreds)))
+			if !expectMatchLine(t, output, `^Servers: 1`) ||
+				!expectMatchLine(t, output, `^Consumers: 1`) ||
+				!expectMatchLine(t, output, `Warning`) ||
 				!expectMatchLine(t, output, `Consumer`, `Stream`, `Raft`, `Account`, `Account ID`, `Node`, `Delivered`, `ACK Floor`, `Counters`, `Status`, `Leader`, `Stream Cluster Leader`, `Peers`) ||
 				!expectMatchLine(t, output, `CONSUMER_CHECK_CONSUMER`, `CONSUMER_CHECK_STREAM`) {
 				t.Errorf("failed consumer-check: %s", output)
