@@ -534,6 +534,7 @@ func loadContext(softFail bool) error {
 		natscontext.WithCreds(opts.Creds),
 		natscontext.WithNKey(opts.Nkey),
 		natscontext.WithUserJWT(opts.UserJwt),
+		natscontext.WithUserSeed(opts.UserSeed),
 		natscontext.WithCertificate(opts.TlsCert),
 		natscontext.WithKey(opts.TlsKey),
 		natscontext.WithCA(opts.TlsCA),
