@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/connbalancer"
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 )
 
 type SrvClusterCmd struct {
@@ -34,6 +36,7 @@ type SrvClusterCmd struct {
 	placementNode     string
 	placementTags     []string
 	balanceServerName string
+	balanceCluster    string
 	balanceIdle       time.Duration
 	balanceAccount    string
 	balanceSubject    string
@@ -49,6 +52,7 @@ func configureServerClusterCommand(srv *fisk.CmdClause) {
 	balance := cluster.Command("balance", "Balance cluster connections").Action(c.balanceAction)
 	balance.Arg("duration", "Spread balance requests over a certain duration").Default("2m").DurationVar(&c.balanceRunTime)
 	balance.Flag("server-name", "Restrict balancing to a specific server").PlaceHolder("NAME").StringVar(&c.balanceServerName)
+	balance.Flag("cluster", "Restrict balancing to servers in a specific cluster").PlaceHolder("NAME").StringVar(&c.balanceCluster)
 	balance.Flag("idle", "Balance connections that has been idle for a period").PlaceHolder("DURATION").DurationVar(&c.balanceIdle)
 	balance.Flag("account", "Balance connections in a certain account only").StringVar(&c.balanceAccount)
 	balance.Flag("subject", "Balance connections interested in certain subjects").StringVar(&c.balanceSubject)
@@ -69,11 +73,28 @@ func configureServerClusterCommand(srv *fisk.CmdClause) {
 }
 
 func (c *SrvClusterCmd) balanceAction(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+
+	var clusters []string
+	if c.balanceCluster == "" {
+		clusters, err = c.detectClusters(nc)
+		if err != nil {
+			return err
+		}
+	}
+
 	if !c.force {
 		fmt.Println("Re-balancing will disconnect clients without knowing their current state.")
 		fmt.Println()
 		fmt.Println("The clients will trigger normal reconnect behavior. This can interrupt in-flight work.")
 		fmt.Println()
+		if len(clusters) > 1 {
+			fmt.Printf("WARNING: Balancing %d clusters, pass --cluster to balance a specific cluster", len(clusters))
+			fmt.Println()
+		}
 		ok, err := askConfirmation("Really re-balance connections", false)
 		if err != nil {
 			return err
@@ -83,11 +104,6 @@ func (c *SrvClusterCmd) balanceAction(_ *fisk.ParseContext) error {
 		}
 	}
 
-	nc, _, err := prepareHelper("", natsOpts()...)
-	if err != nil {
-		return err
-	}
-
 	level := api.InfoLevel
 	if opts().Trace {
 		level = api.TraceLevel
@@ -95,6 +111,7 @@ func (c *SrvClusterCmd) balanceAction(_ *fisk.ParseContext) error {
 
 	balancer, err := connbalancer.New(nc, c.balanceRunTime, api.NewDefaultLogger(level), connbalancer.ConnectionSelector{
 		ServerName:      c.balanceServerName,
+		Cluster:         c.balanceCluster,
 		Idle:            c.balanceIdle,
 		Account:         c.balanceAccount,
 		SubjectInterest: c.balanceSubject,
@@ -114,6 +131,29 @@ func (c *SrvClusterCmd) balanceAction(_ *fisk.ParseContext) error {
 	fmt.Printf("Balanced %s connections\n", f(balanced))
 
 	return nil
+}
+
+func (c *SrvClusterCmd) detectClusters(nc *nats.Conn) ([]string, error) {
+	results, err := doReq(nil, "$SYS.REQ.SERVER.PING.VARZ", 0, nc)
+	if err != nil {
+		return nil, err
+	}
+
+	var clusters []string
+	for _, result := range results {
+		var resp server.ServerAPIVarzResponse
+		if err := json.Unmarshal(result, &resp); err != nil {
+			continue
+		}
+		if resp.Data != nil && resp.Data.Cluster.Name != "" {
+			clusterName := resp.Data.Cluster.Name
+			if !slices.Contains(clusters, clusterName) {
+				clusters = append(clusters, clusterName)
+			}
+		}
+	}
+
+	return clusters, nil
 }
 
 func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
