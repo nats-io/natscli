@@ -263,3 +263,149 @@ func TestCLIPubAtomic(t *testing.T) {
 		})
 	})
 }
+
+func TestCLIRequestSTDIN(t *testing.T) {
+	t.Run("Request with body argument", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			subject := "test-request-body"
+			expected := "test request"
+
+			nc.Subscribe(subject, func(m *nats.Msg) {
+				m.Respond([]byte("echo: " + string(m.Data)))
+			})
+			nc.Flush()
+
+			output := runNatsCli(t, fmt.Sprintf("--server='%s' request %s '%s'", srv.ClientURL(), subject, expected))
+
+			if !strings.Contains(string(output), "echo: test request") {
+				t.Errorf("expected response with echoed data, got: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("Request with stdin eof", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			subject := "test-request-stdin"
+			expected := "stdin payload"
+
+			nc.Subscribe(subject, func(m *nats.Msg) {
+				m.Respond([]byte("received: " + string(m.Data)))
+			})
+			nc.Flush()
+
+			output, _ := runNatsCliWithInput(t, expected, fmt.Sprintf("--server='%s' request --force-stdin %s", srv.ClientURL(), subject))
+
+			if !strings.Contains(string(output), "received: stdin payload") {
+				t.Errorf("expected response with stdin data, got: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("Request with large payload from stdin", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			subject := "test-request-large"
+
+			nc.Subscribe(subject, func(m *nats.Msg) {
+				m.Respond([]byte(fmt.Sprintf("received %d bytes", len(m.Data))))
+			})
+			nc.Flush()
+
+			largePayload := strings.Repeat("A", 150*1024)
+
+			output, _ := runNatsCliWithInput(t, largePayload, fmt.Sprintf("--server='%s' request --force-stdin %s", srv.ClientURL(), subject))
+
+			if !strings.Contains(string(output), "received 153600 bytes") {
+				t.Errorf("expected confirmation of large payload, got: %s", output)
+			}
+
+			return nil
+		})
+	})
+
+	t.Run("Request --send-on newline from stdin", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			subject := "test-request-newline"
+			var receivedRequests []string
+			expected := []string{"request1", "request2", "request3"}
+
+			nc.Subscribe(subject, func(m *nats.Msg) {
+				receivedRequests = append(receivedRequests, string(m.Data))
+				m.Respond([]byte("response: " + string(m.Data)))
+			})
+			nc.Flush()
+
+			input := strings.Join(expected, "\n") + "\n"
+			output, _ := runNatsCliWithInput(t, input, fmt.Sprintf("--server='%s' request --force-stdin --send-on newline %s", srv.ClientURL(), subject))
+
+			if len(receivedRequests) != 3 {
+				t.Errorf("expected 3 requests but received %d", len(receivedRequests))
+			}
+
+			for i, req := range expected {
+				if i < len(receivedRequests) && receivedRequests[i] != req {
+					t.Errorf("expected request(%d) %q got %q", i, req, receivedRequests[i])
+				}
+			}
+
+			expectedResponses := []string{"response: request1", "response: request2", "response: request3"}
+			for _, expectedResp := range expectedResponses {
+				if !strings.Contains(string(output), expectedResp) {
+					t.Errorf("expected output to contain %q, got: %s", expectedResp, output)
+				}
+			}
+
+			return nil
+		})
+	})
+
+	t.Run("Request with raw flag", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			subject := "test-request-raw"
+
+			nc.Subscribe(subject, func(m *nats.Msg) {
+				m.Respond([]byte("raw response"))
+			})
+			nc.Flush()
+
+			output, _ := runNatsCliWithInput(t, "test", fmt.Sprintf("--server='%s' request --force-stdin --raw %s", srv.ClientURL(), subject))
+
+			if !strings.Contains(string(output), "raw response") {
+				t.Errorf("expected raw response, got: %s", output)
+			}
+
+			if strings.Contains(string(output), "Received with rtt") {
+				t.Errorf("expected no metadata with --raw flag, got: %s", output)
+			}
+
+			return nil
+		})
+	})
+
+	t.Run("Request with multiple replies", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			subject := "test-request-multi"
+			replyCount := 0
+
+			nc.Subscribe(subject, func(m *nats.Msg) {
+				replyCount++
+				m.Respond([]byte(fmt.Sprintf("reply %d", replyCount)))
+			})
+
+			nc.Subscribe(subject, func(m *nats.Msg) {
+				replyCount++
+				m.Respond([]byte(fmt.Sprintf("reply %d", replyCount)))
+			})
+			nc.Flush()
+
+			output, _ := runNatsCliWithInput(t, "test", fmt.Sprintf("--server='%s' request --force-stdin --replies 2 %s", srv.ClientURL(), subject))
+
+			if !strings.Contains(string(output), "reply 1") || !strings.Contains(string(output), "reply 2") {
+				t.Errorf("expected both replies, got: %s", output)
+			}
+
+			return nil
+		})
+	})
+}
