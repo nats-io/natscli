@@ -133,6 +133,7 @@ Available template functions are:
 	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)
 	req.Flag("reply-timeout", "Maximum timeout between incoming replies.").Default("300ms").DurationVar(&c.replyTimeout)
 	req.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
+	req.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
 	req.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
 	req.Flag("templates", "Enables template functions in the body and subject (does not affect headers)").Default("true").BoolVar(&c.templates)
 }
@@ -543,8 +544,17 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 			}
 
 			if c.req || c.replyCount >= 1 {
-				errCh <- c.doReq(nc, tracker)
-				return
+				err := c.doReq(nc, tracker)
+				if err != nil {
+					errCh <- err
+					return
+				}
+
+				if c.sendOn == sendOnEOF || eof {
+					errCh <- nil
+					return
+				}
+				continue
 			}
 
 			for i := 1; i <= c.cnt; i++ {
