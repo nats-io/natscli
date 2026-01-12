@@ -77,10 +77,7 @@ func (s *SysClient) JszPing(opts server.JszEventOptions, fopts ...FetchOpt) ([]J
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.Fetch(subj, payload, fopts...)
-	if err != nil {
-		return nil, err
-	}
+	resp, fetchErr := s.Fetch(subj, payload, fopts...)
 	srvJsz := make([]JSZResp, 0, len(resp))
 	for _, msg := range resp {
 		var jszResp JSZResp
@@ -89,7 +86,7 @@ func (s *SysClient) JszPing(opts server.JszEventOptions, fopts ...FetchOpt) ([]J
 		}
 		srvJsz = append(srvJsz, jszResp)
 	}
-	return srvJsz, nil
+	return srvJsz, fetchErr
 }
 
 // FetchJszPaged pages through JSZ account data from all servers.
@@ -104,7 +101,7 @@ func (s *SysClient) FetchJszPaged(baseOpts server.JszEventOptions, limit int, ti
 
 	// Initial request
 	initialPages, err := s.JszPing(baseOpts, fopts...)
-	if err != nil {
+	if err != nil && len(initialPages) == 0 {
 		return err
 	}
 
@@ -344,7 +341,7 @@ func (s *SysClient) FindServers(stdin bool, expected int, timeout time.Duration,
 			JSzOptions: jszOptions,
 		}, fetchTimeout, fetchReadTimeout, fetchExpected)
 		if err != nil {
-			log.Fatal(err)
+			return servers, err
 		}
 	}
 

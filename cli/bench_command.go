@@ -1721,6 +1721,7 @@ func (c *benchCmd) oldjsPullAction(_ *fisk.ParseContext) error {
 		if err != nil {
 			return fmt.Errorf("client number %d could not connect: %w", i, err)
 		}
+
 		defer nc.Close()
 
 		nc.SetDisconnectErrHandler(c.disconnectionHandler)
@@ -1778,16 +1779,16 @@ func (c *benchCmd) getPayload(msgSize int) ([]byte, error) {
 	return buffer, nil
 }
 
-func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadSize int, numMsg int, offset int) error {
+func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, payloadSize int, numMsg int, offset int) ([]uint64, error) {
 	state := "Publishing"
 	payload, err := c.getPayload(payloadSize)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	headers, err := iu.ParseStringsToHeader(c.hdrs, 0)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	message := nats.Msg{Data: payload, Header: headers}
@@ -1800,36 +1801,41 @@ func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, pa
 
 	c.multisubjectFormat = fmt.Sprintf("%%0%dd", len(strconv.Itoa(c.multiSubjectMax)))
 
+	latencies := make([]uint64, numMsg)
+
 	for i := 0; i < numMsg; i++ {
 		if progress != nil {
 			progress.Incr()
 		}
 
 		message.Subject = c.getPublishSubject(i + offset)
+		start := time.Now()
+
 		err := nc.PublishMsg(&message)
 		if err != nil {
-			return fmt.Errorf("publishing: %w", err)
+			return nil, fmt.Errorf("publishing: %w", err)
 		}
 
+		latencies[i] = uint64(time.Since(start).Nanoseconds())
 		time.Sleep(c.sleep)
 	}
 
 	state = "Finished  "
-	return nil
+	return latencies, nil
 }
 
-func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, payloadSize int, numMsg int, offset int) error {
+func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, payloadSize int, numMsg int, offset int) ([]uint64, error) {
 	errBytes := []byte("error")
 	minusByte := byte('-')
 	state := "Requesting"
 	payload, err := c.getPayload(payloadSize)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	headers, err := iu.ParseStringsToHeader(c.hdrs, 0)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	message := nats.Msg{Data: payload, Header: headers}
@@ -1842,6 +1848,8 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, pa
 
 	c.multisubjectFormat = fmt.Sprintf("%%0%dd", len(strconv.Itoa(c.multiSubjectMax)))
 
+	latencies := make([]uint64, numMsg)
+
 	for i := 0; i < numMsg; i++ {
 		if progress != nil {
 			progress.Incr()
@@ -1849,10 +1857,13 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, pa
 
 		message.Subject = c.getPublishSubject(i + offset)
 
+		start := time.Now()
 		m, err := nc.RequestMsg(&message, opts().Timeout)
 		if err != nil {
-			return fmt.Errorf("requesting: %w", err)
+			return nil, fmt.Errorf("requesting: %w", err)
 		}
+
+		latencies[i] = uint64(time.Since(start).Nanoseconds())
 
 		if len(m.Data) == 0 || m.Data[0] == minusByte || bytes.Contains(m.Data, errBytes) {
 			log.Fatalf("Request did not receive a good reply: %q", m.Data)
@@ -1862,24 +1873,24 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, pa
 	}
 
 	state = "Finished  "
-	return nil
+	return latencies, nil
 }
 
-func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubType string, payloadSize int, numMsg int, idPrefix string, offset int, clientNumber int) error {
+func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubType string, payloadSize int, numMsg int, idPrefix string, offset int, clientNumber int) ([]uint64, error) {
 	js, err := c.getJS(nc)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var state string
 	payload, err := c.getPayload(payloadSize)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	headers, err := iu.ParseStringsToHeader(c.hdrs, 0)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	message := nats.Msg{Data: payload, Header: headers}
@@ -1892,28 +1903,32 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 
 	c.multisubjectFormat = fmt.Sprintf("%%0%dd", len(strconv.Itoa(c.multiSubjectMax)))
 
+	var latencies []uint64
+
 	// Asynchronous publish
 	if jsPubType == bench.TypeJSPubAsync {
+		latencies = make([]uint64, uint64(math.Ceil(float64(numMsg)/float64(c.batchSize))))
+
 		for i := 0; i < numMsg; {
 			state = "Publishing"
 			futures := make([]jetstream.PubAckFuture, min(c.batchSize, numMsg-i))
+			start := time.Now()
+
 			for j := 0; j < c.batchSize && (i+j) < numMsg; j++ {
 				if c.deDuplication {
 					message.Header.Set(nats.MsgIdHdr, idPrefix+"-"+strconv.Itoa(clientNumber)+"-"+strconv.Itoa(i+j+offset))
 				}
 
 				message.Subject = c.getPublishSubject(i + j + offset)
-
 				futures[j], err = js.PublishMsgAsync(&message)
+
 				if err != nil {
-					return fmt.Errorf("publishing asynchronously: %w", err)
+					return nil, fmt.Errorf("publishing asynchronously: %w", err)
 				}
 
 				if progress != nil {
 					progress.Incr()
 				}
-
-				time.Sleep(c.sleep)
 			}
 
 			state = "AckWait   "
@@ -1930,12 +1945,18 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 					}
 				}
 			case <-time.After(opts().Timeout):
-				return fmt.Errorf("JS PubAsync ack timeout (pending=%d)", js.PublishAsyncPending())
+				return nil, fmt.Errorf("JS PubAsync ack timeout (pending=%d)", js.PublishAsyncPending())
 			}
+
+			latencies[uint64(math.Ceil(float64(i)/float64(c.batchSize)))-1] = uint64(time.Since(start).Nanoseconds())
+			time.Sleep(c.sleep)
 		}
+
 		state = "Finished  "
 		// Batch publish
 	} else if jsPubType == bench.TypeJSPubBatch {
+		latencies = make([]uint64, uint64(math.Ceil(float64(numMsg)/float64(c.batchSize))))
+		batch := 0
 		var msgs int
 		batchId := idPrefix + "-" + strconv.Itoa(clientNumber)
 
@@ -1943,6 +1964,7 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 			state = "Batching  "
 			msgs = min(c.batchSize, numMsg-i)
 			message.Header.Del("Nats-Batch-Commit")
+			start := time.Now()
 
 			for j := 0; j < msgs; j++ {
 				if c.deDuplication {
@@ -1956,25 +1978,26 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 				if j == msgs-1 {
 					state = "Committing"
 					message.Header.Set("Nats-Batch-Commit", "1")
+
 					_, err := js.PublishMsg(ctx, &message)
 					if err != nil {
-						return fmt.Errorf("publishing with batch commit: %w", err)
+						return nil, fmt.Errorf("publishing with batch commit: %w", err)
 					}
 				} else {
 					err = nc.PublishMsg(&message)
 					if err != nil {
-						return fmt.Errorf("publishing: %w", err)
+						return nil, fmt.Errorf("publishing: %w", err)
 					}
 				}
-
-				time.Sleep(c.sleep)
 			}
+
+			latencies[batch] = uint64(time.Since(start).Nanoseconds())
+			batch++
+			state = "Sleeping  "
 
 			if c.deDuplication {
 				message.Header.Set(nats.MsgIdHdr, batchId+"-"+strconv.Itoa(i+msgs+offset))
 			}
-
-			time.Sleep(c.sleep)
 
 			if progress != nil {
 				for j := 0; j < msgs; j++ {
@@ -1983,11 +2006,14 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 			}
 
 			i += msgs
+			time.Sleep(c.sleep)
 		}
 		state = "Finished  "
 	} else if jsPubType == bench.TypeJSPubSync {
 		// Synchronous publish
+		latencies = make([]uint64, numMsg)
 		state = "Publishing"
+
 		for i := 0; i < numMsg; i++ {
 			if progress != nil {
 				progress.Incr()
@@ -1999,31 +2025,33 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 
 			message.Subject = c.getPublishSubject(i + offset)
 
+			start := time.Now()
 			_, err = js.PublishMsg(ctx, &message)
 			if err != nil {
-				return fmt.Errorf("publishing synchronously: %w", err)
+				return nil, fmt.Errorf("publishing synchronously: %w", err)
 			}
 
+			latencies[i] = uint64(time.Since(start).Nanoseconds())
 			time.Sleep(c.sleep)
 		}
 	} else {
-		return fmt.Errorf("unknown js publish type: %s", jsPubType)
+		return nil, fmt.Errorf("unknown js publish type: %s", jsPubType)
 	}
 
-	return nil
+	return latencies, nil
 }
 
-func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) error {
+func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte, numMsg int, offset int) ([]uint64, error) {
 	ctx := context.Background()
 
 	js, err := c.getJS(nc)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	kvBucket, err := js.KeyValue(ctx, c.streamOrBucketName)
 	if err != nil {
-		return fmt.Errorf("getting the kv bucket '%s': %w", c.streamOrBucketName, err)
+		return nil, fmt.Errorf("getting the kv bucket '%s': %w", c.streamOrBucketName, err)
 	}
 	var state = "Putting   "
 
@@ -2033,19 +2061,23 @@ func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte,
 		})
 	}
 
+	latencies := make([]uint64, numMsg)
+
 	for i := 0; i < numMsg; i++ {
 		if progress != nil {
 			progress.Incr()
 		}
 
+		start := time.Now()
 		_, err = kvBucket.Put(ctx, fmt.Sprintf("%d", offset+i), msg)
 		if err != nil {
-			return fmt.Errorf("putting: %w", err)
+			return nil, fmt.Errorf("putting: %w", err)
 		}
 
+		latencies[i] = uint64(time.Since(start).Nanoseconds())
 		time.Sleep(c.sleep)
 	}
-	return nil
+	return latencies, nil
 }
 
 func (c *benchCmd) runCorePublisher(bm *bench.BenchmarkResults, errChan chan error, nc *nats.Conn, startwg *sync.WaitGroup, donewg *sync.WaitGroup, trigger chan struct{}, numMsg int, offset int, clientNumber int) {
@@ -2086,7 +2118,7 @@ func (c *benchCmd) runCorePublisher(bm *bench.BenchmarkResults, errChan chan err
 	}
 
 	start := time.Now()
-	err := c.coreNATSPublisher(nc, progress, c.msgSize, numMsg, offset)
+	latencies, err := c.coreNATSPublisher(nc, progress, c.msgSize, numMsg, offset)
 	if err != nil {
 		errChan <- fmt.Errorf("publishing: %w", err)
 		donewg.Done()
@@ -2100,7 +2132,7 @@ func (c *benchCmd) runCorePublisher(bm *bench.BenchmarkResults, errChan chan err
 		return
 	}
 
-	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
+	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), latencies, nc))
 
 	donewg.Done()
 	errChan <- nil
@@ -2176,7 +2208,7 @@ func (c *benchCmd) runCoreSubscriber(bm *bench.BenchmarkResults, errChan chan er
 
 	state = "Finished  "
 
-	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
+	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, end, []uint64{}, nc))
 
 	donewg.Done()
 	errChan <- nil
@@ -2202,7 +2234,7 @@ func (c *benchCmd) runCoreRequester(bm *bench.BenchmarkResults, errChan chan err
 	}
 
 	start := time.Now()
-	err := c.coreNATSRequester(nc, progress, c.msgSize, numMsg, offset)
+	latencies, err := c.coreNATSRequester(nc, progress, c.msgSize, numMsg, offset)
 	if err != nil {
 		errChan <- fmt.Errorf("requesting: %w", err)
 		donewg.Done()
@@ -2216,7 +2248,7 @@ func (c *benchCmd) runCoreRequester(bm *bench.BenchmarkResults, errChan chan err
 		return
 	}
 
-	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
+	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), latencies, nc))
 
 	donewg.Done()
 	errChan <- nil
@@ -2289,7 +2321,7 @@ func (c *benchCmd) runJSPublisher(bm *bench.BenchmarkResults, errChan chan error
 	}
 
 	start := time.Now()
-	err := c.jsPublisher(nc, progress, benchType, c.msgSize, numMsg, idPrefix, offset, clientNumber)
+	latencies, err := c.jsPublisher(nc, progress, benchType, c.msgSize, numMsg, idPrefix, offset, clientNumber)
 	if err != nil {
 		errChan <- fmt.Errorf("publishing: %w", err)
 		donewg.Done()
@@ -2303,7 +2335,7 @@ func (c *benchCmd) runJSPublisher(bm *bench.BenchmarkResults, errChan chan error
 		return
 	}
 
-	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
+	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), latencies, nc))
 
 	donewg.Done()
 	errChan <- nil
@@ -2446,8 +2478,12 @@ func (c *benchCmd) runJSSubscriber(bm *bench.BenchmarkResults, errChan chan erro
 
 	startwg.Done()
 
+	var latencies []uint64
+
 	// Fetch messages if in fetch mode
 	if benchType == bench.TypeJSFetch {
+		latencies = make([]uint64, int(math.Ceil(float64(numMsg)/float64(c.batchSize))))
+
 		for i := 0; i < numMsg; {
 			batchSize := func() int {
 				if c.batchSize <= (numMsg - i) {
@@ -2457,7 +2493,9 @@ func (c *benchCmd) runJSSubscriber(bm *bench.BenchmarkResults, errChan chan erro
 				}
 			}()
 
+			start := time.Now()
 			msgs, err := consumer.Fetch(batchSize)
+			end := time.Now()
 			if err != nil {
 				if !c.progressBar {
 					if errors.Is(err, nats.ErrTimeout) {
@@ -2481,6 +2519,8 @@ func (c *benchCmd) runJSSubscriber(bm *bench.BenchmarkResults, errChan chan erro
 					donewg.Done()
 					return
 				}
+
+				latencies[uint64(math.Ceil(float64(i)/float64(c.batchSize)))-1] = uint64(end.Sub(start).Nanoseconds())
 			}
 		}
 	}
@@ -2490,7 +2530,7 @@ func (c *benchCmd) runJSSubscriber(bm *bench.BenchmarkResults, errChan chan erro
 
 	state = "Finished  "
 
-	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
+	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, end, latencies, nc))
 
 	donewg.Done()
 	errChan <- nil
@@ -2528,6 +2568,7 @@ func (c *benchCmd) runJSGetter(bm *bench.BenchmarkResults, errChan chan error, n
 
 	state = "Getting   "
 
+	var latencies []uint64
 	err = nc.Flush()
 	if err != nil {
 		errChan <- fmt.Errorf("flushing: %w", err)
@@ -2553,23 +2594,26 @@ func (c *benchCmd) runJSGetter(bm *bench.BenchmarkResults, errChan chan error, n
 			return
 		}
 
+		latencies = make([]uint64, numMsg)
 		startingSeq := si.State.FirstSeq
 
 		for i := uint64(0); i < uint64(numMsg); i++ {
+			start := time.Now()
+
 			_, err := stream.GetMsg(ctx, i+startingSeq)
 			if err != nil {
 				errChan <- fmt.Errorf("getting message sequence number %d from the stream: %w", i+startingSeq, err)
 				donewg.Done()
 				return
 			}
-			time.Sleep(c.sleep)
+
+			latencies[i] = uint64(time.Since(start).Nanoseconds())
 
 			if i == 0 {
-				startTime := time.Now()
-				ch <- startTime
+				ch <- start
 
 				if progress != nil {
-					progress.TimeStarted = startTime
+					progress.TimeStarted = start
 				}
 			}
 
@@ -2580,10 +2624,13 @@ func (c *benchCmd) runJSGetter(bm *bench.BenchmarkResults, errChan chan error, n
 			if progress != nil {
 				progress.Incr()
 			}
+
+			time.Sleep(c.sleep)
 		}
 	case bench.TypeJSGetDirectBatched:
 		var msgs iter.Seq2[*jetstream.RawStreamMsg, error]
 		var nextSeq uint64 = 1
+		latencies = make([]uint64, int(math.Ceil(float64(numMsg)/float64(c.batchSize))))
 
 		for i := 0; i < numMsg; {
 			batchSize := func() int {
@@ -2594,13 +2641,24 @@ func (c *benchCmd) runJSGetter(bm *bench.BenchmarkResults, errChan chan error, n
 				}
 			}()
 
+			start := time.Now()
 			msgs, err = jetstreamext.GetBatch(ctx, js, c.streamOrBucketName, batchSize, jetstreamext.GetBatchSeq(nextSeq), jetstreamext.GetBatchSubject(c.filterSubject))
-
+			end := time.Now()
 			if err != nil {
 				errChan <- fmt.Errorf("doing a direct get on the stream: %w", err)
 				donewg.Done()
 				return
 			}
+
+			if i == 0 {
+				ch <- start
+
+				if progress != nil {
+					progress.TimeStarted = start
+				}
+			}
+
+			// Count how many we actually got
 
 			gotten := 0
 
@@ -2614,20 +2672,6 @@ func (c *benchCmd) runJSGetter(bm *bench.BenchmarkResults, errChan chan error, n
 				i++
 				gotten++
 				nextSeq = msg.Sequence + 1
-				time.Sleep(c.sleep)
-
-				if i == 1 {
-					startTime := time.Now()
-					ch <- startTime
-
-					if progress != nil {
-						progress.TimeStarted = startTime
-					}
-				}
-
-				if i >= numMsg {
-					ch <- time.Now()
-				}
 
 				if progress != nil {
 					progress.Incr()
@@ -2639,6 +2683,12 @@ func (c *benchCmd) runJSGetter(bm *bench.BenchmarkResults, errChan chan error, n
 				c.lessThanExpected.Store(true)
 			}
 
+			latencies[uint64(math.Ceil(float64(i)/float64(c.batchSize)))-1] = uint64(end.Sub(start).Nanoseconds())
+
+			if i >= numMsg {
+				ch <- end
+			}
+
 			time.Sleep(c.sleep)
 		}
 	}
@@ -2648,7 +2698,7 @@ func (c *benchCmd) runJSGetter(bm *bench.BenchmarkResults, errChan chan error, n
 
 	state = "Finished  "
 
-	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
+	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, end, latencies, nc))
 
 	donewg.Done()
 	errChan <- nil
@@ -2679,7 +2729,7 @@ func (c *benchCmd) runKVPutter(bm *bench.BenchmarkResults, errChan chan error, n
 	}
 
 	start := time.Now()
-	err := c.kvPutter(nc, progress, msg, numMsg, offset)
+	latencies, err := c.kvPutter(nc, progress, msg, numMsg, offset)
 	if err != nil {
 		errChan <- fmt.Errorf("putting: %w", err)
 		donewg.Done()
@@ -2693,7 +2743,7 @@ func (c *benchCmd) runKVPutter(bm *bench.BenchmarkResults, errChan chan error, n
 		return
 	}
 
-	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), nc))
+	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, time.Now(), latencies, nc))
 
 	donewg.Done()
 	errChan <- nil
@@ -2737,6 +2787,8 @@ func (c *benchCmd) runKVGetter(bm *bench.BenchmarkResults, errChan chan error, n
 		return
 	}
 
+	latencies := make([]uint64, numMsg)
+
 	// start the timer now rather than when the first message is received in JS mode
 	startTime := time.Now()
 	ch <- startTime
@@ -2755,13 +2807,16 @@ func (c *benchCmd) runKVGetter(bm *bench.BenchmarkResults, errChan chan error, n
 		} else {
 			key = fmt.Sprintf("%d", rand.Intn(c.randomizeGets))
 		}
-		entry, err := kvBucket.Get(ctx, key)
+		start := time.Now()
 
+		entry, err := kvBucket.Get(ctx, key)
 		if err != nil {
 			errChan <- fmt.Errorf("getting key '%s': %w", key, err)
 			donewg.Done()
 			return
 		}
+
+		latencies[i] = uint64(time.Since(start).Nanoseconds())
 
 		if entry.Value() == nil {
 			log.Printf("Warning: got no value for key '%d'", offset+i)
@@ -2780,7 +2835,7 @@ func (c *benchCmd) runKVGetter(bm *bench.BenchmarkResults, errChan chan error, n
 
 	state = "Finished  "
 
-	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
+	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, end, latencies, nc))
 
 	donewg.Done()
 	errChan <- nil
@@ -2972,7 +3027,7 @@ func (c *benchCmd) runOldJSSubscriber(bm *bench.BenchmarkResults, errChan chan e
 
 	state = "Finished  "
 
-	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, end, nc))
+	bm.AddSample(bench.NewSample(numMsg, c.msgSize, start, end, []uint64{}, nc))
 
 	donewg.Done()
 	errChan <- nil

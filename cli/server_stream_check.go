@@ -89,13 +89,16 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 
 	start = time.Now()
 	servers, err := sys.FindServers(c.stdin, c.expected, opts().Timeout, time.Duration(c.readTimeout), false)
-	if err != nil {
+	if err != nil && len(servers) == 0 {
 		return fmt.Errorf("failed to find servers: %s", err)
 	}
 
 	if !c.csv {
 		fmt.Printf("Response took %.3fs\n", time.Since(start).Seconds())
 		fmt.Printf("Servers: %d\n", len(servers))
+		if err != nil && len(servers) > 0 {
+			fmt.Printf("Warning: %s\n", err)
+		}
 	}
 
 	// Collect all info from servers.
