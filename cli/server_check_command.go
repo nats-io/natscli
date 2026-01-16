@@ -83,20 +83,22 @@ type SrvCheckCmd struct {
 	jsReplicaSeenCritical time.Duration
 	jsReplicaLagCritical  uint64
 
-	srvName         string
-	srvCPUWarn      int
-	srvCPUCrit      int
-	srvMemWarn      int
-	srvMemCrit      int
-	srvConnWarn     int
-	srvConnCrit     int
-	srvSubsWarn     int
-	srvSubCrit      int
-	srvUptimeWarn   time.Duration
-	srvUptimeCrit   time.Duration
-	srvAuthRequired bool
-	srvTLSRequired  bool
-	srvJSRequired   bool
+	srvName           string
+	srvCPUWarn        int
+	srvCPUCrit        int
+	srvMemWarn        int
+	srvMemCrit        int
+	srvConnWarn       int
+	srvConnCrit       int
+	srvSubsWarn       int
+	srvSubCrit        int
+	srvUptimeWarn     time.Duration
+	srvUptimeCrit     time.Duration
+	srvAuthRequired   bool
+	srvTLSRequired    bool
+	srvJSRequired     bool
+	srvtlsExpiredWarn time.Duration
+	srvtlsExpiredCrit time.Duration
 
 	msgSubject      string
 	msgAgeWarn      time.Duration
@@ -239,6 +241,8 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	serv.Flag("auth-required", "Checks that authentication is enabled").UnNegatableBoolVar(&c.srvAuthRequired)
 	serv.Flag("tls-required", "Checks that TLS is required").UnNegatableBoolVar(&c.srvTLSRequired)
 	serv.Flag("js-required", "Checks that JetStream is enabled").UnNegatableBoolVar(&c.srvJSRequired)
+	serv.Flag("tls-cert-warn", "Warning threshold for TLS certificate expiry like 1d3h5m").DurationVar(&c.srvtlsExpiredWarn)
+	serv.Flag("tls-cert-crit", "Critical threshold for TLS certificate expiry like 1d3h5m").DurationVar(&c.srvtlsExpiredCrit)
 
 	kv := check.Command("kv", "Checks a NATS KV Bucket").Action(c.checkKV)
 	kv.HelpLong(multipleChecks + warnAndCritical + inversion)
@@ -400,6 +404,8 @@ func (c *SrvCheckCmd) checkSrv(_ *fisk.ParseContext) error {
 		AuthenticationRequired: c.srvAuthRequired,
 		TLSRequired:            c.srvTLSRequired,
 		JetStreamRequired:      c.srvJSRequired,
+		TLSExpireWarning:       c.srvtlsExpiredWarn.String(),
+		TLSExpireCritical:      c.srvtlsExpiredCrit.String(),
 	}
 
 	var err error
