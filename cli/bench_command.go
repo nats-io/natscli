@@ -20,8 +20,7 @@ import (
 	"fmt"
 	"iter"
 	"math"
-	"math/rand"
-	rand2 "math/rand/v2"
+	"math/rand/v2"
 	"os"
 	"sort"
 	"strconv"
@@ -503,7 +502,7 @@ func (c *benchCmd) getPublishSubject(number int) string {
 			return c.subject + "." + strconv.Itoa(number)
 		} else {
 			if c.multiSubjectRandom {
-				return c.subject + "." + fmt.Sprintf(c.multisubjectFormat, rand2.IntN(c.multiSubjectMax))
+				return c.subject + "." + fmt.Sprintf(c.multisubjectFormat, rand.IntN(c.multiSubjectMax))
 			} else {
 				return c.subject + "." + fmt.Sprintf(c.multisubjectFormat, number%c.multiSubjectMax)
 			}
@@ -2123,7 +2122,7 @@ func (c *benchCmd) runCorePublisher(bm *bench.BenchmarkResults, errChan chan err
 
 	// introduces some jitter between the publishers if sleep is set and more than one publisher
 	if c.sleep != 0 && clientNumber != 0 {
-		n := rand.Intn(int(c.sleep))
+		n := rand.Int64N(c.sleep.Nanoseconds())
 		time.Sleep(time.Duration(n))
 	}
 
@@ -2239,7 +2238,7 @@ func (c *benchCmd) runCoreRequester(bm *bench.BenchmarkResults, errChan chan err
 
 	// introduces some jitter between the publishers if sleep is set and more than one publisher
 	if c.sleep != 0 && clientNumber != 0 {
-		n := rand.Intn(int(c.sleep))
+		n := rand.Int64N(c.sleep.Nanoseconds())
 		time.Sleep(time.Duration(n))
 	}
 
@@ -2326,7 +2325,7 @@ func (c *benchCmd) runJSPublisher(bm *bench.BenchmarkResults, errChan chan error
 
 	// introduces some jitter between the publishers if sleep is set and more than one publisher
 	if c.sleep != 0 && clientNumber != 0 {
-		n := rand.Intn(int(c.sleep))
+		n := rand.Int64N(c.sleep.Nanoseconds())
 		time.Sleep(time.Duration(n))
 	}
 
@@ -2734,7 +2733,7 @@ func (c *benchCmd) runKVPutter(bm *bench.BenchmarkResults, errChan chan error, n
 
 	// introduces some jitter between the publishers if pubSleep is set and more than one publisher
 	if c.sleep != 0 && clientNumber != 0 {
-		n := rand.Intn(int(c.sleep))
+		n := rand.Int64N(c.sleep.Nanoseconds())
 		time.Sleep(time.Duration(n))
 	}
 
@@ -2815,7 +2814,7 @@ func (c *benchCmd) runKVGetter(bm *bench.BenchmarkResults, errChan chan error, n
 		if c.randomizeGets == 0 {
 			key = fmt.Sprintf("%d", offset+i)
 		} else {
-			key = fmt.Sprintf("%d", rand.Intn(c.randomizeGets))
+			key = fmt.Sprintf("%d", rand.IntN(c.randomizeGets))
 		}
 		start := time.Now()
 
