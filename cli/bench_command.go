@@ -21,6 +21,7 @@ import (
 	"iter"
 	"math"
 	"math/rand"
+	rand2 "math/rand/v2"
 	"os"
 	"sort"
 	"strconv"
@@ -72,6 +73,7 @@ type benchCmd struct {
 	errored              atomic.Bool
 	lessThanExpected     atomic.Bool
 	multiSubject         bool
+	multiSubjectRandom   bool
 	multiSubjectMax      int
 	multisubjectFormat   string
 	deDuplication        bool
@@ -99,6 +101,7 @@ func configureBenchCommand(app commandHost) {
 	addPubFlags := func(f *fisk.CmdClause) {
 		f.Flag("multisubject", "Multi-subject mode, each message is published on a subject that includes the publisher's message sequence number as a token").UnNegatableBoolVar(&c.multiSubject)
 		f.Flag("multisubjectmax", "The maximum number of subjects to use in multi-subject mode (0 means no max)").Default("100000").IntVar(&c.multiSubjectMax)
+		f.Flag("multisubjectrandomize", "Randomize which subjects are being used when in multisubject mode").UnNegatableBoolVar(&c.multiSubjectRandom)
 		f.Flag("payload", "File containing a message payload to send").ExistingFileVar(&c.payloadFilename)
 		f.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
 	}
@@ -351,6 +354,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
+		argnvps = append(argnvps, nvp{"multi-subject-randomize", f(c.multiSubjectRandom)})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 	case bench.TypeCoreSub:
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
@@ -365,6 +369,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
+		argnvps = append(argnvps, nvp{"multi-subject-randomize", f(c.multiSubjectRandom)})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
 		jsAttributes()
 		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
@@ -373,6 +378,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
+		argnvps = append(argnvps, nvp{"multi-subject-randomize", f(c.multiSubjectRandom)})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
 		jsAttributes()
 		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
@@ -496,7 +502,11 @@ func (c *benchCmd) getPublishSubject(number int) string {
 		if c.multiSubjectMax == 0 {
 			return c.subject + "." + strconv.Itoa(number)
 		} else {
-			return c.subject + "." + fmt.Sprintf(c.multisubjectFormat, number%c.multiSubjectMax)
+			if c.multiSubjectRandom {
+				return c.subject + "." + fmt.Sprintf(c.multisubjectFormat, rand2.IntN(c.multiSubjectMax))
+			} else {
+				return c.subject + "." + fmt.Sprintf(c.multisubjectFormat, number%c.multiSubjectMax)
+			}
 		}
 	} else {
 		return c.subject
