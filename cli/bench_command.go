@@ -78,7 +78,7 @@ type benchCmd struct {
 	deDuplication        bool
 	deDuplicationWindow  time.Duration
 	ack                  bool
-	randomizeGets        int
+	randomize            int
 	payloadFilename      string
 	hdrs                 []string
 	filterSubjects       []string // used by JS consumer commands
@@ -136,6 +136,7 @@ func configureBenchCommand(app commandHost) {
 		f.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes").Default("1GB").StringVar(&c.streamMaxBytesString)
 		f.Flag("history", "History depth for the bucket in KV mode").Default("1").Uint8Var(&c.history)
 		f.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
+		f.Flag("randomize", "Randomly put messages using keys between 0 and this number (set to 0 for sequential access)").Default("0").IntVar(&c.randomize)
 	}
 
 	benchCommand := app.Command("bench", "Benchmark utility")
@@ -217,7 +218,7 @@ func configureBenchCommand(app commandHost) {
 	addKVPutFlags(kvput)
 
 	kvget := kvCommand.Command("get", "Get messages from a KV bucket").Action(c.kvGetAction)
-	kvget.Flag("randomize", "Randomly access messages using keys between 0 and this number (set to 0 for sequential access)").Default("0").IntVar(&c.randomizeGets)
+	kvget.Flag("randomize", "Randomly get messages using keys between 0 and this number (set to 0 for sequential access)").Default("0").IntVar(&c.randomize)
 
 	oldJSCommand := benchCommand.Command("oldjs", "JetStream benchmark commands using the old JS API").Hidden()
 	addCommonFlags(oldJSCommand)
@@ -414,7 +415,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 	case bench.TypeKVGet:
 		argnvps = append(argnvps, nvp{"bucket", c.streamOrBucketName})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
-		argnvps = append(argnvps, nvp{"randomize", f(c.randomizeGets)})
+		argnvps = append(argnvps, nvp{"randomize", f(c.randomize)})
 		streamOrBucketAttribues()
 	case bench.TypeOldJSOrdered:
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
@@ -2077,8 +2078,14 @@ func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte,
 			progress.Incr()
 		}
 
+		key := offset + i
+
+		if c.randomize > 0 {
+			key = rand.IntN(c.randomize)
+		}
+
 		start := time.Now()
-		_, err = kvBucket.Put(ctx, fmt.Sprintf("%d", offset+i), msg)
+		_, err = kvBucket.Put(ctx, fmt.Sprintf("%d", key), msg)
 		if err != nil {
 			return nil, fmt.Errorf("putting: %w", err)
 		}
@@ -2811,10 +2818,10 @@ func (c *benchCmd) runKVGetter(bm *bench.BenchmarkResults, errChan chan error, n
 	for i := 0; i < numMsg; i++ {
 		var key string
 
-		if c.randomizeGets == 0 {
+		if c.randomize == 0 {
 			key = fmt.Sprintf("%d", offset+i)
 		} else {
-			key = fmt.Sprintf("%d", rand.IntN(c.randomizeGets))
+			key = fmt.Sprintf("%d", rand.IntN(c.randomize))
 		}
 		start := time.Now()
 
