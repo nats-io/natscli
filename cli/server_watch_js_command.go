@@ -1,4 +1,4 @@
-// Copyright 2024 The NATS Authors
+// Copyright 2024-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import (
 	terminal "golang.org/x/term"
 )
 
-type SrvWatchJSCmd struct {
+type srvWatchJSCmd struct {
 	top       int
 	topCount  int
 	sort      string
@@ -42,7 +42,7 @@ type SrvWatchJSCmd struct {
 }
 
 func configureServerWatchJSCommand(watch *fisk.CmdClause) {
-	c := &SrvWatchJSCmd{
+	c := &srvWatchJSCmd{
 		servers: map[string]*server.ServerStatsMsg{},
 		sortNames: map[string]string{
 			"mem":    "Memory Used",
@@ -64,7 +64,7 @@ Since the updates are sent on a 30 second interval this is not a point in time v
 	js.Flag("number", "Amount of Accounts to show by the selected dimension").Default("0").Short('n').IntVar(&c.top)
 }
 
-func (c *SrvWatchJSCmd) updateSizes() error {
+func (c *srvWatchJSCmd) updateSizes() error {
 	c.topCount = c.top
 
 	_, h, err := terminal.GetSize(int(os.Stdout.Fd()))
@@ -89,7 +89,7 @@ func (c *SrvWatchJSCmd) updateSizes() error {
 	return nil
 }
 
-func (c *SrvWatchJSCmd) prePing(nc *nats.Conn, h nats.MsgHandler) {
+func (c *srvWatchJSCmd) prePing(nc *nats.Conn, h nats.MsgHandler) {
 	sub, err := nc.Subscribe(nc.NewRespInbox(), h)
 	if err != nil {
 		return
@@ -102,7 +102,7 @@ func (c *SrvWatchJSCmd) prePing(nc *nats.Conn, h nats.MsgHandler) {
 	nc.PublishMsg(msg)
 }
 
-func (c *SrvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
+func (c *srvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -119,13 +119,10 @@ func (c *SrvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	// TODO: remove after 2.12 is out
-	drawPending := iu.ServerMinVersion(nc, 2, 10, 21)
-
 	for {
 		select {
 		case <-tick.C:
-			err = c.redraw(drawPending)
+			err = c.redraw(true)
 			if err != nil {
 				return err
 			}
@@ -135,7 +132,7 @@ func (c *SrvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
 	}
 }
 
-func (c *SrvWatchJSCmd) handle(msg *nats.Msg) {
+func (c *srvWatchJSCmd) handle(msg *nats.Msg) {
 	var stat server.ServerStatsMsg
 	err := json.Unmarshal(msg.Data, &stat)
 	if err != nil {
@@ -152,7 +149,7 @@ func (c *SrvWatchJSCmd) handle(msg *nats.Msg) {
 	c.mu.Unlock()
 }
 
-func (c *SrvWatchJSCmd) redraw(drawPending bool) error {
+func (c *srvWatchJSCmd) redraw(drawPending bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
