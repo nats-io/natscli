@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The NATS Authors
+// Copyright 2020-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,11 +15,8 @@ package cli
 
 import (
 	"bufio"
-	"bytes"
+	"context"
 	"fmt"
-	"io"
-	"math"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -32,33 +29,23 @@ import (
 	"github.com/jedib0t/go-pretty/v6/progress"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
-	terminal "golang.org/x/term"
-)
-
-const (
-	sendOnEOF     = "eof"
-	sendOnNewline = "newline"
 )
 
 type pubCmd struct {
-	subject      string
-	body         string
-	bodyIsSet    bool
-	req          bool
-	replyTo      string
-	raw          bool
-	hdrs         []string
-	cnt          int
-	sleep        time.Duration
-	replyCount   int
-	replyTimeout time.Duration
-	forceStdin   bool
-	translate    string
-	jetstream    bool
-	sendOn       string
-	quiet        bool
-	templates    bool
-	atomic       bool
+	subject    string
+	body       string
+	bodyIsSet  bool
+	replyTo    string
+	raw        bool
+	hdrs       []string
+	cnt        int
+	sleep      time.Duration
+	forceStdin bool
+	jetstream  bool
+	sendOn     string
+	quiet      bool
+	templates  bool
+	atomic     bool
 
 	atomicPending []*nats.Msg
 }
@@ -66,7 +53,7 @@ type pubCmd struct {
 func configurePubCommand(app commandHost) {
 	c := &pubCmd{}
 
-	pubHelp := `Body and Header values of the messages may use Go templates to 
+	pubHelp := `Body and Header values of the messages may use Go templates to
 create unique messages.
 
    nats pub test --count 10 "Message {{Count}} @ {{Time}}"
@@ -86,7 +73,7 @@ Available template functions are:
    Random(min, max) random string at least min long, at most max
 `
 
-	pub := app.Command("publish", "Generic data publish utility").Alias("pub").Action(c.publish)
+	pub := app.Command("publish", "Generic data publish utility").Alias("pub").Action(c.publishAction)
 	addCheat("pub", pub)
 	pub.HelpLong(pubHelp)
 	pub.Arg("subject", "Subject to publish to").Required().StringVar(&c.subject)
@@ -97,178 +84,14 @@ Available template functions are:
 	pub.Flag("sleep", "When publishing multiple messages, sleep between publishes").DurationVar(&c.sleep)
 	pub.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
 	pub.Flag("jetstream", "Publish messages to jetstream").Short('J').UnNegatableBoolVar(&c.jetstream)
-	pub.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
+	pub.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", iu.SendOnEOF, iu.SendOnNewline)).Default("eof").EnumVar(&c.sendOn, iu.SendOnNewline, iu.SendOnEOF)
 	pub.Flag("quiet", "Show just the output received").Short('q').UnNegatableBoolVar(&c.quiet)
 	pub.Flag("templates", "Enables template functions in the body and subject (does not affect headers)").Default("true").BoolVar(&c.templates)
 	pub.Flag("atomic", "Atomic batch publish to Jetstream (implies --jetstream)").UnNegatableBoolVar(&c.atomic)
-
-	requestHelp := `Body and Header values of the messages may use Go templates to 
-create unique messages.
-
-   nats request test --count 10 "Message {{Count}} @ {{Time}}"
-
-Multiple messages with random strings between 10 and 100 long:
-
-   nats request test --count 10 "Message {{Count}}: {{ Random 10 100 }}"
-
-Available template functions are:
-
-   Count            the message number
-   TimeStamp        RFC3339 format current time
-   Unix             seconds since 1970 in UTC
-   UnixNano         nano seconds since 1970 in UTC
-   Time             the current time
-   ID               an unique ID
-   Random(min, max) random string at least min long, at most max
-`
-
-	req := app.Command("request", "Generic request-reply request utility").Alias("req").Action(c.publish)
-	req.HelpLong(requestHelp)
-	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
-	req.Arg("body", "Message body").IsSetByUser(&c.bodyIsSet).StringVar(&c.body)
-	req.Flag("wait", "Wait for a reply from a service").Short('w').Default("true").Hidden().BoolVar(&c.req)
-	req.Flag("raw", "Show just the output received").Short('r').UnNegatableBoolVar(&c.raw)
-	req.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
-	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
-	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)
-	req.Flag("reply-timeout", "Maximum timeout between incoming replies.").Default("300ms").DurationVar(&c.replyTimeout)
-	req.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
-	req.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
-	req.Flag("send-on", fmt.Sprintf("When to send data from stdin: '%s' (default) or '%s'", sendOnEOF, sendOnNewline)).Default("eof").EnumVar(&c.sendOn, sendOnNewline, sendOnEOF)
-	req.Flag("templates", "Enables template functions in the body and subject (does not affect headers)").Default("true").BoolVar(&c.templates)
 }
 
 func init() {
 	registerCommand("pub", 11, configurePubCommand)
-}
-
-func (c *pubCmd) prepareMsg(subj string, body []byte, seq int) (*nats.Msg, error) {
-	msg := nats.NewMsg(subj)
-	msg.Reply = c.replyTo
-	msg.Data = body
-
-	return msg, iu.ParseStringsToMsgHeader(c.hdrs, seq, msg)
-}
-
-func (c *pubCmd) parseTemplates(request string, ctr int) (string, string) {
-	if c.templates {
-		body, err := iu.PubReplyBodyTemplate(c.body, request, ctr)
-		if err != nil {
-			log.Printf("Could not parse body template: %s", err)
-		}
-
-		subj, err := iu.PubReplyBodyTemplate(c.subject, request, ctr)
-		if err != nil {
-			log.Printf("Could not parse subject template: %s", err)
-		}
-		return string(body), string(subj)
-	}
-	return c.body, c.subject
-}
-
-func (c *pubCmd) doReq(nc *nats.Conn, progress *progress.Tracker) error {
-	logOutput := !c.raw && progress == nil
-
-	for i := 1; i <= c.cnt; i++ {
-		if logOutput {
-			log.Printf("Sending request on %q\n", c.subject)
-		}
-
-		body, subj := c.parseTemplates("", i)
-		msg, err := c.prepareMsg(subj, []byte(body), i)
-		if err != nil {
-			return err
-		}
-
-		msg.Reply = nc.NewRespInbox()
-
-		s, err := nc.SubscribeSync(msg.Reply)
-		if err != nil {
-			return err
-		}
-
-		err = nc.PublishMsg(msg)
-		if err != nil {
-			return err
-		}
-
-		if progress != nil {
-			progress.Increment(1)
-		}
-
-		// loop through the reply count.
-		start := time.Now()
-
-		// Honor the overall timeout for the first response.  No
-		// responders will circuit break.
-		timeout := opts().Timeout
-
-		// loop until reply count is met, or if zero, until we
-		// timeout receiving messages.
-		rc := 0
-		var rttAg time.Duration
-		for {
-			m, err := s.NextMsg(timeout)
-			if err != nil {
-				if err == nats.ErrTimeout {
-					// continue to publish additional messages.
-					break
-				}
-				if err == nats.ErrNoResponders {
-					log.Printf("No responders are available")
-					return nil
-				}
-				return err
-			}
-
-			rtt := time.Since(start)
-
-			switch {
-			case c.raw:
-				outPutMSGBody(m.Data, c.translate, m.Subject, "")
-			case logOutput:
-				log.Printf("Received with rtt %v", rtt)
-
-				if len(m.Header) > 0 {
-					for h, vals := range m.Header {
-						for _, val := range vals {
-							log.Printf("%s: %s", h, val)
-						}
-					}
-					log.Println()
-				}
-
-				outPutMSGBody(m.Data, c.translate, m.Subject, "")
-			}
-
-			rc++
-			if c.replyCount > 0 && rc == c.replyCount {
-				break
-			}
-
-			if c.replyCount == 0 {
-				// if we are waiting for the general timeout then
-				// calculate remaining
-				timeout = opts().Timeout - time.Since(start)
-			} else {
-				// Otherwise, use the average response deltas
-				rttAg += rtt
-				timeout = rttAg/time.Duration(rc) + c.replyTimeout
-			}
-		}
-
-		// Unsubscribe for the unbound case, NOOP is already auto unsubscribed.
-		s.Unsubscribe()
-
-		// If applicable, account for the wait duration in a publish sleep.
-		if c.cnt > 1 && c.sleep > 0 {
-			st := c.sleep - time.Since(start)
-			if st > 0 {
-				time.Sleep(st)
-			}
-		}
-	}
-	return nil
 }
 
 func (c *pubCmd) writeAtomic(nc *nats.Conn) error {
@@ -324,9 +147,15 @@ func (c *pubCmd) writeAtomic(nc *nats.Conn) error {
 
 func (c *pubCmd) addToBatch() error {
 	for i := 1; i <= c.cnt; i++ {
-		body, subj := c.parseTemplates("", i)
+		body, subj, bodyErr, subjErr := iu.ParseTemplates(c.body, c.subject, i, c.templates)
+		if bodyErr != nil {
+			log.Printf("Could not parse body template: %s", bodyErr)
+		}
+		if subjErr != nil {
+			log.Printf("Could not parse subject template: %s", subjErr)
+		}
 
-		msg, err := c.prepareMsg(subj, []byte(body), i)
+		msg, err := iu.PrepareMsg(subj, c.replyTo, []byte(body), c.hdrs, i)
 		if err != nil {
 			return err
 		}
@@ -344,9 +173,15 @@ func (c *pubCmd) addToBatch() error {
 func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 	for i := 1; i <= c.cnt; i++ {
 		start := time.Now()
-		body, subj := c.parseTemplates("", i)
+		body, subj, bodyErr, subjErr := iu.ParseTemplates(c.body, c.subject, i, c.templates)
+		if bodyErr != nil {
+			log.Printf("Could not parse body template: %s", bodyErr)
+		}
+		if subjErr != nil {
+			log.Printf("Could not parse subject template: %s", subjErr)
+		}
 
-		msg, err := c.prepareMsg(subj, []byte(body), i)
+		msg, err := iu.PrepareMsg(subj, c.replyTo, []byte(body), c.hdrs, i)
 		if err != nil {
 			return err
 		}
@@ -396,79 +231,67 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, progress *progress.Tracker) error {
 	return nil
 }
 
-// readLine reads a full line from a bufio.Reader regardless of buffer size,
-// this is important for reading lines longer than the bufio.Reader's default
-// buffer size and nicer than wholesale enlarging the buffer.
-func readLine(reader *bufio.Reader) (string, error) {
-	var buf bytes.Buffer
+// publishAtomicBatch handles atomic batch publishing to JetStream
+func (c *pubCmd) publishAtomicBatch(ctx context.Context, nc *nats.Conn, reader *bufio.Reader) error {
+	useStdin := reader != nil
+	complete := make(chan struct{})
+	eof := c.bodyIsSet
 
-	for {
-		line, isPrefix, err := reader.ReadLine()
+	errCh := make(chan error, 1)
+	go func() {
+		defer close(complete)
+
+		for {
+			if useStdin {
+				body, newEof, err := iu.ReadStdin(reader, c.sendOn)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				if newEof {
+					eof = true
+				}
+				if body == "" && eof {
+					errCh <- nil
+					return
+				}
+				c.body = body
+			}
+
+			err := c.addToBatch()
+			if err != nil {
+				log.Printf("Could not publish message: %s", err)
+			}
+
+			if c.sendOn == iu.SendOnEOF || eof {
+				errCh <- nil
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		if reader != nil {
+			if rp, ok := any(reader).(interface{ Close() error }); ok {
+				rp.Close()
+			}
+		}
+		return fmt.Errorf("interrupted")
+	case <-complete:
+		err := c.writeAtomic(nc)
 		if err != nil {
-			return buf.String(), err
+			errCh <- err
 		}
-
-		buf.Write(line)
-		if !isPrefix {
-			return buf.String(), err
-		}
+		return <-errCh
 	}
 }
 
-func (c *pubCmd) publish(_ *fisk.ParseContext) error {
-	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
-	defer cancel()
-
-	nc, err := newNatsConn("", natsOpts()...)
-	if err != nil {
-		return err
-	}
-	defer nc.Close()
-
-	var readPipe *io.PipeReader
-	var writePipe *io.PipeWriter
-	var reader *bufio.Reader
-
-	// Only initialize stdin pipes if configured
-	useStdin := !c.bodyIsSet && (terminal.IsTerminal(int(os.Stdout.Fd())) || c.forceStdin)
-	if useStdin {
-		if !c.quiet {
-			log.Println("Reading payload from STDIN")
-		}
-
-		readPipe, writePipe = io.Pipe()
-		reader = bufio.NewReader(readPipe)
-
-		go func() {
-			_, errPipe := io.Copy(writePipe, os.Stdin)
-			if errPipe != nil {
-				writePipe.CloseWithError(errPipe)
-			} else {
-				_ = writePipe.Close()
-			}
-		}()
-	}
-
+// publishJetstream handles JetStream publishing
+func (c *pubCmd) publishJetstream(ctx context.Context, nc *nats.Conn, reader *bufio.Reader) error {
+	useStdin := reader != nil
 	complete := make(chan struct{})
-
-	// If a body is set, treat it as EOF, as no more input
 	eof := c.bodyIsSet
-	if c.cnt < 1 {
-		c.cnt = math.MaxInt16
-	}
-	if c.atomic {
-		c.jetstream = true
-		if !(useStdin && c.sendOn == sendOnNewline) {
-			return fmt.Errorf("atomic batch publishing requires Jetstream and STDIN with --send-on=newline")
-		}
-		mgr, err := jsm.New(nc)
-		if err != nil {
-			return err
-		}
-		if err = iu.RequireAPILevel(mgr, 2, "Atomic Batch Publishing requires NATS Server 2.12"); err != nil {
-			return err
-		}
-	}
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -477,15 +300,12 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 		var tracker *progress.Tracker
 		var progbar progress.Writer
 
-		if c.cnt > 20 && !c.raw {
-			progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
-				Total: int64(c.cnt),
-			})
-			if err != nil {
-				errCh <- err
-				return
-			}
-
+		progbar, tracker, err := iu.SetupProgressBar(c.cnt, c.raw, opts())
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if progbar != nil {
 			defer func() {
 				progbar.Stop()
 				time.Sleep(300 * time.Millisecond)
@@ -494,73 +314,98 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 
 		for {
 			if useStdin {
-				switch c.sendOn {
-				case sendOnEOF:
-					body, err := io.ReadAll(readPipe)
-					if err != nil {
-						errCh <- err
-						return
-					}
-					c.body = string(body)
-				case sendOnNewline:
-					body, err := readLine(reader)
-					if err != nil && err != io.EOF {
-						errCh <- err
-						return
-					} else if err == io.EOF {
-						eof = true
-					}
-					if body == "" && eof {
-						errCh <- nil
-						return
-					}
-					c.body = body
+				body, newEof, err := iu.ReadStdin(reader, c.sendOn)
+				if err != nil {
+					errCh <- err
+					return
 				}
+				if newEof {
+					eof = true
+				}
+				if body == "" && eof {
+					errCh <- nil
+					return
+				}
+				c.body = body
 			}
 
-			// We add the line from stdin here, but we can't commit until we've reached EOF
-			// commit() happens in the select(), when the goroutine is finished but before
-			// our connection is closed
-			if c.atomic {
-				err = c.addToBatch()
+			err := c.doJetstream(nc, tracker)
+			if c.sendOn == iu.SendOnEOF {
+				errCh <- err
+				return
+			} else if c.sendOn == iu.SendOnNewline {
 				if err != nil {
 					log.Printf("Could not publish message: %s", err)
 				}
-				continue
-			}
-
-			if c.jetstream {
-				err = c.doJetstream(nc, tracker)
-				if c.sendOn == sendOnEOF {
-					errCh <- err
-					return
-				} else if c.sendOn == sendOnNewline {
-					if err != nil {
-						log.Printf("Could not publish message: %s", err)
-					}
-					continue
-				}
-
-			}
-
-			if c.req || c.replyCount >= 1 {
-				err := c.doReq(nc, tracker)
-				if err != nil {
-					errCh <- err
-					return
-				}
-
-				if c.sendOn == sendOnEOF || eof {
+				if eof {
 					errCh <- nil
 					return
 				}
 				continue
 			}
 
-			for i := 1; i <= c.cnt; i++ {
-				body, subj := c.parseTemplates("", i)
+			if c.sendOn == iu.SendOnEOF || eof {
+				errCh <- nil
+				return
+			}
+		}
+	}()
 
-				msg, err := c.prepareMsg(subj, []byte(body), i)
+	return iu.CleanupOnInterrupt(ctx, reader, complete, errCh)
+}
+
+// publishNatsMsg handles regular NATS publishing
+func (c *pubCmd) publishNatsMsg(ctx context.Context, nc *nats.Conn, reader *bufio.Reader) error {
+	useStdin := reader != nil
+	complete := make(chan struct{})
+	eof := c.bodyIsSet
+
+	errCh := make(chan error, 1)
+	go func() {
+		defer close(complete)
+
+		var tracker *progress.Tracker
+		var progbar progress.Writer
+
+		progbar, tracker, err := iu.SetupProgressBar(c.cnt, c.raw, opts())
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if progbar != nil {
+			defer func() {
+				progbar.Stop()
+				time.Sleep(300 * time.Millisecond)
+			}()
+		}
+
+		for {
+			if useStdin {
+				body, newEof, err := iu.ReadStdin(reader, c.sendOn)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				if newEof {
+					eof = true
+				}
+				if body == "" && eof {
+					errCh <- nil
+					return
+				}
+				c.body = body
+			}
+
+			for i := 1; i <= c.cnt; i++ {
+				body, subj, bodyErr, subjErr := iu.ParseTemplates(c.body, c.subject, i, c.templates)
+				if bodyErr != nil {
+					log.Printf("Could not parse body template: %s", bodyErr)
+				}
+				if subjErr != nil {
+					log.Printf("Could not parse subject template: %s", subjErr)
+				}
+
+				msg, err := iu.PrepareMsg(subj, c.replyTo, []byte(body), c.hdrs, i)
 				if err != nil {
 					errCh <- err
 					return
@@ -592,28 +437,52 @@ func (c *pubCmd) publish(_ *fisk.ParseContext) error {
 				}
 			}
 
-			if c.sendOn == sendOnEOF || eof {
+			if c.sendOn == iu.SendOnEOF || eof {
 				errCh <- nil
 				return
 			}
 		}
 	}()
 
-	// Wait until the core go routine is complete or context is canceled.
-	// Closes the remote connection(due to defer), the core loop go routine is just dropped.
-	select {
-	case <-ctx.Done():
-		if readPipe != nil {
-			readPipe.Close()
+	return iu.CleanupOnInterrupt(ctx, reader, complete, errCh)
+}
+
+func (c *pubCmd) publishAction(_ *fisk.ParseContext) error {
+	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer cancel()
+
+	nc, err := newNatsConn("", natsOpts()...)
+	if err != nil {
+		return err
+	}
+	defer nc.Close()
+
+	reader, useStdin := iu.SetupStdin(c.bodyIsSet, c.forceStdin)
+	if useStdin && !c.quiet {
+		log.Println("Reading payload from STDIN")
+	}
+
+	if c.cnt < 1 {
+		c.cnt = 1
+	}
+
+	if c.atomic {
+		c.jetstream = true
+		useStdin := reader != nil
+		if !(useStdin && c.sendOn == iu.SendOnNewline) {
+			return fmt.Errorf("atomic batch publishing requires Jetstream and STDIN with --send-on=newline")
 		}
-		return fmt.Errorf("interrupted")
-	case <-complete:
-		if c.atomic {
-			err := c.writeAtomic(nc)
-			if err != nil {
-				errCh <- err
-			}
+		mgr, err := jsm.New(nc)
+		if err != nil {
+			return err
 		}
-		return <-errCh
+		if err = iu.RequireAPILevel(mgr, 2, "Atomic Batch Publishing requires NATS Server 2.12"); err != nil {
+			return err
+		}
+		return c.publishAtomicBatch(ctx, nc, reader)
+	} else if c.jetstream {
+		return c.publishJetstream(ctx, nc, reader)
+	} else {
+		return c.publishNatsMsg(ctx, nc, reader)
 	}
 }
