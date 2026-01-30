@@ -24,17 +24,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	iu "github.com/nats-io/natscli/internal/util"
+
+	"github.com/choria-io/fisk"
 )
 
 type srvWatchApiCmd struct {
 	top          int
 	reverse      bool
 	consumers    bool
+	compact      bool
 	account      *regexp.Regexp
 	stats        map[string]*srvWatchApiStats
 	rateInterval time.Duration
@@ -50,13 +52,18 @@ type srvWatchApiStats struct {
 	rateCount []time.Time
 }
 
-func (s *srvWatchApiStats) asset() string {
+func (s *srvWatchApiStats) asset(compact bool) string {
 	asset := ""
 	if s.stream != "" {
 		asset = s.stream
 	}
 	if s.consumer != "" {
-		asset = asset + " > " + s.consumer
+		consumer := s.consumer
+		if compact && len(consumer) > 20 {
+			consumer = consumer[0:12] + "..."
+		}
+
+		asset = asset + " > " + consumer
 	}
 
 	return asset
@@ -74,6 +81,7 @@ func configureServerWatchApiCommand(watch *fisk.CmdClause) {
 	requests.Flag("top", "Shows top n requests").Default("10").Short('n').IntVar(&c.top)
 	requests.Flag("rate", "Rate interval to calculate").Default("1m").DurationVar(&c.rateInterval)
 	requests.Flag("record-consumer", "Record consumer names").Default("true").BoolVar(&c.consumers)
+	requests.Flag("compact", "Compact output of long asset and account names").Default("true").BoolVar(&c.compact)
 	requests.Flag("reverse", "Reverse sorting order").Short('R').UnNegatableBoolVar(&c.reverse)
 }
 
@@ -150,7 +158,7 @@ func (c *srvWatchApiCmd) redraw() {
 
 		if li == lj {
 			if reqs[i].count == reqs[j].count {
-				return c.boolReverse(reqs[i].asset() < reqs[j].asset())
+				return c.boolReverse(reqs[i].asset(c.compact) < reqs[j].asset(c.compact))
 			}
 			return c.boolReverse(reqs[i].count < reqs[j].count)
 		}
@@ -158,12 +166,18 @@ func (c *srvWatchApiCmd) redraw() {
 	})
 
 	table := iu.NewTableWriterf(opts(), "Top %s JS API activity", f(c.top))
-	table.AddHeaders("Type", "Account", "Asset", "Count", fmt.Sprintf("Event / %s", c.rateInterval))
+	table.AddHeaders("Type", "Account", "Count", fmt.Sprintf("Event / %s", c.rateInterval), "Asset")
 	for i, stat := range reqs {
 		if i == c.top {
 			break
 		}
-		table.AddRow(stat.apiType, stat.account, stat.asset(), stat.count, f(len(stat.rateCount)))
+
+		account := stat.account
+		if c.compact && len(account) > 20 {
+			account = fmt.Sprintf("%s...%s", account[0:10], account[len(account)-5:])
+		}
+
+		table.AddRow(stat.apiType, account, stat.count, f(len(stat.rateCount)), stat.asset(c.compact))
 	}
 
 	iu.ClearScreen()
@@ -220,7 +234,7 @@ func (c *srvWatchApiCmd) handle(msg *nats.Msg) {
 	_, ok = c.stats[key]
 	if !ok {
 		c.stats[key] = &srvWatchApiStats{
-			apiType: schemaType,
+			apiType: strings.TrimPrefix(schemaType, "io.nats.jetstream.api.v1."),
 			account: account,
 			stream:  stream,
 		}
