@@ -1,4 +1,4 @@
-// Copyright 2024 The NATS Authors
+// Copyright 2024-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
@@ -83,7 +84,17 @@ func (t *Table) AddRow(items ...any) {
 }
 
 func (t *Table) Render() string {
-	return fmt.Sprintln(t.writer.Render())
+	switch strings.ToLower(os.Getenv("NATS_TABLE_FORMAT")) {
+	case "md", "markdown":
+		return fmt.Sprintln(t.writer.RenderMarkdown())
+	case "csv":
+		return fmt.Sprintln(t.writer.RenderCSV())
+	case "tsv":
+		return fmt.Sprintln(t.writer.RenderTSV())
+	default:
+		return fmt.Sprintln(t.writer.Render())
+	}
+
 }
 
 func (t *Table) RenderCSV() string {

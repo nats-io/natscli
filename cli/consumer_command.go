@@ -238,7 +238,7 @@ func configureConsumerCommand(app commandHost) {
 	consInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	consInfo.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
 
-	consState := cons.Command("state", "Stream state").Action(c.stateAction)
+	consState := cons.Command("state", "Consumer state").Action(c.stateAction)
 	consState.Arg("stream", "Stream to retrieve state information for").StringVar(&c.stream)
 	consState.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consState.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)

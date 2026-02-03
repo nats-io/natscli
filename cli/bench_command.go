@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"iter"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"sort"
 	"strconv"
@@ -72,12 +72,13 @@ type benchCmd struct {
 	errored              atomic.Bool
 	lessThanExpected     atomic.Bool
 	multiSubject         bool
+	multiSubjectRandom   bool
 	multiSubjectMax      int
 	multisubjectFormat   string
 	deDuplication        bool
 	deDuplicationWindow  time.Duration
 	ack                  bool
-	randomizeGets        int
+	randomize            int
 	payloadFilename      string
 	hdrs                 []string
 	filterSubjects       []string // used by JS consumer commands
@@ -99,6 +100,7 @@ func configureBenchCommand(app commandHost) {
 	addPubFlags := func(f *fisk.CmdClause) {
 		f.Flag("multisubject", "Multi-subject mode, each message is published on a subject that includes the publisher's message sequence number as a token").UnNegatableBoolVar(&c.multiSubject)
 		f.Flag("multisubjectmax", "The maximum number of subjects to use in multi-subject mode (0 means no max)").Default("100000").IntVar(&c.multiSubjectMax)
+		f.Flag("multisubjectrandomize", "Randomize which subjects are being used when in multisubject mode").UnNegatableBoolVar(&c.multiSubjectRandom)
 		f.Flag("payload", "File containing a message payload to send").ExistingFileVar(&c.payloadFilename)
 		f.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
 	}
@@ -134,6 +136,7 @@ func configureBenchCommand(app commandHost) {
 		f.Flag("maxbytes", "The maximum size of the stream or KV bucket in bytes").Default("1GB").StringVar(&c.streamMaxBytesString)
 		f.Flag("history", "History depth for the bucket in KV mode").Default("1").Uint8Var(&c.history)
 		f.Flag("purge", "Purge the stream before running").UnNegatableBoolVar(&c.purge)
+		f.Flag("randomize", "Randomly put messages using keys between 0 and this number (set to 0 for sequential access)").Default("0").IntVar(&c.randomize)
 	}
 
 	benchCommand := app.Command("bench", "Benchmark utility")
@@ -215,7 +218,7 @@ func configureBenchCommand(app commandHost) {
 	addKVPutFlags(kvput)
 
 	kvget := kvCommand.Command("get", "Get messages from a KV bucket").Action(c.kvGetAction)
-	kvget.Flag("randomize", "Randomly access messages using keys between 0 and this number (set to 0 for sequential access)").Default("0").IntVar(&c.randomizeGets)
+	kvget.Flag("randomize", "Randomly get messages using keys between 0 and this number (set to 0 for sequential access)").Default("0").IntVar(&c.randomize)
 
 	oldJSCommand := benchCommand.Command("oldjs", "JetStream benchmark commands using the old JS API").Hidden()
 	addCommonFlags(oldJSCommand)
@@ -351,6 +354,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
+		argnvps = append(argnvps, nvp{"multi-subject-randomize", f(c.multiSubjectRandom)})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
 	case bench.TypeCoreSub:
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
@@ -365,6 +369,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
+		argnvps = append(argnvps, nvp{"multi-subject-randomize", f(c.multiSubjectRandom)})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
 		jsAttributes()
 		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
@@ -373,6 +378,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
+		argnvps = append(argnvps, nvp{"multi-subject-randomize", f(c.multiSubjectRandom)})
 		argnvps = append(argnvps, nvp{"batch", f(c.batchSize)})
 		jsAttributes()
 		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
@@ -409,7 +415,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 	case bench.TypeKVGet:
 		argnvps = append(argnvps, nvp{"bucket", c.streamOrBucketName})
 		argnvps = append(argnvps, nvp{"sleep", f(c.sleep)})
-		argnvps = append(argnvps, nvp{"randomize", f(c.randomizeGets)})
+		argnvps = append(argnvps, nvp{"randomize", f(c.randomize)})
 		streamOrBucketAttribues()
 	case bench.TypeOldJSOrdered:
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
@@ -496,7 +502,11 @@ func (c *benchCmd) getPublishSubject(number int) string {
 		if c.multiSubjectMax == 0 {
 			return c.subject + "." + strconv.Itoa(number)
 		} else {
-			return c.subject + "." + fmt.Sprintf(c.multisubjectFormat, number%c.multiSubjectMax)
+			if c.multiSubjectRandom {
+				return c.subject + "." + fmt.Sprintf(c.multisubjectFormat, rand.IntN(c.multiSubjectMax))
+			} else {
+				return c.subject + "." + fmt.Sprintf(c.multisubjectFormat, number%c.multiSubjectMax)
+			}
 		}
 	} else {
 		return c.subject
@@ -2068,8 +2078,14 @@ func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte,
 			progress.Incr()
 		}
 
+		key := offset + i
+
+		if c.randomize > 0 {
+			key = rand.IntN(c.randomize)
+		}
+
 		start := time.Now()
-		_, err = kvBucket.Put(ctx, fmt.Sprintf("%d", offset+i), msg)
+		_, err = kvBucket.Put(ctx, fmt.Sprintf("%d", key), msg)
 		if err != nil {
 			return nil, fmt.Errorf("putting: %w", err)
 		}
@@ -2113,7 +2129,7 @@ func (c *benchCmd) runCorePublisher(bm *bench.BenchmarkResults, errChan chan err
 
 	// introduces some jitter between the publishers if sleep is set and more than one publisher
 	if c.sleep != 0 && clientNumber != 0 {
-		n := rand.Intn(int(c.sleep))
+		n := rand.Int64N(c.sleep.Nanoseconds())
 		time.Sleep(time.Duration(n))
 	}
 
@@ -2229,7 +2245,7 @@ func (c *benchCmd) runCoreRequester(bm *bench.BenchmarkResults, errChan chan err
 
 	// introduces some jitter between the publishers if sleep is set and more than one publisher
 	if c.sleep != 0 && clientNumber != 0 {
-		n := rand.Intn(int(c.sleep))
+		n := rand.Int64N(c.sleep.Nanoseconds())
 		time.Sleep(time.Duration(n))
 	}
 
@@ -2316,7 +2332,7 @@ func (c *benchCmd) runJSPublisher(bm *bench.BenchmarkResults, errChan chan error
 
 	// introduces some jitter between the publishers if sleep is set and more than one publisher
 	if c.sleep != 0 && clientNumber != 0 {
-		n := rand.Intn(int(c.sleep))
+		n := rand.Int64N(c.sleep.Nanoseconds())
 		time.Sleep(time.Duration(n))
 	}
 
@@ -2724,7 +2740,7 @@ func (c *benchCmd) runKVPutter(bm *bench.BenchmarkResults, errChan chan error, n
 
 	// introduces some jitter between the publishers if pubSleep is set and more than one publisher
 	if c.sleep != 0 && clientNumber != 0 {
-		n := rand.Intn(int(c.sleep))
+		n := rand.Int64N(c.sleep.Nanoseconds())
 		time.Sleep(time.Duration(n))
 	}
 
@@ -2802,10 +2818,10 @@ func (c *benchCmd) runKVGetter(bm *bench.BenchmarkResults, errChan chan error, n
 	for i := 0; i < numMsg; i++ {
 		var key string
 
-		if c.randomizeGets == 0 {
+		if c.randomize == 0 {
 			key = fmt.Sprintf("%d", offset+i)
 		} else {
-			key = fmt.Sprintf("%d", rand.Intn(c.randomizeGets))
+			key = fmt.Sprintf("%d", rand.IntN(c.randomize))
 		}
 		start := time.Now()
 
