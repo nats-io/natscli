@@ -348,7 +348,7 @@ Finding streams with certain subjects configured:
 	strSubs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	strSubs.Flag("sort", "Adjusts the sorting order (name, messages)").Default("messages").EnumVar(&c.reportSort, "name", "subjects", "messages", "count")
 	strSubs.Flag("reverse", "Reverse sort servers").Short('R').UnNegatableBoolVar(&c.reportSortReverse)
-	strSubs.Flag("names", "SList only subject names").BoolVar(&c.listNames)
+	strSubs.Flag("names", "List only subject names").BoolVar(&c.listNames)
 
 	strEdit := str.Command("edit", "Edits an existing stream").Alias("update").Action(c.editAction)
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
