@@ -162,6 +162,7 @@ type streamCmd struct {
 	nc                        *nats.Conn
 	mgr                       *jsm.Manager
 	chunkSize                 string
+	wndSize                   string
 	placementPreferred        string
 	allowMsgTTlSet            bool
 	allowMsgTTL               bool
@@ -402,7 +403,8 @@ Finding streams with certain subjects configured:
 	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	strBackup.Flag("check", "Checks the Stream for health prior to backup").UnNegatableBoolVar(&c.healthCheck)
 	strBackup.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
-	strBackup.Flag("chunk-size", "Sets a specific chunk size that the server will send").Default("128KB").StringVar(&c.chunkSize)
+	strBackup.Flag("chunk-size", "Sets a specific chunk size that the server will send").StringVar(&c.chunkSize)
+	strBackup.Flag("window-size", "Sets a specific window size that the server will send").StringVar(&c.wndSize)
 
 	strRestore := str.Command("restore", "Restore a Stream over the NATS network").Action(c.restoreAction)
 	strRestore.Arg("file", "The directory holding the backup to restore").Required().ExistingDirVar(&c.backupDirectory)
@@ -1321,7 +1323,7 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check bool, target string, chunkSize int) error {
+func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check bool, target string, chunkSize, wndSize int) error {
 	first := true
 	pmu := sync.Mutex{}
 	expected := 1
@@ -1393,6 +1395,7 @@ func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check b
 
 	sopts := []jsm.SnapshotOption{
 		jsm.SnapshotChunkSize(chunkSize),
+		jsm.SnapshotWindowSize(wndSize),
 		jsm.SnapshotNotify(cb),
 	}
 
@@ -1445,15 +1448,20 @@ func (c *streamCmd) backupAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	chunkSize := int64(128 * 1024)
+	// Default is set in strBackup flags.
+	var chunkSize, wndSize int64
 	if c.chunkSize != "" {
-		chunkSize, err = iu.ParseStringAsBytes(c.chunkSize, 32)
-		if err != nil {
+		if chunkSize, err = iu.ParseStringAsBytes(c.chunkSize, 32); err != nil {
+			return err
+		}
+	}
+	if c.wndSize != "" {
+		if wndSize, err = iu.ParseStringAsBytes(c.wndSize, 32); err != nil {
 			return err
 		}
 	}
 
-	err = backupStream(stream, c.showProgress, c.snapShotConsumers, c.healthCheck, c.backupDirectory, int(chunkSize))
+	err = backupStream(stream, c.showProgress, c.snapShotConsumers, c.healthCheck, c.backupDirectory, int(chunkSize), int(wndSize))
 	fisk.FatalIfError(err, "snapshot failed")
 
 	return nil
