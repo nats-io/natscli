@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The NATS Authors
+// Copyright 2020-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -91,7 +91,7 @@ func configureCtxCommand(app commandHost) {
 	validate.Arg("name", "Validate a specific context, validates all when not supplied").StringVar(&c.name)
 	validate.Flag("connect", "Attempts to connect to NATS using the context while validating").UnNegatableBoolVar(&c.activate)
 
-	context.Command("previous", "switch to the previous context").Alias("-").Action(c.switchPreviousCtx)
+	context.Command("previous", "Switch to the previous context").Alias("-").Action(c.switchPreviousCtx)
 }
 
 func init() {
