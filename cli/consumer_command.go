@@ -1,4 +1,4 @@
-// Copyright 2019-2025 The NATS Authors
+// Copyright 2019-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -147,7 +147,7 @@ func configureConsumerCommand(app commandHost) {
 		}
 		f.Flag("description", "Sets a contextual description for the consumer").StringVar(&c.description)
 		if !edit {
-			f.Flag("ephemeral", "Create an ephemeral Consumer").UnNegatableBoolVar(&c.ephemeral)
+			f.Flag("ephemeral", "Create an ephemeral consumer").UnNegatableBoolVar(&c.ephemeral)
 		}
 		f.Flag("filter", "Filter Stream by subjects").PlaceHolder("SUBJECTS").StringsVar(&c.filterSubjects)
 		if !edit {
@@ -187,11 +187,11 @@ func configureConsumerCommand(app commandHost) {
 		}
 	}
 
-	cons := app.Command("consumer", "JetStream Consumer management").Alias("con").Alias("obs").Alias("c")
+	cons := app.Command("consumer", "JetStream consumer management").Alias("con").Alias("obs").Alias("c")
 	addCheat("consumer", cons)
 	cons.Flag("all", "Operate on all streams including system ones").Short('a').UnNegatableBoolVar(&c.showAll)
 
-	consAdd := cons.Command("add", "Creates a new Consumer").Alias("create").Alias("new").Action(c.createAction)
+	consAdd := cons.Command("add", "Creates a new consumer").Alias("create").Alias("new").Action(c.createAction)
 	consAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	consAdd.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
@@ -209,7 +209,7 @@ func configureConsumerCommand(app commandHost) {
 	edit.Flag("dry-run", "Only shows differences, do not edit the stream").UnNegatableBoolVar(&c.dryRun)
 	addCreateFlags(edit, true)
 
-	consLs := cons.Command("ls", "List known Consumers").Alias("list").Action(c.lsAction)
+	consLs := cons.Command("ls", "List known consumers").Alias("list").Action(c.lsAction)
 	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
 	consLs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	consLs.Flag("names", "Show just the consumer names").Short('n').UnNegatableBoolVar(&c.listNames)
@@ -244,18 +244,18 @@ func configureConsumerCommand(app commandHost) {
 	consState.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	consState.Flag("no-select", "Do not select streams from a list").Default("false").UnNegatableBoolVar(&c.force)
 
-	consRm := cons.Command("rm", "Removes a Consumer").Alias("delete").Alias("del").Action(c.rmAction)
+	consRm := cons.Command("rm", "Removes a consumer").Alias("delete").Alias("del").Action(c.rmAction)
 	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
 	consRm.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consRm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	consCp := cons.Command("copy", "Creates a new Consumer based on the configuration of another").Alias("cp").Action(c.cpAction)
+	consCp := cons.Command("copy", "Creates a new consumer based on the configuration of another").Alias("cp").Action(c.cpAction)
 	consCp.Arg("stream", "Stream name").Required().StringVar(&c.stream)
-	consCp.Arg("source", "Source Consumer name").Required().StringVar(&c.consumer)
-	consCp.Arg("destination", "Destination Consumer name").Required().StringVar(&c.destination)
+	consCp.Arg("source", "Source consumer name").Required().StringVar(&c.consumer)
+	consCp.Arg("destination", "Destination consumer name").Required().StringVar(&c.destination)
 	addCreateFlags(consCp, false)
 
-	consNext := cons.Command("next", "Retrieves messages from Pull Consumers without interactive prompts").Action(c.nextAction)
+	consNext := cons.Command("next", "Retrieves messages from Pull consumers without interactive prompts").Action(c.nextAction)
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").IsSetByUser(&c.ackSetByUser).BoolVar(&c.ack)
@@ -265,14 +265,14 @@ func configureConsumerCommand(app commandHost) {
 	consNext.Flag("wait", "Wait up to this period to acknowledge messages").DurationVar(&c.ackWait)
 	consNext.Flag("count", "Number of messages to try to fetch from the pull consumer").Default("1").IntVar(&c.pullCount)
 
-	consSub := cons.Command("sub", "Retrieves messages from Consumers").Action(c.subAction).Hidden()
+	consSub := cons.Command("sub", "Retrieves messages from consumers").Action(c.subAction).Hidden()
 	consSub.Arg("stream", "Stream name").StringVar(&c.stream)
 	consSub.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consSub.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
 	consSub.Flag("raw", "Show only the message").Short('r').UnNegatableBoolVar(&c.raw)
 	consSub.Flag("deliver-group", "Deliver group of the consumer").StringVar(&c.deliveryGroup)
 
-	graph := cons.Command("graph", "View a graph of Consumer activity").Action(c.graphAction)
+	graph := cons.Command("graph", "View a graph of consumer activity").Action(c.graphAction)
 	graph.Arg("stream", "Stream name").StringVar(&c.stream)
 	graph.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 
@@ -293,12 +293,12 @@ func configureConsumerCommand(app commandHost) {
 	conResume.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	conResume.Flag("force", "Force resume without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	conReport := cons.Command("report", "Reports on Consumer statistics").Action(c.reportAction)
+	conReport := cons.Command("report", "Reports on consumer statistics").Action(c.reportAction)
 	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
 	conReport.Flag("raw", "Show un-formatted numbers").Short('r').UnNegatableBoolVar(&c.raw)
 	conReport.Flag("leaders", "Show details about the leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
 
-	conCluster := cons.Command("cluster", "Manages a clustered Consumer").Alias("c")
+	conCluster := cons.Command("cluster", "Manages a clustered consumer").Alias("c")
 	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDownAction)
 	conClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterDown.Arg("consumer", "Consumer to act on").StringVar(&c.consumer)
