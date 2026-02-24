@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The NATS Authors
+// Copyright 2020-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -196,7 +196,7 @@ func configureStreamCommand(app commandHost) {
 	c := &streamCmd{msgID: -1, metadata: map[string]string{}}
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
-		f.Flag("subjects", "Subjects that are consumed by the Stream").Default().StringsVar(&c.subjects)
+		f.Flag("subjects", "Subjects that are consumed by the stream").Default().StringsVar(&c.subjects)
 		f.Flag("description", "Sets a contextual description for the stream").StringVar(&c.description)
 		if !edit {
 			f.Flag("storage", "Storage backend to use (file, memory)").EnumVar(&c.storage, "file", "f", "memory", "m")
@@ -224,9 +224,9 @@ func configureStreamCommand(app commandHost) {
 		if edit {
 			f.Flag("no-mirror", "Removes current mirror configuration").UnNegatableBoolVar(&c.noMirror)
 		}
-		f.Flag("source", "Source data from other Streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
+		f.Flag("source", "Source data from other streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
 		f.Flag("allow-batch", "Allow atomic batch publishing").IsSetByUser(&c.allowAtomicBatchIsSet).BoolVar(&c.allowAtomicBatch)
-		f.Flag("allow-counter", "Configures the Stream as a distributed counter").IsSetByUser(&c.allowCounterIsSet).UnNegatableBoolVar(&c.allowCounter)
+		f.Flag("allow-counter", "Configures the stream as a distributed counter").IsSetByUser(&c.allowCounterIsSet).UnNegatableBoolVar(&c.allowCounter)
 		f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers").IsSetByUser(&c.allowRollupSet).BoolVar(&c.allowRollup)
 		f.Flag("deny-delete", "Deny messages from being deleted via the API").IsSetByUser(&c.denyDeleteSet).BoolVar(&c.denyDelete)
 		f.Flag("deny-purge", "Deny entire stream or subject purges via the API").IsSetByUser(&c.denyPurgeSet).BoolVar(&c.denyPurge)
@@ -234,7 +234,7 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("allow-mirror-direct", "Allows fast, direct, access to stream data via the direct get API on mirrors").IsSetByUser(&c.allowMirrorDirectSet).BoolVar(&c.allowMirrorDirect)
 		f.Flag("allow-msg-ttl", "Allows per-message TTL handling").IsSetByUser(&c.allowMsgTTlSet).UnNegatableBoolVar(&c.allowMsgTTL)
 		f.Flag("allow-schedules", "Allows message schedules").IsSetByUser(&c.allowSchedulesSet).BoolVar(&c.allowSchedules)
-		f.Flag("subject-del-markers-ttl", "How long delete markers should persist in the Stream").PlaceHolder("DURATION").IsSetByUser(&c.subjectDeleteMarkerTTLSet).DurationVar(&c.subjectDeleteMarkerTTL)
+		f.Flag("subject-del-markers-ttl", "How long delete markers should persist in the stream").PlaceHolder("DURATION").IsSetByUser(&c.subjectDeleteMarkerTTLSet).DurationVar(&c.subjectDeleteMarkerTTL)
 		f.Flag("transform-source", "Stream subject transform source").PlaceHolder("SOURCE").StringVar(&c.subjectTransformSource)
 		f.Flag("transform-destination", "Stream subject transform destination").PlaceHolder("DEST").StringVar(&c.subjectTransformDest)
 		if edit {
@@ -248,7 +248,7 @@ func configureStreamCommand(app commandHost) {
 			f.Flag("no-republish", "Removes current republish configuration").UnNegatableBoolVar(&c.noRepub)
 		}
 		if !edit {
-			f.Flag("limit-consumer-inactive", "The maximum Consumer inactive threshold the Stream allows").PlaceHolder("THRESHOLD").DurationVar(&c.limitInactiveThreshold)
+			f.Flag("limit-consumer-inactive", "The maximum Consumer inactive threshold the stream allows").PlaceHolder("THRESHOLD").DurationVar(&c.limitInactiveThreshold)
 			f.Flag("limit-consumer-max-pending", "The maximum Consumer Ack Pending the stream Allows").PlaceHolder("PENDING").IntVar(&c.limitMaxAckPending)
 			f.Flag("persist-mode", "Configures the persistence mode").EnumVar(&c.persistMode, "default", "async")
 		}
@@ -257,11 +257,11 @@ func configureStreamCommand(app commandHost) {
 		f.PreAction(c.parseLimitStrings)
 	}
 
-	str := app.Command("stream", "JetStream Stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
+	str := app.Command("stream", "JetStream stream management").Alias("str").Alias("st").Alias("ms").Alias("s")
 	str.Flag("all", "When listing or selecting streams show all streams including system ones").Short('a').UnNegatableBoolVar(&c.showAll)
 	addCheat("stream", str)
 
-	strAdd := str.Command("add", "Create a new Stream").Alias("create").Alias("new").Action(c.addAction)
+	strAdd := str.Command("add", "Create a new stream").Alias("create").Alias("new").Action(c.addAction)
 	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	strAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	strAdd.Flag("validate", "Only validates the configuration against the official Schema").UnNegatableBoolVar(&c.validateOnly)
@@ -269,17 +269,17 @@ func configureStreamCommand(app commandHost) {
 	addCreateFlags(strAdd, false)
 	strAdd.Flag("defaults", "Accept default values for all prompts").UnNegatableBoolVar(&c.acceptDefaults)
 
-	strLs := str.Command("ls", "List all known Streams").Alias("list").Alias("l").Action(c.lsAction)
+	strLs := str.Command("ls", "List all known streams").Alias("list").Alias("l").Action(c.lsAction)
 	strLs.Flag("subject", "Limit the list to streams with matching subjects").StringVar(&c.filterSubject)
 	strLs.Flag("names", "Show just the stream names").Short('n').UnNegatableBoolVar(&c.listNames)
 	strLs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
-	strReport := str.Command("report", "Reports on Stream statistics").Action(c.reportAction)
+	strReport := str.Command("report", "Reports on stream statistics").Action(c.reportAction)
 	strReport.Flag("subject", "Limit the report to streams with matching subjects").StringVar(&c.filterSubject)
 	strReport.Flag("cluster", "Limit report to streams within a specific cluster").StringVar(&c.reportLimitCluster)
 	strReport.Flag("consumers", "Sort by number of Consumers").Short('o').UnNegatableBoolVar(&c.reportSortConsumers)
 	strReport.Flag("messages", "Sort by number of Messages").Short('m').UnNegatableBoolVar(&c.reportSortMsgs)
-	strReport.Flag("name", "Sort by Stream name").Short('n').UnNegatableBoolVar(&c.reportSortName)
+	strReport.Flag("name", "Sort by stream name").Short('n').UnNegatableBoolVar(&c.reportSortName)
 	strReport.Flag("storage", "Sort by Storage type").Short('t').UnNegatableBoolVar(&c.reportSortStorage)
 	strReport.Flag("raw", "Show un-formatted numbers").Short('r').UnNegatableBoolVar(&c.reportRaw)
 	strReport.Flag("dot", "Produce a GraphViz graph of replication topology").StringVar(&c.outFile)
@@ -293,7 +293,7 @@ Use this when trying to match on fields we don't specifically support or to perf
 
 We use the expr language to perform matching, see https://expr.medv.io/docs/Language-Definition for detail about the expression language.  Expressions you enter must return a boolean value.
 
-The following items are available to query, all using the same values seen in JSON from stream info:
+The following items are available to query, all using the same values seen in JSON from Stream info:
 
   * config - Stream configuration
   * state - Stream state
@@ -322,7 +322,7 @@ Finding streams with certain subjects configured:
 	strFind.Flag("idle", "Display streams with no new messages or consumer deliveries for a period").PlaceHolder("DURATION").DurationVar(&c.fIdle)
 	strFind.Flag("created", "Display streams created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
 	strFind.Flag("consumers", "Display streams with fewer consumers than threshold").PlaceHolder("THRESHOLD").Default("-1").IntVar(&c.fConsumers)
-	strFind.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
+	strFind.Flag("subject", "Filters streams by those with interest matching a subject or wildcard").StringVar(&c.filterSubject)
 	strFind.Flag("replicas", "Display streams with fewer or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
 	strFind.Flag("sourced", "Display that sources data from other streams").IsSetByUser(&c.fSourcedSet).UnNegatableBoolVar(&c.fSourced)
 	strFind.Flag("mirrored", "Display that mirrors data from other streams").IsSetByUser(&c.fMirroredSet).UnNegatableBoolVar(&c.fMirrored)
@@ -359,11 +359,11 @@ Finding streams with certain subjects configured:
 	strEdit.Flag("dry-run", "Only shows differences, do not edit the stream").UnNegatableBoolVar(&c.dryRun)
 	addCreateFlags(strEdit, true)
 
-	strRm := str.Command("rm", "Removes a Stream").Alias("delete").Alias("del").Action(c.rmAction)
+	strRm := str.Command("rm", "Removes a stream").Alias("delete").Alias("del").Action(c.rmAction)
 	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
 	strRm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	strPurge := str.Command("purge", "Bulk removes messages from a Stream").Action(c.purgeAction)
+	strPurge := str.Command("purge", "Bulk removes messages from a stream").Action(c.purgeAction)
 	strPurge.Arg("stream", "Stream name").StringVar(&c.stream)
 	strPurge.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	strPurge.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
@@ -371,12 +371,12 @@ Finding streams with certain subjects configured:
 	strPurge.Flag("seq", "Purge up to but not including a specific message sequence").PlaceHolder("SEQUENCE").Uint64Var(&c.purgeSequence)
 	strPurge.Flag("keep", "Keeps a certain number of messages after the purge").PlaceHolder("MESSAGES").Uint64Var(&c.purgeKeep)
 
-	strCopy := str.Command("copy", "Creates a new Stream based on the configuration of another, does not copy data").Alias("cp").Action(c.cpAction)
-	strCopy.Arg("source", "Source Stream to copy").Required().StringVar(&c.stream)
-	strCopy.Arg("destination", "New Stream to create").Required().StringVar(&c.destination)
+	strCopy := str.Command("copy", "Creates a new stream based on the configuration of another, does not copy data").Alias("cp").Action(c.cpAction)
+	strCopy.Arg("source", "Source stream to copy").Required().StringVar(&c.stream)
+	strCopy.Arg("destination", "New stream to create").Required().StringVar(&c.destination)
 	addCreateFlags(strCopy, false)
 
-	strRmMsg := str.Command("rmm", "Securely removes an individual message from a Stream").Action(c.rmMsgAction)
+	strRmMsg := str.Command("rmm", "Securely removes an individual message from a stream").Action(c.rmMsgAction)
 	strRmMsg.Arg("stream", "Stream name").StringVar(&c.stream)
 	strRmMsg.Arg("id", "Message Sequence to remove").Int64Var(&c.msgID)
 	strRmMsg.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
@@ -397,16 +397,16 @@ Finding streams with certain subjects configured:
 	strGet.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	strGet.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.vwTranslate)
 
-	strBackup := str.Command("backup", "Creates a backup of a Stream over the NATS network").Alias("snapshot").Action(c.backupAction)
+	strBackup := str.Command("backup", "Creates a backup of a stream over the NATS network").Alias("snapshot").Action(c.backupAction)
 	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
 	strBackup.Arg("target", "Directory to create the backup in").Required().StringVar(&c.backupDirectory)
 	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
-	strBackup.Flag("check", "Checks the Stream for health prior to backup").UnNegatableBoolVar(&c.healthCheck)
+	strBackup.Flag("check", "Checks the stream for health prior to backup").UnNegatableBoolVar(&c.healthCheck)
 	strBackup.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
 	strBackup.Flag("chunk-size", "Sets a specific chunk size that the server will send").StringVar(&c.chunkSize)
 	strBackup.Flag("window-size", "Sets a specific window size that the server will send").StringVar(&c.wndSize)
 
-	strRestore := str.Command("restore", "Restore a Stream over the NATS network").Action(c.restoreAction)
+	strRestore := str.Command("restore", "Restore a stream over the NATS network").Action(c.restoreAction)
 	strRestore.Arg("file", "The directory holding the backup to restore").Required().ExistingDirVar(&c.backupDirectory)
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	strRestore.Flag("config", "Load a different configuration when restoring the stream").ExistingFileVar(&c.inputFile)
@@ -415,19 +415,19 @@ Finding streams with certain subjects configured:
 	strRestore.Flag("replicas", "Override how many replicas of the data to create").Int64Var(&c.replicas)
 
 	strSeal := str.Command("seal", "Seals a stream preventing further updates").Action(c.sealAction)
-	strSeal.Arg("stream", "The name of the Stream to seal").Required().StringVar(&c.stream)
+	strSeal.Arg("stream", "The name of the stream to seal").Required().StringVar(&c.stream)
 	strSeal.Flag("force", "Force sealing without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
-	gapDetect := str.Command("gaps", "Detect gaps in the Stream content that would be reported as deleted messages").Action(c.detectGaps)
+	gapDetect := str.Command("gaps", "Detect gaps in the stream content that would be reported as deleted messages").Action(c.detectGaps)
 	gapDetect.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	gapDetect.Flag("force", "Act without prompting").Short('f').UnNegatableBoolVar(&c.force)
 	gapDetect.Flag("progress", "Enable progress bar").Default("true").BoolVar(&c.showProgress)
 	gapDetect.Flag("json", "Show detected gaps in JSON format").UnNegatableBoolVar(&c.json)
 
-	graph := str.Command("graph", "View a graph of Stream activity").Action(c.graphAction)
-	graph.Arg("stream", "The name of the Stream to graph").StringVar(&c.stream)
+	graph := str.Command("graph", "View a graph of stream activity").Action(c.graphAction)
+	graph.Arg("stream", "The name of the stream to graph").StringVar(&c.stream)
 
-	strCluster := str.Command("cluster", "Manages a clustered Stream").Alias("c")
+	strCluster := str.Command("cluster", "Manages a clustered stream").Alias("c")
 	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
 	strClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	strClusterDown.Flag("preferred", "Prefer placing the leader on a specific host").StringVar(&c.placementPreferred)
@@ -440,7 +440,7 @@ Finding streams with certain subjects configured:
 	strClusterBalance.Flag("idle", "Balance streams with no new messages or consumer deliveries for a period").PlaceHolder("DURATION").DurationVar(&c.fIdle)
 	strClusterBalance.Flag("created", "Balance streams created longer ago than duration").PlaceHolder("DURATION").DurationVar(&c.fCreated)
 	strClusterBalance.Flag("consumers", "Balance streams with fewer consumers than threshold").PlaceHolder("THRESHOLD").Default("-1").IntVar(&c.fConsumers)
-	strClusterBalance.Flag("subject", "Filters Streams by those with interest matching a subject or wildcard and balances them").StringVar(&c.filterSubject)
+	strClusterBalance.Flag("subject", "Filters streams by those with interest matching a subject or wildcard and balances them").StringVar(&c.filterSubject)
 	strClusterBalance.Flag("replicas", "Balance streams with fewer or equal replicas than the value").PlaceHolder("REPLICAS").UintVar(&c.fReplicas)
 	strClusterBalance.Flag("sourced", "Balance that sources data from other streams").IsSetByUser(&c.fSourcedSet).UnNegatableBoolVar(&c.fSourced)
 	strClusterBalance.Flag("mirrored", "Balance that mirrors data from other streams").IsSetByUser(&c.fMirroredSet).UnNegatableBoolVar(&c.fMirrored)
@@ -448,7 +448,7 @@ Finding streams with certain subjects configured:
 	strClusterBalance.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	strClusterBalance.Flag("expression", "Balance matching streams using an expression language").StringVar(&c.fExpression)
 
-	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the Stream cluster").Alias("pr").Action(c.removePeer)
+	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the stream cluster").Alias("pr").Action(c.removePeer)
 	strClusterRemovePeer.Arg("stream", "The stream to act on").StringVar(&c.stream)
 	strClusterRemovePeer.Arg("peer", "The name of the peer to remove").StringVar(&c.peerName)
 	strClusterRemovePeer.Flag("force", "Force sealing without prompting").Short('f').UnNegatableBoolVar(&c.force)
@@ -461,7 +461,7 @@ func init() {
 func (c *streamCmd) kvAbstractionWarn(stream string, prompt string) error {
 	fmt.Println("WARNING: Operating on the underlying stream of a Key-Value bucket is dangerous.")
 	fmt.Println()
-	fmt.Println("Key-Value stores are an abstraction above JetStream Streams and as such require particular")
+	fmt.Println("Key-Value stores are an abstraction above JetStream streams and as such require particular")
 	fmt.Println("configuration to be set. Interacting with KV buckets outside of the 'nats kv' subcommand can lead")
 	fmt.Println("unexpected outcomes, data loss and, technically, will mean your KV bucket is no longer a KV bucket.")
 	fmt.Println()
