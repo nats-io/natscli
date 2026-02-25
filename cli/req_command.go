@@ -90,10 +90,6 @@ func (c *reqCmd) doReq(nc *nats.Conn, pub *iu.Publisher) error {
 	logOutput := !c.raw && pub.Tracker == nil
 
 	for i := 1; i <= c.cnt; i++ {
-		if logOutput {
-			log.Printf("Sending request on %q\n", c.subject)
-		}
-
 		body, subj, bodyErr, subjErr := pub.ParseTemplates(c.body, c.subject, i)
 		if bodyErr != nil {
 			log.Printf("Could not parse body template: %s", bodyErr)
@@ -101,6 +97,10 @@ func (c *reqCmd) doReq(nc *nats.Conn, pub *iu.Publisher) error {
 		if subjErr != nil {
 			log.Printf("Could not parse subject template: %s", subjErr)
 		}
+		if logOutput {
+			log.Printf("Sending request on %q\n", subj)
+		}
+
 		msg, err := pub.PrepareMsg(subj, c.replyTo, []byte(body), c.hdrs, i)
 		if err != nil {
 			return err

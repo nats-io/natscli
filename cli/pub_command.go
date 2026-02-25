@@ -161,7 +161,7 @@ func (c *pubCmd) addToBatch(pub *iu.Publisher) error {
 		c.atomicPending = append(c.atomicPending, msg)
 
 		if !c.quiet {
-			log.Printf("Adding %d bytes to batch on subject %q\n", len(body), c.subject)
+			log.Printf("Adding %d bytes to batch on subject %q\n", len(body), subj)
 		}
 	}
 
@@ -185,7 +185,7 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, pub *iu.Publisher) error {
 		}
 
 		if !c.quiet {
-			log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+			log.Printf("Published %d bytes to %q\n", len(body), subj)
 		}
 		resp, err := nc.RequestMsg(msg, opts().Timeout)
 		if err != nil {
@@ -355,7 +355,7 @@ func (c *pubCmd) publishNatsMsg(ctx context.Context, nc *nats.Conn, pub *iu.Publ
 				tracker := pub.Tracker
 				if tracker == nil {
 					if !c.quiet {
-						log.Printf("Published %d bytes to %q\n", len(body), c.subject)
+						log.Printf("Published %d bytes to %q\n", len(body), subj)
 					}
 				} else {
 					tracker.Increment(1)
