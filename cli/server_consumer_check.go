@@ -126,6 +126,9 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 			for _, stream := range acc.Streams {
 				var mok bool
 				var ms map[string]*streamDetail
+				if stream.RaftGroup == "" && stream.Cluster != nil {
+					stream.RaftGroup = stream.Cluster.RaftGroup
+				}
 				mkey := fmt.Sprintf("%s|%s", acc.Name, stream.RaftGroup)
 				if ms, mok = streams[mkey]; !mok {
 					ms = make(map[string]*streamDetail)
@@ -148,6 +151,9 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 							raftGroup = cr.RaftGroup
 							break
 						}
+					}
+					if raftGroup == "" && consumer.Cluster != nil {
+						raftGroup = consumer.Cluster.RaftGroup
 					}
 
 					var ok bool

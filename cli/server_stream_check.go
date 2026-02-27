@@ -110,6 +110,9 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 			for _, stream := range acc.Streams {
 				var ok bool
 				var m map[string]*streamDetail
+				if stream.RaftGroup == "" && stream.Cluster != nil {
+					stream.RaftGroup = stream.Cluster.RaftGroup
+				}
 				key := fmt.Sprintf("%s|%s", acc.Name, stream.RaftGroup)
 				if m, ok = streams[key]; !ok {
 					m = make(map[string]*streamDetail)
