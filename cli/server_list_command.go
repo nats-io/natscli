@@ -16,6 +16,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/nats-io/natscli/internal/serverdata"
 	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"sort"
@@ -84,7 +85,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		mu          sync.Mutex
 	)
 
-	doReqAsync(nil, "$SYS.REQ.SERVER.PING", int(c.expect), nc, func(data []byte) {
+	serverdata.DoReqAsync(ctx, nil, "$SYS.REQ.SERVER.PING", int(c.expect), nc, opts().Timeout, opts().Trace, func(data []byte) {
 		ssm := &server.ServerStatsMsg{}
 		err = json.Unmarshal(data, ssm)
 		if err != nil {

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	au "github.com/nats-io/natscli/internal/auth"
+	"github.com/nats-io/natscli/internal/serverdata"
 	iu "github.com/nats-io/natscli/internal/util"
 	"gopkg.in/yaml.v3"
 
@@ -388,7 +389,7 @@ func (c *authAccountCommand) queryAction(_ *fisk.ParseContext) error {
 	}
 
 	var token string
-	err = doReqAsync(nil, fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", acct.Subject()), 1, nc, func(b []byte) {
+	err = serverdata.DoReqAsync(ctx, nil, fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", acct.Subject()), 1, nc, opts().Timeout, opts().Trace, func(b []byte) {
 		token = string(b)
 	})
 	if err != nil {
@@ -432,7 +433,7 @@ func (c *authAccountCommand) pushAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	expect, _ := currentActiveServers(nc)
+	expect, _ := serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, opts().Trace)
 	if expect > 0 {
 		fmt.Printf("Updating account %s (%s) on %d server(s)\n", acct.Name(), acct.Subject(), expect)
 	} else {
@@ -446,7 +447,7 @@ func (c *authAccountCommand) pushAction(_ *fisk.ParseContext) error {
 	failed := 0
 
 	subj := fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.UPDATE", acct.Subject())
-	err = doReqAsync(acct.JWT(), subj, expect, nc, func(msg []byte) {
+	err = serverdata.DoReqAsync(ctx, acct.JWT(), subj, expect, nc, opts().Timeout, opts().Trace, func(msg []byte) {
 		update := server.ServerAPIClaimUpdateResponse{}
 		err = json.Unmarshal(msg, &update)
 		if err != nil {

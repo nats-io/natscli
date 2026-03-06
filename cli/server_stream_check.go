@@ -14,16 +14,18 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/natscli/internal/util"
-
 	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/natscli/internal/sysclient"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/internal/serverdata"
+	"github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
 )
@@ -49,6 +51,7 @@ type (
 		stdin          bool
 		readTimeout    int
 		csv            bool
+		archivePath    string
 	}
 )
 
@@ -64,50 +67,93 @@ func configureStreamCheckCommand(app commandHost) {
 	streamCheck.Flag("stdin", "Process the result of 'nats server request jsz --all --config' from STDIN").UnNegatableBoolVar(&sc.stdin)
 	streamCheck.Flag("read-timeout", "Read timeout in seconds").Default("5").IntVar(&sc.readTimeout)
 	streamCheck.Flag("csv", "Renders CSV format").UnNegatableBoolVar(&sc.csv)
+	streamCheck.Flag("archive", "Read data from an archive file").StringVar(&sc.archivePath)
+}
+
+func (c *StreamCheckCmd) dataSource(nc *nats.Conn) (serverdata.DataSource, error) {
+	if c.archivePath != "" {
+		return serverdata.NewArchive(c.archivePath)
+	}
+	timeout := opts().Timeout
+	if c.readTimeout > 0 {
+		timeout = time.Duration(c.readTimeout) * time.Second
+	}
+	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+		return serverdata.DoReq(ctx, req, subj, waitFor, nc, timeout, opts().Trace)
+	}
+	return serverdata.NewServer(nc, reqFn, c.expected), nil
 }
 
 func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 	start := time.Now()
 
-	var nc *nats.Conn
 	var err error
+	var nc *nats.Conn
+	var ds serverdata.DataSource
+	var responses []*server.ServerAPIJszResponse
 
-	if !c.stdin {
-		nc, _, err = prepareHelper(opts().Servers, natsOpts()...)
+	if c.stdin {
+		decoder := json.NewDecoder(os.Stdin)
+		for {
+			var resp server.ServerAPIJszResponse
+			if err := decoder.Decode(&resp); err != nil {
+				if err == io.EOF {
+					break
+				}
+				return err
+			}
+			responses = append(responses, &resp)
+			if c.expected > 0 && len(responses) >= c.expected {
+				break
+			}
+		}
+	} else {
+		if c.archivePath == "" {
+			nc, _, err = prepareHelper(opts().Servers, natsOpts()...)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Connected in %.3fs\n", time.Since(start).Seconds())
+
+			if c.expected == 0 {
+				c.expected, err = serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, opts().Trace)
+				if err != nil {
+					return fmt.Errorf("failed to get current active servers: %s", err)
+				}
+			}
+		}
+
+		ds, err = c.dataSource(nc)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Connected in %.3fs\n", time.Since(start).Seconds())
+		defer ds.Close()
 
-		if c.expected == 0 {
-			c.expected, err = currentActiveServers(nc)
-			if err != nil {
-				return fmt.Errorf("failed to get current active servers: %s", err)
-			}
+		start = time.Now()
+		responses, err = ds.Jsz(server.JszEventOptions{
+			JSzOptions: server.JSzOptions{Streams: true, RaftGroups: true},
+		})
+		if err != nil {
+			return err
 		}
-	}
-
-	sys := sysclient.New(nc, opts().Trace)
-
-	start = time.Now()
-	servers, err := sys.FindServers(c.stdin, c.expected, opts().Timeout, time.Duration(c.readTimeout), false)
-	if err != nil && len(servers) == 0 {
-		return fmt.Errorf("failed to find servers: %s", err)
 	}
 
 	if !c.csv {
 		fmt.Printf("Response took %.3fs\n", time.Since(start).Seconds())
-		fmt.Printf("Servers: %d\n", len(servers))
-		if err != nil && len(servers) > 0 {
-			fmt.Printf("Warning: %s\n", err)
+		fmt.Printf("Servers: %d\n", len(responses))
+		if c.expected > 0 && len(responses) < c.expected {
+			fmt.Printf("Warning: expected %d responses got %d\n", c.expected, len(responses))
 		}
 	}
 
 	// Collect all info from servers.
 	streams := make(map[string]map[string]*streamDetail)
-	for _, resp := range servers {
+	for _, resp := range responses {
+		if resp.Server == nil || resp.Data == nil {
+			continue
+		}
 		server := resp.Server
-		jsz := resp.JSInfo
+		jsz := resp.Data
 		for _, acc := range jsz.AccountDetails {
 			for _, stream := range acc.Streams {
 				var ok bool
@@ -238,15 +284,18 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 
 		// Include Healthz if option added.
 		var healthStatus string
-		if c.health {
-			hstatus, err := sys.Healthz(replica.ServerID, server.HealthzOptions{
-				Account: replica.Account,
-				Stream:  replica.StreamName,
+		if c.health && ds != nil {
+			hresps, err := ds.Healthz(server.HealthzEventOptions{
+				HealthzOptions: server.HealthzOptions{
+					Account: replica.Account,
+					Stream:  replica.StreamName,
+				},
+				EventFilterOptions: server.EventFilterOptions{Name: replica.ServerID, ExactMatch: true},
 			})
 			if err != nil {
 				healthStatus = err.Error()
-			} else {
-				healthStatus = fmt.Sprintf(":%s:%s", hstatus.Healthz.Status, hstatus.Healthz.Error)
+			} else if len(hresps) > 0 && hresps[0].Data != nil {
+				healthStatus = fmt.Sprintf(":%s:%s", hresps[0].Data.Status, hresps[0].Data.Error)
 			}
 		}
 
