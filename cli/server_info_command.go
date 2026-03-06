@@ -24,11 +24,13 @@ import (
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go/api/server/zmonitor"
+	"github.com/nats-io/jsm.go/serverdata"
 	"github.com/nats-io/nats-server/v2/server"
 )
 
 type SrvInfoCmd struct {
-	id string
+	id          string
+	archivePath string
 }
 
 func configureServerInfoCommand(srv *fisk.CmdClause) {
@@ -37,52 +39,94 @@ func configureServerInfoCommand(srv *fisk.CmdClause) {
 	info := srv.Command("info", "Show information about a single server").Alias("i").Action(c.info)
 	info.Tag("scope:system", "impact:ro")
 	info.Arg("server", "Server ID or Name to inspect").StringVar(&c.id)
+	info.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 }
 
 func (c *SrvInfoCmd) info(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
-	if err != nil {
-		return err
-	}
+	var data []byte
+	var err error
 
-	subj := fmt.Sprintf("$SYS.REQ.SERVER.%s.VARZ", c.id)
-	body := []byte("{}")
+	if c.archivePath != "" {
+		src, srcErr := serverdata.NewAuditArchive(c.archivePath)
+		if srcErr != nil {
+			return srcErr
+		}
+		defer src.Close()
 
-	if len(c.id) != 56 || strings.ToUpper(c.id) != c.id {
-		subj = "$SYS.REQ.SERVER.PING.VARZ"
-		opts := server.VarzEventOptions{EventFilterOptions: server.EventFilterOptions{Name: c.id, ExactMatch: true}}
-		body, err = json.Marshal(opts)
+		res, srcErr := src.Varz(server.VarzEventOptions{
+			EventFilterOptions: server.EventFilterOptions{Name: c.id, ExactMatch: true},
+		})
+		if srcErr != nil {
+			return srcErr
+		}
+
+		var picked *server.ServerAPIVarzResponse
+		var capturedErr *server.ApiError
+		for _, r := range res {
+			if r.Error != nil {
+				if capturedErr == nil {
+					capturedErr = r.Error
+				}
+				continue
+			}
+			if r.Data != nil {
+				picked = r
+				break
+			}
+		}
+		if picked == nil {
+			if capturedErr != nil {
+				return fmt.Errorf("invalid response captured for %q: %s", c.id, capturedErr.Description)
+			}
+			return fmt.Errorf("no captured data for server %q in %s", c.id, c.archivePath)
+		}
+
+		data, err = json.Marshal(picked.Data)
 		if err != nil {
 			return err
 		}
-	}
+	} else {
+		nc, _, ncErr := prepareHelper("", natsOpts()...)
+		if ncErr != nil {
+			return ncErr
+		}
 
-	if opts().Trace {
-		log.Printf(">>> %s: %s", subj, string(body))
-	}
+		subj := fmt.Sprintf("$SYS.REQ.SERVER.%s.VARZ", c.id)
+		body := []byte("{}")
 
-	resp, err := nc.Request(subj, body, opts().Timeout)
-	if err != nil {
-		return fmt.Errorf("no results received, ensure the account used has system privileges and appropriate permissions")
-	}
-	if opts().Trace {
-		log.Printf("<<< %q", resp.Data)
-	}
+		if len(c.id) != 56 || strings.ToUpper(c.id) != c.id {
+			subj = "$SYS.REQ.SERVER.PING.VARZ"
+			vopts := server.VarzEventOptions{EventFilterOptions: server.EventFilterOptions{Name: c.id, ExactMatch: true}}
+			body, err = json.Marshal(vopts)
+			if err != nil {
+				return err
+			}
+		}
 
-	reqresp := map[string]json.RawMessage{}
-	err = json.Unmarshal(resp.Data, &reqresp)
-	if err != nil {
-		return err
-	}
+		if opts().Trace {
+			log.Printf(">>> %s: %s", subj, string(body))
+		}
 
-	errresp, ok := reqresp["error"]
-	if ok {
-		return fmt.Errorf("invalid response received: %#v", errresp)
-	}
+		resp, reqErr := nc.Request(subj, body, opts().Timeout)
+		if reqErr != nil {
+			return fmt.Errorf("no results received, ensure the account used has system privileges and appropriate permissions")
+		}
+		if opts().Trace {
+			log.Printf("<<< %q", resp.Data)
+		}
 
-	data, ok := reqresp["data"]
-	if !ok {
-		return fmt.Errorf("no data received in response: %#v", reqresp)
+		reqresp := map[string]json.RawMessage{}
+		if err = json.Unmarshal(resp.Data, &reqresp); err != nil {
+			return err
+		}
+		if errresp, ok := reqresp["error"]; ok {
+			return fmt.Errorf("invalid response received: %#v", errresp)
+		}
+		var ok bool
+		data, ok = reqresp["data"]
+		if !ok {
+			return fmt.Errorf("no data received in response: %#v", reqresp)
+		}
 	}
 
 	varz := &zmonitor.VarzV1{}

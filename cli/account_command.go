@@ -28,6 +28,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/serverdata"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/columns"
@@ -251,7 +252,7 @@ func (c *actCmd) reportServerStats(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	res, err := doReq(nil, "$SYS.REQ.ACCOUNT.PING.STATZ", 0, nc)
+	res, err := serverdata.DoReq(ctx, nil, "$SYS.REQ.ACCOUNT.PING.STATZ", 0, nc, opts().Timeout, traceLogger())
 	if err != nil {
 		return err
 	}
