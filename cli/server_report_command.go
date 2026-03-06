@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -23,7 +22,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nats-io/natscli/internal/sysclient"
+	"github.com/nats-io/jsm.go/serverdata"
 	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
@@ -54,6 +53,7 @@ type SrvReportCmd struct {
 	stateFilter             string
 	filterReason            string
 	skipDiscoverClusterSize bool
+	archivePath             string
 	gatewayName             string
 	jsEnabled               bool
 	jsServerOnly            bool
@@ -97,6 +97,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs")
 	acct.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	addFilterOpts(acct)
+	acct.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 	acct.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.withWatcher(c.reportConnections))
@@ -111,12 +112,14 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	conns.Flag("closed-reason", "Filter results based on a closed reason").PlaceHolder("REASON").StringVar(&c.filterReason)
 	conns.Flag("filter", "Expression based filter for connections").StringVar(&c.filterExpression)
 	addFilterOpts(conns)
+	conns.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	cpu := report.Command("cpu", "Report on CPU usage").Action(c.withWatcher(c.reportCPU))
 	cpu.Tag("scope:system", "impact:ro")
 	cpu.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(cpu)
+	cpu.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 	cpu.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	gateways := report.Command("gateways", "Repost on Gateway (Super Cluster) connections").Alias("super").Alias("gateway").Action(c.withWatcher(c.reportGateway))
@@ -125,6 +128,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	gateways.Flag("filter-name", "Limits responses to a certain name").StringVar(&c.gatewayName)
 	gateways.Flag("sort", "Sorts by a specific property (server,cluster)").Default("cluster").EnumVar(&c.sort, "server", "cluster")
 	addFilterOpts(gateways)
+	gateways.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	health := report.Command("health", "Report on Server health").Action(c.withWatcher(c.reportHealth))
 	health.Tag("scope:system", "impact:ro")
@@ -135,6 +139,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	health.Flag("stream", "Check only a specific Stream").StringVar(&c.stream)
 	health.Flag("consumer", "Check only a specific Consumer").StringVar(&c.consumer)
 	addFilterOpts(health)
+	health.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.withWatcher(c.reportJetStream))
 	jsz.Tag("scope:system", "impact:ro")
@@ -144,6 +149,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	jsz.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 	jsz.Flag("leaders", "Show details about cluster leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
 	addFilterOpts(jsz)
+	jsz.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	leafs := report.Command("leafnodes", "Report on Leafnode connections").Alias("leaf").Alias("leafz").Action(c.withWatcher(c.reportLeafs))
 	leafs.Tag("scope:system", "impact:ro")
@@ -151,11 +157,13 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	leafs.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
 	leafs.Flag("sort", "Sort by a specific property (server,name,account,subs,in-bytes,out-bytes,in-msgs,out-msgs)").EnumVar(&c.sort, "server", "name", "account", "subs", "in-bytes", "out-bytes", "in-msgs", "out-msgs")
 	addFilterOpts(leafs)
+	leafs.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	mem := report.Command("mem", "Report on Memory usage").Action(c.withWatcher(c.reportMem))
 	mem.Tag("scope:system", "impact:ro")
 	mem.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(mem)
+	mem.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 	mem.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	routes := report.Command("routes", "Report on Route (Cluster) connections").Alias("route").Action(c.withWatcher(c.reportRoute))
@@ -163,22 +171,29 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	routes.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	routes.Flag("sort", "Sort by a specific property (server,cluster,name,account,subs,in-bytes,out-bytes)").EnumVar(&c.sort, "server", "cluster", "name", "account", "subs", "in-bytes", "out-bytes")
 	addFilterOpts(routes)
+	routes.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	reportCmd := report.Command("downgrade", "List assets incompatible with the specified API level").Action(c.downgradeCheckAction)
 	reportCmd.Tag("scope:system", "impact:ro")
 	reportCmd.Arg("api", "Target API level to check compatibility against").Required().UintVar(&c.apiLevel)
 	reportCmd.Flag("json", "Output the downgrade report in JSON format").UnNegatableBoolVar(&c.json)
 	reportCmd.Flag("all", "Include consumers whose associated streams are incompatible with the selected API level").UnNegatableBoolVar(&c.all)
+	reportCmd.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 }
 
 func (c *SrvReportCmd) withWatcher(fn func(*fisk.ParseContext) error) func(*fisk.ParseContext) error {
 	return func(fctx *fisk.ParseContext) error {
-		nc, _, err := prepareHelper("", natsOpts()...)
-		if err != nil {
-			return err
+		if c.archivePath == "" {
+			nc, _, err := prepareHelper("", natsOpts()...)
+			if err != nil {
+				return err
+			}
+			c.nc = nc
 		}
 
-		c.nc = nc
+		if c.archivePath != "" && c.watchInterval > 0 {
+			return fmt.Errorf("--watch is not supported when using --archive")
+		}
 
 		if c.watchInterval <= 0 {
 			return fn(fctx)
@@ -188,16 +203,14 @@ func (c *SrvReportCmd) withWatcher(fn func(*fisk.ParseContext) error) func(*fisk
 		ctx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 		defer cancel()
 
-		err = fn(fctx)
-		if err != nil {
+		if err := fn(fctx); err != nil {
 			return err
 		}
 
 		for {
 			select {
 			case <-tick.C:
-				err = fn(fctx)
-				if err != nil {
+				if err := fn(fctx); err != nil {
 					return err
 				}
 			case <-ctx.Done():
@@ -207,15 +220,26 @@ func (c *SrvReportCmd) withWatcher(fn func(*fisk.ParseContext) error) func(*fisk
 	}
 }
 
-func (c *SrvReportCmd) reportLeafs(_ *fisk.ParseContext) error {
-	req := server.LeafzEventOptions{
-		LeafzOptions: server.LeafzOptions{
-			Account: c.account,
-		},
-		EventFilterOptions: c.reqFilter(),
+func (c *SrvReportCmd) dataSource() (serverdata.Source, error) {
+	if c.archivePath != "" {
+		return serverdata.NewAuditArchive(c.archivePath)
 	}
+	return serverdata.NewLive(c.nc, func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+		return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, traceLogger())
+	}, c.waitFor)
+}
 
-	results, err := doReq(req, "$SYS.REQ.SERVER.PING.LEAFZ", c.waitFor, c.nc)
+func (c *SrvReportCmd) reportLeafs(_ *fisk.ParseContext) error {
+	src, err := c.dataSource()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	responses, err := src.Leafz(server.LeafzEventOptions{
+		LeafzOptions:       server.LeafzOptions{Account: c.account},
+		EventFilterOptions: c.reqFilter(),
+	})
 	if err != nil {
 		return err
 	}
@@ -226,13 +250,7 @@ func (c *SrvReportCmd) reportLeafs(_ *fisk.ParseContext) error {
 	}
 
 	var leafs []*leaf
-	for _, result := range results {
-		s := &server.ServerAPILeafzResponse{}
-		err := json.Unmarshal(result, s)
-		if err != nil {
-			return err
-		}
-
+	for _, s := range responses {
 		if s.Error != nil {
 			return fmt.Errorf("%v", s.Error.Error())
 		}
@@ -310,7 +328,13 @@ func (c *SrvReportCmd) parseRtt(rtt string, crit time.Duration) string {
 }
 
 func (c *SrvReportCmd) reportHealth(_ *fisk.ParseContext) error {
-	req := server.HealthzEventOptions{
+	src, err := c.dataSource()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	responses, err := src.Healthz(server.HealthzEventOptions{
 		HealthzOptions: server.HealthzOptions{
 			JSEnabledOnly: c.jsEnabled,
 			JSServerOnly:  c.jsServerOnly,
@@ -320,20 +344,13 @@ func (c *SrvReportCmd) reportHealth(_ *fisk.ParseContext) error {
 			Details:       true,
 		},
 		EventFilterOptions: c.reqFilter(),
-	}
-	results, err := doReq(req, "$SYS.REQ.SERVER.PING.HEALTHZ", c.waitFor, c.nc)
+	})
 	if err != nil {
 		return err
 	}
 
 	var servers []server.ServerAPIHealthzResponse
-	for _, result := range results {
-		s := &server.ServerAPIHealthzResponse{}
-		err := json.Unmarshal(result, s)
-		if err != nil {
-			return err
-		}
-
+	for _, s := range responses {
 		if s.Error != nil {
 			return fmt.Errorf("%v", s.Error.Error())
 		}
@@ -403,27 +420,25 @@ func (c *SrvReportCmd) reportHealth(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvReportCmd) reportGateway(_ *fisk.ParseContext) error {
-	req := &server.GatewayzEventOptions{
+	src, err := c.dataSource()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	responses, err := src.Gatewayz(server.GatewayzEventOptions{
 		EventFilterOptions: c.reqFilter(),
 		GatewayzOptions: server.GatewayzOptions{
 			Name:     c.gatewayName,
 			Accounts: true,
 		},
-	}
-
-	results, err := doReq(req, "$SYS.REQ.SERVER.PING.GATEWAYZ", c.waitFor, c.nc)
+	})
 	if err != nil {
 		return err
 	}
 
 	var gateways []server.ServerAPIGatewayzResponse
-	for _, result := range results {
-		g := &server.ServerAPIGatewayzResponse{}
-		err := json.Unmarshal(result, g)
-		if err != nil {
-			return err
-		}
-
+	for _, g := range responses {
 		if g.Error != nil {
 			return fmt.Errorf("%v", g.Error.Error())
 		}
@@ -548,10 +563,15 @@ func (c *SrvReportCmd) reportGateway(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvReportCmd) reportRoute(_ *fisk.ParseContext) error {
-	req := &server.RoutezEventOptions{
-		EventFilterOptions: c.reqFilter(),
+	src, err := c.dataSource()
+	if err != nil {
+		return err
 	}
-	results, err := doReq(req, "$SYS.REQ.SERVER.PING.ROUTEZ", c.waitFor, c.nc)
+	defer src.Close()
+
+	responses, err := src.Routez(server.RoutezEventOptions{
+		EventFilterOptions: c.reqFilter(),
+	})
 	if err != nil {
 		return err
 	}
@@ -562,13 +582,7 @@ func (c *SrvReportCmd) reportRoute(_ *fisk.ParseContext) error {
 	}
 
 	routes := []routeData{}
-	for _, result := range results {
-		r := &server.ServerAPIRoutezResponse{}
-		err := json.Unmarshal(result, r)
-		if err != nil {
-			return err
-		}
-
+	for _, r := range responses {
 		if r.Error != nil {
 			return fmt.Errorf("%v", r.Error.Error())
 		}
@@ -716,21 +730,20 @@ func (c *SrvReportCmd) reportCPU(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvReportCmd) reportCpuOrMem(mem bool) error {
-	req := &server.StatszEventOptions{EventFilterOptions: c.reqFilter()}
-	results, err := doReq(req, "$SYS.REQ.SERVER.PING", c.waitFor, c.nc)
+	src, err := c.dataSource()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	responses, err := src.Statz(server.StatszEventOptions{EventFilterOptions: c.reqFilter()})
 	if err != nil {
 		return err
 	}
 
 	usage := map[string]float64{}
 
-	for _, result := range results {
-		sr := &server.ServerStatsMsg{}
-		err := json.Unmarshal(result, sr)
-		if err != nil {
-			return err
-		}
-
+	for _, sr := range responses {
 		if mem {
 			usage[sr.Server.Name] = float64(sr.Stats.Mem)
 		} else {
@@ -766,15 +779,19 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 		jszOpts.Limit = 10000
 	}
 
-	req := &server.JszEventOptions{JSzOptions: jszOpts, EventFilterOptions: c.reqFilter()}
-	res, err := doReq(req, "$SYS.REQ.SERVER.PING.JSZ", c.waitFor, c.nc)
+	src, err := c.dataSource()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	jszResponses, err := src.Jsz(server.JszEventOptions{JSzOptions: jszOpts, EventFilterOptions: c.reqFilter()})
 	if err != nil {
 		return err
 	}
 
 	var (
 		names               []string
-		jszResponses        []*server.ServerAPIJszResponse
 		apiTotal            uint64
 		pendingTotal        int
 		memoryTotal         uint64
@@ -792,19 +809,10 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 
 	// TODO: remove after 2.12 is out
 	renderDomain := false
-	for _, r := range res {
-		response := &server.ServerAPIJszResponse{}
-
-		err = json.Unmarshal(r, &response)
-		if err != nil {
-			return err
-		}
-
+	for _, response := range jszResponses {
 		if response.Data.Config.Domain != "" {
 			renderDomain = true
 		}
-
-		jszResponses = append(jszResponses, response)
 	}
 
 	sort.Slice(jszResponses, func(i, j int) bool {
@@ -842,6 +850,9 @@ func (c *SrvReportCmd) reportJetStream(_ *fisk.ParseContext) error {
 	})
 
 	if len(jszResponses) == 0 {
+		if c.archivePath != "" {
+			return fmt.Errorf("no JetStream data found in %s", c.archivePath)
+		}
 		return fmt.Errorf("no results received, ensure the account used has system privileges and appropriate permissions")
 	}
 
@@ -1354,25 +1365,6 @@ func (c connzList) flatConnInfo() []connInfo {
 	return conns
 }
 
-func parseConnzResp(resp []byte) (*server.ServerAPIConnzResponse, error) {
-	reqresp := server.ServerAPIConnzResponse{}
-
-	err := json.Unmarshal(resp, &reqresp)
-	if err != nil {
-		return nil, err
-	}
-
-	if reqresp.Error != nil {
-		return nil, fmt.Errorf("invalid response received: %v", reqresp.Error)
-	}
-
-	if reqresp.Data == nil {
-		return nil, fmt.Errorf("no data received in response: %s", string(resp))
-	}
-
-	return &reqresp, nil
-}
-
 func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 	result := connzList{}
 	found := 0
@@ -1381,8 +1373,8 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 	var err error
 	env := map[string]any{}
 
-	if !c.skipDiscoverClusterSize && c.waitFor == 0 {
-		c.waitFor, err = currentActiveServers(nc)
+	if !c.skipDiscoverClusterSize && c.waitFor == 0 && c.archivePath == "" {
+		c.waitFor, err = serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, traceLogger())
 		if err != nil {
 			return nil, err
 		}
@@ -1441,32 +1433,41 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		state = server.ConnClosed
 	}
 
+	src, err := c.dataSource()
+	if err != nil {
+		return nil, err
+	}
+	defer src.Close()
+
 	offset := 0
 	more := false
 
-	req := &server.ConnzEventOptions{
-		ConnzOptions: server.ConnzOptions{
-			Subscriptions:       true,
-			SubscriptionsDetail: false,
-			Username:            true,
-			User:                c.user,
-			Account:             c.account,
-			State:               state,
-			FilterSubject:       c.subject,
-			Limit:               1024,
-			Offset:              offset,
-		},
-		EventFilterOptions: c.reqFilter(),
+	connzOpts := server.ConnzOptions{
+		Subscriptions:       true,
+		SubscriptionsDetail: false,
+		Username:            true,
+		User:                c.user,
+		Account:             c.account,
+		State:               state,
+		FilterSubject:       c.subject,
+		Limit:               1024,
+		Offset:              offset,
 	}
-	results, err := doReq(req, "$SYS.REQ.SERVER.PING.CONNZ", c.waitFor, nc)
+
+	responses, err := src.Connz(server.ConnzEventOptions{
+		ConnzOptions:       connzOpts,
+		EventFilterOptions: c.reqFilter(),
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	for _, res := range results {
-		co, err := parseConnzResp(res)
-		if err != nil {
-			return nil, err
+	for _, co := range responses {
+		if co.Error != nil {
+			return nil, fmt.Errorf("invalid response received: %v", co.Error)
+		}
+		if co.Data == nil {
+			return nil, fmt.Errorf("no data received in response")
 		}
 		found += len(co.Data.Conns)
 
@@ -1511,25 +1512,12 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		}
 
 		offset += 1025
+		connzOpts.Offset = offset
 
-		// get on offset
-		// iterate and add to results
-		req := &server.ConnzEventOptions{
-			ConnzOptions: server.ConnzOptions{
-				Subscriptions:       true,
-				SubscriptionsDetail: false,
-				Username:            true,
-				User:                c.user,
-				Account:             c.account,
-				State:               state,
-				FilterSubject:       c.subject,
-				Limit:               1024,
-				Offset:              offset,
-			},
+		responses, err := src.Connz(server.ConnzEventOptions{
+			ConnzOptions:       connzOpts,
 			EventFilterOptions: c.reqFilter(),
-		}
-
-		res, err := doReq(req, "$SYS.REQ.SERVER.PING.CONNZ", c.waitFor, nc)
+		})
 		if errors.Is(err, nats.ErrNoResponders) {
 			return nil, fmt.Errorf("server request failed, ensure the account used has system privileges and appropriate permissions")
 		} else if err != nil {
@@ -1538,10 +1526,12 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 
 		more = false
 
-		for _, res := range res {
-			co, err := parseConnzResp(res)
-			if err != nil {
-				return nil, err
+		for _, co := range responses {
+			if co.Error != nil {
+				return nil, fmt.Errorf("invalid response received: %v", co.Error)
+			}
+			if co.Data == nil {
+				return nil, fmt.Errorf("no data received in response")
 			}
 			found += len(co.Data.Conns)
 
@@ -1608,26 +1598,32 @@ type jsDowngradeConsumerAsset struct {
 }
 
 func (c *SrvReportCmd) downgradeCheckAction(_ *fisk.ParseContext) error {
-	nc, err := newNatsConn("", natsOpts()...)
-	if err != nil {
-		return fmt.Errorf("connection setup failed: %v", err)
+	if c.archivePath == "" {
+		nc, _, err := prepareHelper("", natsOpts()...)
+		if err != nil {
+			return err
+		}
+		c.nc = nc
+
+		if c.waitFor == 0 {
+			c.waitFor, err = serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, traceLogger())
+			if err != nil {
+				return fmt.Errorf("failed to get current active servers: %s", err)
+			}
+		}
 	}
-	defer nc.Close()
 
 	if !c.json {
 		fmt.Println("Obtaining JetStream Asset information")
 	}
 
-	activeServers, err := currentActiveServers(nc)
+	src, err := c.dataSource()
 	if err != nil {
 		return err
 	}
-	if activeServers == 0 {
-		return fmt.Errorf("failed to find any active servers before timeout expired")
-	}
+	defer src.Close()
 
-	sys := sysclient.New(nc, opts().Trace)
-	accounts, err := sys.CollectClusterAccounts(opts().Timeout, activeServers)
+	accounts, err := src.CollectAccounts()
 	if err != nil {
 		return fmt.Errorf("JSZ fetch failed: %v", err)
 	}

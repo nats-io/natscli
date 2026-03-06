@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -9,17 +8,20 @@ import (
 
 	iu "github.com/nats-io/natscli/internal/util"
 
+	"github.com/nats-io/jsm.go/serverdata"
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/columns"
 
 	"github.com/choria-io/fisk"
 )
 
 type srvAccountCommand struct {
-	json    bool
-	account string
-	server  string
-	force   bool
+	json        bool
+	account     string
+	server      string
+	force       bool
+	archivePath string
 }
 
 func configureServerAccountCommand(srv *fisk.CmdClause) {
@@ -32,6 +34,7 @@ func configureServerAccountCommand(srv *fisk.CmdClause) {
 	info.Tag("scope:system", "impact:ro")
 	info.Arg("account", "The name of the account to view").Required().StringVar(&c.account)
 	info.Flag("host", "Request information from a specific server").StringVar(&c.server)
+	info.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	purge := account.Command("purge", "Purge assets from JetStream clusters").Action(c.purgeAccount)
 	purge.Tag("scope:system", "impact:rw")
@@ -67,63 +70,58 @@ func (c *srvAccountCommand) purgeAccount(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
+func (c *srvAccountCommand) dataSource() (serverdata.Source, error) {
+	if c.archivePath != "" {
+		return serverdata.NewAuditArchive(c.archivePath)
+	}
+
 	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return nil, err
+	}
+	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+		return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, traceLogger())
+	}
+	return serverdata.NewLive(nc, reqFn, 1)
+}
+
+func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
+	ds, err := c.dataSource()
 	if err != nil {
 		return err
 	}
+	defer ds.Close()
 
 	opts := server.AccountzEventOptions{
 		AccountzOptions:    server.AccountzOptions{Account: c.account},
 		EventFilterOptions: server.EventFilterOptions{Name: c.server, ExactMatch: true},
 	}
 
-	res, err := doReq(&opts, "$SYS.REQ.SERVER.PING.ACCOUNTZ", 1, nc)
+	res, err := ds.Accountz(opts)
 	if err != nil {
 		return err
 	}
 
 	if len(res) == 0 {
+		if c.archivePath != "" {
+			if c.server != "" {
+				return fmt.Errorf("no captured data for account %q on host %q in %s", c.account, c.server, c.archivePath)
+			}
+			return fmt.Errorf("no captured data for account %q in %s", c.account, c.archivePath)
+		}
 		return fmt.Errorf("no responses received, ensure the account used has system privileges and appropriate permissions")
 	}
 
-	reqresp := map[string]json.RawMessage{}
-	err = json.Unmarshal(res[0], &reqresp)
-	if err != nil {
-		return err
+	resp := res[0]
+	if resp.Error != nil {
+		return fmt.Errorf("%s", resp.Error.Description)
 	}
 
-	if errresp, ok := reqresp["error"]; ok {
-		res := map[string]any{}
-		err := json.Unmarshal(errresp, &res)
-		if err != nil {
-			return fmt.Errorf("invalid response received: %q", errresp)
-		}
-
-		msg, ok := res["description"]
-		if !ok {
-			return fmt.Errorf("%q", errresp)
-		}
-
-		return fmt.Errorf("%v", msg)
-	}
-
-	data, ok := reqresp["data"]
-	if !ok {
-		return fmt.Errorf("no data received in response: %#v", reqresp)
-	}
-
-	account := server.Accountz{}
-	err = json.Unmarshal(data, &account)
-	if err != nil {
-		return err
-	}
-
-	if account.Account == nil {
+	if resp.Data == nil || resp.Data.Account == nil {
 		return fmt.Errorf("no account information received")
 	}
 
-	nfo := account.Account
+	nfo := resp.Data.Account
 
 	if c.json {
 		iu.PrintJSON(nfo)

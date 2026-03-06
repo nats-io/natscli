@@ -17,7 +17,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,7 +30,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/internal/scaffold"
-	"github.com/nats-io/natscli/internal/sysclient"
 )
 
 const sysUserCreds = "--user=sys --password=pass"
@@ -176,7 +174,7 @@ func TestServerCheck(t *testing.T) {
 
 			_, err = mgr.NewConsumer("TEST_STREAM", opts...)
 			if err != nil {
-				t.Fatalf("unable to create consumser: %s", err)
+				t.Fatalf("unable to create consumer: %s", err)
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' server check consumer --stream=TEST_STREAM --consumer=C --format=json", srv.ClientURL())))
@@ -1052,6 +1050,17 @@ func TestServerReport(t *testing.T) {
 			return nil
 		})
 	})
+
+	t.Run("connections archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server report connections --archive='%s'", archivePath)))
+		if !expectMatchLine(t, output, "CID", "Name", "Server", "Cluster", "IP") ||
+			!expectMatchLine(t, output, "client-1") ||
+			!expectMatchLine(t, output, "client-2") {
+			t.Errorf("failed report connections from archive: %s", output)
+		}
+	})
+
 	t.Run("cpu command", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server report cpu --json", srv.ClientURL(), sysUserCreds)))
@@ -1075,6 +1084,16 @@ func TestServerReport(t *testing.T) {
 			return nil
 		})
 	})
+
+	t.Run("gateways archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server report gateways --archive='%s'", archivePath)))
+		if !expectMatchLine(t, output, "Server", "Name", "Port", "Kind") ||
+			!expectMatchLine(t, output, "s1") {
+			t.Errorf("failed report gateways from archive: %s", output)
+		}
+	})
+
 	t.Run("health command", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server report health", srv.ClientURL(), sysUserCreds)))
@@ -1085,6 +1104,16 @@ func TestServerReport(t *testing.T) {
 			return nil
 		})
 	})
+
+	t.Run("health archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server report health --archive='%s'", archivePath)))
+		if !expectMatchLine(t, output, "Server", "Cluster", "Domain", "Status", "Type", "Error") ||
+			!expectMatchLine(t, output, "s1", `ok \(200\)`) {
+			t.Errorf("failed report health from archive: %s", output)
+		}
+	})
+
 	t.Run("jetstream command", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server report jetstream", srv.ClientURL(), sysUserCreds)))
@@ -1095,6 +1124,16 @@ func TestServerReport(t *testing.T) {
 			return nil
 		})
 	})
+
+	t.Run("jetstream archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server report jetstream --archive='%s'", archivePath)))
+		if !expectMatchLine(t, output, "Server", "Cluster", "Streams", "Consumers", "Messages", "Bytes", "Memory", "File", "API Req", "Pending") ||
+			!expectMatchLine(t, output, "s1") {
+			t.Errorf("failed report jetstream from archive: %s", output)
+		}
+	})
+
 	t.Run("leafnodes command", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server report leafnodes", srv.ClientURL(), sysUserCreds)))
@@ -1104,6 +1143,15 @@ func TestServerReport(t *testing.T) {
 			return nil
 		})
 	})
+
+	t.Run("leafnodes archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server report leafnodes --archive='%s'", archivePath)))
+		if !expectMatchLine(t, output, "Server", "Name", "Account", "Address", "RTT") {
+			t.Errorf("failed report leafnodes from archive: %s", output)
+		}
+	})
+
 	t.Run("mem command", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server report mem", srv.ClientURL(), sysUserCreds)))
@@ -1121,6 +1169,22 @@ func TestServerReport(t *testing.T) {
 			}
 			return nil
 		})
+	})
+
+	t.Run("routes archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server report routes --archive='%s'", archivePath)))
+		if !expectMatchLine(t, output, "Server", "Cluster", "Name", "Account", "Address") {
+			t.Errorf("failed report routes from archive: %s", output)
+		}
+	})
+
+	t.Run("jetstream archive command invalid flag", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		err := runNatsCliWithError(t, fmt.Sprintf("server report jetstream --account=foo --archive='%s'", archivePath))
+		if err == nil {
+			t.Error("expected error when using --account with --archive")
+		}
 	})
 }
 
@@ -1155,6 +1219,27 @@ func TestServerRequest(t *testing.T) {
 			}
 			return nil
 		})
+	})
+
+	t.Run("accounts archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server request accounts --archive='%s'", archivePath)))
+		expected := map[string]any{
+			"server": map[string]any{
+				"name": "s1",
+			},
+			"data": map[string]any{
+				"system_account": "SYS",
+				"accounts": []any{
+					"users",
+					"SYS",
+				},
+			},
+		}
+		err := expectMatchJSON(t, output, expected)
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("connections command", func(t *testing.T) {
@@ -1214,6 +1299,28 @@ func TestServerRequest(t *testing.T) {
 		})
 	})
 
+	t.Run("connections archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server request connections --archive='%s'", archivePath)))
+		expected := map[string]any{
+			"server": map[string]any{
+				"name": "s1",
+			},
+			"data": map[string]any{
+				"num_connections": `\d+`,
+				"connections": []any{
+					map[string]any{
+						"name": "client-1",
+					},
+				},
+			},
+		}
+		err := expectMatchJSON(t, output, expected)
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
 	t.Run("gateways command", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server request gateways", srv.ClientURL(), sysUserCreds)))
@@ -1241,6 +1348,23 @@ func TestServerRequest(t *testing.T) {
 			}
 			return nil
 		})
+	})
+
+	t.Run("gateways archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server request gateways --archive='%s'", archivePath)))
+		expected := map[string]any{
+			"server": map[string]any{
+				"name": "s1",
+			},
+			"data": map[string]any{
+				"name": "TEST",
+			},
+		}
+		err := expectMatchJSON(t, output, expected)
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("ipq command", func(t *testing.T) {
@@ -1299,6 +1423,24 @@ func TestServerRequest(t *testing.T) {
 		})
 	})
 
+	t.Run("jetstream-health archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server request jetstream-health --archive='%s'", archivePath)))
+		expected := map[string]any{
+			"server": map[string]any{
+				"name": "s1",
+			},
+			"data": map[string]any{
+				"status":      "ok",
+				"status_code": "200",
+			},
+		}
+		err := expectMatchJSON(t, output, expected)
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
 	t.Run("jetstream command", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server request jetstream", srv.ClientURL(), sysUserCreds)))
@@ -1349,6 +1491,38 @@ func TestServerRequest(t *testing.T) {
 		})
 	})
 
+	t.Run("jetstream archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server request jetstream --archive='%s'", archivePath)))
+		expected := map[string]any{
+			"server": map[string]any{
+				"name": "s1",
+			},
+			"data": map[string]any{
+				"memory":    `\d+`,
+				"storage":   `\d+`,
+				"streams":   `\d+`,
+				"consumers": `\d+`,
+				"messages":  `\d+`,
+				"bytes":     `\d+`,
+				"accounts":  `\d+`,
+				"server_id": `[A-Z0-9]+`,
+				"config": map[string]any{
+					"max_memory":  `\d+`,
+					"max_storage": `\d+`,
+				},
+				"api": map[string]any{
+					"total":  `\d+`,
+					"errors": `\d+`,
+				},
+			},
+		}
+		err := expectMatchJSON(t, output, expected)
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
 	t.Run("kick command", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			_, err := nats.Connect(srv.ClientURL(), nats.UserInfo("sys", "pass"))
@@ -1359,7 +1533,7 @@ func TestServerRequest(t *testing.T) {
 			resp := &server.ServerAPIConnzResponse{}
 			data, err := nc.Request("$SYS.REQ.SERVER.PING.CONNZ", nil, time.Second)
 			if err != nil {
-				log.Fatal(err)
+				t.Fatal(err)
 			}
 			json.Unmarshal(data.Data, resp)
 
@@ -1411,6 +1585,24 @@ func TestServerRequest(t *testing.T) {
 			}
 			return nil
 		})
+	})
+
+	t.Run("leafnodes archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server request leafnodes --archive='%s'", archivePath)))
+		expected := map[string]any{
+			"server": map[string]any{
+				"name": "s1",
+			},
+			"data": map[string]any{
+				"leafnodes": `\d+`,
+				"leafs":     []any{},
+			},
+		}
+		err := expectMatchJSON(t, output, expected)
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("profile command", func(t *testing.T) {
@@ -1492,6 +1684,23 @@ func TestServerRequest(t *testing.T) {
 		})
 	})
 
+	t.Run("routes archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server request routes --archive='%s'", archivePath)))
+		expected := map[string]any{
+			"server": map[string]any{
+				"name": "s1",
+			},
+			"data": map[string]any{
+				"routes": []any{},
+			},
+		}
+		err := expectMatchJSON(t, output, expected)
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
 	t.Run("subscriptions command", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server request subscriptions", srv.ClientURL(), sysUserCreds)))
@@ -1531,6 +1740,27 @@ func TestServerRequest(t *testing.T) {
 		})
 	})
 
+	t.Run("subscriptions archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server request subscriptions --archive='%s'", archivePath)))
+		expected := map[string]any{
+			"server": map[string]any{
+				"name": "s1",
+			},
+			"data": map[string]any{
+				"num_subscriptions": `\d+`,
+				"num_cache":         `\d+`,
+				"num_inserts":       `\d+`,
+				"num_removes":       `\d+`,
+				"num_matches":       `\d+`,
+			},
+		}
+		err := expectMatchJSON(t, output, expected)
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
 	t.Run("variables command", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			runNatsCli(t, fmt.Sprintf("--server='%s' %s server request variables", srv.ClientURL(), sysUserCreds))
@@ -1538,6 +1768,27 @@ func TestServerRequest(t *testing.T) {
 			// too variable to rely on.
 			return nil
 		})
+	})
+
+	t.Run("variables archive command", func(t *testing.T) {
+		archivePath := createTestArchive(t)
+		output := string(runNatsCli(t, fmt.Sprintf("server request variables --archive='%s'", archivePath)))
+		expected := map[string]any{
+			"server": map[string]any{
+				"name": "s1",
+				"host": "localhost",
+				"id":   `[A-Z0-9]+`,
+			},
+			"data": map[string]any{
+				"max_connections":   "1000",
+				"max_subscriptions": "100000",
+				"max_payload":       `\d+(\.\d+)?(e\+\d+)?`,
+			},
+		}
+		err := expectMatchJSON(t, output, expected)
+		if err != nil {
+			t.Error(err)
+		}
 	})
 }
 
@@ -1555,7 +1806,7 @@ func TestServerStreamCheck(t *testing.T) {
 
 			_, err := mgr.NewStream("CHECK_STREAM", jsm.Subjects("TEST.*"))
 			if err != nil {
-				t.Error("Unable to creat new stream")
+				t.Error("unable to create new stream")
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server stream-check", srv.ClientURL(), sysUserCreds)))
@@ -1573,7 +1824,7 @@ func TestServerStreamCheck(t *testing.T) {
 
 			_, err := mgr.NewStream("CHECK_STREAM", jsm.Subjects("TEST.*"))
 			if err != nil {
-				t.Error("Unable to creat new stream")
+				t.Error("unable to create new stream")
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server stream-check --expected=2  --read-timeout=1", srv.ClientURL(), sysUserCreds)))
@@ -1591,22 +1842,22 @@ func TestServerStreamCheck(t *testing.T) {
 	t.Run("stream-check with STDIN", func(t *testing.T) {
 		content, err := os.ReadFile("testdata/jsz_response.out")
 		if err != nil {
-			log.Fatal(err)
+			t.Fatal(err)
 		}
 		runNatsCliWithInput(t, string(content), "server stream-check --stdin")
 	})
 
 	makeStreamCheckResp := func(t *testing.T, name, id string, msgs, bytes uint64, numSubjects, numDeleted, consumers int, firstSeq, lastSeq uint64) string {
 		t.Helper()
-		resp := sysclient.JSZResp{
-			Server: server.ServerInfo{
+		resp := server.ServerAPIJszResponse{
+			Server: &server.ServerInfo{
 				Name:      name,
 				Host:      "localhost",
 				ID:        id,
 				Version:   "2.12.0",
 				JetStream: true,
 			},
-			JSInfo: server.JSInfo{
+			Data: &server.JSInfo{
 				ID:       id,
 				Streams:  1,
 				Messages: msgs,
@@ -1638,7 +1889,7 @@ func TestServerStreamCheck(t *testing.T) {
 
 		b, err := json.Marshal(resp)
 		if err != nil {
-			t.Fatalf("failed to marshal JSZResp: %v", err)
+			t.Fatalf("failed to marshal ServerAPIJszResponse: %v", err)
 		}
 		return string(b)
 	}
@@ -1714,7 +1965,7 @@ func TestServerConsumerCheck(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			_, err := mgr.NewStream("CONSUMER_CHECK_STREAM", jsm.Subjects("TEST.*"))
 			if err != nil {
-				t.Error("Unable to creat new stream")
+				t.Error("unable to create new stream")
 			}
 
 			opts := []jsm.ConsumerOption{
@@ -1725,7 +1976,7 @@ func TestServerConsumerCheck(t *testing.T) {
 
 			_, err = mgr.NewConsumer("CONSUMER_CHECK_STREAM", opts...)
 			if err != nil {
-				t.Error("Unable to creat new consumer")
+				t.Error("unable to create new consumer")
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server consumer-check", srv.ClientURL(), sysUserCreds)))
@@ -1740,15 +1991,15 @@ func TestServerConsumerCheck(t *testing.T) {
 	})
 	makeConsumerCheckResp := func(t *testing.T, name, id string, deliveredStream, deliveredConsumer, ackFloorStream, ackFloorConsumer uint64) string {
 		t.Helper()
-		resp := sysclient.JSZResp{
-			Server: server.ServerInfo{
+		resp := server.ServerAPIJszResponse{
+			Server: &server.ServerInfo{
 				Name:      name,
 				Host:      "localhost",
 				ID:        id,
 				Version:   "2.12.0",
 				JetStream: true,
 			},
-			JSInfo: server.JSInfo{
+			Data: &server.JSInfo{
 				ID:        id,
 				Streams:   1,
 				Consumers: 1,
@@ -1797,7 +2048,7 @@ func TestServerConsumerCheck(t *testing.T) {
 
 		b, err := json.Marshal(resp)
 		if err != nil {
-			t.Fatalf("failed to marshal JSZResp: %v", err)
+			t.Fatalf("failed to marshal ServerAPIJszResponse: %v", err)
 		}
 		return string(b)
 	}
@@ -1870,7 +2121,7 @@ func TestServerConsumerCheck(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			_, err := mgr.NewStream("CONSUMER_CHECK_STREAM", jsm.Subjects("TEST.*"))
 			if err != nil {
-				t.Error("Unable to creat new stream")
+				t.Error("unable to create new stream")
 			}
 
 			opts := []jsm.ConsumerOption{
@@ -1881,7 +2132,7 @@ func TestServerConsumerCheck(t *testing.T) {
 
 			_, err = mgr.NewConsumer("CONSUMER_CHECK_STREAM", opts...)
 			if err != nil {
-				t.Error("Unable to creat new consumer")
+				t.Error("unable to create new consumer")
 			}
 
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server consumer-check --expected=2 --read-timeout=1", srv.ClientURL(), sysUserCreds)))
