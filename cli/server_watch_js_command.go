@@ -24,11 +24,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
+
+	"github.com/choria-io/fisk"
 )
 
 type srvWatchJSCmd struct {
@@ -122,7 +123,7 @@ func (c *srvWatchJSCmd) jetstreamAction(_ *fisk.ParseContext) error {
 	for {
 		select {
 		case <-tick.C:
-			err = c.redraw(true)
+			err = c.redraw()
 			if err != nil {
 				return err
 			}
@@ -149,7 +150,7 @@ func (c *srvWatchJSCmd) handle(msg *nats.Msg) {
 	c.mu.Unlock()
 }
 
-func (c *srvWatchJSCmd) redraw(drawPending bool) error {
+func (c *srvWatchJSCmd) redraw() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -159,13 +160,15 @@ func (c *srvWatchJSCmd) redraw(drawPending bool) error {
 	}
 
 	var (
-		servers    []*server.ServerStatsMsg
-		assets     int
-		mem        uint64
-		store      uint64
-		api        uint64
-		apiError   uint64
-		apiPending int
+		servers             []*server.ServerStatsMsg
+		assets              int
+		mem                 uint64
+		store               uint64
+		api                 uint64
+		apiError            uint64
+		apiPendingTotal     int
+		requestPendingTotal int
+		infoPendingTotal    int
 	)
 
 	for _, srv := range c.servers {
@@ -181,7 +184,9 @@ func (c *srvWatchJSCmd) redraw(drawPending bool) error {
 		api += srv.Stats.JetStream.Stats.API.Total
 		apiError += srv.Stats.JetStream.Stats.API.Errors
 		if srv.Stats.JetStream.Meta != nil {
-			apiPending += srv.Stats.JetStream.Meta.Pending
+			apiPendingTotal += srv.Stats.JetStream.Meta.Pending
+			infoPendingTotal += srv.Stats.JetStream.Meta.PendingInfos
+			requestPendingTotal += srv.Stats.JetStream.Meta.PendingRequests
 		}
 	}
 
@@ -208,11 +213,7 @@ func (c *srvWatchJSCmd) redraw(drawPending bool) error {
 
 	table := iu.NewTableWriterf(opts(), "Top %s Server activity by %s at %s", tc, c.sortNames[c.sort], c.lastMsg.Format(time.DateTime))
 
-	if drawPending {
-		table.AddHeaders("Server", "HA Assets", "Memory", "File", "API", "API Errors", "API Pending")
-	} else {
-		table.AddHeaders("Server", "HA Assets", "Memory", "File", "API", "API Errors")
-	}
+	table.AddHeaders("Server", "HA Assets", "Memory", "File", "API", "API Errors", "Pending", "Snapshot Time")
 
 	var matched []*server.ServerStatsMsg
 	if len(servers) < c.topCount {
@@ -226,11 +227,31 @@ func (c *srvWatchJSCmd) redraw(drawPending bool) error {
 		name := srv.Server.Name
 
 		pending := 0
+		infoPending := 0
+		requestsPending := 0
+		snapshotTime := time.Time{}
+		snapshotDuration := time.Duration(0)
+
 		if srv.Stats.JetStream.Meta != nil {
-			pending = srv.Stats.JetStream.Meta.Pending
-			if srv.Stats.JetStream.Meta.Leader == name {
+			jsm := srv.Stats.JetStream.Meta
+			pending = jsm.Pending
+			infoPending = jsm.PendingInfos
+			requestsPending = jsm.PendingRequests
+			if jsm.Leader == name {
 				name = name + "*"
+				if jsm.Snapshot != nil {
+					snapshotTime = jsm.Snapshot.LastTime
+					snapshotDuration = jsm.Snapshot.LastDuration
+				}
 			}
+		}
+
+		pendingString := f(pending)
+		if infoPending > 0 {
+			pendingString = fmt.Sprintf("%s / %s info", pendingString, f(infoPending))
+		}
+		if requestsPending > 0 {
+			pendingString = fmt.Sprintf("%s / %s req", pendingString, f(requestsPending))
 		}
 
 		row := []any{
@@ -240,17 +261,27 @@ func (c *srvWatchJSCmd) redraw(drawPending bool) error {
 			fiBytes(js.Store),
 			f(js.API.Total),
 			f(js.API.Errors),
+			pendingString,
 		}
-		if drawPending {
-			row = append(row, f(pending))
+
+		if !snapshotTime.IsZero() {
+			row = append(row, fmt.Sprintf("%s ago (%s)", f(time.Since(snapshotTime)), f(snapshotDuration)))
+		} else {
+			row = append(row, "")
 		}
 
 		table.AddRow(row...)
 	}
-	row := []any{fmt.Sprintf("Totals (%d Servers)", len(matched)), f(assets), fiBytes(mem), fiBytes(store), f(api), f(apiError)}
-	if drawPending {
-		row = append(row, f(apiPending))
+
+	pendingString := f(apiPendingTotal)
+	if infoPendingTotal > 0 {
+		pendingString = fmt.Sprintf("%s / %s info", pendingString, f(infoPendingTotal))
 	}
+	if requestPendingTotal > 0 {
+		pendingString = fmt.Sprintf("%s / %s req", pendingString, f(requestPendingTotal))
+	}
+
+	row := []any{fmt.Sprintf("Totals (%d Servers)", len(matched)), f(assets), fiBytes(mem), fiBytes(store), f(api), f(apiError), f(pendingString)}
 	table.AddFooter(row...)
 
 	iu.ClearScreen()
