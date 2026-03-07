@@ -1257,11 +1257,10 @@ func TestServerRequest(t *testing.T) {
 					"time":      `.+`,
 				},
 				"data": map[string]any{
-					"Routed JS API Requests": map[string]any{},
-					"SendQ":                  map[string]any{},
-					"System recvQ":           map[string]any{},
-					"System recvQ Pings":     map[string]any{},
-					"delayed API responses":  map[string]any{},
+					"SendQ":                 map[string]any{},
+					"System recvQ":          map[string]any{},
+					"System recvQ Pings":    map[string]any{},
+					"delayed API responses": map[string]any{},
 				},
 			}
 			err := expectMatchJSON(t, output, expected)
