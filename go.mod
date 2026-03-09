@@ -18,9 +18,9 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.7.8
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.18.4
-	github.com/nats-io/jsm.go v0.3.1-0.20260219095443-a90ceb3909f3
+	github.com/nats-io/jsm.go v0.3.1-0.20260306121907-27533d0ed00d
 	github.com/nats-io/jwt/v2 v2.8.0
-	github.com/nats-io/nats-server/v2 v2.12.4
+	github.com/nats-io/nats-server/v2 v2.12.1-0.20260306110926-df75f9f96ce3
 	github.com/nats-io/nats.go v1.49.0
 	github.com/nats-io/nkeys v0.4.15
 	github.com/nats-io/nuid v1.0.1
@@ -65,13 +65,13 @@ require (
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
-	github.com/prometheus/procfs v0.19.2 // indirect
+	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/synadia-io/orbit.go/natsext v0.1.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
-	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
