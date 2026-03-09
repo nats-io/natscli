@@ -221,17 +221,24 @@ func (b *Bundle) scaffold(dest string, env map[string]any, debug bool) error {
 		fmt.Println()
 	}
 
-	err = s.Render(env)
+	managed, err := s.Render(env)
 	if err != nil {
 		return err
 	}
 
-	for _, f := range s.ChangedFiles() {
-		log.Printf("Wrote %s", filepath.Join(dest, f))
+	for _, f := range managed {
+		switch f.Action {
+		case scaffold.FileActionAdd:
+			log.Printf("Created %s", filepath.Join(dest, f.Path))
+		case scaffold.FileActionRemove:
+			log.Printf("Removed %s", filepath.Join(dest, f.Path))
+		case scaffold.FileActionUpdate:
+			log.Printf("Changed %s", filepath.Join(dest, f.Path))
+		}
+
 	}
 
 	if b.PostScaffold != "" {
-		env["scaffold_changes"] = s.ChangedFiles()
 		res, err := s.RenderString(b.PostScaffold, env)
 		if err != nil {
 			return err
