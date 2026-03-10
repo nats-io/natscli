@@ -170,6 +170,8 @@ type streamCmd struct {
 	allowAtomicBatchIsSet     bool
 	allowCounter              bool
 	allowCounterIsSet         bool
+	allowFastBatch            bool
+	allowFastBatchIsSet       bool
 	subjectDeleteMarkerTTLSet bool
 	subjectDeleteMarkerTTL    time.Duration
 	apiLevel                  int
@@ -181,7 +183,6 @@ type streamStat struct {
 	Msgs      int64
 	Bytes     uint64
 	Storage   string
-	Template  string
 	Cluster   *api.ClusterInfo
 	LostBytes uint64
 	LostMsgs  int
@@ -226,6 +227,7 @@ func configureStreamCommand(app commandHost) {
 		}
 		f.Flag("source", "Source data from other streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
 		f.Flag("allow-batch", "Allow atomic batch publishing").IsSetByUser(&c.allowAtomicBatchIsSet).BoolVar(&c.allowAtomicBatch)
+		f.Flag("allow-fast", "Allow fast batch publishing").IsSetByUser(&c.allowFastBatchIsSet).BoolVar(&c.allowFastBatch)
 		f.Flag("allow-counter", "Configures the stream as a distributed counter").IsSetByUser(&c.allowCounterIsSet).UnNegatableBoolVar(&c.allowCounter)
 		f.Flag("allow-rollup", "Allows roll-ups to be done by publishing messages with special headers").IsSetByUser(&c.allowRollupSet).BoolVar(&c.allowRollup)
 		f.Flag("deny-delete", "Deny messages from being deleted via the API").IsSetByUser(&c.denyDeleteSet).BoolVar(&c.denyDelete)
@@ -1522,7 +1524,6 @@ func (c *streamCmd) reportAction(_ *fisk.ParseContext) error {
 			Msgs:      int64(info.State.Msgs),
 			Bytes:     info.State.Bytes,
 			Storage:   info.Config.Storage.String(),
-			Template:  info.Config.Template,
 			Cluster:   info.Cluster,
 			Deleted:   deleted,
 			Mirror:    info.Mirror,
@@ -1912,6 +1913,9 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 	if c.allowAtomicBatchIsSet {
 		cfg.AllowAtomicPublish = c.allowAtomicBatch
 	}
+	if c.allowFastBatchIsSet {
+		cfg.AllowBatchPublish = c.allowFastBatch
+	}
 
 	if c.allowCounterIsSet {
 		cfg.AllowMsgCounter = c.allowCounter
@@ -2178,7 +2182,8 @@ func (c *streamCmd) showStreamConfig(cols *columns.Writer, cfg api.StreamConfig)
 	cols.AddRow("Duplicate Window", cfg.Duplicates)
 	cols.AddRowIf("Direct Get", cfg.AllowDirect, cfg.AllowDirect)
 	cols.AddRowIf("Mirror Direct Get", cfg.MirrorDirect, cfg.MirrorDirect)
-	cols.AddRow("Allows Batch Publish", cfg.AllowAtomicPublish)
+	cols.AddRow("Allows Atomic Batch Publish", cfg.AllowAtomicPublish)
+	cols.AddRow("Allows Fast Batch Publish", cfg.AllowBatchPublish)
 	cols.AddRow("Allows Counters", cfg.AllowMsgCounter)
 	cols.AddRow("Allows Msg Delete", !cfg.DenyDelete)
 	cols.AddRow("Allows Per-Message TTL", cfg.AllowMsgTTL)
@@ -2813,6 +2818,7 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 		AllowDirect:            c.allowDirect,
 		AllowMsgTTL:            c.allowMsgTTL,
 		AllowAtomicPublish:     c.allowAtomicBatch,
+		AllowBatchPublish:      c.allowFastBatch,
 		AllowMsgCounter:        c.allowCounter,
 		AllowMsgSchedules:      c.allowSchedules,
 		SubjectDeleteMarkerTTL: c.subjectDeleteMarkerTTL,
