@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The NATS Authors
+// Copyright 2020-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -30,7 +30,6 @@ func configureServerCommand(app commandHost) {
 	configureServerPingCommand(srv)
 	configureServerReportCommand(srv)
 	configureServerRequestCommand(srv)
-	configureServerRunCommand(srv)
 	configureServerWatchCommand(srv)
 	configureStreamCheckCommand(srv)
 	configureConsumerCheckCommand(srv)
