@@ -28,18 +28,20 @@ builds:
       - amd64
       - arm
       - arm64
-      - 386
+      - "386"
       - s390x
     goarm:
-      - 6
-      - 7
+      - "6"
+      - "7"
     ignore:
       - goos: freebsd
         goarch: arm
       - goos: freebsd
         goarch: arm64
       - goos: freebsd
-        goarch: 386
+        goarch: "386"
+      - goos: windows
+        goarch: arm
 
 archives:
   - name_template: "nats-{{.Version}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
