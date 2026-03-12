@@ -49,6 +49,9 @@ func NewProgress(opts *options.Options, tracker *progress.Tracker) (progress.Wri
 }
 
 func contextColor(opts *options.Options) text.Colors {
+	if opts.Config == nil {
+		return text.Colors{text.FgWhite}
+	}
 	cs := opts.Config.ColorScheme()
 	s, ok := styles[cs]
 	if !ok {

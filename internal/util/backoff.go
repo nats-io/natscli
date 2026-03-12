@@ -64,6 +64,7 @@ func (b BackoffPolicy) Sleep(ctx context.Context, t time.Duration) error {
 	case <-timer.C:
 		return nil
 	case <-ctx.Done():
+		timer.Stop()
 		return ctx.Err()
 	}
 }
@@ -84,7 +85,7 @@ func (b BackoffPolicy) For(ctx context.Context, cb func(try int) error) error {
 			return nil
 		}
 
-		err = b.TrySleep(ctx, tries)
+		err = b.TrySleep(ctx, tries-1)
 		if err != nil {
 			return err
 		}

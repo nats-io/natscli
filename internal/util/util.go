@@ -86,15 +86,19 @@ func versionComponents(version string) (major, minor, patch int, err error) {
 	if err != nil {
 		return -1, -1, -1, err
 	}
-	minor, err = strconv.Atoi(m[2])
-	if err != nil {
-		return -1, -1, -1, err
+	if m[2] != "" {
+		minor, err = strconv.Atoi(m[2])
+		if err != nil {
+			return -1, -1, -1, err
+		}
 	}
-	patch, err = strconv.Atoi(m[3])
-	if err != nil {
-		return -1, -1, -1, err
+	if m[3] != "" {
+		patch, err = strconv.Atoi(m[3])
+		if err != nil {
+			return -1, -1, -1, err
+		}
 	}
-	return major, minor, patch, err
+	return major, minor, patch, nil
 }
 
 // ServerMinVersion checks if the connected server meets certain version constraints
@@ -170,7 +174,7 @@ func SliceGroups(input []string, size int, fn func(group []string)) {
 	if padding != size {
 		p := []string{}
 
-		for i := 0; i <= padding; i++ {
+		for i := 0; i < padding; i++ {
 			p = append(p, "")
 		}
 
@@ -452,7 +456,7 @@ func ProgressWidth() int {
 
 // JSONString returns a quoted string to be used as a JSON object
 func JSONString(s string) string {
-	return "\"" + s + "\""
+	return strconv.Quote(s)
 }
 
 // SplitCommand Split the string into a command and its arguments.
