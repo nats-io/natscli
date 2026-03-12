@@ -36,13 +36,10 @@ func RandomString(shortest uint, longest uint) string {
 
 	var desired int
 
-	switch {
-	case int(longest)-int(shortest) < 0:
-		desired = int(shortest) + rand.IntN(int(longest))
-	case longest == shortest:
+	if longest == shortest {
 		desired = int(shortest)
-	default:
-		desired = int(shortest) + rand.IntN(int(longest-shortest))
+	} else {
+		desired = int(shortest) + rand.IntN(int(longest-shortest)+1)
 	}
 
 	b := make([]rune, desired)

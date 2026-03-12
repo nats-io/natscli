@@ -39,6 +39,7 @@ type Publisher struct {
 	Tracker  *progress.Tracker
 
 	reader      *bufio.Reader
+	stdinPipe   *io.PipeReader
 	progressBar progress.Writer
 	templates   bool
 	sendOn      string
@@ -66,6 +67,7 @@ func NewPublisher(cfg PublisherConfig) (*Publisher, error) {
 	p.UseStdin = !cfg.BodyIsSet && (IsTerminal() || cfg.ForceStdin)
 	if p.UseStdin {
 		readPipe, writePipe := io.Pipe()
+		p.stdinPipe = readPipe
 		p.reader = bufio.NewReader(readPipe)
 		go func() {
 			_, err := io.Copy(writePipe, os.Stdin)
@@ -180,12 +182,10 @@ func (p *Publisher) Run(ctx context.Context, callback func() error) error {
 
 	select {
 	case <-ctx.Done():
-		if p.reader != nil {
-			if rp, ok := any(p.reader).(interface{ Close() error }); ok {
-				rp.Close()
-			}
+		if p.stdinPipe != nil {
+			p.stdinPipe.CloseWithError(ctx.Err())
 		}
-		return fmt.Errorf("interrupted")
+		return ctx.Err()
 	case <-complete:
 		return <-errCh
 	}
