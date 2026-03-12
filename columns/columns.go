@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dustin/go-humanize"
 	"github.com/jedib0t/go-pretty/v6/text"
@@ -340,8 +341,9 @@ func (w *Writer) AddStringsAsValue(t string, data []string) {
 
 	for i, val := range vals {
 		if utf8StringLen(val) > maxLen && maxLen > 20 {
-			w := maxLen/2 - 10
-			val = fmt.Sprintf("%v ... %v", val[0:w], val[len(val)-w:])
+			runes := []rune(val)
+			half := maxLen/2 - 10
+			val = fmt.Sprintf("%v ... %v", string(runes[0:half]), string(runes[len(runes)-half:]))
 		}
 
 		if i == 0 {
@@ -366,8 +368,9 @@ func (w *Writer) AddMapStringsAsValue(t string, data map[string]string) {
 		v := data[k]
 
 		if utf8StringLen(data[k]) > maxLen && maxLen > 20 {
-			w := maxLen/2 - 10
-			v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
+			runes := []rune(v)
+			half := maxLen/2 - 10
+			v = fmt.Sprintf("%v ... %v", string(runes[0:half]), string(runes[len(runes)-half:]))
 		}
 
 		if i == 0 {
@@ -414,8 +417,9 @@ func (w *Writer) AddMapStrings(data map[string]string) {
 		v := data[k]
 
 		if utf8StringLen(data[k]) > maxLen && maxLen > 20 {
-			w := maxLen/2 - 10
-			v = fmt.Sprintf("%v ... %v", v[0:w], v[len(v)-w:])
+			runes := []rune(v)
+			half := maxLen/2 - 10
+			v = fmt.Sprintf("%v ... %v", string(runes[0:half]), string(runes[len(runes)-half:]))
 		}
 
 		w.AddRow(k, v)
@@ -454,12 +458,7 @@ func (w *Writer) maybeAddColon(o io.Writer, v string, colorize bool) string {
 }
 
 func utf8StringLen(s string) int {
-	c := 0
-	for range s {
-		c++
-	}
-
-	return c
+	return utf8.RuneCountInString(s)
 }
 
 func F(v any) string {
@@ -501,16 +500,16 @@ func F(v any) string {
 }
 
 func HumanizeDuration(d time.Duration) string {
+	if d == math.MaxInt64 {
+		return "never"
+	}
+
 	if d < time.Millisecond {
 		return d.Round(time.Microsecond).String()
 	}
 
 	if d < time.Second {
 		return d.Round(time.Millisecond).String()
-	}
-
-	if d == math.MaxInt64 {
-		return "never"
 	}
 
 	tsecs := d / time.Second
