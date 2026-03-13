@@ -135,7 +135,12 @@ func PrintJSON(d any) error {
 
 // IsTerminal checks if stdin and stdout are both normal terminals
 func IsTerminal() bool {
-	return terminal.IsTerminal(int(os.Stdin.Fd())) && terminal.IsTerminal(int(os.Stdout.Fd()))
+	return terminal.IsTerminal(int(os.Stdin.Fd())) && IsStdoutTerminal()
+}
+
+// IsStdoutTerminal checks if stdout is a normal terminal
+func IsStdoutTerminal() bool {
+	return terminal.IsTerminal(int(os.Stdout.Fd()))
 }
 
 // WipeSlice overwrites the contents of slice with 'x'
