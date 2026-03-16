@@ -21,11 +21,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+
+	"github.com/choria-io/fisk"
 )
 
 type eventsCmd struct {
@@ -51,6 +52,7 @@ func configureEventsCommand(app commandHost) {
 	c := &eventsCmd{}
 
 	events := app.Command("events", "Show Advisories and Events").Alias("event").Alias("e").Action(c.eventsAction)
+	events.Tag("scope:user", "impact:ro")
 	addCheat("events", events)
 	events.Flag("all", "Show all events").Short('a').UnNegatableBoolVar(&c.showAll)
 	events.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)

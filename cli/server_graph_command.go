@@ -21,13 +21,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/api/server/zmonitor"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/internal/asciigraph"
 	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
+
+	"github.com/choria-io/fisk"
 )
 
 type SrvGraphCmd struct {
@@ -39,6 +40,7 @@ func configureServerGraphCommand(srv *fisk.CmdClause) {
 	c := &SrvGraphCmd{}
 
 	graph := srv.Command("graph", "Show graphs for a single server").Action(c.graph)
+	graph.Tag("scope:system", "impact:ro")
 	graph.Arg("server", "Server ID or Name to inspect").Required().StringVar(&c.id)
 	graph.Flag("jetstream", "Draw JetStream statistics").Short('j').UnNegatableBoolVar(&c.js)
 }

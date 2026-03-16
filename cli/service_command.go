@@ -27,11 +27,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
 	iu "github.com/nats-io/natscli/internal/util"
+
+	"github.com/choria-io/fisk"
 )
 
 type serviceCmd struct {
@@ -50,24 +51,29 @@ func configureServiceCommand(app commandHost) {
 	mc := app.Command("service", "Services discovery and management").Alias("micro")
 
 	ls := mc.Command("list", "List known Services").Alias("ls").Alias("l").Action(c.listAction)
+	ls.Tag("scope:user", "impact:ro")
 	ls.Arg("service", "List instances of a specific Service").PlaceHolder("NAME").StringVar(&c.name)
 	ls.Flag("json", "Show JSON output").Short('j').UnNegatableBoolVar(&c.showJSON)
 
 	info := mc.Command("info", "Show Service information").Alias("i").Action(c.infoAction)
+	info.Tag("scope:user", "impact:ro")
 	info.Arg("service", "Service to show").Required().StringVar(&c.name)
 	info.Arg("id", "Show info for a specific ID").StringVar(&c.id)
 	info.Flag("endpoint", "Filter shown endpoints using a regular expression").Short('e').RegexpVar(&c.endpoint)
 	info.Flag("json", "Show JSON output").Short('j').UnNegatableBoolVar(&c.showJSON)
 
 	stats := mc.Command("stats", "Report Service statistics").Action(c.statsAction)
+	stats.Tag("scope:user", "impact:ro")
 	stats.Arg("service", "Service to show").Required().StringVar(&c.name)
 	stats.Arg("id", "Show info for a specific ID").StringVar(&c.id)
 	stats.Flag("json", "Show JSON output").Short('j').UnNegatableBoolVar(&c.showJSON)
 
 	ping := mc.Command("ping", "Sends a ping to all Services").Action(c.pingAction)
+	ping.Tag("scope:user", "impact:rw")
 	ping.Arg("service", "Service to show").StringVar(&c.name)
 
 	echo := mc.Command("serve", "Runs a demo Service").Action(c.serveAction)
+	echo.Tag("scope:user", "impact:ro")
 	echo.Arg("name", "A name for the service to run on").Required().StringVar(&c.name)
 	echo.Flag("header", "Headers to add to responses using K:V format").Short('H').StringMapVar(&c.hdrs)
 }

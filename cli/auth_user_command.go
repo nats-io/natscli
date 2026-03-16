@@ -26,8 +26,9 @@ import (
 	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/choria-io/fisk"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
+
+	"github.com/choria-io/fisk"
 )
 
 type authUserCommand struct {
@@ -78,6 +79,7 @@ func configureAuthUserCommand(auth commandHost) {
 	}
 
 	add := user.Command("add", "Adds a new User").Alias("create").Alias("new").Action(c.addAction)
+	add.Tag("scope:system", "impact:rw")
 	add.Arg("name", "Unique name for this User").Required().StringVar(&c.userName)
 	add.Arg("account", "Account to add the user to").StringVar(&c.accountName)
 	add.Flag("key", "The public key to use when signing the user").StringVar(&c.signingKey)
@@ -88,11 +90,13 @@ func configureAuthUserCommand(auth commandHost) {
 	add.Flag("defaults", "Accept default values without prompting").UnNegatableBoolVar(&c.defaults)
 
 	info := user.Command("info", "Show User information").Alias("i").Alias("show").Alias("view").Action(c.infoAction)
+	info.Tag("scope:system", "impact:ro")
 	info.Arg("name", "Unique name for this User").StringVar(&c.userName)
 	info.Arg("account", "Account to query").StringVar(&c.accountName)
 	info.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
 
 	edit := user.Command("edit", "Edits User settings").Alias("update").Action(c.editAction)
+	edit.Tag("scope:system", "impact:rw")
 	edit.Arg("name", "Unique name for this User").StringVar(&c.userName)
 	edit.Arg("account", "Account to query").StringVar(&c.accountName)
 	edit.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
@@ -100,11 +104,13 @@ func configureAuthUserCommand(auth commandHost) {
 	edit.Flag("credential", "Writes credentials to a file").StringVar(&c.credFile)
 
 	ls := user.Command("ls", "List users").Action(c.lsAction)
+	ls.Tag("scope:system", "impact:ro")
 	ls.Arg("account", "Account to query").StringVar(&c.accountName)
 	ls.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
 	ls.Flag("names", "Show just the Account names").UnNegatableBoolVar(&c.listNames)
 
 	rm := user.Command("rm", "Removes an user").Action(c.rmAction)
+	rm.Tag("scope:system", "impact:rw")
 	rm.Arg("name", "Unique name for this User").StringVar(&c.userName)
 	rm.Arg("account", "Account to query").StringVar(&c.accountName)
 	rm.Flag("operator", "Operator holding the Account").StringVar(&c.operatorName)
@@ -112,6 +118,7 @@ func configureAuthUserCommand(auth commandHost) {
 	rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	cred := user.Command("credential", "Creates a credential file for a user").Alias("cred").Alias("creds").Action(c.credAction)
+	cred.Tag("scope:system", "impact:rw")
 	cred.Arg("file", "The file to create").Required().StringVar(&c.credFile)
 	cred.Arg("name", "User to generate a credential for").StringVar(&c.userName)
 	cred.Arg("account", "Account to query").StringVar(&c.accountName)

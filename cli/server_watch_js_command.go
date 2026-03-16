@@ -57,6 +57,7 @@ func configureServerWatchJSCommand(watch *fisk.CmdClause) {
 	sort.Strings(sortKeys)
 
 	js := watch.Command("jetstream", "Watch JetStream statistics").Alias("js").Alias("jsz").Action(c.jetstreamAction)
+	js.Tag("scope:system", "impact:ro")
 	js.HelpLong(`This waits for regular updates that each server sends and report seen totals
 
 Since the updates are sent on a 30 second interval this is not a point in time view.

@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.2.0
-	github.com/choria-io/fisk v0.7.2
+	github.com/choria-io/fisk v0.7.3-0.20260316155017-4f6358d304c8
 	github.com/choria-io/scaffold v0.0.10
 	github.com/creack/pty v1.1.17
 	github.com/dustin/go-humanize v1.0.1
@@ -19,9 +19,9 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.7.8
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.18.4
-	github.com/nats-io/jsm.go v0.3.1-0.20260310145507-9ed2a8f88ec5
+	github.com/nats-io/jsm.go v0.3.1-0.20260311160413-8208434e7b0d
 	github.com/nats-io/jwt/v2 v2.8.0
-	github.com/nats-io/nats-server/v2 v2.12.1-0.20260311110848-ae023ef7a46d
+	github.com/nats-io/nats-server/v2 v2.12.1-0.20260316105927-db7e72a0baba
 	github.com/nats-io/nats.go v1.49.0
 	github.com/nats-io/nkeys v0.4.15
 	github.com/nats-io/nuid v1.0.1

@@ -84,6 +84,9 @@ func (w *Writer) SetSeparator(seq string) {
 }
 
 func (w *Writer) Frender(o io.Writer) error {
+	if os.Getenv("LLMFORMAT") == "1" {
+		return w.renderMarkdown(o)
+	}
 	if os.Getenv("TESTING") == "true" {
 		return w.renderJSON(o)
 	}
@@ -224,6 +227,63 @@ func (w *Writer) renderJSON(o io.Writer) error {
 	enc := json.NewEncoder(o)
 	enc.SetIndent("", "  ")
 	return enc.Encode(sections)
+}
+
+func (w *Writer) renderMarkdown(o io.Writer) error {
+	if w.heading != "" {
+		fmt.Fprintf(o, "# %s\n\n", w.heading)
+	}
+
+	prev := -1
+	depth := 0
+
+	for _, row := range w.rows {
+		switch row.kind {
+		case kindIndent:
+			indent := len(row.values[0].(string))
+			if indent == 0 {
+				depth = 0
+			} else {
+				depth++
+			}
+
+		case kindTitle:
+			if prev != -1 {
+				fmt.Fprintln(o)
+			}
+			level := strings.Repeat("#", depth+2)
+			fmt.Fprintf(o, "%s %s\n\n", level, row.values[0].(string))
+			prev = row.kind
+
+		case kindRow:
+			if len(row.values) < 2 {
+				continue
+			}
+			label := row.values[0].(string)
+			value := row.values[1]
+
+			if label == "" {
+				fmt.Fprintf(o, "- %v\n", value)
+			} else {
+				fmt.Fprintf(o, "- **%s:** %v\n", label, value)
+			}
+			prev = row.kind
+
+		case kindLine:
+			if len(row.values) == 0 {
+				fmt.Fprintln(o)
+			} else {
+				parts := make([]string, len(row.values))
+				for i, v := range row.values {
+					parts[i] = fmt.Sprint(v)
+				}
+				fmt.Fprintln(o, strings.Join(parts, " "))
+			}
+			prev = row.kind
+		}
+	}
+
+	return nil
 }
 
 // Render produce the result as a string

@@ -21,8 +21,9 @@ import (
 
 	iu "github.com/nats-io/natscli/internal/util"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/natscli/plugins"
+
+	"github.com/choria-io/fisk"
 
 	"github.com/nats-io/natscli/cli"
 )
@@ -37,6 +38,15 @@ NATS Server and JetStream administration.
 See 'nats cheat' for a quick cheatsheet of commands`
 
 	ncli := fisk.New("nats", help)
+	ncli.LLMExtraInformation(`This application supports LLM friendly output when ran with LLMFORMAT=1
+
+The application applies tags to its commands that are visible in help output:
+
+ - scope:user - Operates at user level, no system credentials needed
+ - scope:system - Operates at system level, requires system credentials
+ - impact:ro - Read only operation, does not modify NATS data or state
+ - impact:rw - Read and write operation, modifies NATS data or state
+`)
 	ncli.Author("NATS Authors <info@nats.io>")
 	ncli.UsageWriter(os.Stdout)
 	ncli.Version(getVersion())

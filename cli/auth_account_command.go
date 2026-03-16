@@ -27,11 +27,12 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/nats-server/v2/server"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
+
+	"github.com/choria-io/fisk"
 )
 
 type authAccountCommand struct {
@@ -116,7 +117,6 @@ func configureAuthAccountCommand(auth commandHost) {
 	c := &authAccountCommand{}
 
 	acct := auth.Command("account", "Manage NATS Accounts").Alias("a").Alias("acct").Alias("act")
-
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Flag("bearer", "Allows bearer tokens").Default("false").IsSetByUser(&c.bearerAllowedIsSet).BoolVar(&c.bearerAllowed)
 		f.Flag("connections", "Maximum allowed connections").Default("-1").IsSetByUser(&c.maxConnsIsSet).Int64Var(&c.maxConns)
@@ -143,6 +143,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	}
 
 	add := acct.Command("add", "Adds a new Account").Alias("create").Alias("new").Action(c.addAction)
+	add.Tag("scope:system", "impact:rw")
 	add.Arg("account", "Unique name for this Account").StringVar(&c.accountName)
 	add.Flag("operator", "Operator to add the account to").StringVar(&c.operatorName)
 	add.Flag("key", "The public key to use when signing the user").StringVar(&c.signingKey)
@@ -150,15 +151,18 @@ func configureAuthAccountCommand(auth commandHost) {
 	add.Flag("defaults", "Accept default values without prompting").UnNegatableBoolVar(&c.defaults)
 
 	info := acct.Command("info", "Show Account information").Alias("i").Alias("show").Alias("view").Action(c.infoAction)
+	info.Tag("scope:system", "impact:ro")
 	info.Arg("account", "Account to view").StringVar(&c.accountName)
 	info.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 
 	edit := acct.Command("edit", "Edit Account settings").Alias("update").Action(c.editAction)
+	edit.Tag("scope:system", "impact:rw")
 	edit.Arg("account", "Unique name for this Account").StringVar(&c.accountName)
 	edit.Flag("operator", "Operator to add the account to").StringVar(&c.operatorName)
 	addCreateFlags(edit, false)
 
 	ls := acct.Command("ls", "List Accounts").Action(c.lsAction)
+	ls.Tag("scope:system", "impact:ro")
 	ls.Arg("operator", "Operator to act on").StringVar(&c.operatorName)
 	ls.Flag("names", "Show just the Account names").UnNegatableBoolVar(&c.listNames)
 
@@ -168,11 +172,13 @@ func configureAuthAccountCommand(auth commandHost) {
 	//rm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	push := acct.Command("push", "Push the Account to the NATS Resolver").Action(c.pushAction)
+	push.Tag("scope:system", "impact:rw")
 	push.Arg("account", "Account to act on").StringVar(&c.accountName)
 	push.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 	push.Flag("show", "Show the Account JWT before pushing").UnNegatableBoolVar(&c.showJWT)
 
 	query := acct.Command("query", "Pull the Account from the NATS Resolver and view it").Alias("pull").Action(c.queryAction)
+	query.Tag("scope:system", "impact:ro")
 	query.Arg("account", "Account to act on").Required().StringVar(&c.accountName)
 	query.Arg("output", "Saves the JWT to a file").StringVar(&c.output)
 	query.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
@@ -180,6 +186,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	imports := acct.Command("imports", "Manage account Imports").Alias("i").Alias("imp").Alias("import")
 
 	impAdd := imports.Command("add", "Adds an Import").Alias("new").Alias("a").Alias("n").Action(c.importAddAction)
+	impAdd.Tag("scope:system", "impact:rw")
 	impAdd.Arg("name", "A unique name for the import").Required().StringVar(&c.importName)
 	impAdd.Arg("subject", "The Subject to import").Required().StringVar(&c.subject)
 	impAdd.Arg("account", "Account to import into").StringVar(&c.accountName)
@@ -191,11 +198,13 @@ func configureAuthAccountCommand(auth commandHost) {
 	impAdd.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 
 	impInfo := imports.Command("info", "Show information for an Import").Alias("i").Alias("show").Alias("view").Action(c.importInfoAction)
+	impInfo.Tag("scope:system", "impact:ro")
 	impInfo.Arg("subject", "Export to view by subject").StringVar(&c.subject)
 	impInfo.Arg("account", "Account to act on").StringVar(&c.accountName)
 	impInfo.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 
 	impEdit := imports.Command("edit", "Edits an Import").Alias("update").Action(c.importEditAction)
+	impEdit.Tag("scope:system", "impact:rw")
 	impEdit.Arg("subject", "The Local import Subject to edit").Required().StringVar(&c.subject)
 	impEdit.Arg("account", "Account to act on").StringVar(&c.accountName)
 	impEdit.Flag("local", "The local Subject to use for the import").StringVar(&c.localSubject)
@@ -204,16 +213,19 @@ func configureAuthAccountCommand(auth commandHost) {
 	impEdit.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 
 	impLs := imports.Command("ls", "List Imports").Alias("list").Action(c.importLsAction)
+	impLs.Tag("scope:system", "impact:ro")
 	impLs.Arg("account", "Account to act on").StringVar(&c.accountName)
 	impLs.Arg("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	impRm := imports.Command("rm", "Removes an Import").Action(c.importRmAction)
+	impRm.Tag("scope:system", "impact:rw")
 	impRm.Arg("subject", "Import to remove by local subject").Required().StringVar(&c.subject)
 	impRm.Arg("account", "Account to act on").StringVar(&c.accountName)
 	impRm.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 	impRm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	impKv := imports.Command("kv", "Imports a KV bucket").Hidden().Action(c.importKvAction)
+	impKv.Tag("scope:system", "impact:rw")
 	impKv.Arg("bucket", "The bucket to export").Required().StringVar(&c.bucketName)
 	impKv.Arg("prefix", "The prefix to mount the bucket on").Required().StringVar(&c.prefix)
 	impKv.Arg("source", "The account public key to import from").Required().StringVar(&c.importAccount)
@@ -221,6 +233,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	exports := acct.Command("exports", "Manage account Exports").Alias("e").Alias("exp").Alias("export")
 
 	expAdd := exports.Command("add", "Adds an Export").Alias("new").Alias("a").Alias("n").Action(c.exportAddAction)
+	expAdd.Tag("scope:system", "impact:rw")
 	expAdd.Arg("name", "A unique name for the Export").Required().StringVar(&c.exportName)
 	expAdd.Arg("subject", "The Subject to export").Required().StringVar(&c.subject)
 	expAdd.Arg("account", "Account to act on").StringVar(&c.accountName)
@@ -232,11 +245,13 @@ func configureAuthAccountCommand(auth commandHost) {
 	expAdd.Flag("service", "Sets the Export to be a Service rather than a Stream").UnNegatableBoolVar(&c.isService)
 
 	expInfo := exports.Command("info", "Show information for an Export").Alias("i").Alias("show").Alias("view").Action(c.exportInfoAction)
+	expInfo.Tag("scope:system", "impact:ro")
 	expInfo.Arg("subject", "Export to view by subject").StringVar(&c.subject)
 	expInfo.Arg("account", "Account to act on").StringVar(&c.accountName)
 	expInfo.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 
 	expEdit := exports.Command("edit", "Edits an Export").Alias("update").Action(c.exportEditAction)
+	expEdit.Tag("scope:system", "impact:rw")
 	expEdit.Arg("subject", "The Export Subject to edit").Required().StringVar(&c.subject)
 	expEdit.Arg("account", "Account to act on").StringVar(&c.accountName)
 	expEdit.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
@@ -246,21 +261,25 @@ func configureAuthAccountCommand(auth commandHost) {
 	expEdit.Flag("advertise", "Advertise the Export").IsSetByUser(&c.advertiseIsSet).BoolVar(&c.advertise)
 
 	expLs := exports.Command("ls", "List Exports").Alias("list").Action(c.exportLsAction)
+	expLs.Tag("scope:system", "impact:ro")
 	expLs.Arg("account", "Account to act on").StringVar(&c.accountName)
 	expLs.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	expRm := exports.Command("rm", "Removes an Export").Action(c.exportRmAction)
+	expRm.Tag("scope:system", "impact:rw")
 	expRm.Arg("subject", "Export to remove by subject").Required().StringVar(&c.subject)
 	expRm.Arg("account", "Account to act on").StringVar(&c.accountName)
 	expRm.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
 	expRm.Flag("force", "Removes without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	expKv := exports.Command("kv", "Exports a KV bucket").Hidden().Action(c.exportKvAction)
+	expKv.Tag("scope:system", "impact:rw")
 	expKv.Arg("bucket", "The bucket to export").Required().StringVar(&c.bucketName)
 
 	sk := acct.Command("keys", "Manage Scoped Signing Keys").Alias("sk").Alias("s")
 
 	skadd := sk.Command("add", "Adds a signing key").Alias("new").Alias("a").Alias("n").Action(c.skAddAction)
+	skadd.Tag("scope:system", "impact:rw")
 	skadd.Arg("account", "Account to act on").StringVar(&c.accountName)
 	skadd.Arg("role", "The role to add a key for").StringVar(&c.skRole)
 	skadd.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
@@ -276,15 +295,18 @@ func configureAuthAccountCommand(auth commandHost) {
 	skadd.Flag("sub-deny", "Sets subjects where subscribing is allowed").StringsVar(&c.subDeny)
 
 	skInfo := sk.Command("info", "Show information for a Scoped Signing Key").Alias("i").Alias("show").Alias("view").Action(c.skInfoAction)
+	skInfo.Tag("scope:system", "impact:ro")
 	skInfo.Arg("account", "Account to view").StringVar(&c.accountName)
 	skInfo.Arg("key", "The role or key to view").StringVar(&c.skRole)
 	skInfo.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	skls := sk.Command("ls", "List Scoped Signing Keys").Alias("list").Action(c.skListAction)
+	skls.Tag("scope:system", "impact:ro")
 	skls.Arg("account", "Account to act on").StringVar(&c.accountName)
 	skls.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	skrm := sk.Command("rm", "Remove a scoped signing key").Action(c.skRmAction)
+	skrm.Tag("scope:system", "impact:rw")
 	skrm.Arg("account", "Account to act on").StringVar(&c.accountName)
 	skrm.Flag("key", "The key to remove").StringVar(&c.skRole)
 	skrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
@@ -293,6 +315,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	mappings := acct.Command("mappings", "Manage account level subject mapping and partitioning").Alias("m").Alias("mapping").Alias("map")
 
 	mappingsaAdd := mappings.Command("add", "Add a new mapping").Alias("new").Alias("a").Action(c.mappingAddAction)
+	mappingsaAdd.Tag("scope:system", "impact:rw")
 	mappingsaAdd.Arg("account", "Account to create the mappings on").StringVar(&c.accountName)
 	mappingsaAdd.Arg("source", "The source subject of the mapping").StringVar(&c.mapSource)
 	mappingsaAdd.Arg("target", "The target subject of the mapping").StringVar(&c.mapTarget)
@@ -302,15 +325,18 @@ func configureAuthAccountCommand(auth commandHost) {
 	mappingsaAdd.Flag("config", "json or yaml file to read configuration from").ExistingFileVar(&c.inputFile)
 
 	mappingsls := mappings.Command("ls", "List mappings").Alias("list").Action(c.mappingListAction)
+	mappingsls.Tag("scope:system", "impact:ro")
 	mappingsls.Arg("account", "Account to list the mappings from").StringVar(&c.accountName)
 	mappingsls.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	mappingsrm := mappings.Command("rm", "Remove a mapping").Action(c.mappingRmAction)
+	mappingsrm.Tag("scope:system", "impact:rw")
 	mappingsrm.Arg("account", "Account to remove the mappings from").StringVar(&c.accountName)
 	mappingsrm.Arg("source", "The source subject of the mapping").StringVar(&c.mapSource)
 	mappingsrm.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
 
 	mappingsinfo := mappings.Command("info", "Show information about a mapping").Alias("i").Alias("show").Alias("view").Action(c.mappingInfoAction)
+	mappingsinfo.Tag("scope:system", "impact:ro")
 	mappingsinfo.Arg("account", "Account to inspect the mappings from").StringVar(&c.accountName)
 	mappingsinfo.Arg("source", "The source subject of the mapping").StringVar(&c.mapSource)
 	mappingsinfo.Flag("operator", "Operator to act on").StringVar(&c.operatorName)

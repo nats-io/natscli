@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/progress"
@@ -34,6 +33,8 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	iu "github.com/nats-io/natscli/internal/util"
+
+	"github.com/choria-io/fisk"
 )
 
 type objCommand struct {
@@ -99,14 +100,17 @@ for an indefinite period or a per-bucket configured TTL.
 	}
 
 	add := obj.Command("add", "Adds a new Object Store Bucket").Action(c.addAction)
+	add.Tag("scope:user", "impact:rw")
 	addCreateFlags(add, false)
 	add.PreAction(c.parseLimitStrings)
 
 	edit := obj.Command("edit", "Edit an existing Object Store Bucket").Action(c.editAction)
+	edit.Tag("scope:user", "impact:rw")
 	addCreateFlags(edit, true)
 	edit.PreAction(c.parseLimitStrings)
 
 	put := obj.Command("put", "Puts a file into the store").Action(c.putAction)
+	put.Tag("scope:user", "impact:rw")
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	put.Arg("file", "The file to put").ExistingFileVar(&c.file)
 	put.Flag("name", "Override the name supplied to the object store").StringVar(&c.overrideName)
@@ -117,11 +121,13 @@ for an indefinite period or a per-bucket configured TTL.
 	put.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	del := obj.Command("del", "Deletes a file or bucket from the store").Action(c.delAction).Alias("rm")
+	del.Tag("scope:user", "impact:rw")
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	del.Arg("file", "The file to retrieve").StringVar(&c.file)
 	del.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	get := obj.Command("get", "Retrieves a file from the store").Action(c.getAction)
+	get.Tag("scope:user", "impact:ro")
 	get.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	get.Arg("file", "The file to retrieve").Required().StringVar(&c.file)
 	get.Flag("output", "Override the output file name").Short('O').StringVar(&c.overrideName)
@@ -129,18 +135,22 @@ for an indefinite period or a per-bucket configured TTL.
 	get.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	info := obj.Command("info", "Get information about a bucket or object").Alias("show").Alias("i").Action(c.infoAction)
+	info.Tag("scope:user", "impact:ro")
 	info.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
 	info.Arg("file", "The file to retrieve").StringVar(&c.file)
 
 	ls := obj.Command("ls", "List buckets or contents of a specific bucket").Action(c.lsAction)
+	ls.Tag("scope:user", "impact:ro")
 	ls.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
 	ls.Flag("names", "When listing buckets, show just the bucket names").Short('n').UnNegatableBoolVar(&c.listNames)
 
 	seal := obj.Command("seal", "Seals a bucket preventing further updates").Action(c.sealAction)
+	seal.Tag("scope:user", "impact:rw")
 	seal.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	seal.Flag("force", "Force sealing without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	watch := obj.Command("watch", "Watch a bucket for changes").Action(c.watchAction)
+	watch.Tag("scope:user", "impact:ro")
 	watch.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 }
 

@@ -91,6 +91,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	}
 
 	acct := report.Command("accounts", "Report on account activity").Alias("acct").Action(c.withWatcher(c.reportAccount))
+	acct.Tag("scope:system", "impact:ro")
 	acct.Arg("account", "Account to produce a report for").StringVar(&c.account)
 	acct.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	acct.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,conns,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "conns", "subs")
@@ -99,6 +100,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	acct.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.withWatcher(c.reportConnections))
+	conns.Tag("scope:system", "impact:ro")
 	conns.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	conns.Flag("account", "Limit report to a specific account").StringVar(&c.account)
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
@@ -112,17 +114,20 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	cpu := report.Command("cpu", "Report on CPU usage").Action(c.withWatcher(c.reportCPU))
+	cpu.Tag("scope:system", "impact:ro")
 	cpu.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(cpu)
 	cpu.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	gateways := report.Command("gateways", "Repost on Gateway (Super Cluster) connections").Alias("super").Alias("gateway").Action(c.withWatcher(c.reportGateway))
+	gateways.Tag("scope:system", "impact:ro")
 	gateways.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	gateways.Flag("filter-name", "Limits responses to a certain name").StringVar(&c.gatewayName)
 	gateways.Flag("sort", "Sorts by a specific property (server,cluster)").Default("cluster").EnumVar(&c.sort, "server", "cluster")
 	addFilterOpts(gateways)
 
 	health := report.Command("health", "Report on Server health").Action(c.withWatcher(c.reportHealth))
+	health.Tag("scope:system", "impact:ro")
 	health.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	health.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
 	health.Flag("server-only", "Restricts the health check to the JetStream server only, do not check streams and consumers").Short('S').BoolVar(&c.jsServerOnly)
@@ -132,6 +137,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	addFilterOpts(health)
 
 	jsz := report.Command("jetstream", "Report on JetStream activity").Alias("jsz").Alias("js").Action(c.withWatcher(c.reportJetStream))
+	jsz.Tag("scope:system", "impact:ro")
 	jsz.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	jsz.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
 	jsz.Flag("sort", "Sort by a specific property (name,cluster,streams,consumers,msgs,mbytes,mem,file,api,err").Default("cluster").EnumVar(&c.sort, "name", "cluster", "streams", "consumers", "msgs", "mbytes", "bytes", "mem", "file", "store", "api", "err")
@@ -140,22 +146,26 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	addFilterOpts(jsz)
 
 	leafs := report.Command("leafnodes", "Report on Leafnode connections").Alias("leaf").Alias("leafz").Action(c.withWatcher(c.reportLeafs))
+	leafs.Tag("scope:system", "impact:ro")
 	leafs.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	leafs.Flag("account", "Produce the report for a specific account").StringVar(&c.account)
 	leafs.Flag("sort", "Sort by a specific property (server,name,account,subs,in-bytes,out-bytes,in-msgs,out-msgs)").EnumVar(&c.sort, "server", "name", "account", "subs", "in-bytes", "out-bytes", "in-msgs", "out-msgs")
 	addFilterOpts(leafs)
 
 	mem := report.Command("mem", "Report on Memory usage").Action(c.withWatcher(c.reportMem))
+	mem.Tag("scope:system", "impact:ro")
 	mem.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	addFilterOpts(mem)
 	mem.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	routes := report.Command("routes", "Report on Route (Cluster) connections").Alias("route").Action(c.withWatcher(c.reportRoute))
+	routes.Tag("scope:system", "impact:ro")
 	routes.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	routes.Flag("sort", "Sort by a specific property (server,cluster,name,account,subs,in-bytes,out-bytes)").EnumVar(&c.sort, "server", "cluster", "name", "account", "subs", "in-bytes", "out-bytes")
 	addFilterOpts(routes)
 
 	reportCmd := report.Command("downgrade", "List assets incompatible with the specified API level").Action(c.downgradeCheckAction)
+	reportCmd.Tag("scope:system", "impact:ro")
 	reportCmd.Arg("api", "Target API level to check compatibility against").Required().UintVar(&c.apiLevel)
 	reportCmd.Flag("json", "Output the downgrade report in JSON format").UnNegatableBoolVar(&c.json)
 	reportCmd.Flag("all", "Include consumers whose associated streams are incompatible with the selected API level").UnNegatableBoolVar(&c.all)

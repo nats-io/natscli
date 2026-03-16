@@ -18,9 +18,10 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/monitor"
+
+	"github.com/choria-io/fisk"
 )
 
 type SrvCheckCmd struct {
@@ -143,6 +144,7 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	check.PreAction(c.parseRenderFormat)
 
 	conn := check.Command("connection", "Checks basic server connection").Alias("conn").Action(c.checkConnection)
+	conn.Tag("scope:user", "impact:ro")
 	conn.HelpLong(multipleChecks + warnAndCritical)
 	conn.Flag("connect-warn", "Warning threshold to allow for establishing connections").Default("500ms").DurationVar(&c.connectWarning)
 	conn.Flag("connect-critical", "Critical threshold to allow for establishing connections").Default("1s").DurationVar(&c.connectCritical)
@@ -152,6 +154,7 @@ func configureServerCheckCommand(srv *fisk.CmdClause) {
 	conn.Flag("req-critical", "Critical threshold to allow for full round trip test").Default("1s").DurationVar(&c.reqCritical)
 
 	stream := check.Command("stream", "Checks the health of mirrored streams, streams with sources or clustered streams").Action(c.checkStream)
+	stream.Tag("scope:user", "impact:ro")
 	stream.HelpLong(multipleChecks + warnAndCritical + inversion + `These settings can be set using Stream Metadata in the following form:
 
 	io.nats.monitor.lag-critical: 200
@@ -171,6 +174,7 @@ When set these settings will be used, but can be overridden using --lag-critical
 	stream.Flag("subjects-critical", "Warning threshold for subjects in the stream").PlaceHolder("SUBJECTS").IsSetByUser(&c.subjectsCritIsSet).IntVar(&c.subjectsCrit)
 
 	consumer := check.Command("consumer", "Checks the health of a consumer").Action(c.checkConsumer)
+	consumer.Tag("scope:user", "impact:ro")
 	consumer.HelpLong(multipleChecks + `These settings can be set using Consumer Metadata in the following form:
 
 	io.nats.monitor.waiting-critical: 20
@@ -187,6 +191,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	consumer.Flag("pinned", "Requires Pinned Client priority with all groups having a pinned client").UnNegatableBoolVar(&c.consumerPinned)
 
 	msg := check.Command("message", "Checks properties of a message stored in a stream").Action(c.checkMsg)
+	msg.Tag("scope:user", "impact:ro")
 	msg.HelpLong(multipleChecks + warnAndCritical)
 	msg.Flag("stream", "The streams to check").Required().StringVar(&c.sourcesStream)
 	msg.Flag("subject", "The subject to fetch a message from").Default(">").StringVar(&c.msgSubject)
@@ -196,12 +201,14 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	msg.Flag("body-timestamp", "Use message body as a unix timestamp instead of message metadata").UnNegatableBoolVar(&c.msgBodyAsTs)
 
 	meta := check.Command("meta", "Check JetStream cluster state").Alias("raft").Action(c.checkRaft)
+	meta.Tag("scope:user", "impact:ro")
 	meta.HelpLong(multipleChecks)
 	meta.Flag("expect", "Number of servers to expect").Required().PlaceHolder("SERVERS").IntVar(&c.raftExpect)
 	meta.Flag("lag-critical", "Critical threshold to allow for lag").PlaceHolder("OPS").Required().Uint64Var(&c.raftLagCritical)
 	meta.Flag("seen-critical", "Critical threshold for how long ago a peer should have been seen").Required().PlaceHolder("DURATION").DurationVar(&c.raftSeenCritical)
 
 	req := check.Command("request", "Checks a request-reply service").Alias("req").Action(c.checkRequest)
+	req.Tag("scope:user", "impact:rw")
 	req.HelpLong(multipleChecks + warnAndCritical)
 	req.Flag("subject", "The subject to send the request to").Required().StringVar(&c.msgSubject)
 	req.Flag("payload", "Payload to send in the request").StringVar(&c.msgPayload)
@@ -212,6 +219,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	req.Flag("response-warn", "Warning threshold for response time").DurationVar(&c.msgWarn)
 
 	js := check.Command("jetstream", "Check JetStream account state").Alias("js").Action(c.checkJS)
+	js.Tag("scope:user", "impact:ro")
 	js.HelpLong(multipleChecks + warnAndCritical + inversion)
 	js.Flag("mem-warn", "Warning threshold for memory storage, in percent of limit").Default("75").IntVar(&c.jsMemWarn)
 	js.Flag("mem-critical", "Critical threshold for memory storage, in percent of limit").Default("90").IntVar(&c.jsMemCritical)
@@ -226,6 +234,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	js.Flag("replica-lag-critical", "Critical threshold for how many operations behind a peer can be").Default("200").Uint64Var(&c.jsReplicaLagCritical)
 
 	serv := check.Command("server", "Checks a NATS Server health").Action(c.checkSrv)
+	serv.Tag("scope:system", "impact:ro")
 	serv.HelpLong(multipleChecks + warnAndCritical + inversion)
 	serv.Flag("name", "Server name to require in the result").Required().StringVar(&c.srvName)
 	serv.Flag("cpu-warn", "Warning threshold for CPU usage, in percent").IntVar(&c.srvCPUWarn)
@@ -245,6 +254,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	serv.Flag("tls-cert-crit", "Critical threshold for TLS certificate expiry like 1d3h5m").DurationVar(&c.srvtlsExpiredCrit)
 
 	kv := check.Command("kv", "Checks a NATS KV Bucket").Action(c.checkKV)
+	kv.Tag("scope:user", "impact:ro")
 	kv.HelpLong(multipleChecks + warnAndCritical + inversion)
 	kv.Flag("bucket", "Checks a specific bucket").Required().StringVar(&c.kvBucket)
 	kv.Flag("values-critical", "Critical threshold for number of values in the bucket").Default("-1").Int64Var(&c.kvValuesCrit)
@@ -252,6 +262,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	kv.Flag("key", "Requires a key to have any non-delete value set").StringVar(&c.kvKey)
 
 	cred := check.Command("credential", "Checks the validity of a NATS credential file").Action(c.checkCredentialAction)
+	cred.Tag("scope:system", "impact:ro")
 	cred.HelpLong(multipleChecks + warnAndCritical + inversion)
 	cred.Flag("credential", "The file holding the NATS credential").Required().StringVar(&c.credential)
 	cred.Flag("validity-warn", "Warning threshold for time before expiry").DurationVar(&c.credentialValidityWarn)
@@ -259,6 +270,7 @@ When set these settings will be used, but can be overridden using --waiting-crit
 	cred.Flag("require-expiry", "Requires the credential to have expiry set").Default("true").BoolVar(&c.credentialRequiresExpire)
 
 	exporter := check.Command("exporter", "Prometheus exporter for server checks").Hidden().Action(c.exporterAction)
+	exporter.Tag("scope:system", "impact:rw")
 	exporter.Flag("config", "Exporter configuration").Required().ExistingFileVar(&c.exporterConfigFile)
 	exporter.Flag("port", "Port to listen on").Default("8080").IntVar(&c.exporterPort)
 	exporter.Flag("https-key", "Key for HTTPS").ExistingFileVar(&c.exporterKey)

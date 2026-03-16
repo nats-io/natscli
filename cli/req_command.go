@@ -19,9 +19,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats.go"
 	iu "github.com/nats-io/natscli/internal/util"
+
+	"github.com/choria-io/fisk"
 )
 
 type reqCmd struct {
@@ -67,6 +68,7 @@ Available template functions are:
 `
 
 	req := app.Command("request", "Generic request-reply request utility").Alias("req").Action(c.requestAction)
+	req.Tag("scope:user", "impact:rw")
 	req.HelpLong(requestHelp)
 	req.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)
 	req.Arg("body", "Message body").IsSetByUser(&c.bodyIsSet).StringVar(&c.body)

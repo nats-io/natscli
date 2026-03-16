@@ -84,6 +84,10 @@ func (t *Table) AddRow(items ...any) {
 }
 
 func (t *Table) Render() string {
+	if os.Getenv("LLMFORMAT") == "1" {
+		return fmt.Sprintln(t.writer.RenderMarkdown())
+	}
+
 	switch strings.ToLower(os.Getenv("NATS_TABLE_FORMAT")) {
 	case "md", "markdown":
 		return fmt.Sprintln(t.writer.RenderMarkdown())

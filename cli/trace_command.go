@@ -22,12 +22,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api/server/tracing"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	iu "github.com/nats-io/natscli/internal/util"
+
+	"github.com/choria-io/fisk"
 )
 
 type traceCmd struct {
@@ -66,6 +67,7 @@ func configureTraceCommand(app commandHost) {
 	}
 
 	trace := app.Command("trace", "Trace message delivery within an NATS network").Action(c.traceAction)
+	trace.Tag("scope:user", "impact:rw")
 	trace.Arg("subject", "The subject to publish to").Required().StringVar(&c.subject)
 	trace.Arg("payload", "The message body to send").StringVar(&c.payload)
 	trace.Flag("deliver", "Deliver the message to the final destination").UnNegatableBoolVar(&c.deliver)

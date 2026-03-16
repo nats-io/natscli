@@ -15,7 +15,6 @@ package cli
 
 import (
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -24,9 +23,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/choria-io/fisk"
+	iu "github.com/nats-io/natscli/internal/util"
+
 	"github.com/kballard/go-shellquote"
 	"github.com/nats-io/nats.go"
+
+	"github.com/choria-io/fisk"
 )
 
 type replyCmd struct {
@@ -78,6 +80,7 @@ Available template functions are:
 `
 
 	act := app.Command("reply", "Generic service reply utility").Action(c.reply)
+	act.Tag("scope:user", "impact:rw")
 	act.HelpLong(help)
 	addCheat("reply", act)
 	act.Arg("subject", "Subject to subscribe to").Required().StringVar(&c.subject)

@@ -129,61 +129,73 @@ for an indefinite period or a per-bucket configured TTL.
 	}
 
 	add := kv.Command("add", "Adds a new KV Store Bucket").Alias("new").Action(c.addAction)
+	add.Tag("scope:user", "impact:rw")
 	addCreateFlags(add, false)
 	add.PreAction(c.parseLimitStrings)
 
 	edit := kv.Command("edit", "Edits an existing KV Store Bucket").Action(c.editAction)
+	edit.Tag("scope:user", "impact:rw")
 	addCreateFlags(edit, true)
 	edit.PreAction(c.parseLimitStrings)
 
 	put := kv.Command("put", "Puts a value into a key").Action(c.putAction)
+	put.Tag("scope:user", "impact:rw")
 	put.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	put.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	put.Arg("value", "The value to store, when empty reads STDIN").StringVar(&c.val)
 
 	get := kv.Command("get", "Gets a value for a key").Action(c.getAction)
+	get.Tag("scope:user", "impact:ro")
 	get.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	get.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	get.Flag("revision", "Gets a specific revision").Uint64Var(&c.revision)
 	get.Flag("raw", "Show only the value string").UnNegatableBoolVar(&c.raw)
 
 	create := kv.Command("create", "Puts a value into a key only if the key is new or it's last operation was a delete").Action(c.createAction)
+	create.Tag("scope:user", "impact:rw")
 	create.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	create.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	create.Arg("value", "The value to store, when empty reads STDIN").StringVar(&c.val)
 	create.Flag("ttl", "Sets a TTL for the key").PlaceHolder("DURATION").DurationVar(&c.keyTTL)
 
 	update := kv.Command("update", "Updates a key with a new value if the previous value matches the given revision").Action(c.updateAction)
+	update.Tag("scope:user", "impact:rw")
 	update.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	update.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	update.Arg("value", "The value to store").Required().StringVar(&c.val)
 	update.Arg("revision", "The revision of the previous value in the bucket").Required().Uint64Var(&c.revision)
 
 	del := kv.Command("del", "Deletes a key or the entire bucket").Alias("rm").Action(c.deleteAction)
+	del.Tag("scope:user", "impact:rw")
 	del.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	del.Arg("key", "The key to act on").StringVar(&c.key)
 	del.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 
 	purge := kv.Command("purge", "Deletes a key from the bucket, clearing history before creating a delete marker").Action(c.purgeAction)
+	purge.Tag("scope:user", "impact:rw")
 	purge.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	purge.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	purge.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 	purge.Flag("ttl", "Sets a TTL for the purge marker").PlaceHolder("DURATION").DurationVar(&c.keyTTL)
 
 	history := kv.Command("history", "Shows the full history for a key").Action(c.historyAction)
+	history.Tag("scope:user", "impact:ro")
 	history.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	history.Arg("key", "The key to act on").Required().StringVar(&c.key)
 
 	revert := kv.Command("revert", "Reverts a value to a previous revision using put").Action(c.revertAction)
+	revert.Tag("scope:user", "impact:rw")
 	revert.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	revert.Arg("key", "The key to act on").Required().StringVar(&c.key)
 	revert.Arg("revision", "The revision to revert to").Required().Uint64Var(&c.revision)
 	revert.Flag("force", "Force reverting without prompting").BoolVar(&c.force)
 
 	status := kv.Command("info", "View the status of a KV store").Alias("view").Alias("status").Action(c.infoAction)
+	status.Tag("scope:user", "impact:ro")
 	status.Arg("bucket", "The bucket to act on").StringVar(&c.bucket)
 
 	watch := kv.Command("watch", "Watch the bucket or a specific key for updated").Action(c.watchAction)
+	watch.Tag("scope:user", "impact:ro")
 	watch.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	watch.Arg("key", "The key to act on").Default(">").StringVar(&c.key)
 	watch.Flag("history", "Includes historic values").UnNegatableBoolVar(&c.includeHistory)
@@ -192,6 +204,7 @@ for an indefinite period or a per-bucket configured TTL.
 	watch.Flag("revision", "Starts from a certain revision").Uint64Var(&c.revision)
 
 	ls := kv.Command("ls", "List available buckets or the keys in a bucket").Alias("list").Action(c.lsAction)
+	ls.Tag("scope:user", "impact:ro")
 	ls.Arg("bucket", "The bucket to list the keys").StringVar(&c.bucket)
 	ls.Arg("key", "The key to act on").Default("").StringVar(&c.key)
 	ls.Flag("names", "Show just the bucket names").Short('n').UnNegatableBoolVar(&c.listNames)
@@ -199,6 +212,7 @@ for an indefinite period or a per-bucket configured TTL.
 	ls.Flag("display-value", "Display value in verbose output (has no effect without 'verbose')").UnNegatableBoolVar(&c.lsVerboseDisplayValue)
 
 	rmHistory := kv.Command("compact", "Reclaim space used by deleted keys").Action(c.compactAction)
+	rmHistory.Tag("scope:user", "impact:rw")
 	rmHistory.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
 	rmHistory.Flag("force", "Act without confirmation").Short('f').UnNegatableBoolVar(&c.force)
 }

@@ -37,7 +37,6 @@ import (
 	terminal "golang.org/x/term"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/emicklei/dot"
 	"github.com/google/go-cmp/cmp"
@@ -47,6 +46,8 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/columns"
 	"gopkg.in/yaml.v3"
+
+	"github.com/choria-io/fisk"
 )
 
 type streamCmd struct {
@@ -264,6 +265,7 @@ func configureStreamCommand(app commandHost) {
 	addCheat("stream", str)
 
 	strAdd := str.Command("add", "Create a new stream").Alias("create").Alias("new").Action(c.addAction)
+	strAdd.Tag("scope:user", "impact:rw")
 	strAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	strAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	strAdd.Flag("validate", "Only validates the configuration against the official Schema").UnNegatableBoolVar(&c.validateOnly)
@@ -272,11 +274,13 @@ func configureStreamCommand(app commandHost) {
 	strAdd.Flag("defaults", "Accept default values for all prompts").UnNegatableBoolVar(&c.acceptDefaults)
 
 	strLs := str.Command("ls", "List all known streams").Alias("list").Alias("l").Action(c.lsAction)
+	strLs.Tag("scope:user", "impact:ro")
 	strLs.Flag("subject", "Limit the list to streams with matching subjects").StringVar(&c.filterSubject)
 	strLs.Flag("names", "Show just the stream names").Short('n').UnNegatableBoolVar(&c.listNames)
 	strLs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	strReport := str.Command("report", "Reports on stream statistics").Action(c.reportAction)
+	strReport.Tag("scope:user", "impact:ro")
 	strReport.Flag("subject", "Limit the report to streams with matching subjects").StringVar(&c.filterSubject)
 	strReport.Flag("cluster", "Limit report to streams within a specific cluster").StringVar(&c.reportLimitCluster)
 	strReport.Flag("consumers", "Sort by number of Consumers").Short('o').UnNegatableBoolVar(&c.reportSortConsumers)
@@ -317,6 +321,7 @@ Finding streams with certain subjects configured:
    nats s find --expression '"js.in.orders_1" in config.subjects'
 `
 	strFind := str.Command("find", "Finds streams matching certain criteria").Alias("query").Action(c.findAction)
+	strFind.Tag("scope:user", "impact:ro")
 	strFind.HelpLong(findHelp)
 	strFind.Flag("server-name", "Display streams present on a regular expression matched server").StringVar(&c.fServer)
 	strFind.Flag("cluster", "Display streams present on a regular expression matched cluster").StringVar(&c.fCluster)
@@ -335,17 +340,20 @@ Finding streams with certain subjects configured:
 	strFind.Flag("api-level", "Match streams that support at least the given api level").IntVar(&c.apiLevel)
 
 	strInfo := str.Command("info", "Stream information").Alias("nfo").Alias("i").Action(c.infoAction)
+	strInfo.Tag("scope:user", "impact:ro")
 	strInfo.Arg("stream", "Stream to retrieve information for").StringVar(&c.stream)
 	strInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	strInfo.Flag("state", "Shows only the stream state").UnNegatableBoolVar(&c.showStateOnly)
 	strInfo.Flag("no-select", "Do not select streams from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	strState := str.Command("state", "Stream state").Action(c.stateAction)
+	strState.Tag("scope:user", "impact:ro")
 	strState.Arg("stream", "Stream to retrieve state information for").StringVar(&c.stream)
 	strState.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	strState.Flag("no-select", "Do not select streams from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	strSubs := str.Command("subjects", "Query subjects held in a stream").Alias("subj").Action(c.subjectsAction)
+	strSubs.Tag("scope:user", "impact:ro")
 	strSubs.Arg("stream", "Stream name").StringVar(&c.stream)
 	strSubs.Arg("filter", "Limit the subjects to those matching a filter").Default(">").StringVar(&c.filterSubject)
 	strSubs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
@@ -354,6 +362,7 @@ Finding streams with certain subjects configured:
 	strSubs.Flag("names", "List only subject names").BoolVar(&c.listNames)
 
 	strEdit := str.Command("edit", "Edits an existing stream").Alias("update").Action(c.editAction)
+	strEdit.Tag("scope:user", "impact:rw")
 	strEdit.Arg("stream", "Stream to retrieve edit").StringVar(&c.stream)
 	strEdit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
 	strEdit.Flag("force", "Force edit without prompting").Short('f').UnNegatableBoolVar(&c.force)
@@ -362,10 +371,12 @@ Finding streams with certain subjects configured:
 	addCreateFlags(strEdit, true)
 
 	strRm := str.Command("rm", "Removes a stream").Alias("delete").Alias("del").Action(c.rmAction)
+	strRm.Tag("scope:user", "impact:rw")
 	strRm.Arg("stream", "Stream name").StringVar(&c.stream)
 	strRm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	strPurge := str.Command("purge", "Bulk removes messages from a stream").Action(c.purgeAction)
+	strPurge.Tag("scope:user", "impact:rw")
 	strPurge.Arg("stream", "Stream name").StringVar(&c.stream)
 	strPurge.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	strPurge.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
@@ -374,16 +385,19 @@ Finding streams with certain subjects configured:
 	strPurge.Flag("keep", "Keeps a certain number of messages after the purge").PlaceHolder("MESSAGES").Uint64Var(&c.purgeKeep)
 
 	strCopy := str.Command("copy", "Creates a new stream based on the configuration of another, does not copy data").Alias("cp").Action(c.cpAction)
+	strCopy.Tag("scope:user", "impact:rw")
 	strCopy.Arg("source", "Source stream to copy").Required().StringVar(&c.stream)
 	strCopy.Arg("destination", "New stream to create").Required().StringVar(&c.destination)
 	addCreateFlags(strCopy, false)
 
 	strRmMsg := str.Command("rmm", "Securely removes an individual message from a stream").Action(c.rmMsgAction)
+	strRmMsg.Tag("scope:user", "impact:rw")
 	strRmMsg.Arg("stream", "Stream name").StringVar(&c.stream)
 	strRmMsg.Arg("id", "Message Sequence to remove").Int64Var(&c.msgID)
 	strRmMsg.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	strView := str.Command("view", "View messages in a stream").Action(c.viewAction)
+	strView.Tag("scope:user", "impact:ro")
 	strView.Arg("stream", "Stream name").StringVar(&c.stream)
 	strView.Arg("size", "Page size <= 25").Default("10").IntVar(&c.vwPageSize)
 	strView.Flag("id", "Start at a specific message Sequence").IntVar(&c.vwStartId)
@@ -393,6 +407,7 @@ Finding streams with certain subjects configured:
 	strView.Flag("subject", "Filter the stream using a subject").StringVar(&c.vwSubject)
 
 	strGet := str.Command("get", "Retrieves a specific message from a Stream").Action(c.getAction)
+	strGet.Tag("scope:user", "impact:ro")
 	strGet.Arg("stream", "Stream name").StringVar(&c.stream)
 	strGet.Arg("id", "Message Sequence to retrieve").Int64Var(&c.msgID)
 	strGet.Flag("last-for", "Retrieves the message for a specific subject").Short('S').PlaceHolder("SUBJECT").StringVar(&c.filterSubject)
@@ -400,6 +415,7 @@ Finding streams with certain subjects configured:
 	strGet.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.vwTranslate)
 
 	strBackup := str.Command("backup", "Creates a backup of a stream over the NATS network").Alias("snapshot").Action(c.backupAction)
+	strBackup.Tag("scope:user", "impact:ro")
 	strBackup.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
 	strBackup.Arg("target", "Directory to create the backup in").Required().StringVar(&c.backupDirectory)
 	strBackup.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
@@ -409,6 +425,7 @@ Finding streams with certain subjects configured:
 	strBackup.Flag("window-size", "Sets a specific window size that the server will send").StringVar(&c.wndSize)
 
 	strRestore := str.Command("restore", "Restore a stream over the NATS network").Action(c.restoreAction)
+	strRestore.Tag("scope:user", "impact:rw")
 	strRestore.Arg("file", "The directory holding the backup to restore").Required().ExistingDirVar(&c.backupDirectory)
 	strRestore.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
 	strRestore.Flag("config", "Load a different configuration when restoring the stream").ExistingFileVar(&c.inputFile)
@@ -417,25 +434,30 @@ Finding streams with certain subjects configured:
 	strRestore.Flag("replicas", "Override how many replicas of the data to create").Int64Var(&c.replicas)
 
 	strSeal := str.Command("seal", "Seals a stream preventing further updates").Action(c.sealAction)
+	strSeal.Tag("scope:user", "impact:rw")
 	strSeal.Arg("stream", "The name of the stream to seal").Required().StringVar(&c.stream)
 	strSeal.Flag("force", "Force sealing without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	gapDetect := str.Command("gaps", "Detect gaps in the stream content that would be reported as deleted messages").Action(c.detectGaps)
+	gapDetect.Tag("scope:user", "impact:ro")
 	gapDetect.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	gapDetect.Flag("force", "Act without prompting").Short('f').UnNegatableBoolVar(&c.force)
 	gapDetect.Flag("progress", "Enable progress bar").Default("true").BoolVar(&c.showProgress)
 	gapDetect.Flag("json", "Show detected gaps in JSON format").UnNegatableBoolVar(&c.json)
 
 	graph := str.Command("graph", "View a graph of stream activity").Action(c.graphAction)
+	graph.Tag("scope:user", "impact:ro")
 	graph.Arg("stream", "The name of the stream to graph").StringVar(&c.stream)
 
 	strCluster := str.Command("cluster", "Manages a clustered stream").Alias("c")
 	strClusterDown := strCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDown)
+	strClusterDown.Tag("scope:user", "impact:rw")
 	strClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	strClusterDown.Flag("preferred", "Prefer placing the leader on a specific host").StringVar(&c.placementPreferred)
 	strClusterDown.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
 
 	strClusterBalance := strCluster.Command("balance", "Balance stream leaders").Action(c.balanceAction)
+	strClusterBalance.Tag("scope:user", "impact:rw")
 	strClusterBalance.Flag("server-name", "Balance streams present on a regular expression matched server").StringVar(&c.fServer)
 	strClusterBalance.Flag("cluster", "Balance streams present on a regular expression matched cluster").StringVar(&c.fCluster)
 	strClusterBalance.Flag("empty", "Balance streams with no messages").UnNegatableBoolVar(&c.fEmpty)
@@ -451,6 +473,7 @@ Finding streams with certain subjects configured:
 	strClusterBalance.Flag("expression", "Balance matching streams using an expression language").StringVar(&c.fExpression)
 
 	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the stream cluster").Alias("pr").Action(c.removePeer)
+	strClusterRemovePeer.Tag("scope:user", "impact:rw")
 	strClusterRemovePeer.Arg("stream", "The stream to act on").StringVar(&c.stream)
 	strClusterRemovePeer.Arg("peer", "The name of the peer to remove").StringVar(&c.peerName)
 	strClusterRemovePeer.Flag("force", "Force sealing without prompting").Short('f').UnNegatableBoolVar(&c.force)
