@@ -23,9 +23,10 @@ import (
 
 	"github.com/nats-io/natscli/options"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+
+	"github.com/choria-io/fisk"
 )
 
 type SrvRequestCmd struct {
@@ -77,6 +78,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	c := &SrvRequestCmd{}
 
 	req := srv.Command("request", "Request monitoring data from a specific server").Alias("req")
+	req.Tag("scope:system", "impact:ro")
 	req.Flag("limit", "Limit the responses to a certain amount of records").Default("2048").IntVar(&c.limit)
 	req.Flag("offset", "Start at a certain record").Default("0").IntVar(&c.offset)
 	req.Flag("name", "Limit to servers matching a server name").StringVar(&c.name)
@@ -85,10 +87,12 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	req.Flag("tags", "Limit to servers with these configured tags").StringsVar(&c.tags)
 
 	accountz := req.Command("accounts", "Show account details").Alias("accountz").Alias("acct").Action(c.accountz)
+	accountz.Tag("scope:system", "impact:ro")
 	accountz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	accountz.Flag("account", "Retrieve information for a specific account").StringVar(&c.account)
 
 	connz := req.Command("connections", "Show connection details").Alias("conn").Alias("connz").Action(c.conns)
+	connz.Tag("scope:system", "impact:ro")
 	connz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	connz.Flag("sort", "Sort by a specific property").Default("cid").EnumVar(&c.sortOpt, "cid", "start", "subs", "pending", "msgs_to", "msgs_from", "bytes_to", "bytes_from", "last", "idle", "uptime", "stop", "reason", "rtt")
 	connz.Flag("subscriptions", "Show subscriptions").UnNegatableBoolVar(&c.detail)
@@ -100,6 +104,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	connz.Flag("filter-empty", "Only shows responses that have connections").Default("false").UnNegatableBoolVar(&c.filterEmpty)
 
 	gwyz := req.Command("gateways", "Show gateway details").Alias("gateway").Alias("gwy").Alias("gatewayz").Action(c.gwyz)
+	gwyz.Tag("scope:system", "impact:ro")
 	gwyz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	gwyz.Arg("filter-name", "Filter results on gateway name").PlaceHolder("NAME").StringVar(&c.nameFilter)
 	gwyz.Flag("filter-account", "Show only a certain account in account detail").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
@@ -107,10 +112,12 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	gwyz.Flag("subscriptions", "Show subscription details").Default("true").BoolVar(&c.accountSubscriptions)
 
 	ipq := req.Command("ipqueue", "Show IP Queue details").Alias("ipq").Alias("ipqueuesz").Action(c.ipqz)
+	ipq.Tag("scope:system", "impact:ro")
 	ipq.Flag("all", "Shows all available information").Default("true").BoolVar(&c.includeAll)
 	ipq.Flag("filter", "Filter results for specific queues").StringVar(&c.queueFilter)
 
 	healthz := req.Command("jetstream-health", "Request JetStream health status").Alias("healthz").Action(c.healthz)
+	healthz.Tag("scope:system", "impact:ro")
 	healthz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	healthz.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
 	healthz.Flag("server-only", "Restricts the health check to the JetStream server only, do not check streams and consumers").Short('S').BoolVar(&c.jsServerOnly)
@@ -120,6 +127,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	healthz.Flag("details", "Include extended details about all failures").Default("true").BoolVar(&c.includeDetails)
 
 	jsz := req.Command("jetstream", "Show JetStream details").Alias("jsz").Alias("js").Action(c.jsz)
+	jsz.Tag("scope:system", "impact:ro")
 	jsz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	jsz.Flag("account", "Show statistics scoped to a specific account").StringVar(&c.account)
 	jsz.Flag("accounts", "Include details about accounts").UnNegatableBoolVar(&c.includeAccounts)
@@ -132,35 +140,41 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	jsz.Flag("all", "Include accounts, streams, consumers and configuration").UnNegatableBoolVar(&c.includeAll)
 
 	kick := req.Command("kick", "Disconnects a client immediately").Action(c.kick)
+	kick.Tag("scope:system", "impact:rw")
 	kick.Arg("client", "The Client ID to disconnect").Required().PlaceHolder("ID").Uint64Var(&c.cid)
 	kick.Arg("server", "The Server ID to disconnect the client from").Required().PlaceHolder("SERVER_ID").StringVar(&c.host)
 
 	leafz := req.Command("leafnodes", "Show leafnode details").Alias("leaf").Alias("leafz").Action(c.leafz)
+	leafz.Tag("scope:system", "impact:ro")
 	leafz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	leafz.Flag("subscriptions", "Show subscription detail").UnNegatableBoolVar(&c.detail)
 
 	profilez := req.Command("profile", "Run a profile").Action(c.profilez)
+	profilez.Tag("scope:system", "impact:ro")
 	profilez.Arg("profile", "Specify the name of the profile to run (allocs, heap, goroutine, mutex, threadcreate, block, cpu)").Required().EnumVar(&c.profileName, "allocs", "heap", "goroutine", "mutex", "threadcreate", "block", "cpu")
 	profilez.Arg("dir", "Set the output directory for profile files").Default(".").ExistingDirVar(&c.profileDir)
 	profilez.Flag("level", "Set the debug level of the profile").IntVar(&c.profileDebug)
 
 	raftz := req.Command("raft", "Show RAFT state details").Alias("raftz").Action(c.raftz)
+	raftz.Tag("scope:system", "impact:ro")
 	raftz.Flag("account", "Filters on an specific account").StringVar(&c.account)
 	raftz.Flag("group", "Filters on a specific group").StringVar(&c.group)
 
 	routez := req.Command("routes", "Show route details").Alias("route").Alias("routez").Action(c.routez)
+	routez.Tag("scope:system", "impact:ro")
 	routez.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	routez.Flag("subscriptions", "Show subscription detail").UnNegatableBoolVar(&c.detail)
 
 	subz := req.Command("subscriptions", "Show subscription information").Alias("sub").Alias("subsz").Action(c.subs)
+	subz.Tag("scope:system", "impact:ro")
 	subz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	subz.Flag("detail", "Include detail about all subscriptions").UnNegatableBoolVar(&c.detail)
 	subz.Flag("filter-account", "Filter on a specific account").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
 	subz.Flag("filter-subject", "Filter based on subscriptions matching this subject").PlaceHolder("SUBJECT").StringVar(&c.subjectFilter)
 
 	varz := req.Command("variables", "Show runtime variables").Alias("var").Alias("varz").Action(c.varz)
+	varz.Tag("scope:system", "impact:ro")
 	varz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
-
 }
 
 func (c *SrvRequestCmd) ipqz(_ *fisk.ParseContext) error {

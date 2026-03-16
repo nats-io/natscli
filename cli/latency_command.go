@@ -27,9 +27,10 @@ import (
 	"time"
 
 	"github.com/HdrHistogram/hdrhistogram-go"
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats.go"
 	histwriter "github.com/tylertreat/hdrhistogram-writer"
+
+	"github.com/choria-io/fisk"
 )
 
 type latencyCmd struct {
@@ -45,6 +46,7 @@ func configureLatencyCommand(app commandHost) {
 	c := &latencyCmd{}
 
 	latency := app.Command("latency", "Perform latency tests between two NATS servers").Alias("lat").Action(c.latencyAction)
+	latency.Tag("scope:user", "impact:rw")
 	addCheat("latency", latency)
 	latency.Flag("server-b", "The second server to subscribe on").Required().StringVar(&c.serverB)
 	latency.Flag("size", "Message size").Default("8").IntVar(&c.msgSize)

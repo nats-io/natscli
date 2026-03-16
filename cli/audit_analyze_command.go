@@ -18,12 +18,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/choria-io/fisk"
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/audit"
 	"github.com/nats-io/jsm.go/audit/archive"
 	iu "github.com/nats-io/natscli/internal/util"
+
+	"github.com/choria-io/fisk"
 )
 
 type auditAnalyzeCmd struct {
@@ -46,6 +47,7 @@ func configureAuditAnalyzeCommand(app *fisk.CmdClause) {
 	}
 
 	analyze := app.Command("analyze", "perform checks against an archive created by the 'gather' subcommand").Action(c.analyze)
+	analyze.Tag("scope:system", "impact:ro")
 	analyze.Arg("archive", "path to input archive to analyze").ExistingFileVar(&c.archivePath)
 	analyze.Flag("max-examples", "How many example issues to display for each failed check (0 for unlimited)").Default("5").UintVar(&c.examplesLimit)
 	analyze.Flag("skip", "Prevents checks from running by check code").PlaceHolder("CODE").StringsVar(&c.block)

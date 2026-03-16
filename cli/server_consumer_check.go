@@ -22,9 +22,10 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/internal/util"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/internal/sysclient"
+
+	"github.com/choria-io/fisk"
 )
 
 type (
@@ -65,6 +66,7 @@ type (
 func configureConsumerCheckCommand(app commandHost) {
 	cc := &ConsumerCheckCmd{}
 	consumerCheck := app.Command("consumer-check", "Check and display consumer information").Action(cc.consumerCheck).Hidden()
+	consumerCheck.Tag("scope:system", "impact:ro")
 	consumerCheck.Flag("stream", "Filter results by stream").StringVar(&cc.streamName)
 	consumerCheck.Flag("consumer", "Filter results by consumer").StringVar(&cc.consumerName)
 	consumerCheck.Flag("raft-group", "Filter results by raft group").StringVar(&cc.raftGroup)

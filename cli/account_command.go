@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
@@ -33,6 +32,8 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/columns"
 	iu "github.com/nats-io/natscli/internal/util"
+
+	"github.com/choria-io/fisk"
 )
 
 type actCmd struct {
@@ -58,11 +59,15 @@ func configureActCommand(app commandHost) {
 	c := &actCmd{}
 	act := app.Command("account", "Account information and status").Alias("a")
 	addCheat("account", act)
-	act.Command("info", "Account information").Alias("nfo").Action(c.infoAction)
+
+	info := act.Command("info", "Account information").Alias("nfo").Action(c.infoAction)
+	info.Tag("scope:user", "impact:ro")
 
 	report := act.Command("report", "Report on account metrics").Alias("rep")
+	report.Tag("scope:user", "impact:ro")
 
 	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnectionsAction)
+	conns.Tag("scope:user", "impact:ro")
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
 	conns.Flag("subject", "Limits responses only to those connections with matching subscription interest").StringVar(&c.subject)
@@ -71,9 +76,11 @@ func configureActCommand(app commandHost) {
 	conns.Flag("state", "Limits responses only to those connections that are in a specific state (open, closed, all)").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
 	conns.Flag("closed-reason", "Filter results based on a closed reason").PlaceHolder("REASON").StringVar(&c.filterReason)
 
-	report.Command("statistics", "Report on server statistics").Alias("stats").Alias("statsz").Action(c.reportServerStats)
+	stats := report.Command("statistics", "Report on server statistics").Alias("stats").Alias("statsz").Action(c.reportServerStats)
+	stats.Tag("scope:user", "impact:ro")
 
 	backup := act.Command("backup", "Creates a backup of all  JetStream Streams over the NATS network").Alias("snapshot").Action(c.backupAction)
+	backup.Tag("scope:user", "impact:ro")
 	backup.Arg("target", "Directory to create the backup in").Required().StringVar(&c.backupDirectory)
 	backup.Flag("check", "Checks the Stream for health prior to backup").UnNegatableBoolVar(&c.healthCheck)
 	backup.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
@@ -81,6 +88,7 @@ func configureActCommand(app commandHost) {
 	backup.Flag("critical-warnings", "Treat warnings as failures").Short('w').UnNegatableBoolVar(&c.failOnWarn)
 
 	restore := act.Command("restore", "Restore an account backup over the NATS network").Action(c.restoreAction)
+	restore.Tag("scope:user", "impact:rw")
 	restore.Arg("directory", "The directory holding the account backup to restore").Required().ExistingDirVar(&c.backupDirectory)
 	restore.Flag("cluster", "Place the stream in a specific cluster").StringVar(&c.placementCluster)
 	restore.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)

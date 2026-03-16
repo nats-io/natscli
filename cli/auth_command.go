@@ -20,8 +20,6 @@ func configureAuthCommand(app commandHost) {
 	// todo:
 	//  - Improve maintaining pub/sub permissions for a user, perhaps allow interactive edits of yaml?
 
-	auth.HelpLong("WARNING: This is experimental and subject to change, do not use yet for production deployment. ")
-
 	configureAuthOperatorCommand(auth)
 	configureAuthAccountCommand(auth)
 	configureAuthUserCommand(auth)

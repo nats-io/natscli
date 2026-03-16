@@ -89,6 +89,7 @@ func configureBenchCommand(app commandHost) {
 	c := &benchCmd{}
 
 	addCommonFlags := func(f *fisk.CmdClause) {
+		f.Tag("scope:user", "impact:rw")
 		f.Flag("clients", "Number of concurrent clients").Default("1").IntVar(&c.numClients)
 		f.Flag("msgs", "Number of messages to publish or subscribe to").Default("100000").IntVar(&c.numMsg)
 		f.Flag("progress", "Enable or disable the progress bar").Default("true").BoolVar(&c.progressBar)

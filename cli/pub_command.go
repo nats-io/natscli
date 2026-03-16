@@ -24,9 +24,10 @@ import (
 	iu "github.com/nats-io/natscli/internal/util"
 	"github.com/synadia-io/orbit.go/jetstreamext"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
+
+	"github.com/choria-io/fisk"
 )
 
 type pubCmd struct {
@@ -72,6 +73,7 @@ Available template functions are:
 `
 
 	pub := app.Command("publish", "Generic data publish utility").Alias("pub").Action(c.publishAction)
+	pub.Tag("scope:user", "impact:rw")
 	addCheat("pub", pub)
 	pub.HelpLong(pubHelp)
 	pub.Arg("subject", "Subject to publish to").Required().StringVar(&c.subject)

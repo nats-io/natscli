@@ -17,8 +17,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
+
+	"github.com/choria-io/fisk"
 )
 
 type SrvConfigCmd struct {
@@ -32,6 +33,7 @@ func configureServerConfigCommand(srv *fisk.CmdClause) {
 	cfg := srv.Command("config", "Interact with server configuration")
 
 	reload := cfg.Command("reload", "Reloads the runtime configuration").Action(c.reloadAction)
+	reload.Tag("scope:system", "impact:rw")
 	reload.Arg("id", "The server ID to trigger a reload for").Required().StringVar(&c.serverID)
 	reload.Flag("force", "Force reload without prompting").Short('f').BoolVar(&c.force)
 }

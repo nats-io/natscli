@@ -36,12 +36,13 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/balancer"
 	"github.com/nats-io/nats.go"
+
+	"github.com/choria-io/fisk"
 
 	"github.com/nats-io/jsm.go"
 )
@@ -192,6 +193,7 @@ func configureConsumerCommand(app commandHost) {
 	cons.Flag("all", "Operate on all streams including system ones").Short('a').UnNegatableBoolVar(&c.showAll)
 
 	consAdd := cons.Command("add", "Creates a new consumer").Alias("create").Alias("new").Action(c.createAction)
+	consAdd.Tag("scope:user", "impact:rw")
 	consAdd.Arg("stream", "Stream name").StringVar(&c.stream)
 	consAdd.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consAdd.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
@@ -201,6 +203,7 @@ func configureConsumerCommand(app commandHost) {
 	consAdd.Flag("defaults", "Accept default values for all prompts").UnNegatableBoolVar(&c.acceptDefaults)
 
 	edit := cons.Command("edit", "Edits the configuration of a consumer").Alias("update").Action(c.editAction)
+	edit.Tag("scope:user", "impact:rw")
 	edit.Arg("stream", "Stream name").StringVar(&c.stream)
 	edit.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	edit.Flag("config", "JSON file to read configuration from").ExistingFileVar(&c.inputFile)
@@ -210,12 +213,14 @@ func configureConsumerCommand(app commandHost) {
 	addCreateFlags(edit, true)
 
 	consLs := cons.Command("ls", "List known consumers").Alias("list").Action(c.lsAction)
+	consLs.Tag("scope:user", "impact:ro")
 	consLs.Arg("stream", "Stream name").StringVar(&c.stream)
 	consLs.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	consLs.Flag("names", "Show just the consumer names").Short('n').UnNegatableBoolVar(&c.listNames)
 	consLs.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	consFind := cons.Command("find", "Finds consumers matching certain criteria").Alias("query").Action(c.findAction)
+	consFind.Tag("scope:user", "impact:ro")
 	consFind.Arg("stream", "Stream name").StringVar(&c.stream)
 	consFind.Flag("pull", "Display only pull based consumers").UnNegatableBoolVar(&c.fPull)
 	consFind.Flag("push", "Display only push based consumers").UnNegatableBoolVar(&c.fPush)
@@ -233,29 +238,34 @@ func configureConsumerCommand(app commandHost) {
 	consFind.Flag("api-level", "Match consumers that support at least the given api level").IntVar(&c.apiLevel)
 
 	consInfo := cons.Command("info", "Consumer information").Alias("nfo").Action(c.infoAction)
+	consInfo.Tag("scope:user", "impact:ro")
 	consInfo.Arg("stream", "Stream name").StringVar(&c.stream)
 	consInfo.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	consInfo.Flag("no-select", "Do not select consumers from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	consState := cons.Command("state", "Consumer state").Action(c.stateAction)
+	consState.Tag("scope:user", "impact:ro")
 	consState.Arg("stream", "Stream to retrieve state information for").StringVar(&c.stream)
 	consState.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consState.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	consState.Flag("no-select", "Do not select streams from a list").Default("false").UnNegatableBoolVar(&c.force)
 
 	consRm := cons.Command("rm", "Removes a consumer").Alias("delete").Alias("del").Action(c.rmAction)
+	consRm.Tag("scope:user", "impact:rw")
 	consRm.Arg("stream", "Stream name").StringVar(&c.stream)
 	consRm.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consRm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	consCp := cons.Command("copy", "Creates a new consumer based on the configuration of another").Alias("cp").Action(c.cpAction)
+	consCp.Tag("scope:user", "impact:rw")
 	consCp.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consCp.Arg("source", "Source consumer name").Required().StringVar(&c.consumer)
 	consCp.Arg("destination", "Destination consumer name").Required().StringVar(&c.destination)
 	addCreateFlags(consCp, false)
 
 	consNext := cons.Command("next", "Retrieves messages from Pull consumers without interactive prompts").Action(c.nextAction)
+	consNext.Tag("scope:user", "impact:ro")
 	consNext.Arg("stream", "Stream name").Required().StringVar(&c.stream)
 	consNext.Arg("consumer", "Consumer name").Required().StringVar(&c.consumer)
 	consNext.Flag("ack", "Acknowledge received message").Default("true").IsSetByUser(&c.ackSetByUser).BoolVar(&c.ack)
@@ -266,6 +276,7 @@ func configureConsumerCommand(app commandHost) {
 	consNext.Flag("count", "Number of messages to try to fetch from the pull consumer").Default("1").IntVar(&c.pullCount)
 
 	consSub := cons.Command("sub", "Retrieves messages from consumers").Action(c.subAction).Hidden()
+	consSub.Tag("scope:user", "impact:ro")
 	consSub.Arg("stream", "Stream name").StringVar(&c.stream)
 	consSub.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consSub.Flag("ack", "Acknowledge received message").Default("true").BoolVar(&c.ack)
@@ -273,39 +284,47 @@ func configureConsumerCommand(app commandHost) {
 	consSub.Flag("deliver-group", "Deliver group of the consumer").StringVar(&c.deliveryGroup)
 
 	graph := cons.Command("graph", "View a graph of consumer activity").Action(c.graphAction)
+	graph.Tag("scope:user", "impact:ro")
 	graph.Arg("stream", "Stream name").StringVar(&c.stream)
 	graph.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 
 	conPause := cons.Command("pause", "Pause a consumer until a later time").Action(c.pauseAction)
+	conPause.Tag("scope:user", "impact:rw")
 	conPause.Arg("stream", "Stream name").StringVar(&c.stream)
 	conPause.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	conPause.Arg("until", fmt.Sprintf("Pause until a specific time (eg %s)", time.Now().UTC().Format(time.DateTime))).PlaceHolder("TIME").StringVar(&c.pauseUntil)
 	conPause.Flag("force", "Force pause without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	conUnpin := cons.Command("unpin", "Unpin the current Pinned Client from a Priority Group").Action(c.unpinAction)
+	conUnpin.Tag("scope:user", "impact:rw")
 	conUnpin.Arg("stream", "Stream name").StringVar(&c.stream)
 	conUnpin.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	conUnpin.Arg("group", "The group to unpin").StringVar(&c.groupName)
 	conUnpin.Flag("force", "Force unpin without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	conResume := cons.Command("resume", "Resume a paused consumer").Action(c.resumeAction)
+	conResume.Tag("scope:user", "impact:rw")
 	conResume.Arg("stream", "Stream name").StringVar(&c.stream)
 	conResume.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	conResume.Flag("force", "Force resume without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	conReport := cons.Command("report", "Reports on consumer statistics").Action(c.reportAction)
+	conReport.Tag("scope:user", "impact:ro")
 	conReport.Arg("stream", "Stream name").StringVar(&c.stream)
 	conReport.Flag("raw", "Show un-formatted numbers").Short('r').UnNegatableBoolVar(&c.raw)
 	conReport.Flag("leaders", "Show details about the leaders").Short('l').UnNegatableBoolVar(&c.reportLeaderDistrib)
 
 	conCluster := cons.Command("cluster", "Manages a clustered consumer").Alias("c")
+
 	conClusterDown := conCluster.Command("step-down", "Force a new leader election by standing down the current leader").Alias("elect").Alias("down").Alias("d").Action(c.leaderStandDownAction)
+	conClusterDown.Tag("scope:user", "impact:rw")
 	conClusterDown.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterDown.Arg("consumer", "Consumer to act on").StringVar(&c.consumer)
 	conClusterDown.Flag("preferred", "Prefer placing the leader on a specific host").StringVar(&c.placementPreferred)
 	conClusterDown.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
 
 	conClusterBalance := conCluster.Command("balance", "Balance consumer leaders").Action(c.balanceAction)
+	conClusterBalance.Tag("scope:user", "impact:rw")
 	conClusterBalance.Arg("stream", "Stream to act on").StringVar(&c.stream)
 	conClusterBalance.Flag("pull", "Balance only pull based consumers").UnNegatableBoolVar(&c.fPull)
 	conClusterBalance.Flag("push", "Balance only push based consumers").UnNegatableBoolVar(&c.fPush)
@@ -320,7 +339,6 @@ func configureConsumerCommand(app commandHost) {
 	conClusterBalance.Flag("pinned", "Balance Pinned Client priority group consumers that are fully pinned").UnNegatableBoolVar(&c.fPinned)
 	conClusterBalance.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	conClusterBalance.Flag("expression", "Balance matching consumers using an expression language").StringVar(&c.fExpression)
-
 }
 
 func init() {

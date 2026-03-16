@@ -16,14 +16,16 @@ package cli
 import (
 	"crypto/tls"
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"net"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/choria-io/fisk"
+	iu "github.com/nats-io/natscli/internal/util"
+
 	"github.com/nats-io/nats.go"
+
+	"github.com/choria-io/fisk"
 )
 
 type rttCmd struct {
@@ -48,6 +50,7 @@ func configureRTTCommand(app commandHost) {
 	c := &rttCmd{}
 
 	rtt := app.Command("rtt", "Compute round-trip time to NATS server").Action(c.rtt)
+	rtt.Tag("scope:user", "impact:rw")
 	rtt.Arg("iterations", "How many round trips to do when testing").Default("5").IntVar(&c.iterations)
 	rtt.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 }

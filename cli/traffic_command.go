@@ -15,15 +15,17 @@ package cli
 
 import (
 	"fmt"
-	"github.com/nats-io/natscli/internal/util"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/choria-io/fisk"
+	"github.com/nats-io/natscli/internal/util"
+
 	"github.com/dustin/go-humanize"
 	"github.com/nats-io/nats.go"
+
+	"github.com/choria-io/fisk"
 )
 
 type trafficCmd struct {
@@ -89,6 +91,7 @@ func configureTrafficCommand(app commandHost) {
 	c := &trafficCmd{}
 
 	traffic := app.Command("traffic", "Monitor NATS network traffic").Hidden().Action(c.monitor)
+	traffic.Tag("scope:user", "impact:ro")
 	traffic.Arg("subjects", "Subjects to monitor, defaults to all").Default(">").StringVar(&c.subjects)
 }
 

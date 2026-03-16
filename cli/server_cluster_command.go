@@ -21,11 +21,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/connbalancer"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+
+	"github.com/choria-io/fisk"
 )
 
 type SrvClusterCmd struct {
@@ -50,6 +51,7 @@ func configureServerClusterCommand(srv *fisk.CmdClause) {
 	cluster := srv.Command("cluster", "Manage JetStream Clustering").Alias("r").Alias("raft")
 
 	balance := cluster.Command("balance", "Balance cluster connections").Action(c.balanceAction)
+	balance.Tag("scope:system", "impact:rw")
 	balance.Arg("duration", "Spread balance requests over a certain duration").Default("2m").DurationVar(&c.balanceRunTime)
 	balance.Flag("server-name", "Restrict balancing to a specific server").PlaceHolder("NAME").StringVar(&c.balanceServerName)
 	balance.Flag("cluster", "Restrict balancing to servers in a specific cluster").PlaceHolder("NAME").StringVar(&c.balanceCluster)
@@ -60,6 +62,7 @@ func configureServerClusterCommand(srv *fisk.CmdClause) {
 	balance.Flag("force", "Force rebalance without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
 	sd := cluster.Command("step-down", "Force a new leader election by standing down the current meta leader").Alias("stepdown").Alias("sd").Alias("elect").Alias("down").Alias("d").Action(c.metaLeaderStandDownAction)
+	sd.Tag("scope:system", "impact:rw")
 	sd.Flag("cluster", "Request placement of the leader in a specific cluster").StringVar(&c.placementCluster)
 	sd.Flag("tags", "Request placement of the leader on nodes with specific tag(s)").StringsVar(&c.placementTags)
 	sd.Flag("host", "Request placement of the leader on a specific node").StringVar(&c.placementNode)
@@ -67,6 +70,7 @@ func configureServerClusterCommand(srv *fisk.CmdClause) {
 	sd.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
 
 	rm := cluster.Command("peer-remove", "Removes a server from a JetStream cluster").Alias("rm").Alias("pr").Action(c.metaPeerRemoveAction)
+	rm.Tag("scope:system", "impact:rw")
 	rm.Arg("name", "The Server Name or ID to remove from the JetStream cluster").Required().StringVar(&c.peer)
 	rm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 	rm.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)

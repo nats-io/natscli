@@ -35,6 +35,7 @@ func configureServerInfoCommand(srv *fisk.CmdClause) {
 	c := &SrvInfoCmd{}
 
 	info := srv.Command("info", "Show information about a single server").Alias("i").Action(c.info)
+	info.Tag("scope:system", "impact:ro")
 	info.Arg("server", "Server ID or Name to inspect").StringVar(&c.id)
 }
 

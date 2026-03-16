@@ -5,9 +5,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go/audit"
 	iu "github.com/nats-io/natscli/internal/util"
+
+	"github.com/choria-io/fisk"
 )
 
 type auditChecksCommand struct {

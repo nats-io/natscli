@@ -27,7 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -36,6 +35,8 @@ import (
 	iu "github.com/nats-io/natscli/internal/util"
 	"github.com/synadia-io/orbit.go/jetstreamext"
 	terminal "golang.org/x/term"
+
+	"github.com/choria-io/fisk"
 )
 
 type subCmd struct {
@@ -131,39 +132,40 @@ func configureSubCommand(app commandHost) {
 		
 	`
 
-	act := app.Command("subscribe", "Generic subscription client").Alias("sub").Action(c.subscribe)
-	act.HelpLong(subHelp)
-	addCheat("sub", act)
+	sub := app.Command("subscribe", "Generic subscription client").Alias("sub").Action(c.subscribe)
+	sub.Tag("scope:user", "impact:rw")
+	sub.HelpLong(subHelp)
+	addCheat("sub", sub)
 
-	act.Arg("subjects", "Subjects to subscribe to").StringsVar(&c.subjects)
-	act.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)
-	act.Flag("durable", "Use a durable consumer (requires JetStream)").StringVar(&c.durable)
-	act.Flag("raw", "Show the raw data received").Short('r').UnNegatableBoolVar(&c.raw)
-	act.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
-	act.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
-	act.Flag("match-replies", "Match replies to requests").UnNegatableBoolVar(&c.match)
-	act.Flag("inbox", "Subscribes to a generated inbox").Short('i').UnNegatableBoolVar(&c.inbox)
-	act.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
-	act.Flag("dump", "Dump received messages to files, 1 file per message. Specify - for null terminated STDOUT for use with xargs -0").PlaceHolder("DIRECTORY").StringVar(&c.dump)
-	act.Flag("headers-only", "Do not render any data, shows only headers").UnNegatableBoolVar(&c.headersOnly)
-	act.Flag("subjects-only", "Prints only the messages' subjects").UnNegatableBoolVar(&c.subjectsOnly)
-	act.Flag("start-sequence", "Starts at a specific Stream sequence (requires JetStream)").PlaceHolder("SEQUENCE").Uint64Var(&c.sseq)
-	act.Flag("all", "Delivers all messages found in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverAll)
-	act.Flag("new", "Delivers only future messages (requires JetStream)").UnNegatableBoolVar(&c.deliverNew)
-	act.Flag("last", "Delivers the most recent and all future messages (requires JetStream)").UnNegatableBoolVar(&c.deliverLast)
-	act.Flag("since", "Delivers messages received since a duration like 1d3h5m2s(requires JetStream)").PlaceHolder("DURATION").StringVar(&c.deliverSince)
-	act.Flag("last-per-subject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
-	act.Flag("terminate-at-end", "Stops consuming messages from JetStream once all messages were received").Short('T').UnNegatableBoolVar(&c.stopAtPendingZero)
-	act.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
-	act.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
-	act.Flag("wait", "Unsubscribe after this amount of time without any traffic").DurationVar(&c.wait)
-	act.Flag("report-subjects", "Subscribes to subject patterns and builds a de-duplicated report of active subjects receiving data").UnNegatableBoolVar(&c.reportSubjects)
-	act.Flag("report-subscriptions", "Subscribes to subject patterns and builds a de-duplicated report of active subscriptions receiving data").UnNegatableBoolVar(&c.reportSub)
-	act.Flag("report-top", "Number of subjects to show when doing 'report-subjects'").Default("10").IntVar(&c.reportSubjectsCount)
-	act.Flag("timestamp", "Show timestamps in output").Short('t').UnNegatableBoolVar(&c.timeStamps)
-	act.Flag("delta-time", "Show time since start in output").Short('d').UnNegatableBoolVar(&c.deltaTimeStamps)
-	act.Flag("graph", "Graph the rate of messages received").UnNegatableBoolVar(&c.graphOnly)
-	act.Flag("direct", "Subscribe using batched direct gets instead of a durable consumer (requires JetStream)").UnNegatableBoolVar(&c.direct)
+	sub.Arg("subjects", "Subjects to subscribe to").StringsVar(&c.subjects)
+	sub.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)
+	sub.Flag("durable", "Use a durable consumer (requires JetStream)").StringVar(&c.durable)
+	sub.Flag("raw", "Show the raw data received").Short('r').UnNegatableBoolVar(&c.raw)
+	sub.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
+	sub.Flag("ack", "Acknowledge JetStream message that have the correct metadata").BoolVar(&c.jsAck)
+	sub.Flag("match-replies", "Match replies to requests").UnNegatableBoolVar(&c.match)
+	sub.Flag("inbox", "Subscribes to a generated inbox").Short('i').UnNegatableBoolVar(&c.inbox)
+	sub.Flag("count", "Quit after receiving this many messages").UintVar(&c.limit)
+	sub.Flag("dump", "Dump received messages to files, 1 file per message. Specify - for null terminated STDOUT for use with xargs -0").PlaceHolder("DIRECTORY").StringVar(&c.dump)
+	sub.Flag("headers-only", "Do not render any data, shows only headers").UnNegatableBoolVar(&c.headersOnly)
+	sub.Flag("subjects-only", "Prints only the messages' subjects").UnNegatableBoolVar(&c.subjectsOnly)
+	sub.Flag("start-sequence", "Starts at a specific Stream sequence (requires JetStream)").PlaceHolder("SEQUENCE").Uint64Var(&c.sseq)
+	sub.Flag("all", "Delivers all messages found in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverAll)
+	sub.Flag("new", "Delivers only future messages (requires JetStream)").UnNegatableBoolVar(&c.deliverNew)
+	sub.Flag("last", "Delivers the most recent and all future messages (requires JetStream)").UnNegatableBoolVar(&c.deliverLast)
+	sub.Flag("since", "Delivers messages received since a duration like 1d3h5m2s(requires JetStream)").PlaceHolder("DURATION").StringVar(&c.deliverSince)
+	sub.Flag("last-per-subject", "Deliver the most recent messages for each subject in the Stream (requires JetStream)").UnNegatableBoolVar(&c.deliverLastPerSubject)
+	sub.Flag("terminate-at-end", "Stops consuming messages from JetStream once all messages were received").Short('T').UnNegatableBoolVar(&c.stopAtPendingZero)
+	sub.Flag("stream", "Subscribe to a specific stream (required JetStream)").PlaceHolder("STREAM").StringVar(&c.stream)
+	sub.Flag("ignore-subject", "Subjects for which corresponding messages will be ignored and therefore not shown in the output").Short('I').PlaceHolder("SUBJECT").StringsVar(&c.ignoreSubjects)
+	sub.Flag("wait", "Unsubscribe after this amount of time without any traffic").DurationVar(&c.wait)
+	sub.Flag("report-subjects", "Subscribes to subject patterns and builds a de-duplicated report of active subjects receiving data").UnNegatableBoolVar(&c.reportSubjects)
+	sub.Flag("report-subscriptions", "Subscribes to subject patterns and builds a de-duplicated report of active subscriptions receiving data").UnNegatableBoolVar(&c.reportSub)
+	sub.Flag("report-top", "Number of subjects to show when doing 'report-subjects'").Default("10").IntVar(&c.reportSubjectsCount)
+	sub.Flag("timestamp", "Show timestamps in output").Short('t').UnNegatableBoolVar(&c.timeStamps)
+	sub.Flag("delta-time", "Show time since start in output").Short('d').UnNegatableBoolVar(&c.deltaTimeStamps)
+	sub.Flag("graph", "Graph the rate of messages received").UnNegatableBoolVar(&c.graphOnly)
+	sub.Flag("direct", "Subscribe using batched direct gets instead of a durable consumer (requires JetStream)").UnNegatableBoolVar(&c.direct)
 }
 
 func init() {

@@ -16,13 +16,15 @@ package cli
 import (
 	"context"
 	"fmt"
-	"github.com/choria-io/fisk"
+	"math/big"
+	"os"
+
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/columns"
 	iu "github.com/nats-io/natscli/internal/util"
 	"github.com/synadia-io/orbit.go/counters"
-	"math/big"
-	"os"
+
+	"github.com/choria-io/fisk"
 )
 
 type counterCmd struct {
@@ -39,19 +41,23 @@ func configureCounterCommand(app commandHost) {
 	ctr.HelpLong("This is an experimental command and will undergo changes in later versions")
 
 	get := ctr.Command("get", "Gets the current value for a counter").Alias("g").Action(c.getAction)
+	get.Tag("scope:user", "impact:ro")
 	get.Arg("subject", "Subject to get counter for").Required().StringVar(&c.subject)
 	get.Flag("stream", "The stream name to fetch the value from").StringVar(&c.stream)
 
 	view := ctr.Command("view", "View the full counter metadata").Alias("v").Action(c.viewAction)
+	view.Tag("scope:user", "impact:ro")
 	view.Arg("subject", "Subject to get counter for").Required().StringVar(&c.subject)
 	view.Flag("stream", "The stream name to fetch the value from").StringVar(&c.stream)
 
 	incr := ctr.Command("increment", "Increment the value of a counter").Alias("incr").Alias("i").Action(c.incrAction)
+	incr.Tag("scope:user", "impact:rw")
 	incr.Arg("subject", "Subject to get counter for").Required().StringVar(&c.subject)
 	incr.Arg("value", "The value to increment").StringVar(&c.value)
 	incr.Flag("stream", "The stream name to fetch the value from").StringVar(&c.stream)
 
 	ls := ctr.Command("list", "List Counters in a stream").Alias("l").Alias("ls").Action(c.lsAction)
+	ls.Tag("scope:user", "impact:ro")
 	ls.Arg("subject", "Subject pattern to get counters for").StringVar(&c.subject)
 	ls.Flag("stream", "The stream name to fetch the value from").StringVar(&c.stream)
 	ls.Flag("json", "Produce JSON output").UnNegatableBoolVar(&c.json)

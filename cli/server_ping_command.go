@@ -24,10 +24,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/internal/asciigraph"
+
+	"github.com/choria-io/fisk"
 )
 
 type SrvPingCmd struct {
@@ -39,10 +40,11 @@ type SrvPingCmd struct {
 func configureServerPingCommand(srv *fisk.CmdClause) {
 	c := &SrvPingCmd{}
 
-	ls := srv.Command("ping", "Ping all servers").Action(c.ping)
-	ls.Arg("expect", "How many servers to expect").Uint32Var(&c.expect)
-	ls.Flag("graph", "Produce a response distribution graph").UnNegatableBoolVar(&c.graph)
-	ls.Flag("id", "Include the Server ID in the output").UnNegatableBoolVar(&c.showId)
+	ping := srv.Command("ping", "Ping all servers").Action(c.ping)
+	ping.Tag("scope:system", "impact:ro")
+	ping.Arg("expect", "How many servers to expect").Uint32Var(&c.expect)
+	ping.Flag("graph", "Produce a response distribution graph").UnNegatableBoolVar(&c.graph)
+	ping.Flag("id", "Include the Server ID in the output").UnNegatableBoolVar(&c.showId)
 }
 
 func (c *SrvPingCmd) ping(_ *fisk.ParseContext) error {

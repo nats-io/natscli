@@ -77,6 +77,7 @@ func configureServerWatchApiCommand(watch *fisk.CmdClause) {
 	api := watch.Command("api", "Watch JetStream API")
 
 	requests := api.Command("requests", "Watch JS API Requests").Alias("req").Action(c.reqAction)
+	requests.Tag("scope:system", "impact:ro")
 	requests.Flag("account", "Limit to JetStream account (regex)").RegexpVar(&c.account)
 	requests.Flag("top", "Shows top n requests").Default("10").Short('n').IntVar(&c.top)
 	requests.Flag("rate", "Rate interval to calculate").Default("1m").DurationVar(&c.rateInterval)

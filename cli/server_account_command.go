@@ -9,9 +9,10 @@ import (
 
 	iu "github.com/nats-io/natscli/internal/util"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/columns"
+
+	"github.com/choria-io/fisk"
 )
 
 type srvAccountCommand struct {
@@ -28,10 +29,12 @@ func configureServerAccountCommand(srv *fisk.CmdClause) {
 	account.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	info := account.Command("info", "Shows information for an account").Alias("i").Action(c.infoAction)
+	info.Tag("scope:system", "impact:ro")
 	info.Arg("account", "The name of the account to view").Required().StringVar(&c.account)
 	info.Flag("host", "Request information from a specific server").StringVar(&c.server)
 
 	purge := account.Command("purge", "Purge assets from JetStream clusters").Action(c.purgeAccount)
+	purge.Tag("scope:system", "impact:rw")
 	purge.Arg("account", "The name of the account to purge").PlaceHolder("NAME").Required().StringVar(&c.account)
 	purge.Flag("force", "Perform the operation without prompting").Short('f').UnNegatableBoolVar(&c.force)
 }

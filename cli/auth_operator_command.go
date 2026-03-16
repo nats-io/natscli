@@ -29,8 +29,9 @@ import (
 	"github.com/nats-io/nkeys"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/choria-io/fisk"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
+
+	"github.com/choria-io/fisk"
 )
 
 type authOperatorCommand struct {
@@ -57,6 +58,7 @@ func configureAuthOperatorCommand(auth commandHost) {
 	op := auth.Command("operator", "Manage NATS Operators").Alias("o").Alias("op")
 
 	add := op.Command("add", "Adds a new Operator").Action(c.addAction)
+	add.Tag("scope:system", "impact:rw")
 	add.Arg("name", "Unique name for this Operator").StringVar(&c.operatorName)
 	add.Flag("service", "URLs for the Operator services").PlaceHolder("URL").URLListVar(&c.operatorService)
 	add.Flag("account-server", "URL for the account server").PlaceHolder("URL").URLVar(&c.accountServer)
@@ -64,12 +66,15 @@ func configureAuthOperatorCommand(auth commandHost) {
 	add.Flag("tags", "Tags to assign to this Operator").StringsVar(&c.tags)
 
 	info := op.Command("info", "Show Operator information").Alias("i").Alias("show").Alias("view").Action(c.infoAction)
+	info.Tag("scope:system", "impact:ro")
 	info.Arg("name", "Operator to view").StringVar(&c.operatorName)
 
 	ls := op.Command("list", "List Operators").Alias("ls").Action(c.lsAction)
+	ls.Tag("scope:system", "impact:ro")
 	ls.Flag("names", "Show just the Operator names").UnNegatableBoolVar(&c.listNames)
 
 	edit := op.Command("edit", "Edit an Operator").Alias("update").Action(c.editAction)
+	edit.Tag("scope:system", "impact:rw")
 	edit.Arg("name", "Operator to edit").StringVar(&c.operatorName)
 	edit.Flag("account-server", "URL for the Account Server").IsSetByUser(&c.accountServerIsSet).PlaceHolder("URL").URLVar(&c.accountServer)
 	edit.Flag("service", "URLs for the Operator Services").IsSetByUser(&c.operatorServiceIsSet).PlaceHolder("URL").URLListVar(&c.operatorService)
@@ -77,18 +82,22 @@ func configureAuthOperatorCommand(auth commandHost) {
 	edit.Flag("no-tags", "Tags to remove from the Operator").StringsVar(&c.rmTags)
 
 	imp := op.Command("import", "Imports an operator").Action(c.importAction)
+	imp.Tag("scope:system", "impact:rw")
 	imp.Arg("token", "The JWT file containing the account to import").Required().PlaceHolder("JWT").ExistingFileVar(&c.tokenFile)
 	imp.Arg("key", "List of keys to import").PlaceHolder("FILE").ExistingFilesVar(&c.keyFiles)
 
 	sel := op.Command("select", "Selects the default operator").Action(c.selectAction)
+	sel.Tag("scope:system", "impact:ro")
 	sel.Arg("name", "Operator to select").StringVar(&c.operatorName)
 
 	backup := op.Command("backup", "Creates a backup of an operator").Action(c.backupAction)
+	backup.Tag("scope:system", "impact:ro")
 	backup.Arg("name", "Operator to act on").Required().StringVar(&c.operatorName)
 	backup.Arg("output", "File to write backup to").Required().StringVar(&c.outputFile)
 	backup.Flag("key", "Curve or X25519 NKey to encrypt with").StringVar(&c.encKey)
 
 	restore := op.Command("restore", "Restores an operator from a backup").Action(c.restoreAction)
+	restore.Tag("scope:system", "impact:rw")
 	restore.Arg("name", "Operator to act on").Required().StringVar(&c.operatorName)
 	restore.Arg("input", "File to read backup from").Required().StringVar(&c.outputFile)
 	restore.Flag("key", "Curve or X25519 NKey to decrypt with").StringVar(&c.encKey)
@@ -96,12 +105,15 @@ func configureAuthOperatorCommand(auth commandHost) {
 	sk := op.Command("keys", "Manage Operator Signing Keys").Alias("sk").Alias("s")
 
 	skls := sk.Command("list", "List Signing Keys").Alias("ls").Action(c.skListAction)
+	skls.Tag("scope:system", "impact:ro")
 	skls.Arg("name", "Operator to act on").StringVar(&c.operatorName)
 
 	skadd := sk.Command("add", "Adds a new Signing Key").Alias("new").Alias("create").Action(c.skAddAction)
+	skadd.Tag("scope:system", "impact:rw")
 	skadd.Arg("name", "Operator to act on").StringVar(&c.operatorName)
 
 	skrm := sk.Command("rm", "Removes a Signing Key").Alias("delete").Action(c.skRmAction)
+	skrm.Tag("scope:system", "impact:rw")
 	skrm.Arg("name", "Operator to act on").StringVar(&c.operatorName)
 	skrm.Arg("key", "The public key to remove").StringVar(&c.pubKey)
 	skrm.Flag("force", "Remove without prompting").Short('f').UnNegatableBoolVar(&c.force)

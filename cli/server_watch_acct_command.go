@@ -24,11 +24,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/choria-io/fisk"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	iu "github.com/nats-io/natscli/internal/util"
 	terminal "golang.org/x/term"
+
+	"github.com/choria-io/fisk"
 )
 
 type SrvWatchAccountCmd struct {
@@ -58,6 +59,7 @@ func configureServerWatchAccountCommand(watch *fisk.CmdClause) {
 	sort.Strings(sortKeys)
 
 	accounts := watch.Command("accounts", "Watch account usage").Alias("account").Alias("acct").Action(c.accountsAction)
+	accounts.Tag("scope:system", "impact:ro")
 	accounts.HelpLong(`This waits for regular updates that each server sends and report seen totals.
 
 Since the updates are sent on a 30 second interval this is not a point in time view.
