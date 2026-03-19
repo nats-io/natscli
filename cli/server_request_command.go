@@ -392,6 +392,11 @@ func (c *SrvRequestCmd) jsz(_ *fisk.ParseContext) error {
 		opts.JSzOptions.RaftGroups = true
 	}
 
+	// we expect response only from the meta leader node
+	if c.leaderOnly {
+		c.waitFor = 1
+	}
+
 	res, err := c.doReq("JSZ", &opts, nc)
 	if err != nil {
 		return err
