@@ -1,4 +1,4 @@
-// Copyright 2023-2025 The NATS Authors
+// Copyright 2023-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -48,6 +48,7 @@ type authAccountCommand struct {
 	expiry                  time.Duration
 	exportName              string
 	force                   bool
+	json                    bool
 	isService               bool
 	jetStream               bool
 	jetStreamIsSet          bool
@@ -154,6 +155,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	info.Tag("scope:system", "impact:ro")
 	info.Arg("account", "Account to view").StringVar(&c.accountName)
 	info.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+	info.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	edit := acct.Command("edit", "Edit Account settings").Alias("update").Action(c.editAction)
 	edit.Tag("scope:system", "impact:rw")
@@ -202,6 +204,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	impInfo.Arg("subject", "Export to view by subject").StringVar(&c.subject)
 	impInfo.Arg("account", "Account to act on").StringVar(&c.accountName)
 	impInfo.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+	impInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	impEdit := imports.Command("edit", "Edits an Import").Alias("update").Action(c.importEditAction)
 	impEdit.Tag("scope:system", "impact:rw")
@@ -249,6 +252,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	expInfo.Arg("subject", "Export to view by subject").StringVar(&c.subject)
 	expInfo.Arg("account", "Account to act on").StringVar(&c.accountName)
 	expInfo.Flag("operator", "Operator hosting the account").StringVar(&c.operatorName)
+	expInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	expEdit := exports.Command("edit", "Edits an Export").Alias("update").Action(c.exportEditAction)
 	expEdit.Tag("scope:system", "impact:rw")
@@ -299,6 +303,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	skInfo.Arg("account", "Account to view").StringVar(&c.accountName)
 	skInfo.Arg("key", "The role or key to view").StringVar(&c.skRole)
 	skInfo.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
+	skInfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	skls := sk.Command("ls", "List Scoped Signing Keys").Alias("list").Action(c.skListAction)
 	skls.Tag("scope:system", "impact:ro")
@@ -340,6 +345,7 @@ func configureAuthAccountCommand(auth commandHost) {
 	mappingsinfo.Arg("account", "Account to inspect the mappings from").StringVar(&c.accountName)
 	mappingsinfo.Arg("source", "The source subject of the mapping").StringVar(&c.mapSource)
 	mappingsinfo.Flag("operator", "Operator to act on").StringVar(&c.operatorName)
+	mappingsinfo.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 }
 
 func (c *authAccountCommand) selectAccount(pick bool) (*ab.AuthImpl, ab.Operator, ab.Account, error) {
@@ -620,6 +626,10 @@ func (c *authAccountCommand) fShowSk(w io.Writer, limits ab.ScopeLimits) error {
 }
 
 func (c *authAccountCommand) showSk(limits ab.ScopeLimits) (string, error) {
+	if c.json {
+		return iu.ToJSON(limits)
+	}
+
 	cols := newColumnsf("Scoped Signing Key %s", limits.Key())
 
 	cols.AddSectionTitle("Config")
@@ -819,11 +829,24 @@ func (c *authAccountCommand) lsAction(_ *fisk.ParseContext) error {
 		return nil
 	}
 
+	var names []string
+	for _, op := range list {
+		names = append(names, op.Name())
+	}
+
 	if c.listNames {
-		for _, op := range list {
-			fmt.Println(op.Name())
+		if c.json {
+			return iu.PrintJSON(names)
+		}
+
+		for _, op := range names {
+			fmt.Println(op)
 		}
 		return nil
+	}
+
+	if c.json {
+		return iu.PrintJSON(list)
 	}
 
 	table := iu.NewTableWriterf(opts(), "Accounts")
@@ -1056,6 +1079,10 @@ func (c *authAccountCommand) fShowAccount(w io.Writer, operator ab.Operator, acc
 }
 
 func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) (string, error) {
+	if c.json {
+		return iu.ToJSON(acct)
+	}
+
 	limits := acct.Limits()
 	js := limits.JetStream()
 	serviceExports := len(acct.Exports().Services().List())
@@ -1365,6 +1392,10 @@ func (c *authAccountCommand) fShowMappings(w io.Writer, mappings map[string][]ab
 }
 
 func (c *authAccountCommand) showMappings(mappings map[string][]ab.Mapping) (string, error) {
+	if c.json {
+		return iu.ToJSON(mappings)
+	}
+
 	cols := newColumnsf("Subject mappings")
 	cols.AddSectionTitle("Configuration")
 	for source, m := range mappings {

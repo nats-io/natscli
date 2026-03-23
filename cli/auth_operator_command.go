@@ -1,4 +1,4 @@
-// Copyright 2023-2024 The NATS Authors
+// Copyright 2023-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -42,6 +42,7 @@ type authOperatorCommand struct {
 	accountServerIsSet   bool
 	listNames            bool
 	force                bool
+	json                 bool
 	createSK             bool
 	tokenFile            string
 	keyFiles             []string
@@ -68,6 +69,7 @@ func configureAuthOperatorCommand(auth commandHost) {
 	info := op.Command("info", "Show Operator information").Alias("i").Alias("show").Alias("view").Action(c.infoAction)
 	info.Tag("scope:system", "impact:ro")
 	info.Arg("name", "Operator to view").StringVar(&c.operatorName)
+	info.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	ls := op.Command("list", "List Operators").Alias("ls").Action(c.lsAction)
 	ls.Tag("scope:system", "impact:ro")
@@ -549,6 +551,10 @@ func (c *authOperatorCommand) addAction(_ *fisk.ParseContext) error {
 }
 
 func (c *authOperatorCommand) showOperator(operator ab.Operator) (string, error) {
+	if c.json {
+		return iu.ToJSON(operator)
+	}
+
 	cols := newColumnsf("Operator %s (%s)", operator.Name(), operator.Subject())
 	cols.AddSectionTitle("Configuration")
 	cols.AddRow("Name", operator.Name())
