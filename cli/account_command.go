@@ -459,8 +459,16 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 	defer cols.Frender(os.Stdout)
 
 	if ui != nil {
-		cols.AddRow("User", ui.UserID)
-		cols.AddRow("Account", ui.Account)
+		if ui.UserName != "" {
+			cols.AddRowf("User", "%s (%s)", ui.UserName, ui.UserID)
+		} else {
+			cols.AddRowf("User", "%s", ui.UserID)
+		}
+		if ui.AccountName != "" {
+			cols.AddRowf("Account", "%s (%s)", ui.AccountName, ui.Account)
+		} else {
+			cols.AddRow("Account", ui.Account)
+		}
 		if ui.Expires == 0 {
 			cols.AddRow("Expires", "never")
 		} else {
