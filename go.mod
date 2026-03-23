@@ -5,20 +5,20 @@ go 1.25.0
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.2.0
-	github.com/choria-io/fisk v0.7.3-0.20260316155017-4f6358d304c8
+	github.com/choria-io/fisk v0.7.3-0.20260323194632-dd91a674f48d
 	github.com/choria-io/scaffold v0.0.10
-	github.com/creack/pty v1.1.17
+	github.com/creack/pty v1.1.24
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v1.11.0
 	github.com/expr-lang/expr v1.17.8
-	github.com/fatih/color v1.18.0
+	github.com/fatih/color v1.19.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/jedib0t/go-pretty/v6 v6.7.8
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.18.4
+	github.com/klauspost/compress v1.18.5
 	github.com/nats-io/jsm.go v0.3.1-0.20260311160413-8208434e7b0d
 	github.com/nats-io/jwt/v2 v2.8.1
 	github.com/nats-io/nats-server/v2 v2.12.1-0.20260319152329-5b63063e858f
@@ -41,11 +41,11 @@ require (
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/CloudyKit/fastprinter v0.0.0-20251202014920-1725d2651bd4 // indirect
-	github.com/CloudyKit/jet/v6 v6.3.1 // indirect
+	github.com/CloudyKit/jet/v6 v6.3.2 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
-	github.com/antithesishq/antithesis-sdk-go v0.6.0 // indirect
+	github.com/antithesishq/antithesis-sdk-go v0.7.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
@@ -57,7 +57,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.21 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
-	github.com/minio/highwayhash v1.0.4-0.20251030100505-070ab1a87a76 // indirect
+	github.com/minio/highwayhash v1.0.4 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
@@ -71,7 +71,7 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/synadia-io/orbit.go/natsext v0.1.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
+	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
