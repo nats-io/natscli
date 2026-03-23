@@ -1,4 +1,4 @@
-// Copyright 2024 The NATS Authors
+// Copyright 2024-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -20,10 +20,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nats-io/natscli/internal/util"
-
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
+	iu "github.com/nats-io/natscli/internal/util"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
 )
 
@@ -138,6 +137,10 @@ func (c *authAccountCommand) fShowExport(w io.Writer, exp ab.Export) error {
 }
 
 func (c *authAccountCommand) showExport(exp ab.Export) (string, error) {
+	if c.json {
+		return iu.ToJSON(exp)
+	}
+
 	_, isService := exp.(ab.ServiceExport)
 
 	cols := newColumnsf("Export info for %s exporting %s", exp.Name(), exp.Subject())
@@ -220,10 +223,10 @@ func (c *authAccountCommand) exportInfoAction(_ *fisk.ParseContext) error {
 			return fmt.Errorf("no exports defined")
 		}
 
-		err = util.AskOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message:  "Select an Export",
 			Options:  known,
-			PageSize: util.SelectPageSize(len(known)),
+			PageSize: iu.SelectPageSize(len(known)),
 		}, &c.subject)
 		if err != nil {
 			return err
@@ -354,7 +357,7 @@ func (c *authAccountCommand) exportLsAction(_ *fisk.ParseContext) error {
 
 	exports := c.exportBySubject(acct)
 
-	tbl := util.NewTableWriterf(opts(), "Exports for account %s", acct.Name())
+	tbl := iu.NewTableWriterf(opts(), "Exports for account %s", acct.Name())
 	tbl.AddHeaders("Name", "Kind", "Subject", "Activation Required", "Advertised", "Token Position", "Revocations")
 
 	for _, e := range exports {

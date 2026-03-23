@@ -1,4 +1,4 @@
-// Copyright 2024 The NATS Authors
+// Copyright 2024-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -20,11 +20,10 @@ import (
 	"sort"
 	"strings"
 
-	au "github.com/nats-io/natscli/internal/auth"
-	"github.com/nats-io/natscli/internal/util"
-
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
+	au "github.com/nats-io/natscli/internal/auth"
+	iu "github.com/nats-io/natscli/internal/util"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
 )
 
@@ -177,7 +176,7 @@ func (c *authAccountCommand) importLsAction(_ *fisk.ParseContext) error {
 
 	imports := c.importsBySubject(acct)
 
-	tbl := util.NewTableWriterf(opts(), "Imports for account %s", acct.Name())
+	tbl := iu.NewTableWriterf(opts(), "Imports for account %s", acct.Name())
 	tbl.AddHeaders("Name", "Kind", "Source", "Local Subject", "Remote Subject", "Allows Tracing", "Sharing Connection Info")
 
 	for _, i := range imports {
@@ -250,10 +249,10 @@ func (c *authAccountCommand) importInfoAction(_ *fisk.ParseContext) error {
 			return fmt.Errorf("no imports defined")
 		}
 
-		err = util.AskOne(&survey.Select{
+		err = iu.AskOne(&survey.Select{
 			Message:  "Select an Import",
 			Options:  known,
-			PageSize: util.SelectPageSize(len(known)),
+			PageSize: iu.SelectPageSize(len(known)),
 		}, &c.subject)
 		if err != nil {
 			return err
@@ -379,6 +378,10 @@ func (c *authAccountCommand) fShowImport(w io.Writer, exp ab.Import, op ab.Opera
 }
 
 func (c *authAccountCommand) showImport(imp ab.Import, op ab.Operator) (string, error) {
+	if c.json {
+		return iu.ToJSON(imp)
+	}
+
 	cols := newColumnsf("Import info for import %q importing %q", imp.Name(), imp.LocalSubject())
 
 	_, isStream := imp.(ab.StreamImport)
