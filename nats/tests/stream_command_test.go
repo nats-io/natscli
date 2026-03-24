@@ -14,8 +14,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
 	"testing"
 	"time"
 
@@ -474,6 +476,68 @@ func TestStreamRestore(t *testing.T) {
 			!expectMatchLine(t, output, fmt.Sprintf("Restored stream \"%s\" in \\d+s", name)) {
 			t.Errorf("Unexecpted output :%s", output)
 		}
+		return nil
+	})
+}
+
+func TestStreamRestoreWithConfig(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name := setupStreamTest(t, mgr)
+		tmpDir := t.TempDir()
+
+		runNatsCli(t, fmt.Sprintf("--server='%s' stream backup %s %s", srv.ClientURL(), name, tmpDir))
+		mgr.DeleteStream(name)
+
+		overrideCfg := api.StreamConfig{
+			Name:         name,
+			Subjects:     []string{"ORDERS.*", "OVERRIDE.*"},
+			Description:  "restored with override",
+			Retention:    api.LimitsPolicy,
+			Storage:      api.FileStorage,
+			MaxConsumers: -1,
+			MaxMsgs:      -1,
+			MaxMsgsPer:   -1,
+			MaxBytes:     -1,
+			MaxMsgSize:   -1,
+			Replicas:     1,
+			Discard:      api.DiscardOld,
+			Duplicates:   2 * time.Minute,
+		}
+
+		cfgJSON, err := json.Marshal(overrideCfg)
+		if err != nil {
+			t.Fatalf("unable to marshal config: %v", err)
+		}
+
+		overrideFile, err := os.CreateTemp(t.TempDir(), "override.json")
+		if err != nil {
+			t.Fatalf("unable to create config file: %v", err)
+		}
+		if _, err := overrideFile.Write(cfgJSON); err != nil {
+			t.Fatalf("unable to write config file: %v", err)
+		}
+		cfgFile := overrideFile.Name()
+		overrideFile.Close()
+
+		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' stream restore %s --config='%s'", srv.ClientURL(), tmpDir, cfgFile)))
+		if !expectMatchLine(t, output, fmt.Sprintf("Restored stream \"%s\"", name)) {
+			t.Errorf("Unexpected output :%s", output)
+		}
+
+		stream, err := mgr.LoadStream(name)
+		if err != nil {
+			t.Errorf("failed to load stream %s: %s", name, err)
+		}
+
+		if stream.Description() != "restored with override" {
+			t.Errorf("expected description %q but got %q", "restored with override", stream.Description())
+		}
+
+		subjects := stream.Subjects()
+		if len(subjects) != 2 || subjects[0] != "ORDERS.*" || subjects[1] != "OVERRIDE.*" {
+			t.Errorf("expected subjects [ORDERS.* OVERRIDE.*] but got %v", subjects)
+		}
+
 		return nil
 	})
 }

@@ -1296,7 +1296,7 @@ func (c *streamCmd) restoreAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.inputFile != "" {
-		cfg, err := c.loadConfigFile(c.inputFile)
+		cfg, err = c.loadConfigFile(c.inputFile)
 		if err != nil {
 			return err
 		}
