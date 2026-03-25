@@ -1,4 +1,4 @@
-// Copyright 2024-2025 The NATS Authors
+// Copyright 2024-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -220,9 +221,20 @@ func (b *Bundle) scaffold(dest string, env map[string]any, debug bool) error {
 		fmt.Println()
 	}
 
-	err = s.Render(env)
+	managed, err := s.Render(env)
 	if err != nil {
 		return err
+	}
+
+	for _, f := range managed {
+		switch f.Action {
+		case scaffold.FileActionAdd:
+			log.Printf("Created %s", filepath.Join(dest, f.Path))
+		case scaffold.FileActionRemove:
+			log.Printf("Removed %s", filepath.Join(dest, f.Path))
+		case scaffold.FileActionUpdate:
+			log.Printf("Changed %s", filepath.Join(dest, f.Path))
+		}
 	}
 
 	if b.PostScaffold != "" {
