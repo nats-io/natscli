@@ -1267,6 +1267,31 @@ func TestJetStreamSubscribe(t *testing.T) {
 		})
 	})
 
+	t.Run("--stream with multiple subjects", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := mgr.NewStream("MULTI_SUBJECT", jsm.Replicas(1), jsm.Subjects("events.lifecycle.>", "events.machine.>"))
+			if err != nil {
+				t.Fatalf("unable to create stream: %s", err)
+			}
+
+			err = nc.Publish("events.lifecycle.start", []byte(primaryTestMsgData))
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			err = nc.Publish("events.machine.status", []byte(secondaryTestMsgData))
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream MULTI_SUBJECT --all --count=2", srv.ClientURL())))
+			if !expectMatchLine(t, output, primaryTestMsgData) || !expectMatchLine(t, output, secondaryTestMsgData) {
+				t.Errorf("unexpected response: %s", output)
+			}
+			return nil
+		})
+	})
+
 	t.Run("subjects and --durable", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			err := runNatsCliWithError(t, fmt.Sprintf("--server='%s' sub TEST_STREAM.* --stream=TEST_STREAM --raw --count=1 --last-per-subject --direct", srv.ClientURL()))
