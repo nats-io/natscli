@@ -11,7 +11,7 @@ on: [push, pull_request]
 
 jobs:
   lint:
-    name: Running linting (ubuntu-latest/1.24)
+    name: Running linting
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -44,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: [ "1.24", "1.25" ]
+        go: [ "1.25", "1.26" ]
         os:
           - ubuntu-latest
           - windows-latest
