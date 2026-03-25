@@ -650,7 +650,7 @@ func (c *subCmd) reportSubscribe(ctx context.Context, subState subscriptionState
 func (c *subCmd) jetStreamSubscribe(ctx context.Context, subState subscriptionState, handler jetstream.MessageHandler, consumerContexts *[]jetstream.ConsumeContext, js jetstream.JetStream) error {
 	subMsg := c.firstSubject()
 	if subMsg == "" {
-		subMsg = f(c.streamObj.CachedInfo().Config.Subjects)
+		subMsg = ">"
 	}
 
 	ignoredSubjInfo := ""
