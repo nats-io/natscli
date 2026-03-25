@@ -40,6 +40,8 @@ builds:
         goarch: arm64
       - goos: freebsd
         goarch: 386
+      - goos: windows
+        goarch: arm
 
 archives:
   - name_template: "nats-{{.Version}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
