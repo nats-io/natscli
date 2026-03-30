@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/HdrHistogram/hdrhistogram-go v1.2.0
-	github.com/choria-io/fisk v0.7.3-0.20260323194632-dd91a674f48d
+	github.com/choria-io/fisk v0.8.0
 	github.com/choria-io/scaffold v0.0.10
 	github.com/creack/pty v1.1.24
 	github.com/dustin/go-humanize v1.0.1
@@ -19,17 +19,17 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.7.8
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.18.5
-	github.com/nats-io/jsm.go v0.3.1-0.20260311160413-8208434e7b0d
+	github.com/nats-io/jsm.go v0.3.1-0.20260330155845-49c116d973fc
 	github.com/nats-io/jwt/v2 v2.8.1
-	github.com/nats-io/nats-server/v2 v2.12.1-0.20260319152329-5b63063e858f
-	github.com/nats-io/nats.go v1.49.0
+	github.com/nats-io/nats-server/v2 v2.12.1-0.20260324122033-7755ef725c6c
+	github.com/nats-io/nats.go v1.50.0
 	github.com/nats-io/nkeys v0.4.15
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/synadia-io/jwt-auth-builder.go v0.0.9
 	github.com/synadia-io/orbit.go/counters v0.1.0
-	github.com/synadia-io/orbit.go/jetstreamext v0.2.0
+	github.com/synadia-io/orbit.go/jetstreamext v0.2.1
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.49.0
 	golang.org/x/term v0.41.0
@@ -69,7 +69,7 @@ require (
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	github.com/synadia-io/orbit.go/natsext v0.1.1 // indirect
+	github.com/synadia-io/orbit.go/natsext v0.1.2 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
 	golang.org/x/net v0.52.0 // indirect
