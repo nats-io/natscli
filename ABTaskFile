@@ -38,6 +38,10 @@ commands:
           - name: update
             description: Updates lint dependencies
             bool: true
+          - name: actions
+            bool: true
+            default: "true"
+            description: Run actions update using pinact
         script: |
           set -e
           
@@ -71,6 +75,11 @@ commands:
           {{ if .Flags.staticcheck }}
           ab_say Running staticcheck
           go list ./... | grep -F -e asciigraph -v |xargs staticcheck
+          {{ end }}
+
+          {{ if .Flags.actions }}
+          ab_say Updating actions
+          pinact run --update
           {{ end }}
 
   - name: dependencies
