@@ -26,22 +26,23 @@ import (
 )
 
 type reqCmd struct {
-	subject      string
-	body         string
-	bodyIsSet    bool
-	req          bool
-	replyTo      string
-	raw          bool
-	hdrs         []string
-	cnt          int
-	replyCount   int
-	replyTimeout time.Duration
-	forceStdin   bool
-	translate    string
-	sendOn       string
-	quiet        bool
-	templates    bool
-	sleep        time.Duration
+	subject          string
+	body             string
+	bodyIsSet        bool
+	req              bool
+	replyTo          string
+	raw              bool
+	hdrs             []string
+	cnt              int
+	replyCount       int
+	terminateOnEmpty bool
+	replyTimeout     time.Duration
+	forceStdin       bool
+	translate        string
+	sendOn           string
+	quiet            bool
+	templates        bool
+	sleep            time.Duration
 }
 
 func configureReqCommand(app commandHost) {
@@ -78,6 +79,7 @@ Available template functions are:
 	req.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 	req.Flag("replies", "Wait for multiple replies from services. 0 waits until timeout").Default("1").IntVar(&c.replyCount)
 	req.Flag("reply-timeout", "Maximum time between replies when waiting for more than one").Default("300ms").DurationVar(&c.replyTimeout)
+	req.Flag("wait-for-empty", "Wait for multiple replies until a empty message is received").UnNegatableBoolVar(&c.terminateOnEmpty)
 	req.Flag("translate", "Translate the message data by running it through the given command before output").StringVar(&c.translate)
 	req.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
 	req.Flag("send-on", "When to send data from stdin: 'eof' (default) or 'newline'").Default("eof").EnumVar(&c.sendOn, "newline", "eof")
@@ -174,6 +176,10 @@ func (c *reqCmd) doReq(nc *nats.Conn, pub *iu.Publisher) error {
 				break
 			}
 
+			if c.replyCount > 0 && len(m.Data) == 0 {
+				break
+			}
+
 			if c.replyCount == 0 {
 				// if we are waiting for the general timeout then
 				// calculate remaining
@@ -211,6 +217,10 @@ func (c *reqCmd) requestAction(_ *fisk.ParseContext) error {
 
 	if c.cnt < 1 {
 		c.cnt = math.MaxInt16
+	}
+
+	if c.terminateOnEmpty {
+		c.replyCount = math.MaxInt16
 	}
 
 	pub, err := iu.NewPublisher(iu.PublisherConfig{
