@@ -257,8 +257,26 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 		prev = replica.StreamName
 		prevAccount = accName
 
-		table.AddRow(replica.StreamName, replica.RaftGroup, account, replica.AccountID, fmt.Sprintf("%s%s", serverName, suffix), replica.State.Msgs, replica.State.Bytes, replica.State.NumSubjects, replica.State.NumDeleted, replica.State.Consumers, replica.State.FirstSeq,
-			replica.State.LastSeq, status, replica.Cluster.Leader, strings.TrimSpace(replicasInfo), healthStatus)
+		node := fmt.Sprintf("%s%s", serverName, suffix)
+
+		if c.unsyncedFilter && !isStreamLeader {
+			ld := stream[replica.Cluster.Leader]
+			table.AddRow(replica.StreamName, replica.RaftGroup, account, replica.AccountID, node,
+				util.FmtReplicaDrift(float64(replica.State.Msgs), float64(ld.State.Msgs)),
+				util.FmtReplicaDrift(float64(replica.State.Bytes), float64(ld.State.Bytes)),
+				util.FmtReplicaDrift(float64(replica.State.NumSubjects), float64(ld.State.NumSubjects)),
+				util.FmtReplicaDrift(float64(replica.State.NumDeleted), float64(ld.State.NumDeleted)),
+				util.FmtReplicaDrift(float64(replica.State.Consumers), float64(ld.State.Consumers)),
+				util.FmtReplicaDrift(float64(replica.State.FirstSeq), float64(ld.State.FirstSeq)),
+				util.FmtReplicaDrift(float64(replica.State.LastSeq), float64(ld.State.LastSeq)),
+				status, replica.Cluster.Leader, strings.TrimSpace(replicasInfo), healthStatus)
+		} else {
+			table.AddRow(replica.StreamName, replica.RaftGroup, account, replica.AccountID, node,
+				replica.State.Msgs, replica.State.Bytes, replica.State.NumSubjects,
+				replica.State.NumDeleted, replica.State.Consumers, replica.State.FirstSeq,
+				replica.State.LastSeq, status, replica.Cluster.Leader,
+				strings.TrimSpace(replicasInfo), healthStatus)
+		}
 	}
 
 	if c.csv {

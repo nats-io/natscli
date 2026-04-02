@@ -327,9 +327,23 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 			progress = fmt.Sprintf("%-3.0f%%", result)
 		}
 
-		delivered := fmt.Sprintf("%d [%d, %d] %-3s | %d",
-			replica.DeliveredStreamSeq, replica.State.FirstSeq, replica.State.LastSeq, progress, replica.DeliveredConsumerSeq)
-		ackfloor := fmt.Sprintf("%d | %d", replica.AckFloorStreamSeq, replica.AckFloorConsumerSeq)
+		isLeader := replica.Cluster != nil && serverName == replica.Cluster.Leader
+
+		var delivered, ackfloor string
+		if c.unsyncedFilter && !isLeader {
+			lc := consumer[replica.Cluster.Leader]
+			delivered = fmt.Sprintf("%s [%d, %d] %-3s | %s",
+				util.FmtReplicaDrift(float64(replica.DeliveredStreamSeq), float64(lc.DeliveredStreamSeq)),
+				replica.State.FirstSeq, replica.State.LastSeq, progress,
+				util.FmtReplicaDrift(float64(replica.DeliveredConsumerSeq), float64(lc.DeliveredConsumerSeq)))
+			ackfloor = fmt.Sprintf("%s | %s",
+				util.FmtReplicaDrift(float64(replica.AckFloorStreamSeq), float64(lc.AckFloorStreamSeq)),
+				util.FmtReplicaDrift(float64(replica.AckFloorConsumerSeq), float64(lc.AckFloorConsumerSeq)))
+		} else {
+			delivered = fmt.Sprintf("%d [%d, %d] %-3s | %d",
+				replica.DeliveredStreamSeq, replica.State.FirstSeq, replica.State.LastSeq, progress, replica.DeliveredConsumerSeq)
+			ackfloor = fmt.Sprintf("%d | %d", replica.AckFloorStreamSeq, replica.AckFloorConsumerSeq)
+		}
 		counters := fmt.Sprintf("(ap:%d, nr:%d, nw:%d, np:%d)", replica.NumAckPending, replica.NumRedelivered, replica.NumWaiting, replica.NumPending)
 
 		var replicasInfo string

@@ -674,3 +674,28 @@ func ParseApiLevel(lvl string) uint {
 	i, _ := strconv.Atoi(lvl)
 	return uint(i)
 }
+
+// FmtReplicaDrift formats a replica's numeric value and appends the percentage
+// drift from the leader. Equal values produce no suffix. Differences smaller
+// than 0.01% are clamped to avoid displaying 0.00%. Trailing zeros are trimmed
+// so 50.00% becomes 50% and 50.10% becomes 50.1%.
+func FmtReplicaDrift(replica, leader float64) string {
+	if replica == leader {
+		return fmt.Sprintf("%.0f", replica)
+	}
+	if leader == 0 {
+		return fmt.Sprintf("%.0f (+100%%)", replica)
+	}
+	diff := (replica - leader) / leader * 100
+	if diff > 0 && diff < 0.01 {
+		diff = 0.01
+	}
+	if diff < 0 && diff > -0.01 {
+		diff = -0.01
+	}
+	// strip trailing 0s
+	pct := strings.TrimRight(fmt.Sprintf("%+.2f", diff), "0")
+	// strip . if it exists
+	pct = strings.TrimRight(pct, ".")
+	return fmt.Sprintf("%.0f (%s%%)", replica, pct)
+}
