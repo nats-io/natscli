@@ -267,3 +267,33 @@ func TestParseStringAsBytes(t *testing.T) {
 		}
 	}
 }
+
+func TestFmtReplicaDrift(t *testing.T) {
+	tests := []struct {
+		replica float64
+		leader  float64
+		expect  string
+	}{
+		{1000, 1000, "1000"},
+		{0, 0, "0"},
+		{990, 1000, "990 (-1%)"},
+		{1010, 1000, "1010 (+1%)"},
+		{500, 1000, "500 (-50%)"},
+		{0, 1000, "0 (-100%)"},
+		{5, 0, "5 (+100%)"},
+		{1000.004, 1000, "1000 (+0.01%)"},
+		{999.996, 1000, "1000 (-0.01%)"},
+		{1001, 1000, "1001 (+0.1%)"},
+		{999, 1000, "999 (-0.1%)"},
+		{1100, 1050, "1100 (+4.76%)"},
+		{333, 1000, "333 (-66.7%)"},
+		{1234, 1000, "1234 (+23.4%)"},
+	}
+
+	for _, tc := range tests {
+		got := FmtReplicaDrift(tc.replica, tc.leader)
+		if got != tc.expect {
+			t.Errorf("FmtReplicaDrift(%v, %v) = %q, want %q", tc.replica, tc.leader, got, tc.expect)
+		}
+	}
+}

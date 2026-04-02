@@ -31,6 +31,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/natscli/internal/scaffold"
+	"github.com/nats-io/natscli/internal/sysclient"
 )
 
 const sysUserCreds = "--user=sys --password=pass"
@@ -1594,6 +1595,118 @@ func TestServerStreamCheck(t *testing.T) {
 		}
 		runNatsCliWithInput(t, string(content), "server stream-check --stdin")
 	})
+
+	makeStreamCheckResp := func(t *testing.T, name, id string, msgs, bytes uint64, numSubjects, numDeleted, consumers int, firstSeq, lastSeq uint64) string {
+		t.Helper()
+		resp := sysclient.JSZResp{
+			Server: server.ServerInfo{
+				Name:      name,
+				Host:      "localhost",
+				ID:        id,
+				Version:   "2.12.0",
+				JetStream: true,
+			},
+			JSInfo: server.JSInfo{
+				ID:       id,
+				Streams:  1,
+				Messages: msgs,
+				Bytes:    bytes,
+				AccountDetails: []*server.AccountDetail{{
+					Name: "TEST",
+					Id:   "TESTID",
+					Streams: []server.StreamDetail{{
+						Name: "ORDERS",
+						State: server.StreamState{
+							Msgs:        msgs,
+							Bytes:       bytes,
+							FirstSeq:    firstSeq,
+							LastSeq:     lastSeq,
+							NumSubjects: numSubjects,
+							NumDeleted:  numDeleted,
+							Consumers:   consumers,
+						},
+						Cluster: &server.ClusterInfo{
+							Name:      "TEST",
+							RaftGroup: "RG1",
+							Leader:    "s1",
+						},
+						RaftGroup: "RG1",
+					}},
+				}},
+			},
+		}
+
+		b, err := json.Marshal(resp)
+		if err != nil {
+			t.Fatalf("failed to marshal JSZResp: %v", err)
+		}
+		return string(b)
+	}
+
+	t.Run("unsynced percentage differences", func(t *testing.T) {
+		leader := makeStreamCheckResp(t, "s1", "ID1", 1000, 10000, 50, 10, 3, 1, 1000)
+		replica2 := makeStreamCheckResp(t, "s2", "ID2", 990, 9800, 50, 5, 3, 1, 990)
+		replica3 := makeStreamCheckResp(t, "s3", "ID3", 1010, 10200, 55, 15, 4, 1, 1010)
+
+		input := leader + "\n" + replica2 + "\n" + replica3 + "\n"
+
+		output, err := runNatsCliWithInput(t, input, "server stream-check --stdin --unsynced")
+		if err != nil {
+			t.Fatalf("stream-check failed: %v\nOutput: %s", err, output)
+		}
+		out := string(output)
+
+		for _, line := range strings.Split(out, "\n") {
+			if strings.Contains(line, "s1*") && strings.Contains(line, "%)") {
+				t.Errorf("leader row should not contain percentages: %s", line)
+			}
+		}
+
+		for _, s := range []string{"990 (-1%)", "9800 (-2%)", "5 (-50%)"} {
+			if !strings.Contains(out, s) {
+				t.Errorf("s2 row missing %q:\n%s", s, out)
+			}
+		}
+
+		for _, s := range []string{"1010 (+1%)", "10200 (+2%)", "55 (+10%)", "15 (+50%)", "4 (+33.33%)"} {
+			if !strings.Contains(out, s) {
+				t.Errorf("s3 row missing %q:\n%s", s, out)
+			}
+		}
+	})
+
+	t.Run("unsynced percentage with zero values", func(t *testing.T) {
+		leader := makeStreamCheckResp(t, "s1", "ID1", 1000, 10000, 50, 0, 3, 1, 1000)
+		replica2 := makeStreamCheckResp(t, "s2", "ID2", 990, 9800, 50, 5, 3, 1, 990)
+		replica3 := makeStreamCheckResp(t, "s3", "ID3", 1010, 10200, 55, 0, 4, 1, 1010)
+
+		input := leader + "\n" + replica2 + "\n" + replica3 + "\n"
+
+		output, err := runNatsCliWithInput(t, input, "server stream-check --stdin --unsynced")
+		if err != nil {
+			t.Fatalf("stream-check failed: %v\nOutput: %s", err, output)
+		}
+		out := string(output)
+
+		if !strings.Contains(out, "5 (+100%)") {
+			t.Errorf("expected +100%% when leader=0 replica=5:\n%s", out)
+		}
+
+		leader = makeStreamCheckResp(t, "s1", "ID1", 1000, 10000, 50, 10, 3, 1, 1000)
+		replica2 = makeStreamCheckResp(t, "s2", "ID2", 990, 9800, 50, 0, 3, 1, 990)
+
+		input = leader + "\n" + replica2 + "\n"
+
+		output, err = runNatsCliWithInput(t, input, "server stream-check --stdin --unsynced")
+		if err != nil {
+			t.Fatalf("stream-check failed: %v\nOutput: %s", err, output)
+		}
+		out = string(output)
+
+		if !strings.Contains(out, "0 (-100%)") {
+			t.Errorf("expected -100%% when leader=10 replica=0:\n%s", out)
+		}
+	})
 }
 
 func TestServerConsumerCheck(t *testing.T) {
@@ -1625,6 +1738,134 @@ func TestServerConsumerCheck(t *testing.T) {
 			return nil
 		})
 	})
+	makeConsumerCheckResp := func(t *testing.T, name, id string, deliveredStream, deliveredConsumer, ackFloorStream, ackFloorConsumer uint64) string {
+		t.Helper()
+		resp := sysclient.JSZResp{
+			Server: server.ServerInfo{
+				Name:      name,
+				Host:      "localhost",
+				ID:        id,
+				Version:   "2.12.0",
+				JetStream: true,
+			},
+			JSInfo: server.JSInfo{
+				ID:        id,
+				Streams:   1,
+				Consumers: 1,
+				AccountDetails: []*server.AccountDetail{{
+					Name: "TEST",
+					Id:   "TESTID",
+					Streams: []server.StreamDetail{{
+						Name: "ORDERS",
+						State: server.StreamState{
+							Msgs:     1000,
+							Bytes:    10000,
+							FirstSeq: 1,
+							LastSeq:  1000,
+						},
+						Cluster: &server.ClusterInfo{
+							Name:      "TEST",
+							RaftGroup: "SRG1",
+							Leader:    "s1",
+						},
+						RaftGroup: "SRG1",
+						Consumer: []*server.ConsumerInfo{{
+							Stream: "ORDERS",
+							Name:   "MY_CONSUMER",
+							Delivered: server.SequenceInfo{
+								Stream:   deliveredStream,
+								Consumer: deliveredConsumer,
+							},
+							AckFloor: server.SequenceInfo{
+								Stream:   ackFloorStream,
+								Consumer: ackFloorConsumer,
+							},
+							Cluster: &server.ClusterInfo{
+								Name:      "TEST",
+								RaftGroup: "CRG1",
+								Leader:    "s1",
+							},
+						}},
+						ConsumerRaftGroups: []*server.RaftGroupDetail{{
+							Name:      "MY_CONSUMER",
+							RaftGroup: "CRG1",
+						}},
+					}},
+				}},
+			},
+		}
+
+		b, err := json.Marshal(resp)
+		if err != nil {
+			t.Fatalf("failed to marshal JSZResp: %v", err)
+		}
+		return string(b)
+	}
+
+	t.Run("unsynced percentage differences", func(t *testing.T) {
+		leader := makeConsumerCheckResp(t, "s1", "ID1", 500, 500, 400, 400)
+		replica2 := makeConsumerCheckResp(t, "s2", "ID2", 490, 490, 380, 380)
+		replica3 := makeConsumerCheckResp(t, "s3", "ID3", 510, 520, 420, 440)
+
+		input := leader + "\n" + replica2 + "\n" + replica3 + "\n"
+
+		output, err := runNatsCliWithInput(t, input, "server consumer-check --stdin --unsynced")
+		if err != nil {
+			t.Fatalf("consumer-check failed: %v\nOutput: %s", err, output)
+		}
+		out := string(output)
+
+		for _, line := range strings.Split(out, "\n") {
+			if strings.Contains(line, "s1*") && strings.Contains(line, "%)") {
+				t.Errorf("leader row should not contain percentages: %s", line)
+			}
+		}
+
+		for _, s := range []string{"490 (-2%)", "380 (-5%)"} {
+			if !strings.Contains(out, s) {
+				t.Errorf("s2 row missing %q:\n%s", s, out)
+			}
+		}
+
+		for _, s := range []string{"510 (+2%)", "520 (+4%)", "420 (+5%)", "440 (+10%)"} {
+			if !strings.Contains(out, s) {
+				t.Errorf("s3 row missing %q:\n%s", s, out)
+			}
+		}
+	})
+
+	t.Run("unsynced percentage with zero values", func(t *testing.T) {
+		leader := makeConsumerCheckResp(t, "s1", "ID1", 500, 500, 0, 0)
+		replica2 := makeConsumerCheckResp(t, "s2", "ID2", 500, 500, 10, 10)
+
+		input := leader + "\n" + replica2 + "\n"
+
+		output, err := runNatsCliWithInput(t, input, "server consumer-check --stdin --unsynced")
+		if err != nil {
+			t.Fatalf("consumer-check failed: %v\nOutput: %s", err, output)
+		}
+		out := string(output)
+
+		if !strings.Contains(out, "10 (+100%)") {
+			t.Errorf("expected +100.00%% when leader=0 replica=10:\n%s", out)
+		}
+
+		leader = makeConsumerCheckResp(t, "s1", "ID1", 500, 500, 400, 400)
+		replica2 = makeConsumerCheckResp(t, "s2", "ID2", 500, 500, 0, 0)
+
+		input = leader + "\n" + replica2 + "\n"
+
+		output, err = runNatsCliWithInput(t, input, "server consumer-check --stdin --unsynced")
+		if err != nil {
+			t.Fatalf("consumer-check failed: %v\nOutput: %s", err, output)
+		}
+		out = string(output)
+
+		if !strings.Contains(out, "0 (-100%)") {
+			t.Errorf("expected -100%% when leader=400 replica=0:\n%s", out)
+		}
+	})
+
 	t.Run("consumer-check command with partial results", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			_, err := mgr.NewStream("CONSUMER_CHECK_STREAM", jsm.Subjects("TEST.*"))
