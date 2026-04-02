@@ -475,7 +475,7 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 			cols.AddRow("Expires", ui.Expires)
 		}
 	}
-	cols.AddRow("Client ID", id)
+	cols.AddRowf("Client ID", "%d", id)
 	if lip == "" || strings.HasPrefix(lip, ip.String()) {
 		cols.AddRow("Client IP", ip)
 	} else {
