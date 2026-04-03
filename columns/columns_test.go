@@ -460,6 +460,92 @@ func TestAddStringsAsValue_UTF8_NoCorruption(t *testing.T) {
 	}
 }
 
+func TestAddMapStringsAsValue_KeyAlignment(t *testing.T) {
+	w := New("")
+	w.AddMapStringsAsValue("Meta", map[string]string{
+		"x":    "y",
+		"long": "val",
+	})
+	out := renderHumanStr(t, w)
+	lines := nonEmptyLines(out)
+	if len(lines) < 2 {
+		t.Fatalf("expected at least 2 lines, got:\n%s", out)
+	}
+
+	// Find the colon positions in the value portion (right side of the outer column separator).
+	// Each value line contains "key: val" where the inner colon should be aligned.
+	var colonCols []int
+	for _, line := range lines {
+		// The value portion is after the outer separator; find the inner ":"
+		// by looking for ": " patterns. The outer sep is at the left column;
+		// inner key-value pairs appear in the right column.
+		idx := strings.Index(line, ": ")
+		if idx < 0 {
+			continue
+		}
+		// Find the inner colon — skip past the outer column separator
+		rest := line[idx+2:]
+		innerIdx := strings.Index(rest, ": ")
+		if innerIdx >= 0 {
+			colonCols = append(colonCols, idx+2+innerIdx)
+		} else {
+			// single-level: the colon we found is the inner one
+			colonCols = append(colonCols, idx)
+		}
+	}
+
+	if len(colonCols) < 2 {
+		t.Fatalf("expected at least 2 colon positions, got %d from:\n%s", len(colonCols), out)
+	}
+	for i := 1; i < len(colonCols); i++ {
+		if colonCols[i] != colonCols[0] {
+			t.Errorf("colon columns not aligned: line 0 at %d, line %d at %d\n%s",
+				colonCols[0], i, colonCols[i], out)
+		}
+	}
+}
+
+func TestAddMapStringsAsValue_SingleEntry(t *testing.T) {
+	w := New("")
+	w.AddMapStringsAsValue("Info", map[string]string{"only": "one"})
+	out := renderHumanStr(t, w)
+	if !strings.Contains(out, "only: one") {
+		t.Errorf("expected 'only: one' in output: %q", out)
+	}
+}
+
+func TestAddMapStringsAsValue_EmptyMap(t *testing.T) {
+	w := New("")
+	w.AddMapStringsAsValue("Empty", map[string]string{})
+	out := renderHumanStr(t, w)
+	if strings.Contains(out, "Empty") {
+		t.Errorf("empty map should produce no rows: %q", out)
+	}
+}
+
+func TestAddMapStringsAsValue_UTF8Keys(t *testing.T) {
+	w := New("")
+	w.AddMapStringsAsValue("Labels", map[string]string{
+		"日":   "short",
+		"日本語": "longer key",
+	})
+	out := renderHumanStr(t, w)
+	if !isValidUTF8(out) {
+		t.Errorf("output contains invalid UTF-8")
+	}
+	if !strings.Contains(out, "日: short") {
+		t.Errorf("missing '日: short' in output: %q", out)
+	}
+	if !strings.Contains(out, "日本語: longer key") {
+		t.Errorf("missing '日本語: longer key' in output: %q", out)
+	}
+	// Padding should be applied: "日" (1 rune) should get 2 spaces of padding
+	// to align with "日本語" (3 runes) by rune count
+	if !strings.Contains(out, "  日: short") {
+		t.Errorf("expected 2-space padding before short key: %q", out)
+	}
+}
+
 func TestAddMapStringsAsValue_UTF8_NoCorruption(t *testing.T) {
 	s := strings.Repeat("中", 200)
 	w := New("")
