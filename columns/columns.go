@@ -419,8 +419,13 @@ func (w *Writer) AddMapStringsAsValue(t string, data map[string]string) {
 	maxLen := screenWidth()
 
 	var list []string
+	longest := 0
 	for k := range data {
 		list = append(list, k)
+		klen := utf8StringLen(k)
+		if klen > longest {
+			longest = klen
+		}
 	}
 	sort.Strings(list)
 
@@ -433,10 +438,11 @@ func (w *Writer) AddMapStringsAsValue(t string, data map[string]string) {
 			v = fmt.Sprintf("%v ... %v", string(runes[0:half]), string(runes[len(runes)-half:]))
 		}
 
+		padding := strings.Repeat(" ", longest-utf8StringLen(k))
 		if i == 0 {
-			w.AddRowf(t, "%s: %s", k, v)
+			w.AddRowf(t, "%s%s: %s", padding, k, v)
 		} else {
-			w.AddRowf("", "%s: %s", k, v)
+			w.AddRowf("", "%s%s: %s", padding, k, v)
 		}
 	}
 }
