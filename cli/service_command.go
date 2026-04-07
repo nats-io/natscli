@@ -1,4 +1,4 @@
-// Copyright 2022-2024 The NATS Authors
+// Copyright 2022-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -24,8 +24,11 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/term"
 
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go"
@@ -41,6 +44,17 @@ type serviceCmd struct {
 	endpoint *regexp.Regexp
 	showJSON bool
 	hdrs     map[string]string
+
+	reqEndpoint   string
+	reqBody       string
+	reqBodyIsSet  bool
+	reqHeaders    []string
+	reqRaw        bool
+	reqCount      int
+	reqTranslate  string
+	reqTemplates  bool
+	reqForceStdin bool
+	reqSendOn     string
 
 	nc *nats.Conn
 }
@@ -71,6 +85,19 @@ func configureServiceCommand(app commandHost) {
 	ping := mc.Command("ping", "Sends a ping to all Services").Action(c.pingAction)
 	ping.Tag("scope:user", "impact:rw")
 	ping.Arg("service", "Service to show").StringVar(&c.name)
+
+	req := mc.Command("request", "Send a request to a service endpoint").Alias("req").Action(c.requestAction)
+	req.Tag("scope:user", "impact:rw")
+	req.Arg("service", "Service name").Required().StringVar(&c.name)
+	req.Arg("endpoint", "Endpoint name").Required().StringVar(&c.reqEndpoint)
+	req.Arg("payload", "Request payload").IsSetByUser(&c.reqBodyIsSet).StringVar(&c.reqBody)
+	req.Flag("header", "Headers in K:V form").Short('H').StringsVar(&c.reqHeaders)
+	req.Flag("raw", "Show only the reply body").Short('r').UnNegatableBoolVar(&c.reqRaw)
+	req.Flag("count", "Send the request N times").Default("1").IntVar(&c.reqCount)
+	req.Flag("translate", "Pipe each reply body through CMD before output").StringVar(&c.reqTranslate)
+	req.Flag("templates", "Enables template functions in body and subject").Default("true").BoolVar(&c.reqTemplates)
+	req.Flag("force-stdin", "Force reading payload from stdin").UnNegatableBoolVar(&c.reqForceStdin)
+	req.Flag("send-on", "When to send data from stdin: 'eof' (default) or 'newline'").Default("eof").EnumVar(&c.reqSendOn, "newline", "eof")
 
 	echo := mc.Command("serve", "Runs a demo Service").Action(c.serveAction)
 	echo.Tag("scope:user", "impact:ro")
@@ -250,6 +277,64 @@ func (c *serviceCmd) getInfo(nc *nats.Conn, name string, id string, wait int) ([
 	})
 
 	return nfos, nil
+}
+
+func (c *serviceCmd) resolveEndpoint(info *micro.Info, name string) (*micro.EndpointInfo, error) {
+	for i := range info.Endpoints {
+		if info.Endpoints[i].Name == name {
+			return &info.Endpoints[i], nil
+		}
+	}
+	if len(info.Endpoints) == 0 {
+		return nil, fmt.Errorf("service %q has no endpoints", info.Name)
+	}
+	names := make([]string, len(info.Endpoints))
+	for i, e := range info.Endpoints {
+		names[i] = e.Name
+	}
+	return nil, fmt.Errorf("service %q has no endpoint %q (available: %s)", info.Name, name, strings.Join(names, ", "))
+}
+
+func (c *serviceCmd) requestAction(_ *fisk.ParseContext) error {
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return fmt.Errorf("setup failed: %v", err)
+	}
+
+	info, err := c.getInfo(nc, c.name, "", 1)
+	if err != nil {
+		return err
+	}
+	if len(info) == 0 {
+		return fmt.Errorf("no instances of service %q found", c.name)
+	}
+	nfo := info[0]
+
+	ep, err := c.resolveEndpoint(nfo, c.reqEndpoint)
+	if err != nil {
+		return err
+	}
+
+	// Only read stdin when explicitly requested or when data is actually
+	// being piped in, otherwise an invocation with no payload should send
+	// an empty request.
+	stdinHasData := !term.IsTerminal(int(os.Stdin.Fd()))
+	readStdin := c.reqForceStdin || (!c.reqBodyIsSet && stdinHasData)
+
+	rc := &reqCmd{
+		subject:    ep.Subject,
+		body:       c.reqBody,
+		bodyIsSet:  !readStdin,
+		raw:        c.reqRaw,
+		hdrs:       c.reqHeaders,
+		cnt:        c.reqCount,
+		replyCount: 1,
+		forceStdin: c.reqForceStdin,
+		translate:  c.reqTranslate,
+		sendOn:     c.reqSendOn,
+		templates:  c.reqTemplates,
+	}
+	return rc.requestAction(nil)
 }
 
 func (c *serviceCmd) pingAction(_ *fisk.ParseContext) error {
