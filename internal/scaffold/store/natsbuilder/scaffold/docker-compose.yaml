@@ -6,12 +6,12 @@
 {{- $mount := .mount -}}
 {{- $data := .data -}}
 
-version: "3"
 services:
   cli.{{ $domain }}:
     image: synadia/nats-server:nightly
     dns_search: {{ $domain }}
     entrypoint: /bin/sh
+    tty: true
     networks:
       - shared
     volumes:
