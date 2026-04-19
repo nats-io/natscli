@@ -466,6 +466,7 @@ func (c *actCmd) infoAction(_ *fisk.ParseContext) error {
 		}
 		if ui.AccountName != "" {
 			cols.AddRowf("Account", "%s (%s)", ui.AccountName, ui.Account)
+			cols.AddRow("System Account", nc.IsSystemAccount())
 		} else {
 			cols.AddRow("Account", ui.Account)
 		}

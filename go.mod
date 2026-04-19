@@ -22,7 +22,7 @@ require (
 	github.com/nats-io/jsm.go v0.3.1-0.20260330155845-49c116d973fc
 	github.com/nats-io/jwt/v2 v2.8.1
 	github.com/nats-io/nats-server/v2 v2.12.1-0.20260324122033-7755ef725c6c
-	github.com/nats-io/nats.go v1.50.0
+	github.com/nats-io/nats.go v1.51.0
 	github.com/nats-io/nkeys v0.4.15
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.23.2
