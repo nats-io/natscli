@@ -38,7 +38,9 @@ NATS Server and JetStream administration.
 See 'nats cheat' for a quick cheatsheet of commands`
 
 	ncli := fisk.New("nats", help)
-	ncli.LLMExtraInformation(`This application supports LLM friendly output when ran with LLMFORMAT=1
+	ncli.LLMExtraInformation(`
+
+This application supports LLM friendly output when ran with LLMFORMAT=1
 
 The application applies tags to its commands that are visible in help output:
 
@@ -46,6 +48,8 @@ The application applies tags to its commands that are visible in help output:
  - scope:system - Operates at system level, requires system credentials
  - impact:ro - Read only operation, does not modify NATS data or state
  - impact:rw - Read and write operation, modifies NATS data or state
+
+LLM optimized help output can be obtained using --help-llm for any command. You must set LLMFORMAT=1 for all invocations of this command including when looking for help.
 `)
 	ncli.Author("NATS Authors <info@nats.io>")
 	ncli.UsageWriter(os.Stdout)

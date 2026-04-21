@@ -38,10 +38,6 @@ commands:
           - name: update
             description: Updates lint dependencies
             bool: true
-          - name: actions
-            bool: true
-            default: "true"
-            description: Run actions update using pinact
         script: |
           set -e
           
@@ -77,11 +73,6 @@ commands:
           go list ./... | grep -F -e asciigraph -v |xargs staticcheck
           {{ end }}
 
-          {{ if .Flags.actions }}
-          ab_say Updating actions
-          pinact run --update
-          {{ end }}
-
   - name: dependencies
     type: parent
     description: Manage dependencies
@@ -101,6 +92,10 @@ commands:
             description: Enable using go proxy
             bool: true
             default: "true"
+          - name: actions
+            bool: true
+            default: "true"
+            description: Run actions update using pinact
         script: |
           . "{{ BashHelperPath }}"
 
@@ -117,6 +112,11 @@ commands:
           ab_say Running go mod tidy
 
           go mod tidy
+
+          {{ if .Flags.actions }}
+          ab_say Updating actions
+          pinact run --update
+          {{ end }}
 
   - name: report
     type: parent
