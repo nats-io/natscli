@@ -31,6 +31,7 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/columns"
+	"github.com/nats-io/natscli/internal/serverdata"
 	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
@@ -251,7 +252,7 @@ func (c *actCmd) reportServerStats(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	res, err := doReq(nil, "$SYS.REQ.ACCOUNT.PING.STATZ", 0, nc)
+	res, err := serverdata.DoReq(ctx, nil, "$SYS.REQ.ACCOUNT.PING.STATZ", 0, nc, opts().Timeout, opts().Trace)
 	if err != nil {
 		return err
 	}

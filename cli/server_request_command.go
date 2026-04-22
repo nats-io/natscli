@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/nats-io/natscli/internal/serverdata"
 	"github.com/nats-io/natscli/options"
 
 	"github.com/nats-io/nats-server/v2/server"
@@ -63,8 +64,12 @@ type SrvRequestCmd struct {
 	nameFilter           string
 	accountSubscriptions bool
 
+	nc *nats.Conn
+
 	jsServerOnly bool
 	jsEnabled    bool
+
+	archivePath string
 
 	profileName  string
 	profileDebug int
@@ -90,6 +95,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	accountz.Tag("scope:system", "impact:ro")
 	accountz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	accountz.Flag("account", "Retrieve information for a specific account").StringVar(&c.account)
+	accountz.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	connz := req.Command("connections", "Show connection details").Alias("conn").Alias("connz").Action(c.conns)
 	connz.Tag("scope:system", "impact:ro")
@@ -102,6 +108,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	connz.Flag("filter-account", "Filter on a specific account").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
 	connz.Flag("filter-subject", "Limits responses only to those connections with matching subscription interest").PlaceHolder("SUBJECT").StringVar(&c.subjectFilter)
 	connz.Flag("filter-empty", "Only shows responses that have connections").Default("false").UnNegatableBoolVar(&c.filterEmpty)
+	connz.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	gwyz := req.Command("gateways", "Show gateway details").Alias("gateway").Alias("gwy").Alias("gatewayz").Action(c.gwyz)
 	gwyz.Tag("scope:system", "impact:ro")
@@ -110,6 +117,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	gwyz.Flag("filter-account", "Show only a certain account in account detail").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
 	gwyz.Flag("accounts", "Show account detail").UnNegatableBoolVar(&c.detail)
 	gwyz.Flag("subscriptions", "Show subscription details").Default("true").BoolVar(&c.accountSubscriptions)
+	gwyz.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	ipq := req.Command("ipqueue", "Show IP Queue details").Alias("ipq").Alias("ipqueuesz").Action(c.ipqz)
 	ipq.Tag("scope:system", "impact:ro")
@@ -125,6 +133,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	healthz.Flag("stream", "Check only a specific Stream").StringVar(&c.stream)
 	healthz.Flag("consumer", "Check only a specific Consumer").StringVar(&c.consumer)
 	healthz.Flag("details", "Include extended details about all failures").Default("true").BoolVar(&c.includeDetails)
+	healthz.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	jsz := req.Command("jetstream", "Show JetStream details").Alias("jsz").Alias("js").Action(c.jsz)
 	jsz.Tag("scope:system", "impact:ro")
@@ -138,6 +147,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	jsz.Flag("leader", "Request a response from the Meta-group leader only").UnNegatableBoolVar(&c.leaderOnly)
 	jsz.Flag("stream-leader", "Request a response from Stream leaders only").UnNegatableBoolVar(&c.streamLeaderOnly)
 	jsz.Flag("all", "Include accounts, streams, consumers and configuration").UnNegatableBoolVar(&c.includeAll)
+	jsz.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	kick := req.Command("kick", "Disconnects a client immediately").Action(c.kick)
 	kick.Tag("scope:system", "impact:rw")
@@ -148,6 +158,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	leafz.Tag("scope:system", "impact:ro")
 	leafz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	leafz.Flag("subscriptions", "Show subscription detail").UnNegatableBoolVar(&c.detail)
+	leafz.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	profilez := req.Command("profile", "Run a profile").Action(c.profilez)
 	profilez.Tag("scope:system", "impact:ro")
@@ -164,6 +175,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	routez.Tag("scope:system", "impact:ro")
 	routez.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
 	routez.Flag("subscriptions", "Show subscription detail").UnNegatableBoolVar(&c.detail)
+	routez.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	subz := req.Command("subscriptions", "Show subscription information").Alias("sub").Alias("subsz").Action(c.subs)
 	subz.Tag("scope:system", "impact:ro")
@@ -171,62 +183,106 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	subz.Flag("detail", "Include detail about all subscriptions").UnNegatableBoolVar(&c.detail)
 	subz.Flag("filter-account", "Filter on a specific account").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
 	subz.Flag("filter-subject", "Filter based on subscriptions matching this subject").PlaceHolder("SUBJECT").StringVar(&c.subjectFilter)
+	subz.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	varz := req.Command("variables", "Show runtime variables").Alias("var").Alias("varz").Action(c.varz)
 	varz.Tag("scope:system", "impact:ro")
 	varz.Arg("wait", "Wait for a certain number of responses").Uint32Var(&c.waitFor)
+	varz.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
+}
+
+func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
+	opt := server.EventFilterOptions{
+		Name:       c.name,
+		Host:       c.host,
+		Cluster:    c.cluster,
+		Tags:       c.tags,
+		ExactMatch: true,
+	}
+	if opts().Config != nil {
+		opt.Domain = opts().Config.JSDomain()
+	}
+
+	return opt
+}
+
+func (c *SrvRequestCmd) dataSource() (serverdata.DataSource, error) {
+	if c.archivePath != "" {
+		return serverdata.NewArchive(c.archivePath)
+	}
+
+	nc, _, err := prepareHelper("", natsOpts()...)
+	if err != nil {
+		return nil, err
+	}
+	c.nc = nc
+
+	waitFor := c.waitFor
+	if waitFor == 0 {
+		if c.host != "" || c.name != "" {
+			waitFor = 1
+		} else {
+			w, _ := serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, opts().Trace)
+			waitFor = uint32(w)
+		}
+	}
+
+	return serverdata.NewServer(nc, func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+		return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, opts().Trace)
+	}, int(waitFor)), nil
+}
+
+func printResults[T any](results []*T) error {
+	for _, r := range results {
+		j, err := json.Marshal(r)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(j))
+	}
+	return nil
 }
 
 func (c *SrvRequestCmd) ipqz(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
+	src, err := c.dataSource()
 	if err != nil {
 		return err
 	}
+	defer src.Close()
 
-	opts := server.IpqueueszEventOptions{
+	responses, err := src.Ipqueuesz(server.IpqueueszEventOptions{
 		IpqueueszOptions: server.IpqueueszOptions{
 			All:    c.includeAll,
 			Filter: c.queueFilter,
 		},
 		EventFilterOptions: c.reqFilter(),
-	}
-
-	res, err := c.doReq("IPQUEUESZ", &opts, nc)
+	})
 	if err != nil {
 		return err
 	}
 
-	for _, m := range res {
-		fmt.Println(string(m))
-	}
-
-	return nil
+	return printResults(responses)
 }
 
 func (c *SrvRequestCmd) raftz(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
+	src, err := c.dataSource()
 	if err != nil {
 		return err
 	}
+	defer src.Close()
 
-	opts := server.RaftzEventOptions{
+	responses, err := src.Raftz(server.RaftzEventOptions{
 		RaftzOptions: server.RaftzOptions{
 			AccountFilter: c.account,
 			GroupFilter:   c.group,
 		},
 		EventFilterOptions: c.reqFilter(),
-	}
-
-	res, err := c.doReq("RAFTZ", &opts, nc)
+	})
 	if err != nil {
 		return err
 	}
 
-	for _, m := range res {
-		fmt.Println(string(m))
-	}
-
-	return nil
+	return printResults(responses)
 }
 
 func (c *SrvRequestCmd) kick(_ *fisk.ParseContext) error {
@@ -235,7 +291,7 @@ func (c *SrvRequestCmd) kick(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	res, err := doReq(&server.KickClientReq{CID: c.cid}, fmt.Sprintf("$SYS.REQ.SERVER.%s.KICK", c.host), 1, nc)
+	res, err := serverdata.DoReq(ctx, &server.KickClientReq{CID: c.cid}, fmt.Sprintf("$SYS.REQ.SERVER.%s.KICK", c.host), 1, nc, opts().Timeout, opts().Trace)
 	if err != nil {
 		return err
 	}
@@ -256,47 +312,7 @@ func (c *SrvRequestCmd) kick(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *SrvRequestCmd) healthz(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
-	if err != nil {
-		return err
-	}
-
-	opts := server.HealthzEventOptions{
-		HealthzOptions: server.HealthzOptions{
-			JSEnabledOnly: c.jsEnabled,
-			JSServerOnly:  c.jsServerOnly,
-			Details:       c.includeDetails,
-			Account:       c.account,
-			Stream:        c.stream,
-			Consumer:      c.consumer,
-		},
-		EventFilterOptions: c.reqFilter(),
-	}
-
-	res, err := c.doReq("HEALTHZ", &opts, nc)
-	if err != nil {
-		return err
-	}
-
-	for _, m := range res {
-		fmt.Println(string(m))
-	}
-
-	return nil
-}
-
-type profilezResponse struct {
-	Server server.ServerInfo     `json:"server"`
-	Resp   server.ProfilezStatus `json:"data"`
-}
-
 func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
-	if err != nil {
-		return err
-	}
-
 	opts := server.ProfilezEventOptions{
 		ProfilezOptions: server.ProfilezOptions{
 			Name:  c.profileName,
@@ -312,7 +328,13 @@ func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
 		options.DefaultOptions.Timeout = options.DefaultOptions.Timeout + 2*time.Second
 	}
 
-	res, err := c.doReq("PROFILEZ", &opts, nc)
+	src, err := c.dataSource()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	responses, err := src.Profilez(opts)
 	if err != nil {
 		return err
 	}
@@ -320,18 +342,17 @@ func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
 	prefix := fmt.Sprintf("%s-%s-", c.profileName, time.Now().Format("20060102-150405"))
 	prefix = filepath.Join(c.profileDir, prefix)
 
-	for _, r := range res {
-		var resp profilezResponse
-		if err := json.Unmarshal(r, &resp); err != nil {
+	for _, resp := range responses {
+		if resp.Server == nil || resp.Data == nil {
 			continue
 		}
-		if resp.Resp.Error != "" {
-			fmt.Fprintf(os.Stderr, "Server %q error: %s\n", resp.Server.Name, resp.Resp.Error)
+		if resp.Data.Error != "" {
+			fmt.Fprintf(os.Stderr, "Server %q error: %s\n", resp.Server.Name, resp.Data.Error)
 			continue
 		}
 
 		filename := prefix + resp.Server.Name
-		if err := c.profilezWrite(filename, &resp); err != nil {
+		if err := c.profilezWrite(filename, resp); err != nil {
 			fmt.Fprintf(os.Stderr, "Server %q error: %s\n", resp.Server.Name, err)
 		} else {
 			fmt.Fprintf(os.Stdout, "Server %q profile written: %s\n", resp.Server.Name, filename)
@@ -341,29 +362,55 @@ func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *SrvRequestCmd) profilezWrite(filename string, resp *profilezResponse) error {
+func (c *SrvRequestCmd) profilezWrite(filename string, resp *serverdata.ProfilezResponse) error {
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
 	defer f.Close()
 
-	n, err := f.Write(resp.Resp.Profile)
+	n, err := f.Write(resp.Data.Profile)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
-	if n != len(resp.Resp.Profile) {
+	if n != len(resp.Data.Profile) {
 		return fmt.Errorf("short write")
 	}
 
 	return nil
 }
 
-func (c *SrvRequestCmd) jsz(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
+func (c *SrvRequestCmd) healthz(_ *fisk.ParseContext) error {
+	src, err := c.dataSource()
 	if err != nil {
 		return err
 	}
+	defer src.Close()
+
+	responses, err := src.Healthz(server.HealthzEventOptions{
+		HealthzOptions: server.HealthzOptions{
+			JSEnabledOnly: c.jsEnabled,
+			JSServerOnly:  c.jsServerOnly,
+			Details:       c.includeDetails,
+			Account:       c.account,
+			Stream:        c.stream,
+			Consumer:      c.consumer,
+		},
+		EventFilterOptions: c.reqFilter(),
+	})
+	if err != nil {
+		return err
+	}
+
+	return printResults(responses)
+}
+
+func (c *SrvRequestCmd) jsz(_ *fisk.ParseContext) error {
+	src, err := c.dataSource()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
 
 	opts := server.JszEventOptions{
 		JSzOptions: server.JSzOptions{
@@ -397,81 +444,48 @@ func (c *SrvRequestCmd) jsz(_ *fisk.ParseContext) error {
 		c.waitFor = 1
 	}
 
-	res, err := c.doReq("JSZ", &opts, nc)
+	responses, err := src.Jsz(opts)
 	if err != nil {
 		return err
 	}
 
-	for _, m := range res {
-		fmt.Println(string(m))
-	}
-
-	return nil
-}
-
-func (c *SrvRequestCmd) reqFilter() server.EventFilterOptions {
-	opt := server.EventFilterOptions{
-		Name:       c.name,
-		Host:       c.host,
-		Cluster:    c.cluster,
-		Tags:       c.tags,
-		ExactMatch: true,
-	}
-	if opts().Config != nil {
-		opt.Domain = opts().Config.JSDomain()
-	}
-
-	if c.host != "" || c.name != "" {
-		c.waitFor = 1
-	}
-
-	return opt
+	return printResults(responses)
 }
 
 func (c *SrvRequestCmd) accountz(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
+	src, err := c.dataSource()
 	if err != nil {
 		return err
 	}
+	defer src.Close()
 
-	opts := server.AccountzEventOptions{
+	responses, err := src.Accountz(server.AccountzEventOptions{
 		AccountzOptions:    server.AccountzOptions{Account: c.account},
 		EventFilterOptions: c.reqFilter(),
-	}
-
-	res, err := c.doReq("ACCOUNTZ", &opts, nc)
+	})
 	if err != nil {
 		return err
 	}
 
-	for _, m := range res {
-		fmt.Println(string(m))
-	}
-
-	return nil
+	return printResults(responses)
 }
 
 func (c *SrvRequestCmd) leafz(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
+	src, err := c.dataSource()
 	if err != nil {
 		return err
 	}
+	defer src.Close()
 
-	opts := server.LeafzEventOptions{
+	responses, err := src.Leafz(server.LeafzEventOptions{
 		LeafzOptions:       server.LeafzOptions{Subscriptions: c.detail},
 		EventFilterOptions: c.reqFilter(),
-	}
-
-	res, err := c.doReq("LEAFZ", &opts, nc)
+	})
 	if err != nil {
 		return err
 	}
 
-	for _, m := range res {
-		fmt.Println(string(m))
-	}
-
-	return nil
+	return printResults(responses)
 }
 
 func (c *SrvRequestCmd) gwyz(_ *fisk.ParseContext) error {
@@ -479,10 +493,11 @@ func (c *SrvRequestCmd) gwyz(_ *fisk.ParseContext) error {
 		c.detail = true
 	}
 
-	nc, _, err := prepareHelper("", natsOpts()...)
+	src, err := c.dataSource()
 	if err != nil {
 		return err
 	}
+	defer src.Close()
 
 	opts := server.GatewayzEventOptions{
 		GatewayzOptions: server.GatewayzOptions{
@@ -498,46 +513,43 @@ func (c *SrvRequestCmd) gwyz(_ *fisk.ParseContext) error {
 		opts.GatewayzOptions.AccountSubscriptionsDetail = c.accountSubscriptions
 	}
 
-	res, err := c.doReq("GATEWAYZ", &opts, nc)
+	responses, err := src.Gatewayz(opts)
 	if err != nil {
 		return err
 	}
 
-	for _, m := range res {
-		fmt.Println(string(m))
-	}
-
-	return nil
+	return printResults(responses)
 }
 
 func (c *SrvRequestCmd) routez(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
+	src, err := c.dataSource()
 	if err != nil {
 		return err
 	}
+	defer src.Close()
 
-	opts := server.RoutezEventOptions{
+	responses, err := src.Routez(server.RoutezEventOptions{
 		RoutezOptions: server.RoutezOptions{
 			Subscriptions:       c.detail,
 			SubscriptionsDetail: c.detail,
 		},
 		EventFilterOptions: c.reqFilter(),
-	}
-
-	res, err := c.doReq("ROUTEZ", &opts, nc)
+	})
 	if err != nil {
 		return err
 	}
 
-	for _, m := range res {
-		fmt.Println(string(m))
-	}
-
-	return nil
+	return printResults(responses)
 }
 
 func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
-	opts := &server.ConnzEventOptions{
+	src, err := c.dataSource()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	opts := server.ConnzEventOptions{
 		ConnzOptions: server.ConnzOptions{
 			Sort:                server.SortOpt(c.sortOpt),
 			Username:            true,
@@ -562,63 +574,51 @@ func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 		opts.State = server.ConnOpen
 	}
 
-	nc, _, err := prepareHelper("", natsOpts()...)
+	responses, err := src.Connz(opts)
 	if err != nil {
 		return err
 	}
 
-	res, err := c.doReq("CONNZ", opts, nc)
-	if err != nil {
-		return err
-	}
-
-	for _, m := range res {
-		if c.filterEmpty {
-			var r server.ServerAPIConnzResponse
-			err = json.Unmarshal(m, &r)
-			if err == nil {
-				if r.Data == nil || r.Data.NumConns == 0 {
-					continue
-				}
-			}
+	for _, r := range responses {
+		if c.filterEmpty && (r.Data == nil || r.Data.NumConns == 0) {
+			continue
 		}
 
-		fmt.Println(string(m))
+		j, err := json.Marshal(r)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(j))
 	}
 
 	return nil
 }
 
 func (c *SrvRequestCmd) varz(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
+	src, err := c.dataSource()
 	if err != nil {
 		return err
 	}
+	defer src.Close()
 
-	opts := server.VarzEventOptions{
-		VarzOptions:        server.VarzOptions{},
+	responses, err := src.Varz(server.VarzEventOptions{
 		EventFilterOptions: c.reqFilter(),
-	}
-
-	res, err := c.doReq("VARZ", &opts, nc)
+	})
 	if err != nil {
 		return err
 	}
 
-	for _, m := range res {
-		fmt.Println(string(m))
-	}
-
-	return nil
+	return printResults(responses)
 }
 
 func (c *SrvRequestCmd) subs(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
+	src, err := c.dataSource()
 	if err != nil {
 		return err
 	}
+	defer src.Close()
 
-	opts := server.SubszEventOptions{
+	responses, err := src.Subsz(server.SubszEventOptions{
 		SubszOptions: server.SubszOptions{
 			Offset:        c.offset,
 			Limit:         c.limit,
@@ -627,25 +627,10 @@ func (c *SrvRequestCmd) subs(_ *fisk.ParseContext) error {
 			Test:          c.subjectFilter,
 		},
 		EventFilterOptions: c.reqFilter(),
-	}
-
-	res, err := c.doReq("SUBSZ", &opts, nc)
+	})
 	if err != nil {
 		return err
 	}
 
-	for _, m := range res {
-		fmt.Println(string(m))
-	}
-
-	return nil
-}
-
-func (c *SrvRequestCmd) doReq(kind string, req any, nc *nats.Conn) ([][]byte, error) {
-	if c.waitFor == 0 {
-		wait, _ := currentActiveServers(nc)
-		c.waitFor = uint32(wait)
-	}
-
-	return doReq(req, fmt.Sprintf("$SYS.REQ.SERVER.PING.%s", kind), int(c.waitFor), nc)
+	return printResults(responses)
 }

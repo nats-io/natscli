@@ -25,6 +25,7 @@ import (
 	"github.com/nats-io/jsm.go/connbalancer"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/internal/serverdata"
 
 	"github.com/choria-io/fisk"
 )
@@ -138,17 +139,18 @@ func (c *SrvClusterCmd) balanceAction(_ *fisk.ParseContext) error {
 }
 
 func (c *SrvClusterCmd) detectClusters(nc *nats.Conn) ([]string, error) {
-	results, err := doReq(nil, "$SYS.REQ.SERVER.PING.VARZ", 0, nc)
+	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+		return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, opts().Trace)
+	}
+	ds := serverdata.NewServer(nc, reqFn, 0)
+
+	varzResults, err := ds.Varz(server.VarzEventOptions{})
 	if err != nil {
 		return nil, err
 	}
 
 	var clusters []string
-	for _, result := range results {
-		var resp server.ServerAPIVarzResponse
-		if err := json.Unmarshal(result, &resp); err != nil {
-			continue
-		}
+	for _, resp := range varzResults {
 		if resp.Data != nil && resp.Data.Cluster.Name != "" {
 			clusterName := resp.Data.Cluster.Name
 			if !slices.Contains(clusters, clusterName) {
@@ -166,18 +168,18 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	res, err := doReq(server.JSzOptions{LeaderOnly: true}, "$SYS.REQ.SERVER.PING.JSZ", 1, nc)
+	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+		return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, opts().Trace)
+	}
+	ds := serverdata.NewServer(nc, reqFn, 1)
+
+	jszResults, err := ds.Jsz(server.JszEventOptions{JSzOptions: server.JSzOptions{LeaderOnly: true}})
 	if err != nil {
 		return err
 	}
 
-	if len(res) != 1 {
+	if len(jszResults) != 1 {
 		return fmt.Errorf("did not receive a response from the meta leader, ensure the account used has system privileges and appropriate permissions")
-	}
-
-	type jszr struct {
-		Data   server.JSInfo     `json:"data"`
-		Server server.ServerInfo `json:"server"`
 	}
 
 	found := false
@@ -185,10 +187,9 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 	foundID := ""
 	state := "offline"
 
-	srv := &jszr{}
-	err = json.Unmarshal(res[0], srv)
-	if err != nil {
-		return err
+	srv := jszResults[0]
+	if srv.Data == nil {
+		return fmt.Errorf("no data in response from meta leader")
 	}
 
 	for _, r := range srv.Data.Meta.Replicas {

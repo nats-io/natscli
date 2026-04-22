@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -10,7 +9,9 @@ import (
 	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/columns"
+	"github.com/nats-io/natscli/internal/serverdata"
 
 	"github.com/choria-io/fisk"
 )
@@ -73,12 +74,18 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+		return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, opts().Trace)
+	}
+	ds := serverdata.NewServer(nc, reqFn, 1)
+	defer ds.Close()
+
 	opts := server.AccountzEventOptions{
 		AccountzOptions:    server.AccountzOptions{Account: c.account},
 		EventFilterOptions: server.EventFilterOptions{Name: c.server, ExactMatch: true},
 	}
 
-	res, err := doReq(&opts, "$SYS.REQ.SERVER.PING.ACCOUNTZ", 1, nc)
+	res, err := ds.Accountz(opts)
 	if err != nil {
 		return err
 	}
@@ -87,43 +94,16 @@ func (c *srvAccountCommand) infoAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("no responses received, ensure the account used has system privileges and appropriate permissions")
 	}
 
-	reqresp := map[string]json.RawMessage{}
-	err = json.Unmarshal(res[0], &reqresp)
-	if err != nil {
-		return err
+	resp := res[0]
+	if resp.Error != nil {
+		return fmt.Errorf("%s", resp.Error.Description)
 	}
 
-	if errresp, ok := reqresp["error"]; ok {
-		res := map[string]any{}
-		err := json.Unmarshal(errresp, &res)
-		if err != nil {
-			return fmt.Errorf("invalid response received: %q", errresp)
-		}
-
-		msg, ok := res["description"]
-		if !ok {
-			return fmt.Errorf("%q", errresp)
-		}
-
-		return fmt.Errorf("%v", msg)
-	}
-
-	data, ok := reqresp["data"]
-	if !ok {
-		return fmt.Errorf("no data received in response: %#v", reqresp)
-	}
-
-	account := server.Accountz{}
-	err = json.Unmarshal(data, &account)
-	if err != nil {
-		return err
-	}
-
-	if account.Account == nil {
+	if resp.Data == nil || resp.Data.Account == nil {
 		return fmt.Errorf("no account information received")
 	}
 
-	nfo := account.Account
+	nfo := resp.Data.Account
 
 	if c.json {
 		iu.PrintJSON(nfo)

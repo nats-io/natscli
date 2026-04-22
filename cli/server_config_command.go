@@ -14,10 +14,11 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/internal/serverdata"
 
 	"github.com/choria-io/fisk"
 )
@@ -46,20 +47,22 @@ func (c *SrvConfigCmd) reloadAction(pc *fisk.ParseContext) error {
 	defer nc.Close()
 
 	if !c.force {
-		resps, err := doReq(nil, fmt.Sprintf("$SYS.REQ.SERVER.%s.VARZ", c.serverID), 1, nc)
+		reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+			return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, opts().Trace)
+		}
+		ds := serverdata.NewServer(nc, reqFn, 1)
+
+		results, err := ds.Varz(server.VarzEventOptions{
+			EventFilterOptions: server.EventFilterOptions{Name: c.serverID, ExactMatch: true},
+		})
 		if err != nil {
 			return err
 		}
-
-		if len(resps) != 1 {
-			return fmt.Errorf("invalid response from %d servers", len(resps))
-		}
-		vz := server.ServerAPIResponse{}
-		err = json.Unmarshal(resps[0], &vz)
-		if err != nil {
-			return err
+		if len(results) == 0 {
+			return fmt.Errorf("no response from server %s", c.serverID)
 		}
 
+		vz := results[0]
 		ok, err := askConfirmation(fmt.Sprintf("Really reload configuration for %s (%s) on %s", vz.Server.Name, vz.Server.ID, vz.Server.Host), false)
 		if err != nil {
 			return err
@@ -70,7 +73,7 @@ func (c *SrvConfigCmd) reloadAction(pc *fisk.ParseContext) error {
 		}
 	}
 
-	resps, err := doReq(nil, fmt.Sprintf("$SYS.REQ.SERVER.%s.RELOAD", c.serverID), 1, nc)
+	resps, err := serverdata.DoReq(ctx, nil, fmt.Sprintf("$SYS.REQ.SERVER.%s.RELOAD", c.serverID), 1, nc, opts().Timeout, opts().Trace)
 	if err != nil {
 		return err
 	}
