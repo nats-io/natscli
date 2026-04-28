@@ -32,6 +32,9 @@ nats bench service serve testservice --sleep 50us
 # generate load by publishing messages at an interval of 100 nanoseconds rather than back to back
 nats bench pub foo --sleep=100ns
 
+# throttle aggregate publisher throughput to approximately 50,000 msgs/sec across all clients (useful for head-to-head comparisons with Kafka's --throughput)
+nats bench pub foo --msgs 1000000 --clients 4 --throughput 50000
+
 # put messages into a KV using synchronous put operations
 nats bench kv put --clients 10
 

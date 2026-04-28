@@ -83,6 +83,42 @@ type benchCmd struct {
 	hdrs                 []string
 	filterSubjects       []string // used by JS consumer commands
 	filterSubject        string   // used by JS get command
+	throughput           int
+}
+
+// rateThrottler throttles a message loop to approximately target messages/sec.
+type rateThrottler struct {
+	target float64
+	start  time.Time
+}
+
+// newRateThrottler returns a throttler for the given target rate, or nil if
+// the target is non-positive. Callers should nil-check before calling
+// throttle so the disabled case skips the hot-loop call entirely.
+func newRateThrottler(target float64) *rateThrottler {
+	if target <= 0 {
+		return nil
+	}
+	return &rateThrottler{target: target, start: time.Now()}
+}
+
+// throttle blocks as needed so that `sent` messages have been produced in at
+// least sent/target seconds since the throttler was created.
+func (r *rateThrottler) throttle(sent int) {
+	expected := float64(sent) / r.target
+	elapsed := time.Since(r.start).Seconds()
+	if expected > elapsed {
+		time.Sleep(time.Duration((expected - elapsed) * float64(time.Second)))
+	}
+}
+
+// perClientThroughput returns the per-client target rate (msgs/sec) given the
+// aggregate --throughput setting. Returns 0 if disabled.
+func (c *benchCmd) perClientThroughput() float64 {
+	if c.throughput <= 0 || c.numClients <= 0 {
+		return 0
+	}
+	return float64(c.throughput) / float64(c.numClients)
 }
 
 func configureBenchCommand(app commandHost) {
@@ -104,6 +140,10 @@ func configureBenchCommand(app commandHost) {
 		f.Flag("multisubjectrandomize", "Randomize which subjects are being used when in multisubject mode").UnNegatableBoolVar(&c.multiSubjectRandom)
 		f.Flag("payload", "File containing a message payload to send").ExistingFileVar(&c.payloadFilename)
 		f.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
+	}
+
+	addThroughputFlag := func(f *fisk.CmdClause) {
+		f.Flag("throughput", "If set > 0, throttle aggregate message send throughput to approximately THROUGHPUT messages/second across all clients (0 disables). If --sleep is set, the achieved rate may be lower").Default("0").PlaceHolder("THROUGHPUT").IntVar(&c.throughput)
 	}
 
 	addJSCommonFlags := func(f *fisk.CmdClause) {
@@ -150,6 +190,7 @@ func configureBenchCommand(app commandHost) {
 	corePub.Flag("sleep", "Sleep for the specified interval between publications").Default("0s").PlaceHolder("DURATION").DurationVar(&c.sleep)
 	addCommonFlags(corePub)
 	addPubFlags(corePub)
+	addThroughputFlag(corePub)
 
 	coreSub := benchCommand.Command("sub", "Subscribe to Core NATS messages").Action(c.subAction)
 	coreSub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
@@ -165,6 +206,7 @@ func configureBenchCommand(app commandHost) {
 	request.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
 	request.Flag("payload", "File containing the payload to send").ExistingFileVar(&c.payloadFilename)
 	request.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
+	addThroughputFlag(request)
 	// TODO: support randomized payload data
 
 	reply := microService.Command("serve", "Service requests").Action(c.serveAction)
@@ -179,18 +221,21 @@ func configureBenchCommand(app commandHost) {
 	jssyncpub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
 	addPubFlags(jssyncpub)
 	addJSPubFlags(jssyncpub)
+	addThroughputFlag(jssyncpub)
 
 	jsasyncpub := jspub.Command("async", "Use asynchronous JetStream publish").Action(c.jspubAsyncAction)
 	jsasyncpub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
 	jsasyncpub.Flag("batch", "Sets the number of asynchronous operations per batch").Default("500").IntVar(&c.batchSize)
 	addPubFlags(jsasyncpub)
 	addJSPubFlags(jsasyncpub)
+	addThroughputFlag(jsasyncpub)
 
 	jsbatchpub := jspub.Command("batch", "Use batch JetStream publish").Action(c.jspubBatchAction)
 	jsbatchpub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
 	jsbatchpub.Flag("batch", "Sets the size of the batches").Default("500").IntVar(&c.batchSize)
 	addPubFlags(jsbatchpub)
 	addJSPubFlags(jsbatchpub)
+	addThroughputFlag(jsbatchpub)
 
 	jsOrdered := jsCommand.Command("ordered", "Consume JetStream messages from a consumer using an ephemeral ordered consumer").Action(c.jsOrderedAction)
 	jsOrdered.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
@@ -217,6 +262,7 @@ func configureBenchCommand(app commandHost) {
 	kvput := kvCommand.Command("put", "Put messages in a KV bucket").Action(c.kvPutAction)
 	// TODO: support randomized payload data
 	addKVPutFlags(kvput)
+	addThroughputFlag(kvput)
 
 	kvget := kvCommand.Command("get", "Get messages from a KV bucket").Action(c.kvGetAction)
 	kvget.Flag("randomize", "Randomly get messages using keys between 0 and this number (set to 0 for sequential access)").Default("0").IntVar(&c.randomize)
@@ -440,6 +486,15 @@ func (c *benchCmd) generateBanner(benchType string) string {
 	argnvps = append(argnvps, nvp{"msgs", f(c.numMsg)})
 	argnvps = append(argnvps, nvp{"msg-size", humanize.IBytes(uint64(c.msgSize))})
 	argnvps = append(argnvps, nvp{"clients", f(c.numClients)})
+
+	if c.throughput > 0 {
+		switch benchType {
+		case bench.TypeCorePub, bench.TypeServiceRequest,
+			bench.TypeJSPubSync, bench.TypeJSPubAsync, bench.TypeJSPubBatch,
+			bench.TypeKVPut:
+			argnvps = append(argnvps, nvp{"throughput", f(c.throughput)})
+		}
+	}
 
 	banner := fmt.Sprintf("Starting %s benchmark [", benchTypeLabel)
 
@@ -1813,6 +1868,7 @@ func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, pa
 	c.multisubjectFormat = fmt.Sprintf("%%0%dd", len(strconv.Itoa(c.multiSubjectMax)))
 
 	latencies := make([]uint64, numMsg)
+	throttler := newRateThrottler(c.perClientThroughput())
 
 	for i := 0; i < numMsg; i++ {
 		if progress != nil {
@@ -1829,6 +1885,9 @@ func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, pa
 
 		latencies[i] = uint64(time.Since(start).Nanoseconds())
 		time.Sleep(c.sleep)
+		if throttler != nil {
+			throttler.throttle(i + 1)
+		}
 	}
 
 	state = "Finished  "
@@ -1860,6 +1919,7 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, pa
 	c.multisubjectFormat = fmt.Sprintf("%%0%dd", len(strconv.Itoa(c.multiSubjectMax)))
 
 	latencies := make([]uint64, numMsg)
+	throttler := newRateThrottler(c.perClientThroughput())
 
 	for i := 0; i < numMsg; i++ {
 		if progress != nil {
@@ -1881,6 +1941,9 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, pa
 		}
 
 		time.Sleep(c.sleep)
+		if throttler != nil {
+			throttler.throttle(i + 1)
+		}
 	}
 
 	state = "Finished  "
@@ -1915,10 +1978,15 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 	c.multisubjectFormat = fmt.Sprintf("%%0%dd", len(strconv.Itoa(c.multiSubjectMax)))
 
 	var latencies []uint64
+	throttler := newRateThrottler(c.perClientThroughput())
 
 	// Asynchronous publish
 	if jsPubType == bench.TypeJSPubAsync {
 		latencies = make([]uint64, uint64(math.Ceil(float64(numMsg)/float64(c.batchSize))))
+		// attempts counts every PublishMsgAsync call including retries after
+		// ack failures, since `i` only advances on successful acks. Driving
+		// the throttler off attempts keeps pacing honest across retries.
+		attempts := 0
 
 		for i := 0; i < numMsg; {
 			state = "Publishing"
@@ -1937,8 +2005,15 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 					return nil, fmt.Errorf("publishing asynchronously: %w", err)
 				}
 
+				attempts++
+
 				if progress != nil {
 					progress.Incr()
+				}
+
+				// pace on attempted sends so a batch cannot fire at line rate
+				if throttler != nil {
+					throttler.throttle(attempts)
 				}
 			}
 
@@ -2000,6 +2075,11 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 						return nil, fmt.Errorf("publishing: %w", err)
 					}
 				}
+
+				// pace on attempted sends so a batch cannot fire at line rate
+				if throttler != nil {
+					throttler.throttle(i + j + 1)
+				}
 			}
 
 			latencies[batch] = uint64(time.Since(start).Nanoseconds())
@@ -2044,6 +2124,9 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 
 			latencies[i] = uint64(time.Since(start).Nanoseconds())
 			time.Sleep(c.sleep)
+			if throttler != nil {
+				throttler.throttle(i + 1)
+			}
 		}
 	} else {
 		return nil, fmt.Errorf("unknown js publish type: %s", jsPubType)
@@ -2073,6 +2156,7 @@ func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte,
 	}
 
 	latencies := make([]uint64, numMsg)
+	throttler := newRateThrottler(c.perClientThroughput())
 
 	for i := 0; i < numMsg; i++ {
 		if progress != nil {
@@ -2093,6 +2177,9 @@ func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte,
 
 		latencies[i] = uint64(time.Since(start).Nanoseconds())
 		time.Sleep(c.sleep)
+		if throttler != nil {
+			throttler.throttle(i + 1)
+		}
 	}
 	return latencies, nil
 }
