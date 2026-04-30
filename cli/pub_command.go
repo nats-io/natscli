@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/nats.go/jetstream"
 	iu "github.com/nats-io/natscli/internal/util"
 	"github.com/synadia-io/orbit.go/jetstreamext"
@@ -41,12 +42,23 @@ type pubCmd struct {
 	sleep      time.Duration
 	forceStdin bool
 	jetstream  bool
+	schedules  bool
 	sendOn     string
 	quiet      bool
 	templates  bool
 	atomic     bool
 
-	atomicPending []*nats.Msg
+	atomicPending      []*nats.Msg
+	scheduleAfter      time.Duration
+	scheduleAfterIsSet bool
+	scheduleAt         string
+	scheduleAtParsed   string
+	scheduleCron       string
+	scheduleDest       string
+	scheduleSource     string
+	scheduleTtl        time.Duration
+	scheduleEvery      time.Duration
+	scheduleEveryIsSet bool
 }
 
 func configurePubCommand(app commandHost) {
@@ -78,16 +90,23 @@ Available template functions are:
 	pub.HelpLong(pubHelp)
 	pub.Arg("subject", "Subject to publish to").Required().StringVar(&c.subject)
 	pub.Arg("body", "Message body").IsSetByUser(&c.bodyIsSet).StringVar(&c.body)
-	pub.Flag("reply", "Sets a custom reply to subject").StringVar(&c.replyTo)
-	pub.Flag("header", "Adds headers to the message using K:V format").Short('H').StringsVar(&c.hdrs)
+	pub.Flag("reply", "Sets a custom reply to subject").PlaceHolder("SUBJECT").StringVar(&c.replyTo)
+	pub.Flag("header", "Adds headers to the message using K:V format").PlaceHolder("K:V").Short('H').StringsVar(&c.hdrs)
+	pub.Flag("atomic", "Atomic batch publish to JetStream (implies --jetstream)").UnNegatableBoolVar(&c.atomic)
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
-	pub.Flag("sleep", "When publishing multiple messages, sleep between publishes").DurationVar(&c.sleep)
 	pub.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
-	pub.Flag("jetstream", "Publish messages to jetstream").Short('J').UnNegatableBoolVar(&c.jetstream)
-	pub.Flag("send-on", "When to send data from stdin: 'eof' (default) or 'newline'").Default("eof").EnumVar(&c.sendOn, "newline", "eof")
+	pub.Flag("jetstream", "Publish messages to JetStream").Short('J').UnNegatableBoolVar(&c.jetstream)
 	pub.Flag("quiet", "Show just the output received").Short('q').UnNegatableBoolVar(&c.quiet)
+	pub.Flag("schedule-after", "Schedule the message after a certain duration (implies --jetstream)").PlaceHolder("DURATION").IsSetByUser(&c.scheduleAfterIsSet).DurationVar(&c.scheduleAfter)
+	pub.Flag("schedule-at", "Schedule the message at a certain RFC3339 time (implies --jetstream)").PlaceHolder("TIME").StringVar(&c.scheduleAt)
+	pub.Flag("schedule-cron", "Cron definition for a scheduled message (implies --jetstream)").PlaceHolder("CRON").StringVar(&c.scheduleCron)
+	pub.Flag("schedule-dest", "Subject the message will publish to when the schedule fires (implies --jetstream)").PlaceHolder("SUBJECT").StringVar(&c.scheduleDest)
+	pub.Flag("schedule-every", "Schedules the message every interval (implies --jetstream)").PlaceHolder("DURATION").IsSetByUser(&c.scheduleEveryIsSet).DurationVar(&c.scheduleEvery)
+	pub.Flag("schedule-source", "Reads a specific subject when scheduling (implies --jetstream)").PlaceHolder("SUBJECT").StringVar(&c.scheduleSource)
+	pub.Flag("schedule-ttl", "How long generated messages should live in the stream").PlaceHolder("DURATION").DurationVar(&c.scheduleTtl)
+	pub.Flag("send-on", "When to send data from stdin: 'eof' (default) or 'newline'").Default("eof").EnumVar(&c.sendOn, "newline", "eof")
+	pub.Flag("sleep", "When publishing multiple messages, sleep between publishes").DurationVar(&c.sleep)
 	pub.Flag("templates", "Enables template functions in the body and subject (does not affect headers)").Default("true").BoolVar(&c.templates)
-	pub.Flag("atomic", "Atomic batch publish to Jetstream (implies --jetstream)").UnNegatableBoolVar(&c.atomic)
 }
 
 func init() {
@@ -170,6 +189,67 @@ func (c *pubCmd) addToBatch(pub *iu.Publisher) error {
 	return nil
 }
 
+func (c *pubCmd) validateScheduleHeaders() error {
+	if c.scheduleDest == "" {
+		return fmt.Errorf("schedule destination is required when setting schedule properties")
+	}
+
+	if c.scheduleAfterIsSet && c.scheduleAfter <= 0 {
+		return fmt.Errorf("--schedule-after must be greater than 0")
+	}
+
+	if c.scheduleEveryIsSet && c.scheduleEvery <= 0 {
+		return fmt.Errorf("--schedule-every must be greater than 0")
+	}
+
+	if c.scheduleAt != "" && c.scheduleAfter > 0 {
+		return fmt.Errorf("--schedule-at and --schedule-after are mutually exclusive")
+	}
+
+	if c.scheduleEvery > 0 && (c.scheduleAt != "" || c.scheduleAfter > 0) {
+		return fmt.Errorf("--schedule-every may not be used with --schedule-at or --schedule-after")
+	}
+
+	if c.scheduleCron != "" && (c.scheduleAt != "" || c.scheduleAfter > 0 || c.scheduleEvery > 0) {
+		return fmt.Errorf("--schedule-at, --schedule-every and --schedule-after may not be used with --schedule-cron")
+	}
+
+	if c.scheduleAt != "" {
+		ts, err := time.Parse(time.RFC3339, c.scheduleAt)
+		if err != nil {
+			return err
+		}
+
+		c.scheduleAtParsed = ts.UTC().Format(time.RFC3339)
+	}
+
+	return nil
+}
+
+func (c *pubCmd) addScheduleHeaders(msg *nats.Msg) error {
+	msg.Header.Set(api.JSScheduleTarget, c.scheduleDest)
+
+	switch {
+	case c.scheduleAtParsed != "":
+		msg.Header.Set(api.JSSchedulePattern, fmt.Sprintf("@at %s", c.scheduleAtParsed))
+	case c.scheduleAfter > 0:
+		msg.Header.Set(api.JSSchedulePattern, time.Now().UTC().Add(c.scheduleAfter).Format(time.RFC3339))
+	case c.scheduleEvery > 0:
+		msg.Header.Set(api.JSSchedulePattern, fmt.Sprintf("@every %s", c.scheduleEvery.String()))
+	case c.scheduleCron != "":
+		msg.Header.Set(api.JSSchedulePattern, c.scheduleCron)
+	}
+
+	if c.scheduleTtl > 0 {
+		msg.Header.Set(api.JSScheduleTTL, c.scheduleTtl.String())
+	}
+
+	if c.scheduleSource != "" {
+		msg.Header.Set(api.JSScheduleSource, c.scheduleSource)
+	}
+	return nil
+}
+
 func (c *pubCmd) doJetstream(nc *nats.Conn, pub *iu.Publisher) error {
 	for i := 1; i <= c.cnt; i++ {
 		start := time.Now()
@@ -184,6 +264,13 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, pub *iu.Publisher) error {
 		msg, err := pub.PrepareMsg(subj, c.replyTo, []byte(body), c.hdrs, i)
 		if err != nil {
 			return err
+		}
+
+		if c.schedules {
+			err = c.addScheduleHeaders(msg)
+			if err != nil {
+				return err
+			}
 		}
 
 		if !c.quiet {
@@ -405,11 +492,27 @@ func (c *pubCmd) publishAction(_ *fisk.ParseContext) error {
 		log.Println("Reading payload from STDIN")
 	}
 
-	if c.atomic {
+	if c.scheduleCron != "" || c.scheduleAfterIsSet || c.scheduleAt != "" || c.scheduleSource != "" || c.scheduleTtl > 0 || c.scheduleEveryIsSet || c.scheduleDest != "" {
+		err = c.validateScheduleHeaders()
+		if err != nil {
+			return err
+		}
+
+		c.schedules = true
+		c.jetstream = true
+	}
+
+	switch {
+	case c.atomic:
+		if c.schedules {
+			return fmt.Errorf("atomic batch publishing does not support schedules")
+		}
+
 		c.jetstream = true
 		if !(pub.UseStdin && pub.IsSendOnNewLine()) {
-			return fmt.Errorf("atomic batch publishing requires Jetstream and STDIN with --send-on=newline")
+			return fmt.Errorf("atomic batch publishing requires JetStream and STDIN with --send-on=newline")
 		}
+
 		mgr, err := jsm.New(nc)
 		if err != nil {
 			return err
@@ -417,10 +520,11 @@ func (c *pubCmd) publishAction(_ *fisk.ParseContext) error {
 		if err = iu.RequireAPILevel(mgr, 2, "Atomic Batch Publishing requires NATS Server 2.12"); err != nil {
 			return err
 		}
+
 		return c.publishAtomicBatch(ctx, nc, pub)
-	} else if c.jetstream {
+	case c.jetstream:
 		return c.publishJetstream(ctx, nc, pub)
-	} else {
+	default:
 		return c.publishNatsMsg(ctx, nc, pub)
 	}
 }
