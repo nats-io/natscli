@@ -61,6 +61,7 @@ type benchCmd struct {
 	ackMode              string
 	doubleAck            bool
 	batchSize            int
+	maxOutstandingAcks   uint16
 	replicas             int
 	persistModeAsync     bool
 	purge                bool
@@ -186,11 +187,18 @@ func configureBenchCommand(app commandHost) {
 	addPubFlags(jsasyncpub)
 	addJSPubFlags(jsasyncpub)
 
-	jsbatchpub := jspub.Command("batch", "Use batch JetStream publish").Action(c.jspubBatchAction)
-	jsbatchpub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
-	jsbatchpub.Flag("batch", "Sets the size of the batches").Default("500").IntVar(&c.batchSize)
-	addPubFlags(jsbatchpub)
-	addJSPubFlags(jsbatchpub)
+	jsbatchatomicpub := jspub.Command("atomic", "Use atomic batch JetStream publish").Alias("batch").Action(c.jspubBatchAtomicAction)
+	jsbatchatomicpub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
+	jsbatchatomicpub.Flag("batch", "Sets the size of the batches").Default("500").IntVar(&c.batchSize)
+	addPubFlags(jsbatchatomicpub)
+	addJSPubFlags(jsbatchatomicpub)
+
+	jsbatchfastpub := jspub.Command("fast", "Use fast batch JetStream publish").Action(c.jspubBatchFastAction)
+	jsbatchfastpub.Arg("subject", "Subject to use for the benchmark").Required().StringVar(&c.subject)
+	jsbatchfastpub.Flag("batch", "Sets the size of the batches").Default("500").IntVar(&c.batchSize)
+	jsbatchfastpub.Flag("max-outstanding-acks", "Sets the max outstanding acks for fast publishing").Default("1").Uint16Var(&c.maxOutstandingAcks)
+	addPubFlags(jsbatchfastpub)
+	addJSPubFlags(jsbatchfastpub)
 
 	jsOrdered := jsCommand.Command("ordered", "Consume JetStream messages from a consumer using an ephemeral ordered consumer").Action(c.jsOrderedAction)
 	jsOrdered.Flag("batch", "Sets the max number of messages that can be buffered in the client").Default("500").IntVar(&c.batchSize)
@@ -375,7 +383,7 @@ func (c *benchCmd) generateBanner(benchType string) string {
 		jsAttributes()
 		argnvps = append(argnvps, nvp{"purge", f(c.purge)})
 		streamOrBucketAttribues()
-	case bench.TypeJSPubAsync, bench.TypeJSPubBatch:
+	case bench.TypeJSPubAsync, bench.TypeJSPubBatchAtomic, bench.TypeJSPubBatchFast:
 		argnvps = append(argnvps, nvp{"subject", c.getSubscribeSubject()})
 		argnvps = append(argnvps, nvp{"multi-subject", f(c.multiSubject)})
 		argnvps = append(argnvps, nvp{"multi-subject-max", f(c.multiSubjectMax)})
@@ -850,8 +858,12 @@ func (c *benchCmd) jspubAsyncAction(pc *fisk.ParseContext) error {
 	return c.jspubActions(pc, bench.TypeJSPubAsync)
 }
 
-func (c *benchCmd) jspubBatchAction(pc *fisk.ParseContext) error {
-	return c.jspubActions(pc, bench.TypeJSPubBatch)
+func (c *benchCmd) jspubBatchAtomicAction(pc *fisk.ParseContext) error {
+	return c.jspubActions(pc, bench.TypeJSPubBatchAtomic)
+}
+
+func (c *benchCmd) jspubBatchFastAction(pc *fisk.ParseContext) error {
+	return c.jspubActions(pc, bench.TypeJSPubBatchFast)
 }
 
 func (c *benchCmd) jspubActions(_ *fisk.ParseContext, jsPubType string) error {
@@ -865,7 +877,7 @@ func (c *benchCmd) jspubActions(_ *fisk.ParseContext, jsPubType string) error {
 		c.numClients = c.numMsg
 	}
 
-	if c.persistModeAsync && c.replicas != 1 && jsPubType == bench.TypeJSPubBatch {
+	if c.persistModeAsync && c.replicas != 1 && jsPubType == bench.TypeJSPubBatchAtomic {
 		return fmt.Errorf("async persist mode is only supported for streams with 1 replica and incompatible with atomic batch publishing")
 	}
 
@@ -895,8 +907,14 @@ func (c *benchCmd) jspubActions(_ *fisk.ParseContext, jsPubType string) error {
 		return err
 	}
 
-	if jsPubType == bench.TypeJSPubBatch {
+	if jsPubType == bench.TypeJSPubBatchAtomic {
 		err = iu.RequireAPILevel(myjsm, 2, "Atomic Batch Publishing requires NATS Server 2.12, specify --async for async publishing instead")
+		if err != nil {
+			return err
+		}
+	}
+	if jsPubType == bench.TypeJSPubBatchFast {
+		err = iu.RequireAPILevel(myjsm, 4, "Fast Batch Publishing requires NATS Server 2.14, specify --async for async publishing instead")
 		if err != nil {
 			return err
 		}
@@ -915,12 +933,12 @@ func (c *benchCmd) jspubActions(_ *fisk.ParseContext, jsPubType string) error {
 			storage = api.FileStorage
 		}
 
-		if c.replicas == 1 && jsPubType != bench.TypeJSPubBatch && c.persistModeAsync {
+		if c.replicas == 1 && jsPubType != bench.TypeJSPubBatchAtomic && c.persistModeAsync {
 			persistMode = api.AsyncPersistMode
 			atomicBatch = false
 		}
 
-		_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: storage, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: atomicBatch, PersistMode: persistMode})
+		_, err = myjsm.NewStreamFromDefault(c.streamOrBucketName, api.StreamConfig{Name: c.streamOrBucketName, Subjects: []string{c.getSubscribeSubject()}, Retention: api.LimitsPolicy, Discard: api.DiscardNew, Storage: storage, Replicas: c.replicas, MaxBytes: c.streamMaxBytes, Duplicates: c.deDuplicationWindow, AllowDirect: true, AllowAtomicPublish: atomicBatch, AllowBatchPublish: true, PersistMode: persistMode})
 		if err != nil {
 			return fmt.Errorf("could not create the stream. If you want to delete and re-define the stream use `nats stream delete %s`: %w", c.streamOrBucketName, err)
 		}
@@ -1964,8 +1982,8 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 		}
 
 		state = "Finished  "
-		// Batch publish
-	} else if jsPubType == bench.TypeJSPubBatch {
+	} else if jsPubType == bench.TypeJSPubBatchAtomic {
+		// Atomic batch publish
 		latencies = make([]uint64, uint64(math.Ceil(float64(numMsg)/float64(c.batchSize))))
 		batch := 0
 		var msgs int
@@ -2019,6 +2037,72 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 			i += msgs
 			time.Sleep(c.sleep)
 		}
+		state = "Finished  "
+	} else if jsPubType == bench.TypeJSPubBatchFast {
+		// Fast batch publish
+
+		// Worst-case: ack-every-message, but batching should normally be more optimal.
+		latencies = make([]uint64, numMsg)
+		batch := 0
+		batchId := idPrefix + "-" + strconv.Itoa(clientNumber)
+
+		var berr error
+		errHandler := jetstreamext.WithFastPublisherErrorHandler(func(err error) {
+			if berr == nil {
+				berr = err
+			}
+		})
+		fc := jetstreamext.FastPublishFlowControl{
+			Flow:               uint16(min(c.batchSize, math.MaxUint16)),
+			MaxOutstandingAcks: c.maxOutstandingAcks,
+		}
+		fp, err := jetstreamext.NewFastPublisher(js, errHandler, fc)
+		if err != nil {
+			return nil, fmt.Errorf("init: %w", err)
+		}
+
+		start := time.Now()
+		ackSeq := uint64(0)
+
+		for i := 0; i < numMsg; i++ {
+			state = "Batching  "
+
+			if c.deDuplication {
+				message.Header.Set(nats.MsgIdHdr, batchId+"-"+strconv.Itoa(i+offset))
+			}
+			message.Subject = c.getPublishSubject(i + offset)
+
+			if ack, err := fp.AddMsg(&message); err != nil {
+				return nil, fmt.Errorf("batch add: %w", err)
+			} else if berr != nil {
+				return nil, fmt.Errorf("batch fail: %w", berr)
+			} else if ack.AckSequence > ackSeq {
+				ackSeq = ack.AckSequence
+				latencies[batch] = uint64(time.Since(start).Nanoseconds())
+				batch++
+				start = time.Now()
+			}
+			if progress != nil {
+				progress.Incr()
+			}
+
+			state = "Sleeping  "
+			time.Sleep(c.sleep)
+		}
+
+		state = "Committing"
+		if ack, err := fp.Close(ctx); err != nil {
+			return nil, fmt.Errorf("batch commit: %w", err)
+		} else if berr != nil {
+			return nil, fmt.Errorf("batch fail: %w", berr)
+		} else if ack.BatchSize > ackSeq {
+			latencies[batch] = uint64(time.Since(start).Nanoseconds())
+			batch++
+		}
+
+		// Only keep the latencies for the batches.
+		latencies = latencies[:batch]
+
 		state = "Finished  "
 	} else if jsPubType == bench.TypeJSPubSync {
 		// Synchronous publish
