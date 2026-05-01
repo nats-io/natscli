@@ -12,7 +12,8 @@ const (
 	TypeServiceServe           = "reply"
 	TypeJSPubSync              = "jsyncpub"
 	TypeJSPubAsync             = "jsasyncpub"
-	TypeJSPubBatch             = "jsbatchpub"
+	TypeJSPubBatchAtomic       = "jsbatchatomicpub"
+	TypeJSPubBatchFast         = "jsbatchfastpub"
 	TypeJSOrdered              = "jsordered"
 	TypeJSConsume              = "jsconsume"
 	TypeJSFetch                = "jsfetch"
@@ -42,8 +43,10 @@ func GetBenchTypeLabel(benchType string) string {
 		return "JetStream synchronous publisher"
 	case TypeJSPubAsync:
 		return "JetStream asynchronous publisher"
-	case TypeJSPubBatch:
-		return "JetStream batched publisher"
+	case TypeJSPubBatchAtomic:
+		return "JetStream atomic batch publisher"
+	case TypeJSPubBatchFast:
+		return "JetStream fast batch publisher"
 	case TypeJSOrdered:
 		return "JetStream ordered ephemeral consumer"
 	case TypeJSConsume:

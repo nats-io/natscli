@@ -78,7 +78,7 @@ func (bm *BenchmarkResults) AddSample(s *BenchSample) {
 // Prefix generates the "P" or "S" prefix for the BenchmarkResults type
 func (bm *BenchmarkResults) Prefix() string {
 	switch bm.BenchType {
-	case TypeCorePub, TypeJSPubAsync, TypeJSPubBatch, TypeJSPubSync, TypeKVPut, TypeServiceRequest:
+	case TypeCorePub, TypeJSPubAsync, TypeJSPubBatchAtomic, TypeJSPubBatchFast, TypeJSPubSync, TypeKVPut, TypeServiceRequest:
 		return "P"
 	case TypeCoreSub, TypeJSConsume, TypeJSFetch, TypeJSOrdered, TypeJSGetSync, TypeJSGetDirectBatched, TypeKVGet, TypeOldJSPush, TypeOldJSPull, TypeOldJSOrdered:
 		return "S"
