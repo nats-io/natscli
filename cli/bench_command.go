@@ -1952,7 +1952,7 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 					case <-futures[future].Ok():
 						i++
 					case err := <-futures[future].Err():
-						fmt.Println(fmt.Errorf("publish acknowledgement is an error: %w (retrying)", err).Error())
+						return nil, fmt.Errorf("async publish acknowledgement is an error: %w", err)
 					}
 				}
 			case <-time.After(opts().Timeout):
