@@ -1951,15 +1951,15 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 					select {
 					case <-futures[future].Ok():
 						i++
-						latencies[uint64(math.Ceil(float64(i)/float64(c.batchSize)))-1] = uint64(time.Since(start).Nanoseconds())
 					case err := <-futures[future].Err():
-						fmt.Println(fmt.Errorf("publish acknowledgement is an error: %w (retrying)", err).Error())
+						return nil, fmt.Errorf("async publish acknowledgement is an error: %w", err)
 					}
 				}
 			case <-time.After(opts().Timeout):
 				return nil, fmt.Errorf("JS PubAsync ack timeout (pending=%d)", js.PublishAsyncPending())
 			}
 
+			latencies[uint64(math.Ceil(float64(i)/float64(c.batchSize)))-1] = uint64(time.Since(start).Nanoseconds())
 			time.Sleep(c.sleep)
 		}
 
