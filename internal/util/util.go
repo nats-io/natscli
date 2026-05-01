@@ -45,20 +45,7 @@ import (
 
 // RemoveReservedMetadata returns a new version of metadata with reserved keys starting with _nats. removed
 func RemoveReservedMetadata(metadata map[string]string) map[string]string {
-	res := make(map[string]string)
-
-	for k, v := range metadata {
-		if strings.HasPrefix(k, "_nats.") {
-			continue
-		}
-		res[k] = v
-	}
-
-	if len(res) == 0 {
-		return nil
-	}
-
-	return res
+	return jsm.FilterServerMetadata(metadata)
 }
 
 // RequireAPILevel asserts if the meta leader supports api level lvl
