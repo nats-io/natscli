@@ -505,7 +505,7 @@ func TestCLIPubAtomic(t *testing.T) {
 				t.Fatalf("expected error, got nil")
 			}
 
-			if !strings.Contains(err.Error(), "error: atomic batch publishing requires Jetstream ") {
+			if !strings.Contains(err.Error(), "error: atomic batch publishing requires JetStream ") {
 				t.Fatalf("expected atomic batch publishing error, got %s", err)
 			}
 			return nil
@@ -522,8 +522,141 @@ func TestCLIPubAtomic(t *testing.T) {
 				t.Fatalf("expected error, got nil")
 			}
 
-			if !strings.Contains(err.Error(), "error: atomic batch publishing requires Jetstream ") {
+			if !strings.Contains(err.Error(), "error: atomic batch publishing requires JetStream ") {
 				t.Fatalf("expected atomic batch publishing error, got %s", err)
+			}
+			return nil
+		})
+	})
+}
+
+func TestCLIPubSchedules(t *testing.T) {
+	t.Run("--schedule-every and --schedule-at are mutually exclusive", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := runNatsCliWithInput(t, "", fmt.Sprintf("--server='%s' pub schedules.test 'body' --schedule-dest=orders --schedule-every=1m --schedule-at=2099-01-01T00:00:00Z", srv.ClientURL()))
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "--schedule-every may not be used with --schedule-at or --schedule-after") {
+				t.Fatalf("expected mutual exclusivity error, got %s", err)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--schedule-every and --schedule-after are mutually exclusive", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := runNatsCliWithInput(t, "", fmt.Sprintf("--server='%s' pub schedules.test 'body' --schedule-dest=orders --schedule-every=1m --schedule-after=5m", srv.ClientURL()))
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "--schedule-every may not be used with --schedule-at or --schedule-after") {
+				t.Fatalf("expected mutual exclusivity error, got %s", err)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--schedule-after rejects zero duration", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := runNatsCliWithInput(t, "", fmt.Sprintf("--server='%s' pub schedules.test 'body' --schedule-dest=orders --schedule-after=0s", srv.ClientURL()))
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "--schedule-after must be greater than 0") {
+				t.Fatalf("expected --schedule-after rejection, got %s", err)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--schedule-after rejects negative duration", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := runNatsCliWithInput(t, "", fmt.Sprintf("--server='%s' pub schedules.test 'body' --schedule-dest=orders --schedule-after=-1m", srv.ClientURL()))
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "--schedule-after must be greater than 0") {
+				t.Fatalf("expected --schedule-after rejection, got %s", err)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--schedule-every rejects zero duration", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := runNatsCliWithInput(t, "", fmt.Sprintf("--server='%s' pub schedules.test 'body' --schedule-dest=orders --schedule-every=0s", srv.ClientURL()))
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "--schedule-every must be greater than 0") {
+				t.Fatalf("expected --schedule-every rejection, got %s", err)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--schedule-every rejects negative duration", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			_, err := runNatsCliWithInput(t, "", fmt.Sprintf("--server='%s' pub schedules.test 'body' --schedule-dest=orders --schedule-every=-30s", srv.ClientURL()))
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "--schedule-every must be greater than 0") {
+				t.Fatalf("expected --schedule-every rejection, got %s", err)
+			}
+			return nil
+		})
+	})
+
+	t.Run("--schedule-dest implies --jetstream", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			subject := "schedules.dest"
+			stream, err := mgr.NewStream("SCHEDDEST", jsm.Subjects("schedules.>"))
+			if err != nil {
+				t.Fatalf("failed to create stream: %s", err)
+			}
+
+			runNatsCli(t, fmt.Sprintf("--server='%s' pub %s 'body' --schedule-dest=orders", srv.ClientURL(), subject))
+
+			info, err := stream.State()
+			if err != nil {
+				t.Fatalf("failed to get stream state: %s", err)
+			}
+			if info.Msgs != 1 {
+				t.Errorf("expected 1 message in stream (jetstream path), got %d", info.Msgs)
+			}
+			return nil
+		})
+	})
+
+	t.Run("schedule flags do not duplicate user-supplied schedule headers", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			subject := "schedules.hdr"
+			_, err := mgr.NewStream("SCHEDHDR", jsm.Subjects("schedules.>", "orders.>"), jsm.AllowSchedules())
+			if err != nil {
+				t.Fatalf("failed to create stream: %s", err)
+			}
+
+			var receivedMsg *nats.Msg
+			sub, _ := nc.Subscribe(subject, func(m *nats.Msg) {
+				receivedMsg = m
+			})
+			defer sub.Unsubscribe()
+			nc.Flush()
+
+			runNatsCli(t, fmt.Sprintf("--server='%s' pub %s 'body' --schedule-dest=orders.new --schedule-cron='@hourly' -H 'Nats-Schedule-Target:orders.old'", srv.ClientURL(), subject))
+
+			if receivedMsg == nil {
+				t.Fatal("no message received")
+			}
+
+			targets := receivedMsg.Header.Values("Nats-Schedule-Target")
+			if len(targets) != 1 {
+				t.Errorf("expected exactly 1 Nats-Schedule-Target header, got %d: %v", len(targets), targets)
+			}
+			if len(targets) > 0 && targets[0] != "orders.new" {
+				t.Errorf("expected Nats-Schedule-Target=orders.new, got %q", targets[0])
 			}
 			return nil
 		})
