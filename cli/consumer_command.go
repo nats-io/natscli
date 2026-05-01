@@ -128,6 +128,8 @@ type consumerCmd struct {
 	fPinned            bool
 	placementPreferred string
 	apiLevel           int
+	resetSeq           uint64
+	resetSeqIsSet      bool
 }
 
 func configureConsumerCommand(app commandHost) {
@@ -135,7 +137,7 @@ func configureConsumerCommand(app commandHost) {
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		if !edit {
-			f.Flag("ack", "Acknowledgment policy (none, all, explicit)").StringVar(&c.ackPolicy)
+			f.Flag("ack", "Acknowledgment policy (none, all, explicit, flow_control)").EnumVar(&c.ackPolicy, "none", "all", "explicit", "flow_control")
 			f.Flag("bps", "Restrict message delivery to a certain bit per second").Default("0").Uint64Var(&c.bpsRateLimit)
 		}
 		f.Flag("backoff", "Creates a consumer backoff policy using a specific pre-written algorithm (none, linear)").PlaceHolder("MODE").EnumVar(&c.backoffMode, "linear", "none")
@@ -257,6 +259,13 @@ func configureConsumerCommand(app commandHost) {
 	consRm.Arg("consumer", "Consumer name").StringVar(&c.consumer)
 	consRm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
 
+	consReset := cons.Command("reset", "Resets the consumer to a previous state").Action(c.resetAction)
+	consReset.Tag("scope:user", "impact:rw")
+	consReset.Arg("stream", "Stream name").StringVar(&c.stream)
+	consReset.Arg("consumer", "Consumer name").StringVar(&c.consumer)
+	consReset.Flag("sequence", "Sequence to reset to").IsSetByUser(&c.resetSeqIsSet).Uint64Var(&c.resetSeq)
+	consReset.Flag("force", "Force reset without prompting").Short('f').UnNegatableBoolVar(&c.force)
+
 	consCp := cons.Command("copy", "Creates a new consumer based on the configuration of another").Alias("cp").Action(c.cpAction)
 	consCp.Tag("scope:user", "impact:rw")
 	consCp.Arg("stream", "Stream name").Required().StringVar(&c.stream)
@@ -343,6 +352,29 @@ func configureConsumerCommand(app commandHost) {
 
 func init() {
 	registerCommand("consumer", 4, configureConsumerCommand)
+}
+
+func (c *consumerCmd) resetAction(_ *fisk.ParseContext) error {
+	c.connectAndSetup(true, true)
+
+	if !c.force {
+		ok, err := askConfirmation("Really reset the consumer", false)
+		fisk.FatalIfError(err, "could not obtain confirmation")
+
+		if !ok {
+			return nil
+		}
+	}
+
+	_, err := c.selectedConsumer.ResetConsumerState(c.resetSeq)
+	if err != nil {
+		return err
+	}
+
+	c.showStateOnly = true
+	c.showConsumer(c.selectedConsumer)
+
+	return nil
 }
 
 func (c *consumerCmd) unpinAction(_ *fisk.ParseContext) error {
@@ -1219,6 +1251,20 @@ func (c *consumerCmd) showInfo(config api.ConsumerConfig, state api.ConsumerInfo
 			cols.AddRowIf("Pinned TTL", config.PinnedTTL, config.PriorityPolicy == api.PriorityPinnedClient)
 		}
 
+		if config.Metadata[api.JsMetaMirrorStreamName] != "" {
+			cols.AddSectionTitle("Mirror Target")
+			cols.AddRow("Stream", config.Metadata[api.JsMetaMirrorStreamName])
+			cols.AddRowIfNotEmpty("Account", config.Metadata[api.JsMetaMirrorAccountName])
+			cols.AddRowIfNotEmpty("Domain", config.Metadata[api.JsMetaMirrorDomainName])
+		}
+
+		if config.Metadata[api.JsMetaSourceStreamName] != "" {
+			cols.AddSectionTitle("Source Target")
+			cols.AddRow("Stream", config.Metadata[api.JsMetaSourceStreamName])
+			cols.AddRowIfNotEmpty("Account", config.Metadata[api.JsMetaSourceAccountName])
+			cols.AddRowIfNotEmpty("Domain", config.Metadata[api.JsMetaSourceDomainName])
+		}
+
 		meta := iu.RemoveReservedMetadata(config.Metadata)
 		if len(meta) > 0 {
 			cols.AddSectionTitle("Metadata")
@@ -1351,6 +1397,8 @@ func (c *consumerCmd) ackPolicyFromString(p string) api.AckPolicy {
 		return api.AckAll
 	case "explicit":
 		return api.AckExplicit
+	case "flowcontrol", "flow_control", "fc":
+		return api.AckFlowControl
 	default:
 		fisk.Fatalf("invalid ack policy '%s'", p)
 		// unreachable
