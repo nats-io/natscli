@@ -2106,7 +2106,7 @@ func (c *streamCmd) editAction(pc *fisk.ParseContext) error {
 	}
 
 	if cfg.AllowAtomicPublish || cfg.AllowMsgCounter {
-		err := c.checkCompatability(c.mgr, &cfg)
+		err := c.checkCompatibility(c.mgr, &cfg)
 		if err != nil {
 			return err
 		}
@@ -2304,6 +2304,14 @@ func (c *streamCmd) renderSource(s *api.StreamSource) string {
 
 		if s.External.DeliverPrefix != "" {
 			parts = append(parts, fmt.Sprintf("Delivery Prefix: %s", s.External.DeliverPrefix))
+		}
+	}
+
+	if s.Consumer != nil {
+		if s.Consumer.DeliverSubject == "" {
+			parts = append(parts, fmt.Sprintf("Consumer Name: %s", s.Consumer.Name))
+		} else {
+			parts = append(parts, fmt.Sprintf("Consumer Name: %s (%s)", s.Consumer.Name, s.Consumer.DeliverSubject))
 		}
 	}
 
@@ -2916,33 +2924,54 @@ func (c *streamCmd) prepareConfig(_ *fisk.ParseContext, requireSize bool) api.St
 
 func (c *streamCmd) askMirror() *api.StreamSource {
 	mirror := &api.StreamSource{Name: c.mirror}
+
 	if c.acceptDefaults {
 		return mirror
 	}
 
-	ok, err := askConfirmation("Adjust mirror start", false)
+	askDurable, err := askConfirmation("Configure a custom durable consumer", false)
 	fisk.FatalIfError(err, "Could not request mirror details")
-	if ok {
-		a, err := askOneInt("Mirror Start Sequence", "0", "Start mirroring at a specific sequence")
-		fisk.FatalIfError(err, "Invalid sequence")
-		mirror.OptStartSeq = uint64(a)
+	if askDurable {
+		mirror.Consumer = &api.StreamConsumerSource{}
 
-		if mirror.OptStartSeq == 0 {
-			ts := ""
-			err = iu.AskOne(&survey.Input{
-				Message: "Mirror Start Time (YYYY:MM:DD HH:MM:SS)",
-				Help:    "Start replicating as a specific time stamp in UTC time",
-			}, &ts)
-			fisk.FatalIfError(err, "could not request start time")
-			if ts != "" {
-				t, err := time.Parse("2006:01:02 15:04:05", ts)
-				fisk.FatalIfError(err, "invalid time format")
-				mirror.OptStartTime = &t
+		err = iu.AskOne(&survey.Input{
+			Message: "Durable consumer name",
+			Help:    "The name of the durable to read messages from",
+		}, &mirror.Consumer.Name, survey.WithValidator(survey.Required))
+		fisk.FatalIfError(err, "Could not request mirror details")
+
+		err = iu.AskOne(&survey.Input{
+			Message: "Delivery subject",
+			Help:    "The delivery subject for the consumer",
+		}, &mirror.Consumer.DeliverSubject, survey.WithValidator(survey.Required))
+		fisk.FatalIfError(err, "Could not request mirror details")
+	}
+
+	if !askDurable {
+		ok, err := askConfirmation("Adjust mirror start", false)
+		fisk.FatalIfError(err, "Could not request mirror details")
+		if ok {
+			a, err := askOneInt("Mirror Start Sequence", "0", "Start mirroring at a specific sequence")
+			fisk.FatalIfError(err, "Invalid sequence")
+			mirror.OptStartSeq = uint64(a)
+
+			if mirror.OptStartSeq == 0 {
+				ts := ""
+				err = iu.AskOne(&survey.Input{
+					Message: "Mirror Start Time (YYYY:MM:DD HH:MM:SS)",
+					Help:    "Start replicating as a specific time stamp in UTC time",
+				}, &ts)
+				fisk.FatalIfError(err, "could not request start time")
+				if ts != "" {
+					t, err := time.Parse("2006:01:02 15:04:05", ts)
+					fisk.FatalIfError(err, "invalid time format")
+					mirror.OptStartTime = &t
+				}
 			}
 		}
 	}
 
-	ok, err = askConfirmation("Adjust mirror filter and transform", false)
+	ok, err := askConfirmation("Adjust mirror filter and transform", false)
 	fisk.FatalIfError(err, "Could not request mirror details")
 
 	if ok {
@@ -2993,32 +3022,34 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 		fisk.FatalIfError(err, "Could not request mirror details")
 		mirror.External.ApiPrefix = fmt.Sprintf("$JS.%s.API", domainName)
 
-		err = iu.AskOne(&survey.Input{
-			Message: "Delivery prefix",
-			Help:    "Optional prefix of the delivery subject",
-		}, &mirror.External.DeliverPrefix)
+		if !askDurable {
+			err = iu.AskOne(&survey.Input{
+				Message: "Delivery prefix",
+				Help:    "Optional prefix of the delivery subject",
+			}, &mirror.External.DeliverPrefix)
+			fisk.FatalIfError(err, "Could not request mirror details")
+		}
+	} else {
+		ok, err = askConfirmation("Import mirror from a different account", false)
 		fisk.FatalIfError(err, "Could not request mirror details")
-		return mirror
+
+		if ok {
+			mirror.External = &api.ExternalStream{}
+			err = iu.AskOne(&survey.Input{
+				Message: "Foreign account API prefix",
+				Help:    "The prefix where the foreign account JetStream API has been imported",
+			}, &mirror.External.ApiPrefix, survey.WithValidator(survey.Required))
+			fisk.FatalIfError(err, "Could not request mirror details")
+
+			if !askDurable {
+				err = iu.AskOne(&survey.Input{
+					Message: "Foreign account delivery prefix",
+					Help:    "The prefix where the foreign account JetStream delivery subjects has been imported",
+				}, &mirror.External.DeliverPrefix, survey.WithValidator(survey.Required))
+				fisk.FatalIfError(err, "Could not request mirror details")
+			}
+		}
 	}
-
-	ok, err = askConfirmation("Import mirror from a different account", false)
-	fisk.FatalIfError(err, "Could not request mirror details")
-	if !ok {
-		return mirror
-	}
-
-	mirror.External = &api.ExternalStream{}
-	err = iu.AskOne(&survey.Input{
-		Message: "Foreign account API prefix",
-		Help:    "The prefix where the foreign account JetStream API has been imported",
-	}, &mirror.External.ApiPrefix, survey.WithValidator(survey.Required))
-	fisk.FatalIfError(err, "Could not request mirror details")
-
-	err = iu.AskOne(&survey.Input{
-		Message: "Foreign account delivery prefix",
-		Help:    "The prefix where the foreign account JetStream delivery subjects has been imported",
-	}, &mirror.External.DeliverPrefix, survey.WithValidator(survey.Required))
-	fisk.FatalIfError(err, "Could not request mirror details")
 
 	return mirror
 }
@@ -3026,29 +3057,52 @@ func (c *streamCmd) askMirror() *api.StreamSource {
 func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 	cfg := &api.StreamSource{Name: name}
 
-	ok, err := askConfirmation(fmt.Sprintf("Adjust source %q start", name), false)
-	fisk.FatalIfError(err, "Could not request source details")
-	if ok {
-		a, err := askOneInt(fmt.Sprintf("%s Start Sequence", prefix), "0", "Start mirroring at a specific sequence")
-		fisk.FatalIfError(err, "Invalid sequence")
-		cfg.OptStartSeq = uint64(a)
+	if c.acceptDefaults {
+		return cfg
+	}
 
-		ts := ""
+	askDurable, err := askConfirmation(fmt.Sprintf("Configure a custom durable consumer for %q", name), false)
+	fisk.FatalIfError(err, "Could not request source details")
+	if askDurable {
+		cfg.Consumer = &api.StreamConsumerSource{}
+
 		err = iu.AskOne(&survey.Input{
-			Message: fmt.Sprintf("%s UTC Time Stamp (YYYY:MM:DD HH:MM:SS)", prefix),
-			Help:    "Start replicating as a specific time stamp",
-		}, &ts)
-		fisk.FatalIfError(err, "could not request start time")
-		if ts != "" {
-			t, err := time.Parse("2006:01:02 15:04:05", ts)
-			fisk.FatalIfError(err, "invalid time format")
-			cfg.OptStartTime = &t
+			Message: "Durable consumer name",
+			Help:    "The name of the durable to read messages from",
+		}, &cfg.Consumer.Name, survey.WithValidator(survey.Required))
+		fisk.FatalIfError(err, "Could not request source details")
+
+		err = iu.AskOne(&survey.Input{
+			Message: "Delivery subject",
+			Help:    "The delivery subject for the consumer",
+		}, &cfg.Consumer.DeliverSubject, survey.WithValidator(survey.Required))
+		fisk.FatalIfError(err, "Could not request source details")
+	}
+
+	if !askDurable {
+		ok, err := askConfirmation(fmt.Sprintf("Adjust source %q start", name), false)
+		fisk.FatalIfError(err, "Could not request source details")
+		if ok {
+			a, err := askOneInt(fmt.Sprintf("%s Start Sequence", prefix), "0", "Start mirroring at a specific sequence")
+			fisk.FatalIfError(err, "Invalid sequence")
+			cfg.OptStartSeq = uint64(a)
+
+			ts := ""
+			err = iu.AskOne(&survey.Input{
+				Message: fmt.Sprintf("%s UTC Time Stamp (YYYY:MM:DD HH:MM:SS)", prefix),
+				Help:    "Start replicating as a specific time stamp",
+			}, &ts)
+			fisk.FatalIfError(err, "could not request start time")
+			if ts != "" {
+				t, err := time.Parse("2006:01:02 15:04:05", ts)
+				fisk.FatalIfError(err, "invalid time format")
+				cfg.OptStartTime = &t
+			}
 		}
 	}
 
-	ok, err = askConfirmation(fmt.Sprintf("Adjust source %q filter and transform", name), false)
+	ok, err := askConfirmation(fmt.Sprintf("Adjust source %q filter and transform", name), false)
 	fisk.FatalIfError(err, "Could not request source details")
-
 	if ok {
 		var sources []string
 		var destinations []string
@@ -3096,33 +3150,35 @@ func (c *streamCmd) askSource(name string, prefix string) *api.StreamSource {
 		fisk.FatalIfError(err, "Could not request source details")
 		cfg.External.ApiPrefix = fmt.Sprintf("$JS.%s.API", domainName)
 
-		err = iu.AskOne(&survey.Input{
-			Message: fmt.Sprintf("%s foreign JetStream domain delivery prefix", prefix),
-			Help:    "Optional prefix of the delivery subject",
-		}, &cfg.External.DeliverPrefix)
+		if !askDurable {
+			err = iu.AskOne(&survey.Input{
+				Message: fmt.Sprintf("%s foreign JetStream domain delivery prefix", prefix),
+				Help:    "Optional prefix of the delivery subject",
+			}, &cfg.External.DeliverPrefix)
+			fisk.FatalIfError(err, "Could not request source details")
+		}
+	} else {
+		ok, err = askConfirmation(fmt.Sprintf("Import %q from a different account", name), false)
 		fisk.FatalIfError(err, "Could not request source details")
-		return cfg
+		if !ok {
+			return cfg
+		}
+
+		cfg.External = &api.ExternalStream{}
+		err = iu.AskOne(&survey.Input{
+			Message: fmt.Sprintf("%s foreign account API prefix", prefix),
+			Help:    "The prefix where the foreign account JetStream API has been imported",
+		}, &cfg.External.ApiPrefix, survey.WithValidator(survey.Required))
+		fisk.FatalIfError(err, "Could not request source details")
+
+		if !askDurable {
+			err = iu.AskOne(&survey.Input{
+				Message: fmt.Sprintf("%s foreign account delivery prefix", prefix),
+				Help:    "The prefix where the foreign account JetStream delivery subjects has been imported",
+			}, &cfg.External.DeliverPrefix, survey.WithValidator(survey.Required))
+			fisk.FatalIfError(err, "Could not request source details")
+		}
 	}
-
-	ok, err = askConfirmation(fmt.Sprintf("Import %q from a different account", name), false)
-	fisk.FatalIfError(err, "Could not request source details")
-	if !ok {
-		return cfg
-	}
-
-	cfg.External = &api.ExternalStream{}
-	err = iu.AskOne(&survey.Input{
-		Message: fmt.Sprintf("%s foreign account API prefix", prefix),
-		Help:    "The prefix where the foreign account JetStream API has been imported",
-	}, &cfg.External.ApiPrefix, survey.WithValidator(survey.Required))
-	fisk.FatalIfError(err, "Could not request source details")
-
-	err = iu.AskOne(&survey.Input{
-		Message: fmt.Sprintf("%s foreign account delivery prefix", prefix),
-		Help:    "The prefix where the foreign account JetStream delivery subjects has been imported",
-	}, &cfg.External.DeliverPrefix, survey.WithValidator(survey.Required))
-	fisk.FatalIfError(err, "Could not request source details")
-
 	return cfg
 }
 
@@ -3204,7 +3260,7 @@ func (c *streamCmd) addAction(pc *fisk.ParseContext) (err error) {
 	}
 
 	if cfg.AllowAtomicPublish || cfg.AllowMsgCounter {
-		err := c.checkCompatability(mgr, &cfg)
+		err := c.checkCompatibility(mgr, &cfg)
 		if err != nil {
 			return err
 		}
@@ -3220,7 +3276,7 @@ func (c *streamCmd) addAction(pc *fisk.ParseContext) (err error) {
 	return nil
 }
 
-func (c streamCmd) checkCompatability(mgr *jsm.Manager, cfg *api.StreamConfig) error {
+func (c *streamCmd) checkCompatibility(mgr *jsm.Manager, cfg *api.StreamConfig) error {
 	if cfg.AllowAtomicPublish {
 		err := iu.RequireAPILevel(mgr, 2, "Atomic Batch Publishing requires NATS Server 2.12")
 		if err != nil {
