@@ -486,6 +486,12 @@ Pub stats: 28,003 msgs/sec ~ 3.42 MB/sec
  min 2,800 | avg 2,808 | max 2,817 | stddev 6 msgs
 ```
 
+To produce load at a fixed rate (useful for head-to-head comparisons against tools like Kafka's `kafka-producer-perf-test.sh --throughput`), use `--throughput` on any generator-side bench command (`bench pub`, `bench service request`, `bench js pub sync|async|batch`, `bench kv put`). The rate is the aggregate target across all clients; each client targets `throughput / clients` msgs/sec. A value of `0` (the default) disables throttling. If `--sleep` is also set, both limits apply and the actual send rate will be the slower of the two, so `--sleep` can prevent reaching the configured `--throughput`.
+
+```
+nats bench pub test --msgs 1000000 --clients 4 --throughput 50000 --no-progress
+```
+
 There are numerous other flags that can be set to configure size of messages, using fetch or consume for JetStream consumers and much more, see `nats bench` and `nats cheat bench` for some examples.
 
 ### Latency
