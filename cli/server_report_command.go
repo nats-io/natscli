@@ -1065,13 +1065,19 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 		return fmt.Errorf("did not get results from any servers")
 	}
 
-	if c.account != "" {
-		accounts := c.accountInfo(connz)
-		if len(accounts) != 1 {
-			return fmt.Errorf("received results for multiple accounts, expected %v", c.account)
-		}
+	accountNames, err := c.getAccountz(c.nc)
+	if err != nil {
+		return err
+	}
 
-		account, ok := accounts[c.account]
+	if len(accountNames) == 0 {
+		return fmt.Errorf("did not receive any account names from server")
+	}
+
+	accountsMap := c.accountInfo(connz, accountNames)
+
+	if c.account != "" {
+		account, ok := accountsMap[c.account]
 		if !ok {
 			return fmt.Errorf("did not receive any results for account %s", c.account)
 		}
@@ -1088,7 +1094,6 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 		return nil
 	}
 
-	accountsMap := c.accountInfo(connz)
 	var accounts []*srvReportAccountInfo
 	for _, v := range accountsMap {
 		accounts = append(accounts, v)
@@ -1139,8 +1144,12 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *SrvReportCmd) accountInfo(connz connzList) map[string]*srvReportAccountInfo {
+func (c *SrvReportCmd) accountInfo(connz connzList, accounts []string) map[string]*srvReportAccountInfo {
 	result := make(map[string]*srvReportAccountInfo)
+
+	for _, accountName := range accounts {
+		result[accountName] = &srvReportAccountInfo{Account: accountName}
+	}
 
 	for _, conn := range connz {
 		for _, info := range conn.Data.Conns {
@@ -1371,6 +1380,67 @@ func parseConnzResp(resp []byte) (*server.ServerAPIConnzResponse, error) {
 	}
 
 	return &reqresp, nil
+}
+
+func (c *SrvReportCmd) getAccountz(nc *nats.Conn) ([]string, error) {
+	req := server.AccountzEventOptions{
+		EventFilterOptions: c.reqFilter(),
+	}
+
+	results, err := doReq(&req, "$SYS.REQ.SERVER.PING.ACCOUNTZ", c.waitFor, nc)
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := map[string]struct{}{}
+	for _, result := range results {
+		reqresp := map[string]json.RawMessage{}
+		err := json.Unmarshal(result, &reqresp)
+		if err != nil {
+			return nil, err
+		}
+
+		if errresp, ok := reqresp["error"]; ok {
+			errInfo := map[string]any{}
+			if err := json.Unmarshal(errresp, &errInfo); err != nil {
+				return nil, fmt.Errorf("invalid response received: %q", errresp)
+			}
+
+			if msg, ok := errInfo["description"]; ok {
+				return nil, fmt.Errorf("%v", msg)
+			}
+
+			return nil, fmt.Errorf("%q", errresp)
+		}
+
+		data, ok := reqresp["data"]
+		if !ok {
+			continue
+		}
+
+		payload := struct {
+			Accounts []string `json:"accounts"`
+		}{}
+		if err := json.Unmarshal(data, &payload); err != nil {
+			return nil, err
+		}
+
+		for _, account := range payload.Accounts {
+			accounts[account] = struct{}{}
+		}
+	}
+
+	if len(accounts) == 0 {
+		return nil, nil
+	}
+
+	names := make([]string, 0, len(accounts))
+	for account := range accounts {
+		names = append(names, account)
+	}
+	sort.Strings(names)
+
+	return names, nil
 }
 
 func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
