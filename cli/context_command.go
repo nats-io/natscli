@@ -481,7 +481,7 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	}
 	cols.AddRowIf("CA", fmt.Sprintf("%s (%s)", cfg.CA(), checkFile(cfg.CA())), cfg.CA() != "")
 	cols.AddRowIf("TLS First", cfg.TLSHandshakeFirst(), cfg.TLSHandshakeFirst())
-	cols.AddRowIfNotEmpty("NSC Lookup", cfg.NscURL())
+	cols.AddRowIfNotEmpty("NSC Lookup", cfg.Creds())
 	cols.AddRowIfNotEmpty("JS API Prefix", cfg.JSAPIPrefix())
 	cols.AddRowIfNotEmpty("JS Event Prefix", cfg.JSEventPrefix())
 	cols.AddRowIfNotEmpty("JS Domain", cfg.JSDomain())
