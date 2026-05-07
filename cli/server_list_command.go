@@ -16,7 +16,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"os"
 	"sort"
 	"strings"
@@ -25,15 +24,18 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
+	"github.com/nats-io/jsm.go/serverdata"
 	"github.com/nats-io/nats-server/v2/server"
+	iu "github.com/nats-io/natscli/internal/util"
 )
 
 type SrvLsCmd struct {
-	expect  uint32
-	json    bool
-	sort    string
-	reverse bool
-	compact bool
+	expect      uint32
+	json        bool
+	sort        string
+	reverse     bool
+	compact     bool
+	archivePath string
 }
 
 type srvListCluster struct {
@@ -55,15 +57,10 @@ func configureServerListCommand(srv *fisk.CmdClause) {
 	ls.Flag("sort", "Sort servers by a specific key (name,cluster,conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("name,cluster,conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
 	ls.Flag("reverse", "Reverse sort servers").Short('R').UnNegatableBoolVar(&c.reverse)
 	ls.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
+	ls.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 }
 
 func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
-	nc, err := newNatsConn("", natsOpts()...)
-	if err != nil {
-		return err
-	}
-	defer nc.Close()
-
 	type result struct {
 		*server.ServerStatsMsg
 		rtt time.Duration
@@ -80,21 +77,9 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		slow        int64
 		subs        uint32
 		js          int
-		start       = time.Now()
-		mu          sync.Mutex
 	)
 
-	doReqAsync(nil, "$SYS.REQ.SERVER.PING", int(c.expect), nc, func(data []byte) {
-		ssm := &server.ServerStatsMsg{}
-		err = json.Unmarshal(data, ssm)
-		if err != nil {
-			log.Printf("Could not decode response: %s", err)
-			os.Exit(1)
-		}
-
-		mu.Lock()
-		defer mu.Unlock()
-
+	accumulate := func(ssm *server.ServerStatsMsg, rtt time.Duration) {
 		servers++
 		connections += ssm.Stats.Connections
 		memory += ssm.Stats.Mem
@@ -121,14 +106,57 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			}
 		}
 
-		results = append(results, &result{
-			ServerStatsMsg: ssm,
-			rtt:            time.Since(start),
+		results = append(results, &result{ServerStatsMsg: ssm, rtt: rtt})
+	}
+
+	if c.archivePath != "" {
+		src, err := serverdata.NewAuditArchive(c.archivePath)
+		if err != nil {
+			return err
+		}
+		defer src.Close()
+
+		statz, err := src.Statz(server.StatszEventOptions{})
+		if err != nil {
+			return err
+		}
+		for _, ssm := range statz {
+			accumulate(ssm, 0)
+		}
+	} else {
+		nc, err := newNatsConn("", natsOpts()...)
+		if err != nil {
+			return err
+		}
+		defer nc.Close()
+
+		var mu sync.Mutex
+		start := time.Now()
+
+		serverdata.DoReqAsync(ctx, nil, "$SYS.REQ.SERVER.PING", int(c.expect), nc, opts().Timeout, traceLogger(), func(data []byte) {
+			ssm := &server.ServerStatsMsg{}
+			if err := json.Unmarshal(data, ssm); err != nil {
+				log.Printf("Could not decode response: %s", err)
+				os.Exit(1)
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+			accumulate(ssm, time.Since(start))
 		})
-	})
+	}
 
 	if len(results) == 0 {
+		if c.archivePath != "" {
+			return fmt.Errorf("no captured server data in %s", c.archivePath)
+		}
 		return fmt.Errorf("no results received, ensure the account used has system privileges and appropriate permissions")
+	}
+
+	// rtt is meaningless from a static archive, so fall back to name when the
+	// user did not explicitly choose another sort key.
+	if c.archivePath != "" && c.sort == "rtt" {
+		c.sort = "name"
 	}
 
 	if c.json {
@@ -271,6 +299,11 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			sc = fmt.Sprintf("%s (%s)", sc, strings.Join(slow, " "))
 		}
 
+		rttCell := "-"
+		if c.archivePath == "" {
+			rttCell = f(ssm.rtt.Round(time.Millisecond))
+		}
+
 		table.AddRow(
 			cNames[i],
 			cluster,
@@ -286,7 +319,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			ssm.Stats.Cores,
 			sc,
 			f(ssm.Server.Time.Sub(ssm.Stats.Start)),
-			f(ssm.rtt.Round(time.Millisecond)))
+			rttCell)
 	}
 
 	table.AddFooter(

@@ -31,6 +31,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/serverdata"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
 	iu "github.com/nats-io/natscli/internal/util"
@@ -230,7 +231,7 @@ func (c *serviceCmd) parseMessage(m []byte, expectedType string) (any, error) {
 }
 
 func (c *serviceCmd) getInstanceStats(nc *nats.Conn, name string, id string) (*micro.Stats, error) {
-	resp, err := doReq(nil, c.makeSubj(micro.StatsVerb, name, id), 1, nc)
+	resp, err := serverdata.DoReq(ctx, nil, c.makeSubj(micro.StatsVerb, name, id), 1, nc, opts().Timeout, traceLogger())
 	if err != nil {
 		if errors.Is(err, nats.ErrNoResponders) {
 			return nil, fmt.Errorf("no micro instances found")
@@ -251,7 +252,7 @@ func (c *serviceCmd) getInstanceStats(nc *nats.Conn, name string, id string) (*m
 }
 
 func (c *serviceCmd) getInfo(nc *nats.Conn, name string, id string, wait int) ([]*micro.Info, error) {
-	resp, err := doReq(nil, c.makeSubj(micro.InfoVerb, name, id), wait, nc)
+	resp, err := serverdata.DoReq(ctx, nil, c.makeSubj(micro.InfoVerb, name, id), wait, nc, opts().Timeout, traceLogger())
 	if err != nil {
 		if errors.Is(err, nats.ErrNoResponders) {
 			return nil, fmt.Errorf("no service instances found")
@@ -380,7 +381,7 @@ func (c *serviceCmd) statsAction(_ *fisk.ParseContext) error {
 		return fmt.Errorf("setup failed: %v", err)
 	}
 
-	resp, err := doReq(nil, c.makeSubj(micro.StatsVerb, c.name, c.id), 0, nc)
+	resp, err := serverdata.DoReq(ctx, nil, c.makeSubj(micro.StatsVerb, c.name, c.id), 0, nc, opts().Timeout, traceLogger())
 	if err != nil {
 		if errors.Is(err, nats.ErrNoResponders) {
 			return fmt.Errorf("no service instances found")
