@@ -1871,10 +1871,6 @@ func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, pa
 	throttler := newRateThrottler(c.perClientThroughput())
 
 	for i := 0; i < numMsg; i++ {
-		if progress != nil {
-			progress.Incr()
-		}
-
 		message.Subject = c.getPublishSubject(i + offset)
 		start := time.Now()
 
@@ -1884,6 +1880,10 @@ func (c *benchCmd) coreNATSPublisher(nc *nats.Conn, progress *uiprogress.Bar, pa
 		}
 
 		latencies[i] = uint64(time.Since(start).Nanoseconds())
+
+		if progress != nil {
+			progress.Incr()
+		}
 		time.Sleep(c.sleep)
 		if throttler != nil {
 			throttler.throttle(i + 1)
@@ -1922,10 +1922,6 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, pa
 	throttler := newRateThrottler(c.perClientThroughput())
 
 	for i := 0; i < numMsg; i++ {
-		if progress != nil {
-			progress.Incr()
-		}
-
 		message.Subject = c.getPublishSubject(i + offset)
 
 		start := time.Now()
@@ -1940,6 +1936,9 @@ func (c *benchCmd) coreNATSRequester(nc *nats.Conn, progress *uiprogress.Bar, pa
 			log.Fatalf("Request did not receive a good reply: %q", m.Data)
 		}
 
+		if progress != nil {
+			progress.Incr()
+		}
 		time.Sleep(c.sleep)
 		if throttler != nil {
 			throttler.throttle(i + 1)
@@ -2010,8 +2009,7 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 				if progress != nil {
 					progress.Incr()
 				}
-
-				// pace on attempted sends so a batch cannot fire at line rate
+				time.Sleep(c.sleep)
 				if throttler != nil {
 					throttler.throttle(attempts)
 				}
@@ -2035,7 +2033,6 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 			}
 
 			latencies[uint64(math.Ceil(float64(i)/float64(c.batchSize)))-1] = uint64(time.Since(start).Nanoseconds())
-			time.Sleep(c.sleep)
 		}
 
 		state = "Finished  "
@@ -2076,7 +2073,10 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 					}
 				}
 
-				// pace on attempted sends so a batch cannot fire at line rate
+				if progress != nil {
+					progress.Incr()
+				}
+				time.Sleep(c.sleep)
 				if throttler != nil {
 					throttler.throttle(i + j + 1)
 				}
@@ -2084,20 +2084,7 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 
 			latencies[batch] = uint64(time.Since(start).Nanoseconds())
 			batch++
-			state = "Sleeping  "
-
-			if c.deDuplication {
-				message.Header.Set(nats.MsgIdHdr, batchId+"-"+strconv.Itoa(i+msgs+offset))
-			}
-
-			if progress != nil {
-				for j := 0; j < msgs; j++ {
-					progress.Incr()
-				}
-			}
-
 			i += msgs
-			time.Sleep(c.sleep)
 		}
 		state = "Finished  "
 	} else if jsPubType == bench.TypeJSPubSync {
@@ -2106,10 +2093,6 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 		state = "Publishing"
 
 		for i := 0; i < numMsg; i++ {
-			if progress != nil {
-				progress.Incr()
-			}
-
 			if c.deDuplication {
 				message.Header.Set(nats.MsgIdHdr, idPrefix+"-"+strconv.Itoa(clientNumber)+"-"+strconv.Itoa(i+offset))
 			}
@@ -2123,6 +2106,10 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 			}
 
 			latencies[i] = uint64(time.Since(start).Nanoseconds())
+
+			if progress != nil {
+				progress.Incr()
+			}
 			time.Sleep(c.sleep)
 			if throttler != nil {
 				throttler.throttle(i + 1)
@@ -2159,10 +2146,6 @@ func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte,
 	throttler := newRateThrottler(c.perClientThroughput())
 
 	for i := 0; i < numMsg; i++ {
-		if progress != nil {
-			progress.Incr()
-		}
-
 		key := offset + i
 
 		if c.randomize > 0 {
@@ -2176,6 +2159,10 @@ func (c *benchCmd) kvPutter(nc *nats.Conn, progress *uiprogress.Bar, msg []byte,
 		}
 
 		latencies[i] = uint64(time.Since(start).Nanoseconds())
+
+		if progress != nil {
+			progress.Incr()
+		}
 		time.Sleep(c.sleep)
 		if throttler != nil {
 			throttler.throttle(i + 1)
