@@ -18,11 +18,12 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"github.com/nats-io/jsm.go/natscontext"
 	glog "log"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/nats-io/jsm.go/natscontext"
 
 	"github.com/nats-io/natscli/options"
 

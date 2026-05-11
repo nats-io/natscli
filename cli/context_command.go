@@ -41,9 +41,9 @@ type ctxCommand struct {
 	description      string
 	name             string
 	source           string
-	nsc              string
 	force            bool
 	validateErrors   int
+	embed            bool
 }
 
 func configureCtxCommand(app commandHost) {
@@ -53,17 +53,28 @@ func configureCtxCommand(app commandHost) {
 	addCheat("contexts", context)
 
 	save := context.Command("add", "Update or create a context").Alias("create").Alias("save").Action(c.createCommand)
+	save.HelpLong(`When using --creds, --nkey, --jwt and --seed the following formats are supported
+
+  - /some/path                  - direct path to a file
+  - file://path                 - alternative form for a path
+  - op://vault/item/field       - fetch via the 1Password CLI ('op read')
+  - nsc://Operator/Account/User - generate via the local 'nsc' binary
+  - env://NAME                  - read from environment variable NAME
+
+File paths can also be embedded into the context JSON using --embed
+`)
+
 	save.Arg("name", "The context name to act on").Required().StringVar(&c.name)
 	save.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
 	save.Flag("select", "Select the saved context as the default one").UnNegatableBoolVar(&c.activate)
-	save.Flag("nsc", "URL to a nsc user, eg. nsc://<operator>/<account>/<user>").StringVar(&c.nsc)
+	save.Flag("embed", "Embeds credential content in the body of the context").UnNegatableBoolVar(&c.embed)
 
 	dupe := context.Command("copy", "Copies an existing context").Alias("cp").Action(c.copyCommand)
 	dupe.Arg("source", "The name of the context to copy from").Required().StringVar(&c.source)
 	dupe.Arg("name", "The name of the context to create").Required().StringVar(&c.name)
 	dupe.Flag("description", "Set a friendly description for this context").StringVar(&c.description)
 	dupe.Flag("select", "Select the saved context as the default one").UnNegatableBoolVar(&c.activate)
-	dupe.Flag("nsc", "URL to a nsc user, eg. nsc://<operator>/<account>/<user>").StringVar(&c.nsc)
+	dupe.Flag("embed", "Embeds credential content in the body of the context").UnNegatableBoolVar(&c.embed)
 
 	edit := context.Command("edit", "Edit a context in your EDITOR").Alias("vi").Action(c.editCommand)
 	edit.Arg("name", "The context name to edit").Required().StringVar(&c.name)
@@ -159,15 +170,33 @@ url: {{ .ServerURL | t }}
 
 # Connect using a specific username, requires password to be set
 user: {{ .User | t }}
+# Password may be a literal value or any credential resolver URI (see creds below)
 password: {{ .Password | t }}
 
-# Connect using a NATS Credentials stored in a file
+# Connect using NATS Credentials
+#
+# May be a path to a credentials file, or one of the supported credential
+# resolver URIs:
+#
+#   file:///path/to/file.creds   read bytes from a filesystem path (default
+#                                for bare paths)
+#   op://vault/item/field        fetch via the 1Password CLI ('op read')
+#   nsc://Operator/Account/User  generate via the local 'nsc' binary
+#   env://NAME                   read from environment variable NAME
+#   data:;base64,<payload>       inline base64-encoded RFC 2397 payload
 creds: {{ .Creds | t }}
 
-# Connect using a NKey with seed stored in a file
+# Connect using a NKey seed
+# Accepts the same formats as creds above (bare value treated as a file path)
 nkey: {{ .NKey | t }}
 
+# Connect using an inline NATS user JWT and seed (alternative to a creds file)
+# Each may be a literal value or any credential resolver URI (see creds above)
+user_jwt: {{ .UserJWT | t }}
+user_seed: {{ .UserSeed | t }}
+
 # Configures a token to pass in the connection
+# May be a literal value or any credential resolver URI (see creds above)
 token: {{ .Token | t }}
 
 # Sets a x509 certificate to use, both cert and key should be set
@@ -188,11 +217,6 @@ windows_cert_store: {{ .WindowsCertStore | t }}
 windows_cert_match: {{ .WindowsCertStoreMatch | t }}
 windows_cert_match_by: {{ .WindowsCertStoreMatchBy | t }}
 windows_ca_certs_match: {{ .WindowsCaCertsMatch | t }}
-
-# Retrieves connection information from 'nsc'
-#
-# Example: nsc://Acme+Inc/HR/Automation
-nsc: {{ .NscURL | t }}
 
 # Use a custom inbox prefix
 #
@@ -438,12 +462,24 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	}
 
 	checkFile := func(file string) string {
-		if file == "" {
+		switch {
+		case file == "":
 			return ""
-		}
-		if strings.HasPrefix(file, "op://") {
+		case strings.HasPrefix(file, "op://"):
 			return color.CyanString("1Password")
+		case strings.HasPrefix(file, "nsc://"):
+			return color.CyanString("nsc")
+		case strings.HasPrefix(file, "env://"):
+			return color.CyanString("runtime environment")
+		case strings.HasPrefix(file, "file://"):
+			file = strings.TrimPrefix(file, "file://")
+			if file == "" {
+				return color.RedString("ERROR")
+			}
+		case strings.HasPrefix(file, "data:;base64,"):
+			return color.GreenString("embedded")
 		}
+
 		if file[0] == '~' {
 			usr, err := user.Current()
 			if err != nil {
@@ -468,8 +504,26 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	cols.AddRowIfNotEmpty("Username", cfg.User())
 	cols.AddRowIfNotEmpty("Password", strings.Repeat("*", len(cfg.Password())))
 	cols.AddRowIfNotEmpty("Token", cfg.Token())
-	cols.AddRowIf("Credentials", fmt.Sprintf("%s (%s)", cfg.Creds(), checkFile(cfg.Creds())), cfg.Creds() != "")
-	cols.AddRowIf("NKey", fmt.Sprintf("%s (%s)", cfg.NKey(), checkFile(cfg.NKey())), cfg.NKey() != "")
+	if strings.HasPrefix(cfg.Creds(), "data:;base64,") {
+		cols.AddRow("Credentials", "embedded data")
+	} else {
+		cols.AddRowIf("Credentials", fmt.Sprintf("%s (%s)", cfg.Creds(), checkFile(cfg.Creds())), cfg.Creds() != "")
+	}
+	if strings.HasPrefix(cfg.UserJWT(), "data:;base64,") {
+		cols.AddRow("User JWT", "embedded data")
+	} else {
+		cols.AddRowIf("User JWT", fmt.Sprintf("%s (%s)", cfg.UserJWT(), checkFile(cfg.UserJWT())), cfg.UserJWT() != "")
+	}
+	if strings.HasPrefix(cfg.UserSeed(), "data:;base64,") {
+		cols.AddRow("User Seed", "embedded data")
+	} else {
+		cols.AddRowIf("User Seed", fmt.Sprintf("%s (%s)", cfg.UserSeed(), checkFile(cfg.UserSeed())), cfg.UserSeed() != "")
+	}
+	if strings.HasPrefix(cfg.NKey(), "data:;base64,") {
+		cols.AddRow("NKey", "embedded data")
+	} else {
+		cols.AddRowIf("NKey", fmt.Sprintf("%s (%s)", cfg.NKey(), checkFile(cfg.NKey())), cfg.NKey() != "")
+	}
 	if cfg.WindowsCertStore() == "" {
 		cols.AddRowIf("Certificate", fmt.Sprintf("%s (%s)", cfg.Certificate(), checkFile(cfg.Certificate())), cfg.Certificate() != "")
 		cols.AddRowIf("Key", fmt.Sprintf("%s (%s)", cfg.Key(), checkFile(cfg.Key())), cfg.Key() != "")
@@ -481,7 +535,6 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	}
 	cols.AddRowIf("CA", fmt.Sprintf("%s (%s)", cfg.CA(), checkFile(cfg.CA())), cfg.CA() != "")
 	cols.AddRowIf("TLS First", cfg.TLSHandshakeFirst(), cfg.TLSHandshakeFirst())
-	cols.AddRowIfNotEmpty("NSC Lookup", cfg.Creds())
 	cols.AddRowIfNotEmpty("JS API Prefix", cfg.JSAPIPrefix())
 	cols.AddRowIfNotEmpty("JS Event Prefix", cfg.JSEventPrefix())
 	cols.AddRowIfNotEmpty("JS Domain", cfg.JSDomain())
@@ -525,6 +578,7 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 
 	return nil
 }
+
 func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 	lname := ""
 	load := false
@@ -553,6 +607,7 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 		natscontext.WithCreds(opts.Creds),
 		natscontext.WithNKey(opts.Nkey),
 		natscontext.WithUserJWT(opts.UserJwt),
+		natscontext.WithUserSeed(opts.UserSeed),
 		natscontext.WithCertificate(opts.TlsCert),
 		natscontext.WithKey(opts.TlsKey),
 		natscontext.WithCA(opts.TlsCA),
@@ -561,7 +616,6 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 		natscontext.WithWindowsCertStoreMatchBy(opts.WinCertStoreMatchBy),
 		natscontext.WithWindowsCaCertsMatch(opts.WinCertCaStoreMatch...),
 		natscontext.WithDescription(c.description),
-		natscontext.WithNscUrl(c.nsc),
 		natscontext.WithSocksProxy(opts.SocksProxy),
 		natscontext.WithJSAPIPrefix(opts.JsApiPrefix),
 		natscontext.WithJSEventPrefix(opts.JsEventPrefix),
@@ -578,7 +632,12 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 		return err
 	}
 
-	err = config.Save(c.name)
+	if c.embed {
+		err = config.SaveEmbedded(c.name)
+	} else {
+		err = config.Save(c.name)
+	}
+
 	if err != nil {
 		return err
 	}

@@ -561,15 +561,30 @@ func loadContext(softFail bool) error {
 
 	var err error
 
+	registryOpts := []natscontext.RegistryOption{
+		natscontext.WithDefaultResolvers(),
+		natscontext.WithLocalSelector(),
+	}
+
+	registry := natscontext.NewRegistry(natscontext.NewDefaultFileBackend(), registryOpts...)
 	exist, _ := iu.IsFileAccessible(opts.CfgCtx)
-	if exist && strings.HasSuffix(opts.CfgCtx, ".json") {
-		opts.Config, err = natscontext.NewFromFile(opts.CfgCtx, ctxOpts...)
-	} else {
-		opts.Config, err = natscontext.New(opts.CfgCtx, !SkipContexts, ctxOpts...)
+
+	switch {
+	case SkipContexts:
+		opts.Config, err = natscontext.New(opts.CfgCtx, false, ctxOpts...)
+
+	case exist && strings.HasSuffix(opts.CfgCtx, ".json"):
+		backend := natscontext.NewSingleFileBackend(opts.CfgCtx)
+		registry = natscontext.NewRegistry(backend, registryOpts...)
+		opts.Config, err = registry.Load(ctx, backend.Name(), ctxOpts...)
+
+	default:
+		registry = natscontext.NewRegistry(natscontext.NewDefaultFileBackend(), registryOpts...)
+		opts.Config, err = registry.Load(ctx, opts.CfgCtx, ctxOpts...)
 	}
 
 	if err != nil && softFail {
-		if !natscontext.IsKnown(opts.CfgCtx) {
+		if !registry.Known(ctx, opts.CfgCtx) {
 			return ErrContextNotFound
 		}
 		opts.Config, err = natscontext.New(opts.CfgCtx, false, ctxOpts...)
