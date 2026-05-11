@@ -222,11 +222,11 @@ func configureStreamCommand(app commandHost) {
 		f.Flag("max-msgs", "Maximum amount of messages to keep").Default("0").Int64Var(&c.maxMsgLimit)
 		f.Flag("max-msgs-per-subject", "Maximum amount of messages to keep per subject").Default("0").Int64Var(&c.maxMsgPerSubjectLimit)
 		f.Flag("dupe-window", "Duration of the duplicate message tracking window").Default("").StringVar(&c.dupeWindow)
-		f.Flag("mirror", "Completely mirror another stream").StringVar(&c.mirror)
+		f.Flag("mirror", "Completely mirror another stream. Accepts mirror config as JSON. ").StringVar(&c.mirror)
 		if edit {
 			f.Flag("no-mirror", "Removes current mirror configuration").UnNegatableBoolVar(&c.noMirror)
 		}
-		f.Flag("source", "Source data from other streams, merging into this one").PlaceHolder("STREAM").StringsVar(&c.sources)
+		f.Flag("source", "Source data from other streams, merging into this one. Accepts source config as JSON.").PlaceHolder("STREAM").StringsVar(&c.sources)
 		f.Flag("allow-batch", "Allow atomic batch publishing").IsSetByUser(&c.allowAtomicBatchIsSet).BoolVar(&c.allowAtomicBatch)
 		f.Flag("allow-fast", "Allow fast batch publishing").IsSetByUser(&c.allowFastBatchIsSet).BoolVar(&c.allowFastBatch)
 		f.Flag("allow-counter", "Configures the stream as a distributed counter").IsSetByUser(&c.allowCounterIsSet).UnNegatableBoolVar(&c.allowCounter)
