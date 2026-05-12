@@ -15,12 +15,13 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
 	"sort"
 	"strings"
+	"sync"
 	"text/template"
 
 	iu "github.com/nats-io/natscli/internal/util"
@@ -44,6 +45,9 @@ type ctxCommand struct {
 	force            bool
 	validateErrors   int
 	embed            bool
+
+	reg *natscontext.Registry
+	mu  sync.Mutex
 }
 
 func configureCtxCommand(app commandHost) {
@@ -109,6 +113,29 @@ func init() {
 	registerCommand("context", 5, configureCtxCommand)
 }
 
+// creates and caches a default registry. Just creates if options are given
+func (c *ctxCommand) registry(opts ...natscontext.RegistryOption) *natscontext.Registry {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if len(opts) == 0 && c.reg != nil {
+		return c.reg
+	}
+
+	registryOpts := []natscontext.RegistryOption{
+		natscontext.WithDefaultResolvers(),
+		natscontext.WithLocalSelector(),
+	}
+
+	reg := natscontext.NewRegistry(natscontext.NewDefaultFileBackend(), append(opts, registryOpts...)...)
+
+	if len(opts) == 0 {
+		c.reg = reg
+	}
+
+	return reg
+}
+
 func (c *ctxCommand) hasOverrides() bool {
 	return len(c.overrideVars()) != 0
 }
@@ -123,10 +150,16 @@ func (c *ctxCommand) overrideVars() []string {
 
 	return list
 }
+
 func (c *ctxCommand) validateCommand(pc *fisk.ParseContext) error {
 	var contexts []string
+	var err error
+
 	if c.name == "" {
-		contexts = natscontext.KnownContexts()
+		contexts, err = c.registry().List(ctx)
+		if err != nil {
+			return err
+		}
 	} else {
 		contexts = append(contexts, c.name)
 	}
@@ -149,11 +182,11 @@ func (c *ctxCommand) validateCommand(pc *fisk.ParseContext) error {
 }
 
 func (c *ctxCommand) copyCommand(pc *fisk.ParseContext) error {
-	if !natscontext.IsKnown(c.source) {
+	if !c.registry().Known(ctx, c.source) {
 		return fmt.Errorf("unknown context %q", c.source)
 	}
 
-	if natscontext.IsKnown(c.name) {
+	if c.registry().Known(ctx, c.name) {
 		return fmt.Errorf("context %q already exist", c.name)
 	}
 
@@ -257,109 +290,82 @@ socks_proxy: {{ .SocksProxy | t }}
 `
 
 func (c *ctxCommand) editCommand(pc *fisk.ParseContext) error {
-	if !natscontext.IsKnown(c.name) {
+	if !c.registry().Known(ctx, c.name) {
 		return fmt.Errorf("unknown context %q", c.name)
 	}
 
-	path, err := natscontext.ContextPath(c.name)
+	// TODO(rip) previously we were just acting on files, now, soon
+	// we will act on remote backends so this command lost some abilities
+	// like the automatic rollback or editing ability of corrupt contexts
+	//
+	// need to think a bit about that but for now this is ok as we progress
+	// towards other backends the picture will become clearer
+
+	registry := c.registry(natscontext.WithoutExpansion())
+	nctx, err := registry.Load(ctx, c.name)
 	if err != nil {
 		return err
 	}
-	editFp := path
 
-	var ctx *natscontext.Context
-
-	ctx, err = natscontext.New(c.name, true)
+	tpl, err := template.New("context").Funcs(template.FuncMap{"t": func(s any) (string, error) {
+		res, err := yaml.Marshal(s)
+		if err != nil {
+			return "", err
+		}
+		return string(bytes.TrimRight(res, "\n")), nil
+	}}).Parse(ctxYamlTemplate)
 	if err != nil {
-		fmt.Printf("Context file %s cannot be loaded: %v\n\n", path, err)
-		ok, err := askConfirmation("Edit the JSON file", false)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return fmt.Errorf("corrupt context configuration file: %v", err)
-		}
-		fmt.Println()
-	} else {
-		tpl, err := template.New("context").Funcs(template.FuncMap{"t": func(s any) (string, error) {
-			res, err := yaml.Marshal(s)
-			if err != nil {
-				return "", err
-			}
-			return string(bytes.TrimRight(res, "\n")), nil
-		}}).Parse(ctxYamlTemplate)
-		if err != nil {
-			return err
-		}
+		return err
+	}
 
-		f, err := os.CreateTemp("", "*.yaml")
-		if err != nil {
-			return fmt.Errorf("could not create temporary copy to edit: %w", err)
-		}
-		defer f.Close()
+	f, err := os.CreateTemp("", "*.yaml")
+	if err != nil {
+		return fmt.Errorf("could not create temporary copy to edit: %w", err)
+	}
 
-		err = tpl.ExecuteTemplate(f, "context", ctx)
-		if err != nil {
-			return fmt.Errorf("could not create temporary copy to edit: %w", err)
-		}
+	// save to temp and edit in place as a yaml file
+	err = tpl.ExecuteTemplate(f, "context", nctx)
+	if err != nil {
 		f.Close()
-
-		editFp = f.Name()
+		return fmt.Errorf("could not create temporary copy to edit: %w", err)
 	}
+	f.Close()
 
-	err = iu.EditFile(editFp)
+	err = iu.EditFile(f.Name())
 	if err != nil {
 		return err
 	}
 
-	if path != editFp {
-		yctx, err := os.ReadFile(editFp)
-		if err != nil {
-			return fmt.Errorf("could not read temporary copy: %w", err)
-		}
-
-		jctx, err := yaml.YAMLToJSON(yctx)
-		if err != nil {
-			return err
-		}
-		buff := bytes.NewBuffer([]byte{})
-		err = json.Indent(buff, jctx, "", "  ")
-		if err != nil {
-			return fmt.Errorf("could not format JSON output: %w", err)
-		}
-
-		err = os.Rename(path, path+".bak")
-		if err != nil {
-			return fmt.Errorf("could not create a backup of the context definition: %w", err)
-		}
-
-		err = os.WriteFile(path, buff.Bytes(), 0600)
-		if err != nil {
-			return fmt.Errorf("could not save the context: %w", err)
-		}
-
+	// read the yaml file and turn into json
+	yctx, err := os.ReadFile(f.Name())
+	if err != nil {
+		return fmt.Errorf("could not read temporary copy: %w", err)
+	}
+	jctx, err := yaml.YAMLToJSON(yctx)
+	if err != nil {
+		return err
 	}
 
-	// There was an error with some data in the modified config
-	// Save the known clean version and show the error
+	// parse and save it
+	newNatsCtx, err := natscontext.NewFromBytesRaw(jctx)
+	if err != nil {
+		return err
+	}
+
+	err = c.registry().Save(ctx, newNatsCtx, c.name)
+	if err != nil {
+		return err
+	}
+
 	err = c.showCommand(pc)
 	if err != nil {
-		// but not if the file was already corrupt and we are editing the json directly
-		if path == editFp {
-			return err
-		}
-
-		if ctx != nil {
-			ctx.Save(c.name)
-		}
-
-		return fmt.Errorf("updated context validation failed - rolling back changes: %w", err)
+		return err
 	}
 
 	return nil
 }
 
-func (c *ctxCommand) renderListNames(current string, known []*natscontext.Context) {
+func (c *ctxCommand) renderListNames(_ string, known []*natscontext.Context) {
 	var names []string
 	for _, v := range known {
 		names = append(names, v.Name)
@@ -412,12 +418,20 @@ func (c *ctxCommand) renderListTable(current string, known []*natscontext.Contex
 
 }
 func (c *ctxCommand) listCommand(_ *fisk.ParseContext) error {
-	names := natscontext.KnownContexts()
-	current := natscontext.SelectedContext()
+	names, err := c.registry().List(ctx)
+	if err != nil {
+		return err
+	}
+
+	current, err := c.registry().Selected(ctx)
+	if err != nil && !errors.Is(err, natscontext.ErrNoneSelected) {
+		return err
+	}
+
 	var contexts []*natscontext.Context
 
 	for _, name := range names {
-		cfg, err := natscontext.New(name, true)
+		cfg, err := c.registry().Load(ctx, name)
 		if err != nil {
 			if !c.completionFormat {
 				log.Printf("Could not load context %s: %s", name, err)
@@ -443,15 +457,20 @@ func (c *ctxCommand) listCommand(_ *fisk.ParseContext) error {
 }
 
 func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
+	var err error
+
 	if c.name == "" {
-		c.name = natscontext.SelectedContext()
+		c.name, err = c.registry().Selected(ctx)
+		if err != nil && !errors.Is(err, natscontext.ErrNoneSelected) {
+			return err
+		}
 	}
 
 	if c.name == "" {
 		return fmt.Errorf("no default context and no name supplied")
 	}
 
-	cfg, err := natscontext.New(c.name, true)
+	cfg, err := c.registry().Load(ctx, c.name)
 	if err != nil {
 		return err
 	}
@@ -585,7 +604,7 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 	opts := opts()
 
 	switch {
-	case natscontext.IsKnown(c.name):
+	case c.registry().Known(ctx, c.name):
 		lname = c.name
 		load = true
 	case opts.CfgCtx != "":
@@ -633,11 +652,13 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 	}
 
 	if c.embed {
-		err = config.SaveEmbedded(c.name)
-	} else {
-		err = config.Save(c.name)
+		err = config.Embed()
+		if err != nil {
+			return err
+		}
 	}
 
+	err = c.registry().Save(ctx, config, c.name)
 	if err != nil {
 		return err
 	}
@@ -650,12 +671,17 @@ func (c *ctxCommand) createCommand(pc *fisk.ParseContext) error {
 }
 
 func (c *ctxCommand) removeCommand(_ *fisk.ParseContext) error {
-	if natscontext.SelectedContext() == c.name {
+	selected, err := c.registry().Selected(ctx)
+	if err != nil && !errors.Is(err, natscontext.ErrNoneSelected) {
+		return err
+	}
+
+	if selected == c.name {
 		if !c.force {
 			return fmt.Errorf("cannot remove the selected context, select another one or use the unselect command")
 		}
 
-		err := natscontext.UnSelectContext()
+		_, err := c.registry().Unselect(ctx)
 		if err != nil {
 			return err
 		}
@@ -672,16 +698,21 @@ func (c *ctxCommand) removeCommand(_ *fisk.ParseContext) error {
 		}
 	}
 
-	return natscontext.DeleteContext(c.name)
+	return c.registry().Delete(ctx, c.name)
 }
 
 func (c *ctxCommand) switchPreviousCtx(pc *fisk.ParseContext) error {
-	ctxToSwitch := natscontext.PreviousContext()
+	ctxToSwitch, err := c.registry().Previous(ctx)
+	if err != nil && !errors.Is(err, natscontext.ErrNoneSelected) {
+		return err
+	}
+
 	if ctxToSwitch == "" {
 		return c.showCommand(pc)
 	}
 
-	if err := natscontext.SelectContext(ctxToSwitch); err != nil {
+	_, err = c.registry().Select(ctx, ctxToSwitch)
+	if err != nil {
 		return err
 	}
 
@@ -689,23 +720,31 @@ func (c *ctxCommand) switchPreviousCtx(pc *fisk.ParseContext) error {
 }
 
 func (c *ctxCommand) unselectCommand(pc *fisk.ParseContext) error {
-	current := natscontext.SelectedContext()
+	current, err := c.registry().Selected(ctx)
+	if err != nil && !errors.Is(err, natscontext.ErrNoneSelected) {
+		return err
+	}
+
 	if current == "" {
 		fmt.Println("No context currently selected")
 		return nil
 	}
 
-	err := natscontext.UnSelectContext()
+	_, err = c.registry().Unselect(ctx)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Unselected the %q context\n", current)
+
 	return nil
 }
 
 func (c *ctxCommand) selectCommand(pc *fisk.ParseContext) error {
-	known := natscontext.KnownContexts()
+	known, err := c.registry().List(ctx)
+	if err != nil {
+		return err
+	}
 
 	if len(known) == 0 {
 		return fmt.Errorf("no context defined")
@@ -726,7 +765,7 @@ func (c *ctxCommand) selectCommand(pc *fisk.ParseContext) error {
 		return fmt.Errorf("please select a context to activate")
 	}
 
-	err := natscontext.SelectContext(c.name)
+	_, err = c.registry().Select(ctx, c.name)
 	if err != nil {
 		return err
 	}
