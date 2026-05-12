@@ -166,6 +166,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	profilez.Arg("profile", "Specify the name of the profile to run (allocs, heap, goroutine, mutex, threadcreate, block, cpu)").Required().EnumVar(&c.profileName, "allocs", "heap", "goroutine", "mutex", "threadcreate", "block", "cpu")
 	profilez.Arg("dir", "Set the output directory for profile files").Default(".").ExistingDirVar(&c.profileDir)
 	profilez.Flag("level", "Set the debug level of the profile").IntVar(&c.profileDebug)
+	profilez.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
 	raftz := req.Command("raft", "Show RAFT state details").Alias("raftz").Action(c.raftz)
 	raftz.Tag("scope:system", "impact:ro")
@@ -314,17 +315,7 @@ func (c *SrvRequestCmd) kick(_ *fisk.ParseContext) error {
 	return nil
 }
 
-type profilezResponse struct {
-	Server server.ServerInfo     `json:"server"`
-	Resp   server.ProfilezStatus `json:"data"`
-}
-
 func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
-	nc, _, err := prepareHelper("", natsOpts()...)
-	if err != nil {
-		return err
-	}
-
 	reqOpts := server.ProfilezEventOptions{
 		ProfilezOptions: server.ProfilezOptions{
 			Name:  c.profileName,
@@ -333,42 +324,42 @@ func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
 		EventFilterOptions: c.reqFilter(),
 	}
 
-	if c.profileName == "cpu" {
+	if c.archivePath == "" && c.profileName == "cpu" {
 		// people can use --timeout to adjust the wait time
 		reqOpts.Duration = options.DefaultOptions.Timeout
 		// but we have to then bump timeout to give the network time
 		options.DefaultOptions.Timeout = options.DefaultOptions.Timeout + 2*time.Second
 	}
 
-	if c.waitFor == 0 {
-		if c.host != "" || c.name != "" {
-			c.waitFor = 1
-		} else {
-			w, _ := serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, traceLogger())
-			c.waitFor = uint32(w)
-		}
-	}
-
-	res, err := serverdata.DoReq(ctx, reqOpts, "$SYS.REQ.SERVER.PING.PROFILEZ", int(c.waitFor), nc, opts().Timeout, traceLogger())
+	src, err := c.dataSource()
 	if err != nil {
 		return err
+	}
+	defer src.Close()
+
+	responses, err := src.Profilez(reqOpts)
+	if err != nil {
+		return err
+	}
+
+	if len(responses) == 0 && c.archivePath != "" {
+		fmt.Fprintf(os.Stderr, "no captured profiles matched %q at level %d in %s; audit gather typically captures goroutine at level 1 and 2\n", c.profileName, c.profileDebug, c.archivePath)
 	}
 
 	prefix := fmt.Sprintf("%s-%s-", c.profileName, time.Now().Format("20060102-150405"))
 	prefix = filepath.Join(c.profileDir, prefix)
 
-	for _, r := range res {
-		var resp profilezResponse
-		if err := json.Unmarshal(r, &resp); err != nil {
+	for _, resp := range responses {
+		if resp.Data != nil && resp.Data.Error != "" {
+			fmt.Fprintf(os.Stderr, "Server %q error: %s\n", resp.Server.Name, resp.Data.Error)
 			continue
 		}
-		if resp.Resp.Error != "" {
-			fmt.Fprintf(os.Stderr, "Server %q error: %s\n", resp.Server.Name, resp.Resp.Error)
+		if resp.Data == nil {
 			continue
 		}
 
 		filename := prefix + resp.Server.Name
-		if err := c.profilezWrite(filename, &resp); err != nil {
+		if err := c.profilezWrite(filename, resp); err != nil {
 			fmt.Fprintf(os.Stderr, "Server %q error: %s\n", resp.Server.Name, err)
 		} else {
 			fmt.Fprintf(os.Stdout, "Server %q profile written: %s\n", resp.Server.Name, filename)
@@ -378,18 +369,18 @@ func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
 	return nil
 }
 
-func (c *SrvRequestCmd) profilezWrite(filename string, resp *profilezResponse) error {
+func (c *SrvRequestCmd) profilezWrite(filename string, resp *serverdata.ProfilezResponse) error {
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
 	defer f.Close()
 
-	n, err := f.Write(resp.Resp.Profile)
+	n, err := f.Write(resp.Data.Profile)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
-	if n != len(resp.Resp.Profile) {
+	if n != len(resp.Data.Profile) {
 		return fmt.Errorf("short write")
 	}
 
