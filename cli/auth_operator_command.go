@@ -24,6 +24,7 @@ import (
 	"sort"
 
 	au "github.com/nats-io/natscli/internal/auth"
+	"github.com/nats-io/natscli/internal/fips"
 	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/nats-io/nkeys"
@@ -333,6 +334,10 @@ func (c *authOperatorCommand) restoreAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.encKey != "" {
+		if fips.Enabled() {
+			return fips.DisabledError("nats auth operator restore --key", "X25519")
+		}
+
 		keyData, err := iu.ReadKeyFile(c.encKey)
 		if err != nil {
 			return err
@@ -392,6 +397,10 @@ func (c *authOperatorCommand) backupAction(_ *fisk.ParseContext) error {
 	}
 
 	if c.encKey != "" {
+		if fips.Enabled() {
+			return fips.DisabledError("nats auth operator backup --key", "X25519")
+		}
+
 		keyData, err := iu.ReadKeyFile(c.encKey)
 		if err != nil {
 			return err

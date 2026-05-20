@@ -18,6 +18,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/choria-io/fisk"
+	"github.com/nats-io/natscli/internal/fips"
 	iu "github.com/nats-io/natscli/internal/util"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -38,6 +39,10 @@ func configureServerPasswdCommand(srv *fisk.CmdClause) {
 }
 
 func (c *SrvPasswdCmd) mkpasswd(_ *fisk.ParseContext) error {
+	if fips.Enabled() {
+		return fips.DisabledError("nats server passwd", "bcrypt")
+	}
+
 	if int(c.cost) < bcrypt.MinCost || int(c.cost) > bcrypt.MaxCost {
 		return fmt.Errorf("bcrypt cost should be between %d and %d", bcrypt.MinCost, bcrypt.MaxCost)
 	}
