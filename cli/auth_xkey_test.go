@@ -20,10 +20,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/nats-io/natscli/internal/fips"
 	"github.com/nats-io/nkeys"
 )
 
 func TestSealUnseal(t *testing.T) {
+	if fips.Enabled() {
+		t.Skip("curve (X25519) operations are disabled under FIPS")
+	}
+
 	tDir := t.TempDir()
 	// Create two pairs of xkeys
 	ef := rand.Reader

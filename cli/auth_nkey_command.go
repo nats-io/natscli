@@ -1,4 +1,4 @@
-// Copyright 2023-2024 The NATS Authors
+// Copyright 2023-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/nats-io/natscli/internal/fips"
 	iu "github.com/nats-io/natscli/internal/util"
 
 	"github.com/choria-io/fisk"
@@ -116,6 +117,9 @@ func (c *authNKCommand) genAction(_ *fisk.ParseContext) error {
 	var kp nkeys.KeyPair
 
 	if prefix == nkeys.PrefixByteCurve {
+		if fips.Enabled() {
+			return fips.DisabledError("nats auth nkey gen curve", "X25519")
+		}
 		kp, err = nkeys.CreateCurveKeysWithRand(ef)
 	} else {
 		kp, err = nkeys.CreatePairWithRand(prefix, ef)
@@ -171,6 +175,9 @@ func (c *authNKCommand) preForType(keyType string) (nkeys.PrefixByte, error) {
 	case "operator":
 		return nkeys.PrefixByteOperator, nil
 	case "curve", "x25519":
+		if fips.Enabled() {
+			return nkeys.PrefixByte(0), fips.DisabledError("curve nkeys", "X25519")
+		}
 		return nkeys.PrefixByteCurve, nil
 	default:
 		return nkeys.PrefixByte(0), fmt.Errorf("unknown prefix type %q", keyType)
@@ -269,6 +276,10 @@ func (c *authNKCommand) sealAction(_ *fisk.ParseContext) error {
 		return errors.New("invalid public key provided")
 	}
 
+	if fips.Enabled() {
+		return fips.DisabledError("nats auth nkey seal", "X25519")
+	}
+
 	encryptedData, err := kp.Seal(content, c.counterpartKey)
 	if err != nil {
 		return err
@@ -327,6 +338,10 @@ func (c *authNKCommand) unsealAction(_ *fisk.ParseContext) error {
 
 	if !nkeys.IsValidPublicCurveKey(c.counterpartKey) {
 		return errors.New("invalid public key provided")
+	}
+
+	if fips.Enabled() {
+		return fips.DisabledError("nats auth nkey unseal", "X25519")
 	}
 
 	decryptedData, err := kp.Open(content, c.counterpartKey)

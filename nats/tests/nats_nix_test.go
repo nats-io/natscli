@@ -5,13 +5,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
 )
 
-func runCommand(cmd string, input string, args ...string) ([]byte, error) {
+func runCommand(cmd string, input string, env map[string]string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -23,6 +24,13 @@ func runCommand(cmd string, input string, args ...string) ([]byte, error) {
 
 	if input != "" {
 		execution.Stdin = strings.NewReader(input)
+	}
+
+	if len(env) > 0 {
+		execution.Env = os.Environ()
+		for k, v := range env {
+			execution.Env = append(execution.Env, fmt.Sprintf("%s=%s", k, v))
+		}
 	}
 
 	type result struct {
@@ -45,7 +53,7 @@ func runCommand(cmd string, input string, args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("nats utility timed out")
 	case res := <-resCh:
 		if res.err != nil {
-			return nil, fmt.Errorf("nats utility failed: %v\n%v", res.err, string(res.out))
+			return res.out, fmt.Errorf("nats utility failed: %v\n%v", res.err, string(res.out))
 		}
 		return res.out, nil
 	}

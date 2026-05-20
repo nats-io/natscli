@@ -1,4 +1,4 @@
-// Copyright 2019-2025 The NATS Authors
+// Copyright 2019-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -56,26 +56,19 @@ func checkErr(t *testing.T, err error, format string, a ...any) {
 	t.Fatalf(format, a...)
 }
 
-func runNatsCliWithError(t *testing.T, args ...string) error {
-	t.Helper()
-	_, err := runNatsCliWithInput(t, "", args...)
-	return err
-}
-
-func runNatsCli(t *testing.T, args ...string) (output []byte) {
-	t.Helper()
-	output, err := runNatsCliWithInput(t, "", args...)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	return output
-}
-
-func runNatsCliWithInput(t *testing.T, input string, args ...string) (output []byte, err error) {
+// runNatsCliCore invokes the nats CLI as a subprocess and returns its combined
+// output. In CI it uses the prebuilt ../nats binary; otherwise it runs the
+// source tree via 'go run ../main.go'. input is fed to stdin (empty for none).
+// env entries are appended to the inherited environment of the subprocess.
+//
+// All the runNatsCli* convenience helpers in this file delegate here so the
+// cmd-selection, argument splitting and exec lookup live in one place.
+func runNatsCliCore(t *testing.T, input string, env map[string]string, args ...string) ([]byte, error) {
 	t.Helper()
 
 	var runArgs []string
 	var cmd string
+	var err error
 	if os.Getenv("CI") == "true" {
 		cmd = "../nats"
 		runArgs, err = shellquote.Split(strings.Join(args, " "))
@@ -84,20 +77,34 @@ func runNatsCliWithInput(t *testing.T, input string, args ...string) (output []b
 		runArgs, err = shellquote.Split(fmt.Sprintf("run ../main.go %s", strings.Join(args, " ")))
 	}
 	if err != nil {
-		t.Fatalf("spliting command argument string failed: %v", err)
+		t.Fatalf("splitting command argument string failed: %v", err)
 	}
 
 	if _, err = exec.LookPath(cmd); err != nil {
 		t.Fatalf("could not find %s in path", cmd)
-		return
 	}
 
-	out, err := runCommand(cmd, input, runArgs...)
+	return runCommand(cmd, input, env, runArgs...)
+}
+
+func runNatsCliWithError(t *testing.T, args ...string) error {
+	t.Helper()
+	_, err := runNatsCliCore(t, "", nil, args...)
+	return err
+}
+
+func runNatsCli(t *testing.T, args ...string) (output []byte) {
+	t.Helper()
+	output, err := runNatsCliCore(t, "", nil, args...)
 	if err != nil {
-		return out, err
+		t.Fatalf("%v", err)
 	}
+	return output
+}
 
-	return out, nil
+func runNatsCliWithInput(t *testing.T, input string, args ...string) ([]byte, error) {
+	t.Helper()
+	return runNatsCliCore(t, input, nil, args...)
 }
 
 func prepareHelper(servers string) (*nats.Conn, *jsm.Manager, error) {
