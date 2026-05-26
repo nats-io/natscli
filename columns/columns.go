@@ -534,7 +534,7 @@ func F(v any) string {
 	case time.Duration:
 		return HumanizeDuration(x)
 	case time.Time:
-		return x.Local().Format("2006-01-02 15:04:05")
+		return x.Local().Format("2006-01-02 15:04:05 -0700 MST")
 	case bool:
 		return fmt.Sprintf("%t", x)
 	case uint:
