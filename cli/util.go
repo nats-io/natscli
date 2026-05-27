@@ -428,10 +428,13 @@ func extractWSProxyPath(servers string) (string, string) {
 		}
 		if (u.Scheme == "ws" || u.Scheme == "wss") && u.Path != "" && u.Path != "/" {
 			if proxyPath == "" {
-				proxyPath = u.Path
+				proxyPath = u.RequestURI()
 			}
+			// Strip path and query from the server URL
 			u.Path = ""
 			u.RawPath = ""
+			u.RawQuery = ""
+			u.ForceQuery = false
 			updated = append(updated, u.String())
 		} else {
 			updated = append(updated, s)

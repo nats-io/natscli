@@ -34,6 +34,8 @@ func TestExtractWSProxyPath(t *testing.T) {
 		{"ws root path only", "ws://localhost:8080/", "ws://localhost:8080/", ""},
 		{"multiple ws same path", "ws://h1:80/path,ws://h2:80/path", "ws://h1:80,ws://h2:80", "/path"},
 		{"mixed ws and nats", "ws://h1:80/path,nats://h2:4222", "ws://h1:80,nats://h2:4222", "/path"},
+		{"ws with path and query", "ws://proxy.example/nats?tenant=a", "ws://proxy.example", "/nats?tenant=a"},
+		{"wss with path and query", "wss://proxy.example/nats?tenant=a&token=b", "wss://proxy.example", "/nats?tenant=a&token=b"},
 		{"empty string", "", "", ""},
 	}
 
