@@ -64,6 +64,17 @@ func TestExtractWSProxyPath(t *testing.T) {
 			t.Errorf("error: got %q, want %q", err.Error(), want)
 		}
 	})
+
+	t.Run("mixed default and proxy path error", func(t *testing.T) {
+		_, _, err := extractWSProxyPath("ws://a.example/nats,ws://b.example")
+		if err == nil {
+			t.Fatal("expected error for mixed default and proxy paths")
+		}
+		want := "mixing websocket servers with and without a proxy path is not supported"
+		if err.Error() != want {
+			t.Errorf("error: got %q, want %q", err.Error(), want)
+		}
+	})
 }
 
 func TestRenderCluster(t *testing.T) {

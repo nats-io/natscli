@@ -416,6 +416,7 @@ func newNatsConnUnlocked(servers string, copts ...nats.Option) (*nats.Conn, erro
 func extractWSProxyPath(servers string) (string, string, error) {
 	var proxyPath string
 	var updated []string
+	var hasDefaultPathWS bool
 
 	for s := range strings.SplitSeq(servers, ",") {
 		s = strings.TrimSpace(s)
@@ -427,7 +428,8 @@ func extractWSProxyPath(servers string) (string, string, error) {
 			updated = append(updated, s)
 			continue
 		}
-		if (u.Scheme == "ws" || u.Scheme == "wss") && u.Path != "" && u.Path != "/" {
+		isWS := u.Scheme == "ws" || u.Scheme == "wss"
+		if isWS && u.Path != "" && u.Path != "/" {
 			reqURI := u.RequestURI()
 			if proxyPath == "" {
 				proxyPath = reqURI
@@ -441,8 +443,15 @@ func extractWSProxyPath(servers string) (string, string, error) {
 			u.ForceQuery = false
 			updated = append(updated, u.String())
 		} else {
+			if isWS {
+				hasDefaultPathWS = true
+			}
 			updated = append(updated, s)
 		}
+	}
+
+	if proxyPath != "" && hasDefaultPathWS {
+		return "", "", fmt.Errorf("mixing websocket servers with and without a proxy path is not supported")
 	}
 
 	return strings.Join(updated, ","), proxyPath, nil
