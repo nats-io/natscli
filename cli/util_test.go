@@ -41,7 +41,10 @@ func TestExtractWSProxyPath(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			servers, proxyPath := extractWSProxyPath(tc.input)
+			servers, proxyPath, err := extractWSProxyPath(tc.input)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if servers != tc.servers {
 				t.Errorf("servers: got %q, want %q", servers, tc.servers)
 			}
@@ -50,6 +53,17 @@ func TestExtractWSProxyPath(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("different paths error", func(t *testing.T) {
+		_, _, err := extractWSProxyPath("ws://h1:80/path-a,ws://h2:80/path-b")
+		if err == nil {
+			t.Fatal("expected error for differing proxy paths")
+		}
+		want := `websocket servers with different paths are not supported: "/path-a", "/path-b"`
+		if err.Error() != want {
+			t.Errorf("error: got %q, want %q", err.Error(), want)
+		}
+	})
 }
 
 func TestRenderCluster(t *testing.T) {

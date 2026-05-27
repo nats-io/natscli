@@ -400,19 +400,20 @@ func newNatsConnUnlocked(servers string, copts ...nats.Option) (*nats.Conn, erro
 		servers = opts.Config.ServerURL()
 	}
 
-	servers, proxyPath := extractWSProxyPath(servers)
+	servers, proxyPath, err := extractWSProxyPath(servers)
+	if err != nil {
+		return nil, err
+	}
 	if proxyPath != "" {
 		copts = append(copts, nats.ProxyPath(proxyPath))
 	}
-
-	var err error
 
 	opts.Conn, err = nats.Connect(servers, copts...)
 
 	return opts.Conn, err
 }
 
-func extractWSProxyPath(servers string) (string, string) {
+func extractWSProxyPath(servers string) (string, string, error) {
 	var proxyPath string
 	var updated []string
 
@@ -427,8 +428,11 @@ func extractWSProxyPath(servers string) (string, string) {
 			continue
 		}
 		if (u.Scheme == "ws" || u.Scheme == "wss") && u.Path != "" && u.Path != "/" {
+			reqURI := u.RequestURI()
 			if proxyPath == "" {
-				proxyPath = u.RequestURI()
+				proxyPath = reqURI
+			} else if proxyPath != reqURI {
+				return "", "", fmt.Errorf("websocket servers with different paths are not supported: %q, %q", proxyPath, reqURI)
 			}
 			// Strip path and query from the server URL
 			u.Path = ""
@@ -441,7 +445,7 @@ func extractWSProxyPath(servers string) (string, string) {
 		}
 	}
 
-	return strings.Join(updated, ","), proxyPath
+	return strings.Join(updated, ","), proxyPath, nil
 }
 
 func newNatsConn(servers string, copts ...nats.Option) (*nats.Conn, error) {
