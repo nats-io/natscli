@@ -19,6 +19,37 @@ import (
 	"github.com/nats-io/jsm.go/api"
 )
 
+func TestExtractWSProxyPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		servers   string
+		proxyPath string
+	}{
+		{"nats url unchanged", "nats://localhost:4222", "nats://localhost:4222", ""},
+		{"ws without path", "ws://localhost:8080", "ws://localhost:8080", ""},
+		{"wss without path", "wss://localhost:8080", "wss://localhost:8080", ""},
+		{"ws with path", "ws://localhost:8080/nats", "ws://localhost:8080", "/nats"},
+		{"wss with path", "wss://host:443/proxy/nats", "wss://host:443", "/proxy/nats"},
+		{"ws root path only", "ws://localhost:8080/", "ws://localhost:8080/", ""},
+		{"multiple ws same path", "ws://h1:80/path,ws://h2:80/path", "ws://h1:80,ws://h2:80", "/path"},
+		{"mixed ws and nats", "ws://h1:80/path,nats://h2:4222", "ws://h1:80,nats://h2:4222", "/path"},
+		{"empty string", "", "", ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			servers, proxyPath := extractWSProxyPath(tc.input)
+			if servers != tc.servers {
+				t.Errorf("servers: got %q, want %q", servers, tc.servers)
+			}
+			if proxyPath != tc.proxyPath {
+				t.Errorf("proxyPath: got %q, want %q", proxyPath, tc.proxyPath)
+			}
+		})
+	}
+}
+
 func TestRenderCluster(t *testing.T) {
 	cluster := &api.ClusterInfo{
 		Name:   "test",

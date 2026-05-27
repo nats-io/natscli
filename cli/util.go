@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/url"
 	"os"
 	"os/exec"
 	"sort"
@@ -399,11 +400,45 @@ func newNatsConnUnlocked(servers string, copts ...nats.Option) (*nats.Conn, erro
 		servers = opts.Config.ServerURL()
 	}
 
+	servers, proxyPath := extractWSProxyPath(servers)
+	if proxyPath != "" {
+		copts = append(copts, nats.ProxyPath(proxyPath))
+	}
+
 	var err error
 
 	opts.Conn, err = nats.Connect(servers, copts...)
 
 	return opts.Conn, err
+}
+
+func extractWSProxyPath(servers string) (string, string) {
+	var proxyPath string
+	var updated []string
+
+	for s := range strings.SplitSeq(servers, ",") {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		u, err := url.Parse(s)
+		if err != nil {
+			updated = append(updated, s)
+			continue
+		}
+		if (u.Scheme == "ws" || u.Scheme == "wss") && u.Path != "" && u.Path != "/" {
+			if proxyPath == "" {
+				proxyPath = u.Path
+			}
+			u.Path = ""
+			u.RawPath = ""
+			updated = append(updated, u.String())
+		} else {
+			updated = append(updated, s)
+		}
+	}
+
+	return strings.Join(updated, ","), proxyPath
 }
 
 func newNatsConn(servers string, copts ...nats.Option) (*nats.Conn, error) {
