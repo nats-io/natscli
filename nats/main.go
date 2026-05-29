@@ -76,6 +76,10 @@ LLM optimized help output can be obtained using --help-llm for any command. You 
 	ncli.Flag("tlskey", "TLS private key").Envar("NATS_KEY").PlaceHolder("FILE").ExistingFileVar(&opts.TlsKey)
 	ncli.Flag("tlsca", "TLS certificate authority chain").Envar("NATS_CA").PlaceHolder("FILE").ExistingFileVar(&opts.TlsCA)
 	ncli.Flag("tlsfirst", "Perform TLS handshake before expecting the server greeting").BoolVar(&opts.TlsFirst)
+	// Alias to match nsc's spelling (--tls-first). Hidden so --help keeps
+	// showing only the canonical --tlsfirst; both names bind to the same
+	// variable so either spelling works in scripts.
+	ncli.Flag("tls-first", "alias for --tlsfirst").Hidden().BoolVar(&opts.TlsFirst)
 	if runtime.GOOS == "windows" {
 		ncli.Flag("certstore", "Uses a Windows Certificate Store for TLS (user, machine)").PlaceHolder("TYPE").EnumVar(&opts.WinCertStoreType, "user", "windowscurrentuser", "machine", "windowslocalmachine")
 		ncli.Flag("certstore-match", "Which certificate to use in the store").PlaceHolder("QUERY").StringVar(&opts.WinCertStoreMatch)
