@@ -224,7 +224,10 @@ func (c *serviceCmd) parseMessage(m []byte, expectedType string) (any, error) {
 	}
 
 	if t != expectedType {
-		return nil, fmt.Errorf("invalid response type %s", t)
+		// ignore bad messages else we can easily be
+		// subject to a DOS by someone simply returning
+		// badly formatted output
+		return nil, nil
 	}
 
 	return parsed, nil
@@ -248,6 +251,10 @@ func (c *serviceCmd) getInstanceStats(nc *nats.Conn, name string, id string) (*m
 		return nil, err
 	}
 
+	if stats == nil {
+		return nil, fmt.Errorf("invalid statistics received for %s > %s", name, id)
+	}
+
 	return stats.(*micro.Stats), err
 }
 
@@ -264,9 +271,13 @@ func (c *serviceCmd) getInfo(nc *nats.Conn, name string, id string, wait int) ([
 	for _, r := range resp {
 		nfo, err := c.parseMessage(r, micro.InfoResponseType)
 		if err != nil {
-			return nil, err
+			// invalid messages just geet skipped
+			continue
 		}
-		nfos = append(nfos, nfo.(*micro.Info))
+
+		if nfo != nil {
+			nfos = append(nfos, nfo.(*micro.Info))
+		}
 	}
 
 	sort.Slice(nfos, func(i, j int) bool {
@@ -357,8 +368,10 @@ func (c *serviceCmd) pingAction(_ *fisk.ParseContext) error {
 		if err != nil {
 			return
 		}
-		r := resp.(*micro.Ping)
-		fmt.Printf("%-50s rtt=%s\n", fmt.Sprintf("%s %s", r.Name, r.ID), f(time.Since(start)))
+		if resp != nil {
+			r := resp.(*micro.Ping)
+			fmt.Printf("%-50s rtt=%s\n", fmt.Sprintf("%s %s", r.Name, r.ID), f(time.Since(start)))
+		}
 	})
 	if err != nil {
 		return err
@@ -401,7 +414,9 @@ func (c *serviceCmd) statsAction(_ *fisk.ParseContext) error {
 		if err != nil {
 			return err
 		}
-		stats = append(stats, s.(*micro.Stats))
+		if s != nil {
+			stats = append(stats, s.(*micro.Stats))
+		}
 	}
 
 	sort.Slice(stats, func(i, j int) bool {
