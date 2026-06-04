@@ -1,0 +1,11 @@
+{
+  "delivery_subject": "out.mem1.pull1",
+  "durable_name": "pull1",
+  "deliver_subject": "_IB.x",
+  "start_time": "0001-01-01T00:00:00Z",
+  "deliver_policy": "all",
+  "ack_policy": "explicit",
+  "ack_wait": 30000000000,
+  "max_deliver": 20,
+  "replay_policy": "instant"
+}

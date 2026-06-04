@@ -1,0 +1,56 @@
+  {
+    "server": {
+      "name": "n1.c1",
+      "cluster": "c1"
+    },
+    "stream": {
+      "name": "ORDERS",
+      "state": {
+        "messages": 2691,
+        "bytes": 165776,
+        "consumer_count": 4
+      },
+      "cluster": {
+        "name": "c1",
+        "leader": "n3.c1"
+      }
+    }
+  }
+
+  {
+    "server": {
+      "name": "n2.c1",
+      "cluster": "c1"
+    },
+    "stream": {
+      "name": "ORDERS",
+      "state": {
+        "messages": 2691,
+        "bytes": 165776,
+        "consumer_count": 4
+      },
+      "cluster": {
+        "name": "c1",
+        "leader": "n3.c1"
+      }
+    }
+  }
+  
+  {
+    "server": {
+      "name": "n3.c1",
+      "cluster": "c1"
+    },
+    "stream": {
+      "name": "ORDERS",
+      "state": {
+        "messages": 2691,
+        "bytes": 165776,
+        "consumer_count": 4
+      },
+      "cluster": {
+        "name": "c1",
+        "leader": "n3.c1"
+      }
+    }
+  }

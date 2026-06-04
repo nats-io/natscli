@@ -1,0 +1,73 @@
+name: nats-server.conf
+description: |
+  Operator Managed NATS Server for Kubernetes
+
+  This will guide you through a series of question to create a NATS Cluster
+  configuration managed by a NATS Operator using the nats Helm Chart.
+  
+  To use this an Operator should have been created using the "nats auth" command.
+
+  For more information about Decentralized Authentication please read:
+  
+    https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/jwt
+
+  For more information about the Helm chart please read:
+  
+    https://github.com/nats-io/k8s/tree/main/helm/charts/nats
+  
+  Deploy the resulting Cluster using helm:
+  
+    helm repo add nats https://nats-io.github.io/k8s/helm/charts/
+    helm upgrade --install nats nats/nats -f values.yaml
+
+  To access the cluster you can use kubectl:
+  
+    kubectl port-forward service/nats 4222
+  
+  Once set up you can create credentials and push your accounts.
+
+properties:
+  - name: replicas
+    description: How many server pods to start
+    type: integer
+    default: "3"
+
+  - name: streams
+    description: Enables JetStream in the cluster
+    type: bool
+    default: "true"
+
+  - name: jetstream
+    description: |
+      JetStream configuration
+      
+      We will now configure the NATS JetStream persistence layer. Setting the limits 
+      to -1 means a dynamic value will be chosen by the server at start. We strongly 
+      suggest setting specific limits.
+
+      See https://docs.nats.io/nats-concepts/jetstream for more information
+    conditional: "input.streams == true"
+    properties:
+      - name: storage
+        description: The maximum amount of PVC resources to allocate
+        help: Valid values look like '10Gi'
+        default: "10Gi"
+
+  - name: resolver
+    description: |
+      NATS Resolver Configuration
+      
+      We will now configure where the NATS Server will store account JWT files. 
+      JWT files are pushed to the server using 'nats auth account push' and 
+      describe the full configuration for each account.
+      
+      Every server in a cluster needs a resolver configuration.
+    properties:
+      - name: allow_delete
+        description: Should the server allow accounts to be deleted
+        default: "true"
+        type: bool
+      - name: limit
+        description: The maximum amount of accounts to allow
+        default: "1000"
+        type: integer

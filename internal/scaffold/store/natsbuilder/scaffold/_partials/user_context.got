@@ -1,0 +1,11 @@
+{
+{{- if (get . "main") }}
+  "description":"NATS User Account",
+{{- else }}
+  "description":"NATS User Account in Cluster {{ get . "cluster" }}",
+{{- end }}
+  "url":"{{ get . "urls" | join ","}}",
+  "user":"user",
+  "password":"{{ get . "password" }}",
+  "color_scheme":"green"
+}

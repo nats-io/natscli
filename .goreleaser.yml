@@ -1,0 +1,86 @@
+project_name: natscli
+version: 2
+
+release:
+  github:
+    owner: nats-io
+    name: natscli
+  name_template: "Release {{.Version}}"
+  draft: true
+  prerelease: auto
+
+changelog:
+  disable: true
+
+builds:
+  - main: ./nats
+    id: nats
+    binary: nats
+    env:
+      - GO111MODULE=on
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+      - freebsd
+    goarch:
+      - amd64
+      - arm
+      - arm64
+      - "386"
+      - s390x
+    goarm:
+      - "6"
+      - "7"
+    ignore:
+      - goos: freebsd
+        goarch: arm
+      - goos: freebsd
+        goarch: arm64
+      - goos: freebsd
+        goarch: "386"
+      - goos: windows
+        goarch: arm
+
+archives:
+  - name_template: "nats-{{.Version}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
+    wrap_in_directory: true
+    formats:
+      - zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "SHA256SUMS"
+  algorithm: sha256
+
+brews:
+  - name: nats
+    directory: Formula
+    repository:
+      owner: nats-io
+      name: homebrew-nats-tools
+      token: "{{ .Env.GITHUB_APP_TOKEN }}"
+    url_template: "https://github.com/nats-io/natscli/releases/download/{{ .Tag }}/nats-{{.Version}}-{{ .Os }}-{{ .Arch }}{{if .Arm}}{{.Arm}}{{end}}.zip"
+    homepage: "https://github.com/nats-io/natscli"
+    description: "NATS utility"
+    skip_upload: auto
+    test: |
+      system "#{bin}/nats --version"
+    install: |
+      bin.install "nats"
+      generate_completions_from_executable(bin/"nats", shells: [:bash, :zsh], shell_parameter_format: "--completion-script-")
+
+nfpms:
+  - file_name_template: 'nats-{{.Version}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
+    homepage:  https://nats.io
+    description: NATS Utility
+    maintainer: R.I. Pienaar <rip@devco.net>
+    license: Apache 2.0
+    vendor: Synadia Inc.
+    bindir: /usr/local/bin
+    formats:
+      - deb
+      - rpm
