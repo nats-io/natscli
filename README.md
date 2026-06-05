@@ -81,6 +81,9 @@ NATS Configuration Context "localhost"
   Server URLs: nats://127.0.0.1:4222
 ```
 
+💡 TIP: You can also add authentication configuration here, such as `user` and `password` or `creds`.
+(Either send them as command-line arguments or edit the whole context with `nats context edit localhost`.)
+
 Next we add a context for `demo.nats.io:4222` and we select it as default.
 
 ```
