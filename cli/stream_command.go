@@ -253,7 +253,7 @@ func configureStreamCommand(app commandHost) {
 		if !edit {
 			f.Flag("limit-consumer-inactive", "The maximum Consumer inactive threshold the stream allows").PlaceHolder("THRESHOLD").DurationVar(&c.limitInactiveThreshold)
 			f.Flag("limit-consumer-max-pending", "The maximum Consumer Ack Pending the stream Allows").PlaceHolder("PENDING").IntVar(&c.limitMaxAckPending)
-			f.Flag("persist-mode", "Configures the persistence mode").EnumVar(&c.persistMode, "default", "async")
+			f.Flag("persist-mode", "Filestore persistence mode. Default is async for replicated streams and sync for single node. Async can only be forced single node streams.").EnumVar(&c.persistMode, "default", "async")
 		}
 		f.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
