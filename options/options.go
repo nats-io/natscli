@@ -54,6 +54,10 @@ type Options struct {
 	UserJwt string
 	// UserSeed is the user seed to connect with
 	UserSeed string
+	// Extra HTTP headers for use with websocket connections
+	WebSocketHeaders []string
+	// Proxy path to use for connecting
+	ProxyPath string
 	// JsApiPrefix is the JetStream API prefix
 	JsApiPrefix string
 	// JsEventPrefix is the JetStream events prefix
