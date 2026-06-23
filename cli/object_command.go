@@ -368,6 +368,7 @@ func (c *objCommand) showObjectInfo(nfo *jetstream.ObjectInfo) {
 	cols.AddRow("Chunks", nfo.Chunks)
 	cols.AddRowf("Digest", "%s %x", digest[0], digestBytes)
 	cols.AddRowIf("Deleted", nfo.Deleted, nfo.Deleted)
+
 	if len(nfo.Headers) > 0 {
 		var vals []string
 		for k, v := range nfo.Headers {
@@ -376,6 +377,11 @@ func (c *objCommand) showObjectInfo(nfo *jetstream.ObjectInfo) {
 			}
 		}
 		cols.AddStringsAsValue("Headers", vals)
+	}
+
+	if len(nfo.Metadata) > 0 {
+		cols.AddSectionTitle("Metadata")
+		cols.AddMapStrings(nfo.Metadata)
 	}
 }
 
