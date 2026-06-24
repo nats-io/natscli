@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/http"
 	"os"
 	"os/exec"
 	"sort"
@@ -234,6 +235,22 @@ func natsOpts() []nats.Option {
 	connectionName := strings.TrimSpace(opts().ConnectionName)
 	if len(connectionName) == 0 {
 		connectionName = "NATS CLI Version " + Version
+	}
+
+	if headers := opts().WebSocketHeaders; len(headers) != 0 {
+		hdrs := http.Header{}
+		for _, entry := range headers {
+			key, value, ok := strings.Cut(entry, ":")
+			if !ok {
+				fisk.FatalUsage("Each header should be in the form \"key: value\"")
+			}
+			hdrs.Add(key, strings.TrimSpace(value))
+		}
+		copts = append(copts, nats.WebSocketConnectionHeaders(hdrs))
+	}
+
+	if proxyPath := opts().ProxyPath; proxyPath != "" {
+		copts = append(copts, nats.ProxyPath(proxyPath))
 	}
 
 	return append(copts, []nats.Option{
