@@ -28,10 +28,11 @@ import (
 )
 
 type counterCmd struct {
-	subject string
-	value   string
-	stream  string
-	json    bool
+	subject  string
+	incValue string
+	decValue string
+	stream   string
+	json     bool
 }
 
 func configureCounterCommand(app commandHost) {
@@ -50,11 +51,15 @@ func configureCounterCommand(app commandHost) {
 	view.Arg("subject", "Subject to get counter for").Required().StringVar(&c.subject)
 	view.Flag("stream", "The stream name to fetch the value from").StringVar(&c.stream)
 
-	incr := ctr.Command("increment", "Increment the value of a counter").Alias("incr").Alias("i").Action(c.incrAction)
+	incr := ctr.Command("increment", "Increment the value of a counter").Alias("incr").Alias("inc").Alias("i").Action(c.incrAction)
 	incr.Tag("scope:user", "impact:rw")
 	incr.Arg("subject", "Subject to get counter for").Required().StringVar(&c.subject)
-	incr.Arg("value", "The value to increment").StringVar(&c.value)
-	incr.Flag("stream", "The stream name to fetch the value from").StringVar(&c.stream)
+	incr.Arg("value", "The value to increment").Required().StringVar(&c.incValue)
+
+	decr := ctr.Command("decrement", "Decrement the value of a counter").Alias("decr").Alias("dec").Alias("d").Action(c.incrAction)
+	decr.Tag("scope:user", "impact:rw")
+	decr.Arg("subject", "Subject to get counter for").Required().StringVar(&c.subject)
+	decr.Arg("value", "The value to decrement").Required().StringVar(&c.decValue)
 
 	ls := ctr.Command("list", "List Counters in a stream").Alias("l").Alias("ls").Action(c.lsAction)
 	ls.Tag("scope:user", "impact:ro")
@@ -129,7 +134,14 @@ func (c *counterCmd) incrAction(_ *fisk.ParseContext) error {
 	}
 
 	v := &big.Int{}
-	_, ok := v.SetString(c.value, 10)
+	var ok bool
+
+	if c.decValue != "" {
+		_, ok = v.SetString(c.decValue, 10)
+		v.Neg(v)
+	} else {
+		_, ok = v.SetString(c.incValue, 10)
+	}
 	if !ok {
 		return fmt.Errorf("invalid value")
 	}
