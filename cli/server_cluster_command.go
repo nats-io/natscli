@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"slices"
@@ -171,21 +170,30 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
+	// a configured domain would make the manager send the removal to a domain prefixed
+	// API subject which has no responders on the system account, causing an error the user
+	// won't expect. Silently ignoring it could cause us to accidentally remove a peer from a
+	// cluster we didn't expect, so we terminate early.
+	if opts().Config.JSDomain() != "" {
+		return fmt.Errorf("the --js-domain option cannot be used with peer-remove: JetStream domains do not apply to the system account, connect without a domain configured")
+	}
+
 	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
 		return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, traceLogger())
 	}
-	ds, err := serverdata.NewLive(nc, reqFn, 1)
+
+	expected, err := serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, traceLogger())
+	if err != nil {
+		return err
+	}
+	ds, err := serverdata.NewLive(nc, reqFn, expected)
 	if err != nil {
 		return err
 	}
 
-	jszResults, err := ds.Jsz(server.JszEventOptions{JSzOptions: server.JSzOptions{LeaderOnly: true}})
+	jszResults, err := ds.Jsz(server.JszEventOptions{})
 	if err != nil {
 		return err
-	}
-
-	if len(jszResults) != 1 {
-		return fmt.Errorf("did not receive a response from the meta leader, ensure the account used has system privileges and appropriate permissions")
 	}
 
 	found := false
@@ -193,10 +201,28 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 	foundID := ""
 	state := "offline"
 
-	srv := jszResults[0]
-	if srv.Data == nil {
-		return fmt.Errorf("no data in response from meta leader")
+	var leaders []*server.ServerAPIJszResponse
+	for _, jr := range jszResults {
+		if jr.Data == nil || jr.Data.Meta == nil || jr.Server == nil {
+			continue
+		}
+		if jr.Server.Name != jr.Data.Meta.Leader {
+			continue
+		}
+		leaders = append(leaders, jr)
 	}
+
+	if len(leaders) == 0 {
+		return fmt.Errorf("did not receive a response from the meta leader, ensure the account used has system privileges and appropriate permissions")
+	}
+
+	// multiple meta leaders means we can't be sure of what to do. terminate instead of guessing.
+	// TODO(ploubser): This will need to be addressed in the server at a later time
+	if len(leaders) > 1 {
+		return fmt.Errorf("found %d JetStream meta cluster leaders, unable to determine which cluster to remove the peer from", len(leaders))
+	}
+
+	srv := leaders[0]
 
 	for _, r := range srv.Data.Meta.Replicas {
 		if r.Name == c.peer || r.Peer == c.peer {
@@ -257,48 +283,60 @@ func (c *SrvClusterCmd) metaLeaderStandDownAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	jreq, err := json.MarshalIndent(server.JSzOptions{LeaderOnly: true}, "", "  ")
+	// a configured domain would make the manager send the request to a domain prefixed
+	// API subject which has no responders on the system account, causing an error the user
+	// won't expect. Silently ignoring it could cause us to accidentally step down a leader in
+	// a cluster we didn't expect, so we terminate early.
+	if opts().Config.JSDomain() != "" {
+		return fmt.Errorf("the --js-domain option cannot be used with step-down: JetStream domains do not apply to the system account, connect without a domain configured")
+	}
+
+	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
+		return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, traceLogger())
+	}
+
+	expected, err := serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, traceLogger())
 	if err != nil {
-		return fmt.Errorf("could not encode request: %s", err)
+		return err
+	}
+	ds, err := serverdata.NewLive(nc, reqFn, expected)
+	if err != nil {
+		return err
 	}
 
 	getJSI := func() (*server.JSInfo, error) {
-		if opts().Trace {
-			log.Printf(">>> $SYS.REQ.SERVER.PING.JSZ: %s\n", string(jreq))
-		}
-
-		msg, err := nc.Request("$SYS.REQ.SERVER.PING.JSZ", jreq, opts().Timeout)
+		jszResults, err := ds.Jsz(server.JszEventOptions{})
 		if err != nil {
 			return nil, err
 		}
 
-		if opts().Trace {
-			log.Printf(">>> %s\n", string(msg.Data))
+		var leaders []*server.ServerAPIJszResponse
+		for _, jr := range jszResults {
+			if jr.Data == nil || jr.Data.Meta == nil || jr.Server == nil {
+				continue
+			}
+			if jr.Server.Name != jr.Data.Meta.Leader {
+				continue
+			}
+			leaders = append(leaders, jr)
 		}
 
-		resp := map[string]json.RawMessage{}
-		err = json.Unmarshal(msg.Data, &resp)
-		if err != nil {
-			return nil, err
+		if len(leaders) == 0 {
+			return nil, fmt.Errorf("did not receive a response from the meta leader, ensure the account used has system privileges and appropriate permissions")
 		}
 
-		data, ok := resp["data"]
-		if !ok {
-			return nil, fmt.Errorf("no data received")
+		// multiple meta leaders means we can't be sure of what to do. terminate instead of guessing.
+		// TODO(ploubser): This will need to be addressed in the server at a later time
+		if len(leaders) > 1 {
+			return nil, fmt.Errorf("found %d JetStream meta cluster leaders, unable to determine which cluster to step down", len(leaders))
 		}
 
-		info := &server.JSInfo{}
-		err = json.Unmarshal(data, info)
-		if err != nil {
-			return nil, err
-		}
-
-		return info, nil
+		return leaders[0].Data, nil
 	}
 
 	resp, err := getJSI()
 	if err != nil {
-		return fmt.Errorf("could not obtain cluster information: %s", err)
+		return err
 	}
 
 	leader := resp.Meta.Leader
