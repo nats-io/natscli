@@ -174,7 +174,7 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
 		return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, traceLogger())
 	}
-	ds, err := serverdata.NewLive(nc, reqFn, 1)
+	ds, err := serverdata.NewLive(nc, reqFn, -1)
 	if err != nil {
 		return err
 	}
@@ -184,18 +184,35 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	if len(jszResults) != 1 {
+	if len(jszResults) == 0 {
 		return fmt.Errorf("did not receive a response from the meta leader, ensure the account used has system privileges and appropriate permissions")
 	}
+
+	targetDomain := opts().Config.JSDomain()
 
 	found := false
 	foundName := ""
 	foundID := ""
 	state := "offline"
 
-	srv := jszResults[0]
-	if srv.Data == nil {
-		return fmt.Errorf("no data in response from meta leader")
+	var srv *server.ServerAPIJszResponse
+	for _, jr := range jszResults {
+		if jr.Data == nil || jr.Data.Meta == nil {
+			continue
+		}
+		if targetDomain != "" && jr.Data.Config.Domain != targetDomain {
+			continue
+		}
+		// We've now hit a second meta cluster. If we didn't specify the targetDomain then we can't be sure which peer
+		// we really want to remove, and since this is destructive we bail out instead of trying to figure it out.
+		if srv != nil && targetDomain == "" {
+			return fmt.Errorf("multiple JetStream domains are visible, use --js-domain to select the one to remove from")
+		}
+		srv = jr
+	}
+
+	if srv == nil {
+		return fmt.Errorf("did not find a replica named %s", c.peer)
 	}
 
 	for _, r := range srv.Data.Meta.Replicas {

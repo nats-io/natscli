@@ -631,6 +631,18 @@ func TestServerCluster(t *testing.T) {
 			return nil
 		})
 	})
+
+	t.Run("peer-remove standalone server", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			err := runNatsCliWithError(t, fmt.Sprintf("--server='%s' %s server cluster peer-remove %s --force", srv.ClientURL(), sysUserCreds, srv.Name()))
+			if err == nil {
+				t.Error("expected error, got none")
+			} else if !strings.Contains(err.Error(), "did not find a replica") {
+				t.Errorf("expected 'did not find a replica' error, got: %v", err)
+			}
+			return nil
+		})
+	})
 }
 
 func TestServerConfig(t *testing.T) {
