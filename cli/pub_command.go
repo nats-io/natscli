@@ -86,7 +86,7 @@ Available template functions are:
 
 	pub := app.Command("publish", "Generic data publish utility").Alias("pub").Action(c.publishAction)
 	pub.Tag("scope:user", "impact:rw")
-	addCheat("pub", pub)
+	addCheat("publish", pub)
 	pub.HelpLong(pubHelp)
 	pub.Arg("subject", "Subject to publish to").Required().StringVar(&c.subject)
 	pub.Arg("body", "Message body").IsSetByUser(&c.bodyIsSet).StringVar(&c.body)
