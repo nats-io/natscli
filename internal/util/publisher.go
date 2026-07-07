@@ -64,7 +64,9 @@ func NewPublisher(cfg PublisherConfig) (*Publisher, error) {
 		opts:      cfg.Opts,
 	}
 
-	p.UseStdin = !cfg.BodyIsSet && (IsStdoutTerminal() || cfg.ForceStdin)
+	// Read from stdin when it is piped, when running fully interactive so
+	// the body can be typed, or when forced
+	p.UseStdin = !cfg.BodyIsSet && (!IsStdinTerminal() || IsTerminal() || cfg.ForceStdin)
 	if p.UseStdin {
 		readPipe, writePipe := io.Pipe()
 		p.stdinPipe = readPipe

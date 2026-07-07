@@ -256,7 +256,7 @@ func (c *reqCmd) requestAction(_ *fisk.ParseContext) error {
 				if newEof {
 					eof = true
 				}
-				if body == "" && eof {
+				if body == "" && eof && pub.IsSendOnNewLine() {
 					return nil
 				}
 				c.body = body
@@ -267,7 +267,7 @@ func (c *reqCmd) requestAction(_ *fisk.ParseContext) error {
 				return err
 			}
 
-			if pub.IsSendOnEOF() || eof {
+			if !pub.UseStdin || pub.IsSendOnEOF() || eof {
 				return nil
 			}
 		}
