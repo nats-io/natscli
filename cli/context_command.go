@@ -54,7 +54,7 @@ func configureCtxCommand(app commandHost) {
 	c := ctxCommand{}
 
 	context := app.Command("context", "Manage nats configuration contexts").Alias("ctx")
-	addCheat("contexts", context)
+	addCheat("context", context)
 
 	save := context.Command("add", "Update or create a context").Alias("create").Alias("save").Action(c.createCommand)
 	save.HelpLong(`When using --creds, --nkey, --jwt and --seed the following formats are supported

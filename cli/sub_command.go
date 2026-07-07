@@ -135,7 +135,7 @@ func configureSubCommand(app commandHost) {
 	sub := app.Command("subscribe", "Generic subscription client").Alias("sub").Action(c.subscribe)
 	sub.Tag("scope:user", "impact:rw")
 	sub.HelpLong(subHelp)
-	addCheat("sub", sub)
+	addCheat("subscribe", sub)
 
 	sub.Arg("subjects", "Subjects to subscribe to").StringsVar(&c.subjects)
 	sub.Flag("queue", "Subscribe to a named queue group").StringVar(&c.queue)

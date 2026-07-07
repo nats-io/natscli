@@ -82,7 +82,7 @@ for an indefinite period or a per-bucket configured TTL.
 `
 
 	obj := app.Command("object", help).Alias("obj")
-	addCheat("obj", obj)
+	addCheat("object", obj)
 
 	addCreateFlags := func(f *fisk.CmdClause, edit bool) {
 		f.Arg("bucket", "The bucket to act on").Required().StringVar(&c.bucket)
