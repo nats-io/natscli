@@ -102,6 +102,28 @@ func TestCLIRequestSendOn(t *testing.T) {
 	})
 }
 
+func TestCLIRequestStdin(t *testing.T) {
+	t.Run("Request reads piped stdin without --force-stdin", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			subject := "test-request-piped-stdin"
+			expected := "piped payload"
+
+			sub, _ := nc.Subscribe(subject, func(m *nats.Msg) {
+				m.Respond([]byte("received: " + string(m.Data)))
+			})
+			defer sub.Unsubscribe()
+			nc.Flush()
+
+			output, _ := runNatsCliWithInput(t, expected, fmt.Sprintf("--server='%s' request %s", srv.ClientURL(), subject))
+
+			if !strings.Contains(string(output), "received: piped payload") {
+				t.Errorf("expected response with stdin data, got: %s", output)
+			}
+			return nil
+		})
+	})
+}
+
 func TestCLIRequestRaw(t *testing.T) {
 	t.Run("Request with --raw", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {

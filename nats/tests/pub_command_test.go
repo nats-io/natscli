@@ -128,6 +128,53 @@ func TestCLIPubSendOnNewline(t *testing.T) {
 	})
 }
 
+func TestCLIPubStdin(t *testing.T) {
+	t.Run("Publish reads piped stdin without --force-stdin", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			subject := "test-piped-stdin"
+			var messages []string
+			expected := "piped payload"
+			sub, _ := nc.Subscribe(subject, func(m *nats.Msg) {
+				messages = append(messages, string(m.Data))
+			})
+			defer sub.Unsubscribe()
+			nc.Flush()
+
+			runNatsCliWithInput(t, expected, fmt.Sprintf("--server='%s' pub %s", srv.ClientURL(), subject))
+
+			if len(messages) != 1 {
+				t.Errorf("expected 1 message and received %d", len(messages))
+			}
+			if len(messages) > 0 && messages[0] != expected {
+				t.Errorf("expected message %q got %q", expected, messages[0])
+			}
+			return nil
+		})
+	})
+
+	t.Run("Publish with no stdin and no body sends one empty message", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			subject := "test-empty-stdin"
+			var messages []string
+			sub, _ := nc.Subscribe(subject, func(m *nats.Msg) {
+				messages = append(messages, string(m.Data))
+			})
+			defer sub.Unsubscribe()
+			nc.Flush()
+
+			runNatsCli(t, fmt.Sprintf("--server='%s' pub %s", srv.ClientURL(), subject))
+
+			if len(messages) != 1 {
+				t.Errorf("expected 1 message and received %d", len(messages))
+			}
+			if len(messages) > 0 && messages[0] != "" {
+				t.Errorf("expected empty message body got %q", messages[0])
+			}
+			return nil
+		})
+	})
+}
+
 func TestCLIPubTemplates(t *testing.T) {
 	t.Run("Publish --templates", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
@@ -490,6 +537,31 @@ func TestCLIPubAtomic(t *testing.T) {
 				if messages[i] != expected[i] {
 					t.Errorf("expected message(%d) %q got %q", i, expected[i], msg)
 				}
+			}
+			return nil
+		})
+	})
+
+	t.Run("Atomic publish with empty stdin", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			subject := "test-atomic-empty"
+
+			_, err := mgr.NewStream("test-stream-empty", jsm.Subjects(subject), jsm.AllowAtomicBatchPublish())
+			if err != nil {
+				t.Errorf("failed to create stream: %s", err)
+			}
+
+			_, err = runNatsCliWithInput(t, "", fmt.Sprintf("--server='%s' pub --send-on newline %s --jetstream --atomic", srv.ClientURL(), subject))
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+
+			if strings.Contains(err.Error(), "panic") {
+				t.Fatalf("expected graceful error, got panic: %s", err)
+			}
+
+			if !strings.Contains(err.Error(), "no messages to publish") {
+				t.Fatalf("expected empty batch error, got %s", err)
 			}
 			return nil
 		})
