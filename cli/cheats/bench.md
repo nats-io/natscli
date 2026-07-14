@@ -35,6 +35,9 @@ nats bench pub foo --sleep=100ns
 # throttle aggregate publisher throughput to approximately 50,000 msgs/sec across all clients (useful for head-to-head comparisons with Kafka's --throughput)
 nats bench pub foo --msgs 1000000 --clients 4 --throughput 50000
 
+# run for approximately 30 seconds at 50,000 msgs/sec (--duration derives --msgs from --throughput and is only valid together with it)
+nats bench pub foo --clients 4 --throughput 50000 --duration 30s
+
 # put messages into a KV using synchronous put operations
 nats bench kv put --clients 10
 
