@@ -676,12 +676,27 @@ func (c *authAccountCommand) skListAction(_ *fisk.ParseContext) error {
 
 	var table *iu.Table
 
-	if len(acct.ScopedSigningKeys().List()) > 0 {
+	var scopes []ab.ScopeLimits
+	var keys []string
+	for _, sk := range acct.ScopedSigningKeys().List() {
+		scope, _ := acct.ScopedSigningKeys().GetScope(sk)
+		if scope == nil {
+			keys = append(keys, sk)
+			continue
+		}
+
+		scopes = append(scopes, scope)
+	}
+
+	if len(scopes) == 0 && len(keys) == 0 {
+		fmt.Println("No Signing Keys or Roles defined")
+		return nil
+	}
+
+	if len(scopes) > 0 {
 		table = iu.NewTableWriterf(opts(), "Scoped Signing Keys")
 		table.AddHeaders("Role", "Key", "Description", "Max Subscriptions", "Pub Perms", "Sub Perms")
-		for _, sk := range acct.ScopedSigningKeys().List() {
-			scope, _ := acct.ScopedSigningKeys().GetScope(sk)
-
+		for _, scope := range scopes {
 			pubs := len(scope.PubPermissions().Allow()) + len(scope.PubPermissions().Deny())
 			subs := len(scope.SubPermissions().Allow()) + len(scope.SubPermissions().Deny())
 
@@ -691,8 +706,14 @@ func (c *authAccountCommand) skListAction(_ *fisk.ParseContext) error {
 		fmt.Println()
 	}
 
-	if table == nil {
-		fmt.Println("No Scoped Signing Keys or Roles defined")
+	if len(keys) > 0 {
+		table = iu.NewTableWriterf(opts(), "Signing Keys")
+		table.AddHeaders("Key")
+		for _, key := range keys {
+			table.AddRow(key)
+		}
+		fmt.Println(table.Render())
+		fmt.Println()
 	}
 
 	return nil
