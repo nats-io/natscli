@@ -277,7 +277,7 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, pub *iu.Publisher) error {
 			}
 		}
 
-		if !c.quiet {
+		if pub.Tracker == nil && !c.quiet {
 			log.Printf("Published %d bytes to %q\n", len(body), subj)
 		}
 		resp, err := nc.RequestMsg(msg, opts().Timeout)
