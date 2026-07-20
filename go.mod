@@ -4,8 +4,8 @@ go 1.25.0
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
-	github.com/HdrHistogram/hdrhistogram-go v1.2.0
-	github.com/choria-io/fisk v0.9.1-0.20260703081120-1be688c199d2
+	github.com/HdrHistogram/hdrhistogram-go v1.3.0
+	github.com/choria-io/fisk v0.9.1
 	github.com/choria-io/scaffold v0.0.11
 	github.com/creack/pty v1.1.24
 	github.com/dustin/go-humanize v1.0.1
@@ -16,10 +16,10 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gosuri/uiprogress v0.0.1
-	github.com/jedib0t/go-pretty/v6 v6.8.2
+	github.com/jedib0t/go-pretty/v6 v6.8.3
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.19.0
-	github.com/nats-io/jsm.go v0.4.2-0.20260512130321-6a82ade4b5d3
+	github.com/klauspost/compress v1.19.1
+	github.com/nats-io/jsm.go v0.4.2-0.20260720120757-eeb73841063f
 	github.com/nats-io/jwt/v2 v2.8.2
 	github.com/nats-io/nats-server/v2 v2.14.3
 	github.com/nats-io/nats.go v1.52.0
@@ -31,8 +31,8 @@ require (
 	github.com/synadia-io/orbit.go/counters v0.1.1
 	github.com/synadia-io/orbit.go/jetstreamext v0.3.1
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
-	golang.org/x/crypto v0.53.0
-	golang.org/x/term v0.44.0
+	golang.org/x/crypto v0.54.0
+	golang.org/x/term v0.45.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -54,7 +54,7 @@ require (
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
-	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-isatty v0.0.23 // indirect
 	github.com/mattn/go-runewidth v0.0.24 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/minio/highwayhash v1.0.4 // indirect
@@ -65,15 +65,15 @@ require (
 	github.com/nats-io/nsc/v2 v2.15.0 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.69.0 // indirect
+	github.com/prometheus/common v0.70.0 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/synadia-io/orbit.go/natsext v0.1.2 // indirect
-	golang.org/x/exp v0.0.0-20260611194520-c48552f49976 // indirect
-	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/exp v0.0.0-20260718201538-764159d718ef // indirect
+	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
