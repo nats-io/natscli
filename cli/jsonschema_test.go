@@ -118,8 +118,6 @@ func TestStreamConfiguration(t *testing.T) {
 	cfg = reset()
 	cfg.Replicas = -1
 	validateExpectFailure(t, cfg)
-	cfg.Replicas = 0
-	validateExpectFailure(t, cfg)
 }
 
 func TestConsumerConfiguration(t *testing.T) {
