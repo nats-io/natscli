@@ -19,9 +19,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nats-io/jsm.go/serverdata"
+	iu "github.com/nats-io/natscli/internal/util"
 	"github.com/nats-io/natscli/options"
 
 	"github.com/nats-io/nats-server/v2/server"
@@ -62,7 +65,7 @@ type SrvRequestCmd struct {
 	accountFilter        string
 	subjectFilter        string
 	nameFilter           string
-	pendingBytesFilter   int
+	pendingBytesFilter   string
 	accountSubscriptions bool
 
 	nc *nats.Conn
@@ -108,7 +111,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	connz.Flag("filter-user", "Filter on a specific username").PlaceHolder("USER").StringVar(&c.userFilter)
 	connz.Flag("filter-account", "Filter on a specific account").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
 	connz.Flag("filter-subject", "Limits responses only to those connections with matching subscription interest").PlaceHolder("SUBJECT").StringVar(&c.subjectFilter)
-	connz.Flag("filter-pending-bytes", "Only shows connections with at least this many pending bytes").PlaceHolder("BYTES").IntVar(&c.pendingBytesFilter)
+	connz.Flag("filter-pending-bytes", "Only shows connections with at least this many pending bytes, supports sizes like 1MB and percentages of the server max_pending like 10%").PlaceHolder("BYTES").StringVar(&c.pendingBytesFilter)
 	connz.Flag("filter-empty", "Only shows responses that have connections").Default("false").UnNegatableBoolVar(&c.filterEmpty)
 	connz.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
@@ -551,6 +554,58 @@ func (c *SrvRequestCmd) routez(_ *fisk.ParseContext) error {
 	return printResults(responses)
 }
 
+// parsePendingBytesFilter parses --filter-pending-bytes which is either an absolute
+// size like 1024 or 1MB, or a percentage of the servers max_pending like 10%.
+// Returns 0 for both values when the filter is not set.
+func (c *SrvRequestCmd) parsePendingBytesFilter() (int64, float64, error) {
+	val := strings.TrimSpace(c.pendingBytesFilter)
+	if val == "" {
+		return 0, 0, nil
+	}
+
+	if strings.HasSuffix(val, "%") {
+		pct, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(val, "%")), 64)
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid percentage %q for --filter-pending-bytes: %v", val, err)
+		}
+		if pct < 0 {
+			return 0, 0, fmt.Errorf("invalid percentage %q for --filter-pending-bytes: must not be negative", val)
+		}
+
+		return 0, pct, nil
+	}
+
+	bytes, err := iu.ParseStringAsBytes(val, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid size %q for --filter-pending-bytes: %v", val, err)
+	}
+	if bytes < 0 {
+		return 0, 0, fmt.Errorf("invalid size %q for --filter-pending-bytes: must not be negative", val)
+	}
+
+	return bytes, 0, nil
+}
+
+// serverMaxPending maps server IDs to their configured max_pending as reported by VARZ
+func (c *SrvRequestCmd) serverMaxPending(src serverdata.Source) (map[string]int64, error) {
+	responses, err := src.Varz(server.VarzEventOptions{
+		EventFilterOptions: c.reqFilter(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]int64, len(responses))
+	for _, r := range responses {
+		if r.Server == nil || r.Data == nil {
+			continue
+		}
+		res[r.Server.ID] = r.Data.MaxPending
+	}
+
+	return res, nil
+}
+
 func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 	src, err := c.dataSource()
 	if err != nil {
@@ -583,16 +638,43 @@ func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 		opts.State = server.ConnOpen
 	}
 
+	pendingBytes, pendingPercent, err := c.parsePendingBytesFilter()
+	if err != nil {
+		return err
+	}
+
+	// percentages are relative to each servers max_pending which is only in VARZ
+	var maxPending map[string]int64
+	if pendingPercent > 0 {
+		maxPending, err = c.serverMaxPending(src)
+		if err != nil {
+			return err
+		}
+	}
+
 	responses, err := src.Connz(opts)
 	if err != nil {
 		return err
 	}
 
 	for _, r := range responses {
-		if c.pendingBytesFilter > 0 && r.Data != nil {
+		if (pendingBytes > 0 || pendingPercent > 0) && r.Data != nil {
+			threshold := pendingBytes
+			resolved := true
+
+			if pendingPercent > 0 {
+				var mp int64
+				if r.Server != nil {
+					mp = maxPending[r.Server.ID]
+				}
+				// without a max_pending we cannot resolve the percentage for this server
+				resolved = mp > 0
+				threshold = int64(float64(mp) * pendingPercent / 100)
+			}
+
 			matched := make([]*server.ConnInfo, 0, len(r.Data.Conns))
 			for _, conn := range r.Data.Conns {
-				if conn != nil && conn.Pending >= c.pendingBytesFilter {
+				if resolved && conn != nil && int64(conn.Pending) >= threshold {
 					matched = append(matched, conn)
 				}
 			}
