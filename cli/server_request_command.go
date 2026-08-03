@@ -554,11 +554,11 @@ func (c *SrvRequestCmd) routez(_ *fisk.ParseContext) error {
 	return printResults(responses)
 }
 
-// parsePendingBytesFilter parses --filter-pending-bytes which is either an absolute
-// size like 1024 or 1MB, or a percentage of the servers max_pending like 10%.
-// Returns 0 for both values when the filter is not set.
-func (c *SrvRequestCmd) parsePendingBytesFilter() (int64, float64, error) {
-	val := strings.TrimSpace(c.pendingBytesFilter)
+// parsePendingBytesFilter parses a pending bytes filter which is either an absolute
+// size like 1024 or 1MB, or a percentage like 10%. Exactly one of the returned values
+// will be non zero, both are 0 when the filter is not set.
+func parsePendingBytesFilter(flag string, val string) (int64, float64, error) {
+	val = strings.TrimSpace(val)
 	if val == "" {
 		return 0, 0, nil
 	}
@@ -566,10 +566,10 @@ func (c *SrvRequestCmd) parsePendingBytesFilter() (int64, float64, error) {
 	if strings.HasSuffix(val, "%") {
 		pct, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(val, "%")), 64)
 		if err != nil {
-			return 0, 0, fmt.Errorf("invalid percentage %q for --filter-pending-bytes: %v", val, err)
+			return 0, 0, fmt.Errorf("invalid percentage %q for %s: %v", val, flag, err)
 		}
 		if pct < 0 {
-			return 0, 0, fmt.Errorf("invalid percentage %q for --filter-pending-bytes: must not be negative", val)
+			return 0, 0, fmt.Errorf("invalid percentage %q for %s: must not be negative", val, flag)
 		}
 
 		return 0, pct, nil
@@ -577,10 +577,10 @@ func (c *SrvRequestCmd) parsePendingBytesFilter() (int64, float64, error) {
 
 	size, err := iu.ParseStringAsBytes(val, 64)
 	if err != nil {
-		return 0, 0, fmt.Errorf("invalid size %q for --filter-pending-bytes: %v", val, err)
+		return 0, 0, fmt.Errorf("invalid size %q for %s: %v", val, flag, err)
 	}
 	if size < 0 {
-		return 0, 0, fmt.Errorf("invalid size %q for --filter-pending-bytes: must not be negative", val)
+		return 0, 0, fmt.Errorf("invalid size %q for %s: must not be negative", val, flag)
 	}
 
 	return size, 0, nil
@@ -638,7 +638,7 @@ func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 		opts.State = server.ConnOpen
 	}
 
-	pendingBytes, pendingPercent, err := c.parsePendingBytesFilter()
+	pendingBytes, pendingPercent, err := parsePendingBytesFilter("--filter-pending-bytes", c.pendingBytesFilter)
 	if err != nil {
 		return err
 	}

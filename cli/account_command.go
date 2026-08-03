@@ -54,6 +54,7 @@ type actCmd struct {
 	stateFilter      string
 	user             string
 	filterReason     string
+	pendingBytes     string
 }
 
 func configureActCommand(app commandHost) {
@@ -67,7 +68,7 @@ func configureActCommand(app commandHost) {
 	report := act.Command("report", "Report on account metrics").Alias("rep")
 	report.Tag("scope:user", "impact:ro")
 
-	conns := report.Command("connections", "Report on connections").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnectionsAction)
+	conns := report.Command("connections", "Report on connections. For more options try 'nats server req connections'").Alias("conn").Alias("connz").Alias("conns").Action(c.reportConnectionsAction)
 	conns.Tag("scope:user", "impact:ro")
 	conns.Flag("sort", "Sort by a specific property (in-bytes,out-bytes,in-msgs,out-msgs,uptime,cid,subs)").Default("subs").EnumVar(&c.sort, "in-bytes", "out-bytes", "in-msgs", "out-msgs", "uptime", "cid", "subs")
 	conns.Flag("top", "Limit results to the top results").Default("1000").IntVar(&c.topk)
@@ -76,6 +77,7 @@ func configureActCommand(app commandHost) {
 	conns.Flag("reverse", "Reverse sort connections").Short('R').UnNegatableBoolVar(&c.reverse)
 	conns.Flag("state", "Limits responses only to those connections that are in a specific state (open, closed, all)").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
 	conns.Flag("closed-reason", "Filter results based on a closed reason").PlaceHolder("REASON").StringVar(&c.filterReason)
+	conns.Flag("pending-bytes", "Limits responses only to those connections with at least this many pending bytes, supports sizes like 1MB").PlaceHolder("BYTES").StringVar(&c.pendingBytes)
 
 	stats := report.Command("statistics", "Report on server statistics").Alias("stats").Alias("statsz").Action(c.reportServerStats)
 	stats.Tag("scope:user", "impact:ro")
@@ -238,6 +240,7 @@ func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
 		reverse:                 c.reverse,
 		stateFilter:             c.stateFilter,
 		filterReason:            c.filterReason,
+		pendingBytesFilter:      c.pendingBytes,
 		user:                    c.user,
 		skipDiscoverClusterSize: true,
 		nc:                      nc,

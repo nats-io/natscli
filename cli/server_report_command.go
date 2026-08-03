@@ -52,6 +52,7 @@ type SrvReportCmd struct {
 	tags                    []string
 	stateFilter             string
 	filterReason            string
+	pendingBytesFilter      string
 	skipDiscoverClusterSize bool
 	archivePath             string
 	gatewayName             string
@@ -110,6 +111,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	conns.Flag("username", "Limits responses only to those connections for a specific authentication username").StringVar(&c.user)
 	conns.Flag("state", "Limits responses only to those connections that are in a specific state (open, closed, all)").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
 	conns.Flag("closed-reason", "Filter results based on a closed reason").PlaceHolder("REASON").StringVar(&c.filterReason)
+	conns.Flag("pending-bytes", "Limits responses only to those connections with at least this many pending bytes, supports sizes like 1MB").PlaceHolder("BYTES").StringVar(&c.pendingBytesFilter)
 	conns.Flag("filter", "Expression based filter for connections").StringVar(&c.filterExpression)
 	addFilterOpts(conns)
 	conns.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
@@ -1391,6 +1393,25 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		fisk.FatalIfError(err, "Invalid expression: %v", err)
 	}
 
+	pendingBytes, pendingPercent, err := parsePendingBytesFilter("--pending-bytes", c.pendingBytesFilter)
+	if err != nil {
+		return nil, err
+	}
+	if pendingPercent > 0 {
+		return nil, fmt.Errorf("--pending-bytes does not support percentages, use 'nats server request connections --filter-pending-bytes' instead")
+	}
+
+	// removes any connections with fewer than pendingBytes bytes pending
+	removePendingConns := func(co *server.ServerAPIConnzResponse) {
+		conns := make([]*server.ConnInfo, 0, len(co.Data.Conns))
+		for _, conn := range co.Data.Conns {
+			if conn != nil && int64(conn.Pending) >= pendingBytes {
+				conns = append(conns, conn)
+			}
+		}
+		co.Data.Conns = conns
+	}
+
 	removeFilteredConns := func(co *server.ServerAPIConnzResponse) error {
 		conns := make([]*server.ConnInfo, len(co.Data.Conns))
 		copy(conns, co.Data.Conns)
@@ -1471,6 +1492,10 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		}
 		found += len(co.Data.Conns)
 
+		if pendingBytes > 0 {
+			removePendingConns(co)
+		}
+
 		if c.filterExpression != "" {
 			err = removeFilteredConns(co)
 			if err != nil {
@@ -1537,6 +1562,10 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 
 			if len(co.Data.Conns) == 0 {
 				continue
+			}
+
+			if pendingBytes > 0 {
+				removePendingConns(co)
 			}
 
 			if c.filterExpression != "" {
