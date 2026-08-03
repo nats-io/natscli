@@ -62,6 +62,7 @@ type SrvRequestCmd struct {
 	accountFilter        string
 	subjectFilter        string
 	nameFilter           string
+	pendingBytesFilter   int
 	accountSubscriptions bool
 
 	nc *nats.Conn
@@ -107,6 +108,7 @@ func configureServerRequestCommand(srv *fisk.CmdClause) {
 	connz.Flag("filter-user", "Filter on a specific username").PlaceHolder("USER").StringVar(&c.userFilter)
 	connz.Flag("filter-account", "Filter on a specific account").PlaceHolder("ACCOUNT").StringVar(&c.accountFilter)
 	connz.Flag("filter-subject", "Limits responses only to those connections with matching subscription interest").PlaceHolder("SUBJECT").StringVar(&c.subjectFilter)
+	connz.Flag("filter-pending-bytes", "Only shows connections with at least this many pending bytes").PlaceHolder("BYTES").IntVar(&c.pendingBytesFilter)
 	connz.Flag("filter-empty", "Only shows responses that have connections").Default("false").UnNegatableBoolVar(&c.filterEmpty)
 	connz.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 
@@ -587,6 +589,18 @@ func (c *SrvRequestCmd) conns(_ *fisk.ParseContext) error {
 	}
 
 	for _, r := range responses {
+		if c.pendingBytesFilter > 0 && r.Data != nil {
+			matched := make([]*server.ConnInfo, 0, len(r.Data.Conns))
+			for _, conn := range r.Data.Conns {
+				if conn != nil && conn.Pending >= c.pendingBytesFilter {
+					matched = append(matched, conn)
+				}
+			}
+			r.Data.Conns = matched
+			r.Data.NumConns = len(matched)
+			r.Data.Total = len(matched)
+		}
+
 		if c.filterEmpty && (r.Data == nil || r.Data.NumConns == 0) {
 			continue
 		}
