@@ -41,7 +41,8 @@ nats server req accounts --account WEATHER
 nats server req jsz --leader
 
 # Filter for connections prone to "slow consumer" warnings
-nats server req connections --subscriptions --filter-empty --limit=64000 --filter-pending-bytes=48000000"
+nats server req connections --subscriptions --filter-empty --limit=64000 --filter-pending-bytes=48000000
+nats server req connections --subscriptions --filter-empty --limit=64000 --filter-pending-bytes=75%
 
 # To manage JetStream cluster RAFT membership
 nats server raft step-down

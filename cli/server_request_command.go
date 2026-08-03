@@ -575,15 +575,15 @@ func (c *SrvRequestCmd) parsePendingBytesFilter() (int64, float64, error) {
 		return 0, pct, nil
 	}
 
-	bytes, err := iu.ParseStringAsBytes(val, 64)
+	size, err := iu.ParseStringAsBytes(val, 64)
 	if err != nil {
 		return 0, 0, fmt.Errorf("invalid size %q for --filter-pending-bytes: %v", val, err)
 	}
-	if bytes < 0 {
+	if size < 0 {
 		return 0, 0, fmt.Errorf("invalid size %q for --filter-pending-bytes: must not be negative", val)
 	}
 
-	return bytes, 0, nil
+	return size, 0, nil
 }
 
 // serverMaxPending maps server IDs to their configured max_pending as reported by VARZ
