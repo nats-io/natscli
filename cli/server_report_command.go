@@ -19,8 +19,6 @@ import (
 	"os"
 	"os/signal"
 	"sort"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -1178,7 +1176,7 @@ func (c *SrvReportCmd) accountInfo(connz connzList) map[string]*srvReportAccount
 			account.OutBytes += info.OutBytes
 			account.InMsgs += info.InMsgs
 			account.OutMsgs += info.OutMsgs
-			account.Subs += subCount(info)
+			account.Subs += iu.SubCount(info)
 
 			// make sure we only store one server info per unique server
 			found := false
@@ -1200,23 +1198,6 @@ func (c *SrvReportCmd) accountInfo(connz connzList) map[string]*srvReportAccount
 type connInfo struct {
 	*server.ConnInfo
 	Info *server.ServerInfo `json:"server"`
-}
-
-// subCount returns the number of subscriptions on a connection.
-//
-// The server populates either Subs or SubsDetail depending on whether
-// --subscription-detail was requested, never both, and populates neither when
-// the connection has no subscriptions. NumSubs is always set so it serves as
-// the fallback.
-func subCount(ci *server.ConnInfo) int {
-	switch {
-	case len(ci.SubsDetail) > 0:
-		return len(ci.SubsDetail)
-	case len(ci.Subs) > 0:
-		return len(ci.Subs)
-	default:
-		return int(ci.NumSubs)
-	}
 }
 
 func (c *SrvReportCmd) reportConnections(_ *fisk.ParseContext) error {
@@ -1255,80 +1236,6 @@ func (c *SrvReportCmd) boolReverse(v bool) bool {
 	return v
 }
 
-// pendingBytesFilter holds a parsed --pending-bytes value, either an absolute
-// byte count or a percentage of a servers max_pending setting
-type pendingBytesFilter struct {
-	set       bool
-	isPercent bool
-	bytes     int64
-	percent   float64
-}
-
-// threshold resolves the filter to an absolute byte count. maxPending is only
-// consulted for percentage based filters
-func (p pendingBytesFilter) threshold(maxPending int64) int64 {
-	if p.isPercent {
-		return int64(float64(maxPending) * p.percent / 100)
-	}
-
-	return p.bytes
-}
-
-// parsePendingBytes parses a --pending-bytes value, it accepts byte sizes with
-// units like "1MB" or "512KiB" as well as percentages like "50%" that are
-// relative to the servers max_pending setting
-func parsePendingBytes(s string) (pendingBytesFilter, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return pendingBytesFilter{}, nil
-	}
-
-	if strings.HasSuffix(s, "%") {
-		pct, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(s, "%")), 64)
-		if err != nil {
-			return pendingBytesFilter{}, fmt.Errorf("invalid --pending-bytes percentage %q: %v", s, err)
-		}
-		if pct < 0 || pct > 100 {
-			return pendingBytesFilter{}, fmt.Errorf("invalid --pending-bytes percentage %q: must be between 0%% and 100%%", s)
-		}
-
-		return pendingBytesFilter{set: true, isPercent: true, percent: pct}, nil
-	}
-
-	bytes, err := humanize.ParseBytes(s)
-	if err != nil {
-		return pendingBytesFilter{}, fmt.Errorf("invalid --pending-bytes value %q: %v", s, err)
-	}
-
-	return pendingBytesFilter{set: true, bytes: int64(bytes)}, nil
-}
-
-// serverMaxPending retrieves the max_pending setting for every server via VARZ,
-// keyed on server ID. This requires system account privileges
-func (c *SrvReportCmd) serverMaxPending(src serverdata.Source) (map[string]int64, error) {
-	privErr := fmt.Errorf("could not determine the max_pending setting of the servers, this is required to resolve a percentage based --pending-bytes filter and needs system account privileges, use an absolute size like 1MB instead")
-
-	responses, err := src.Varz(server.VarzEventOptions{EventFilterOptions: c.reqFilter()})
-	if err != nil {
-		return nil, privErr
-	}
-
-	maxPending := map[string]int64{}
-	for _, vz := range responses {
-		if vz.Error != nil || vz.Server == nil || vz.Data == nil {
-			continue
-		}
-		if vz.Data.MaxPending > 0 {
-			maxPending[vz.Server.ID] = vz.Data.MaxPending
-		}
-	}
-
-	if len(maxPending) == 0 {
-		return nil, privErr
-	}
-
-	return maxPending, nil
-}
 
 func (c *SrvReportCmd) sortConnections(conns []connInfo) {
 	sort.Slice(conns, func(i int, j int) bool {
@@ -1346,9 +1253,51 @@ func (c *SrvReportCmd) sortConnections(conns []connInfo) {
 		case "cid":
 			return c.boolReverse(conns[i].Cid < conns[j].Cid)
 		default:
-			return c.boolReverse(subCount(conns[i].ConnInfo) < subCount(conns[j].ConnInfo))
+			return c.boolReverse(iu.SubCount(conns[i].ConnInfo) < iu.SubCount(conns[j].ConnInfo))
 		}
 	})
+}
+
+// addSubscriptionDetail renders the subscription detail of a connection as an
+// indented block of rows directly below that connections row.
+//
+// The connection table columns are reused for the subscription fields so a
+// labelling row is emitted first to say what they hold, cols is the width of
+// the connection table so the rows line up.
+func (c *SrvReportCmd) addSubscriptionDetail(table *iu.Table, info connInfo, cols int) {
+	if !c.subscriptionDetail || len(info.SubsDetail) == 0 {
+		return
+	}
+
+	// pads every row out to the full table width, without this go-pretty renders
+	// short rows with missing trailing cells
+	row := func(vals ...any) {
+		out := make([]any, cols)
+		for i := range out {
+			out[i] = ""
+		}
+		copy(out, vals)
+		table.AddRow(out...)
+	}
+
+	row("", "  Subscriptions", "Subject", "Queue", "SID", "Msgs", "Max")
+
+	for _, sub := range info.SubsDetail {
+		queue := sub.Queue
+		if queue == "" {
+			queue = "-"
+		}
+
+		// Max is only meaningful for auto unsubscribe subscriptions
+		max := "-"
+		if sub.Max > 0 {
+			max = f(sub.Max)
+		}
+
+		row("", "", sub.Subject, queue, sub.Sid, f(sub.Msgs), max)
+	}
+
+	table.AddSeparator()
 }
 
 func (c *SrvReportCmd) renderConnections(report []connInfo) {
@@ -1395,7 +1344,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		iMsgs += info.InMsgs
 		oBytes += info.OutBytes
 		iBytes += info.InBytes
-		subs += subCount(info.ConnInfo)
+		subs += iu.SubCount(info.ConnInfo)
 
 		srvName := info.Info.Name
 		cluster := info.Info.Cluster
@@ -1419,11 +1368,13 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		}
 
 		if i < limit {
-			values := []any{cid, name, srvName, cluster, fmt.Sprintf("%s:%d", info.IP, info.Port), acc, info.Uptime, f(info.InMsgs), f(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), f(subCount(info.ConnInfo))}
+			values := []any{cid, name, srvName, cluster, fmt.Sprintf("%s:%d", info.IP, info.Port), acc, info.Uptime, f(info.InMsgs), f(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), f(iu.SubCount(info.ConnInfo))}
 			if showReason {
 				values = append(values, info.Reason)
 			}
 			table.AddRow(values...)
+
+			c.addSubscriptionDetail(table, info, len(headers))
 		}
 	}
 
@@ -1500,7 +1451,7 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		fisk.FatalIfError(err, "Invalid expression: %v", err)
 	}
 
-	pending, err := parsePendingBytes(c.pendingBytes)
+	pending, err := iu.ParsePendingBytes(c.pendingBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -1522,8 +1473,8 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 	// percentage based pending filters need each servers max_pending setting,
 	// absolute sizes can be resolved without asking the servers anything
 	var maxPending map[string]int64
-	if pending.set && pending.isPercent {
-		maxPending, err = c.serverMaxPending(src)
+	if pending.Set && pending.IsPercent {
+		maxPending, err = iu.ServerMaxPending(src, c.reqFilter())
 		if err != nil {
 			return nil, err
 		}
@@ -1536,20 +1487,20 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		srv := iu.StructWithoutOmitEmpty(*co.Server)
 
 		var threshold int64
-		if pending.set {
-			if pending.isPercent {
+		if pending.Set {
+			if pending.IsPercent {
 				mp, ok := maxPending[co.Server.ID]
 				if !ok {
 					return fmt.Errorf("could not determine the max_pending setting of server %s, this is required to resolve a percentage based --pending-bytes filter and needs system account privileges, use an absolute size like 1MB instead", co.Server.Name)
 				}
-				threshold = pending.threshold(mp)
+				threshold = pending.Threshold(mp)
 			} else {
-				threshold = pending.threshold(0)
+				threshold = pending.Threshold(0)
 			}
 		}
 
 		for _, conn := range conns {
-			if pending.set && int64(conn.Pending) < threshold {
+			if pending.Set && int64(conn.Pending) < threshold {
 				continue
 			}
 

@@ -36,12 +36,78 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/natscli/internal/asciigraph"
 	"github.com/nats-io/natscli/options"
 	"github.com/nats-io/nkeys"
 	terminal "golang.org/x/term"
 )
+
+// PendingBytesFilter holds a parsed pending bytes filter, either an absolute
+// byte count or a percentage of a servers max_pending setting
+type PendingBytesFilter struct {
+	Set       bool
+	IsPercent bool
+	Bytes     int64
+	Percent   float64
+}
+
+// Threshold resolves the filter to an absolute byte count. maxPending is only
+// consulted for percentage based filters
+func (p PendingBytesFilter) Threshold(maxPending int64) int64 {
+	if p.IsPercent {
+		return int64(float64(maxPending) * p.Percent / 100)
+	}
+
+	return p.Bytes
+}
+
+// ParsePendingBytes parses a pending bytes filter value, it accepts byte sizes
+// with units like "1MB" or "512KiB" as well as percentages like "50%" that are
+// relative to the servers max_pending setting
+func ParsePendingBytes(s string) (PendingBytesFilter, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return PendingBytesFilter{}, nil
+	}
+
+	if strings.HasSuffix(s, "%") {
+		pct, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(s, "%")), 64)
+		if err != nil {
+			return PendingBytesFilter{}, fmt.Errorf("invalid --pending-bytes percentage %q: %v", s, err)
+		}
+		if pct < 0 || pct > 100 {
+			return PendingBytesFilter{}, fmt.Errorf("invalid --pending-bytes percentage %q: must be between 0%% and 100%%", s)
+		}
+
+		return PendingBytesFilter{Set: true, IsPercent: true, Percent: pct}, nil
+	}
+
+	bytes, err := humanize.ParseBytes(s)
+	if err != nil {
+		return PendingBytesFilter{}, fmt.Errorf("invalid --pending-bytes value %q: %v", s, err)
+	}
+
+	return PendingBytesFilter{Set: true, Bytes: int64(bytes)}, nil
+}
+
+// SubCount returns the number of subscriptions on a connection.
+//
+// The server populates either Subs or SubsDetail depending on whether
+// subscription detail was requested, never both, and populates neither when the
+// connection has no subscriptions. NumSubs is always set so it serves as the
+// fallback.
+func SubCount(ci *server.ConnInfo) int {
+	switch {
+	case len(ci.SubsDetail) > 0:
+		return len(ci.SubsDetail)
+	case len(ci.Subs) > 0:
+		return len(ci.Subs)
+	default:
+		return int(ci.NumSubs)
+	}
+}
 
 // RemoveReservedMetadata returns a new version of metadata with reserved keys starting with _nats. removed
 func RemoveReservedMetadata(metadata map[string]string) map[string]string {

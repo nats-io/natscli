@@ -19,7 +19,41 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+
+	"github.com/nats-io/jsm.go/serverdata"
+	"github.com/nats-io/nats-server/v2/server"
 )
+
+// ServerMaxPending retrieves the max_pending configuration setting of every
+// server via VARZ, keyed on server ID. This requires system account privileges.
+//
+// An error is returned when the setting cannot be established for any server,
+// callers should not substitute a default as filtering against a value the
+// servers are not actually configured with produces misleading results.
+func ServerMaxPending(src serverdata.Source, filter server.EventFilterOptions) (map[string]int64, error) {
+	privErr := fmt.Errorf("could not determine the max_pending setting of the servers, this is required to resolve a percentage based --pending-bytes filter and needs system account privileges, use an absolute size like 1MB instead")
+
+	responses, err := src.Varz(server.VarzEventOptions{EventFilterOptions: filter})
+	if err != nil {
+		return nil, privErr
+	}
+
+	maxPending := map[string]int64{}
+	for _, vz := range responses {
+		if vz.Error != nil || vz.Server == nil || vz.Data == nil {
+			continue
+		}
+		if vz.Data.MaxPending > 0 {
+			maxPending[vz.Server.ID] = vz.Data.MaxPending
+		}
+	}
+
+	if len(maxPending) == 0 {
+		return nil, privErr
+	}
+
+	return maxPending, nil
+}
 
 type Config struct {
 	SelectedOperator string `json:"select_operator"`

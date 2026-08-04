@@ -55,7 +55,6 @@ type actCmd struct {
 	user             string
 	filterReason     string
 
-	json               bool
 	pendingBytes       string
 	filterEmpty        bool
 	subscriptionDetail bool
@@ -84,7 +83,6 @@ func configureActCommand(app commandHost) {
 	conns.Flag("filter-empty", "Only shows responses that have connections").UnNegatableBoolVar(&c.filterEmpty)
 	conns.Flag("pending-bytes", "Filter out connections with fewer than pending bytes in the outbound buffer (accepts units: KB, MB, GB; or percentage: 50%)").PlaceHolder("BYTES").StringVar(&c.pendingBytes)
 	conns.Flag("subscription-detail", "Request detailed subscription information rather than a plain subject list").UnNegatableBoolVar(&c.subscriptionDetail)
-	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	stats := report.Command("statistics", "Report on server statistics").Alias("stats").Alias("statsz").Action(c.reportServerStats)
 	stats.Tag("scope:user", "impact:ro")
@@ -238,11 +236,11 @@ func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
 	// resolving a percentage needs each servers max_pending from VARZ which is
 	// only available to the system account, this command runs in a user scope so
 	// reject it before connecting rather than failing after gathering data
-	pending, err := parsePendingBytes(c.pendingBytes)
+	pending, err := iu.ParsePendingBytes(c.pendingBytes)
 	if err != nil {
 		return err
 	}
-	if pending.isPercent {
+	if pending.IsPercent {
 		return fmt.Errorf("percentage based --pending-bytes filters require system account privileges, use an absolute size like 1MB here or use 'nats server report connections' with a system account")
 	}
 
@@ -259,7 +257,6 @@ func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
 		stateFilter:             c.stateFilter,
 		filterReason:            c.filterReason,
 		user:                    c.user,
-		json:                    c.json,
 		pendingBytes:            c.pendingBytes,
 		filterEmpty:             c.filterEmpty,
 		subscriptionDetail:      c.subscriptionDetail,
