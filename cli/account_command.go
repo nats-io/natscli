@@ -54,6 +54,11 @@ type actCmd struct {
 	stateFilter      string
 	user             string
 	filterReason     string
+
+	json               bool
+	pendingBytes       string
+	filterEmpty        bool
+	subscriptionDetail bool
 }
 
 func configureActCommand(app commandHost) {
@@ -76,6 +81,10 @@ func configureActCommand(app commandHost) {
 	conns.Flag("reverse", "Reverse sort connections").Short('R').UnNegatableBoolVar(&c.reverse)
 	conns.Flag("state", "Limits responses only to those connections that are in a specific state (open, closed, all)").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
 	conns.Flag("closed-reason", "Filter results based on a closed reason").PlaceHolder("REASON").StringVar(&c.filterReason)
+	conns.Flag("filter-empty", "Only shows responses that have connections").UnNegatableBoolVar(&c.filterEmpty)
+	conns.Flag("pending-bytes", "Filter out connections with fewer than pending bytes in the outbound buffer (accepts units: KB, MB, GB; or percentage: 50%)").PlaceHolder("BYTES").StringVar(&c.pendingBytes)
+	conns.Flag("subscription-detail", "Request detailed subscription information rather than a plain subject list").UnNegatableBoolVar(&c.subscriptionDetail)
+	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	stats := report.Command("statistics", "Report on server statistics").Alias("stats").Alias("statsz").Action(c.reportServerStats)
 	stats.Tag("scope:user", "impact:ro")
@@ -226,6 +235,17 @@ func (c *actCmd) restoreAction(kp *fisk.ParseContext) error {
 }
 
 func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
+	// resolving a percentage needs each servers max_pending from VARZ which is
+	// only available to the system account, this command runs in a user scope so
+	// reject it before connecting rather than failing after gathering data
+	pending, err := parsePendingBytes(c.pendingBytes)
+	if err != nil {
+		return err
+	}
+	if pending.isPercent {
+		return fmt.Errorf("percentage based --pending-bytes filters require system account privileges, use an absolute size like 1MB here or use 'nats server report connections' with a system account")
+	}
+
 	nc, _, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
@@ -239,6 +259,10 @@ func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {
 		stateFilter:             c.stateFilter,
 		filterReason:            c.filterReason,
 		user:                    c.user,
+		json:                    c.json,
+		pendingBytes:            c.pendingBytes,
+		filterEmpty:             c.filterEmpty,
+		subscriptionDetail:      c.subscriptionDetail,
 		skipDiscoverClusterSize: true,
 		nc:                      nc,
 	}

@@ -19,6 +19,8 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -63,6 +65,9 @@ type SrvReportCmd struct {
 	nc                      *nats.Conn
 	apiLevel                uint
 	all                     bool
+	filterEmpty             bool
+	pendingBytes            string
+	subscriptionDetail      bool
 }
 
 type srvReportAccountInfo struct {
@@ -111,6 +116,9 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	conns.Flag("state", "Limits responses only to those connections that are in a specific state (open, closed, all)").Default("open").EnumVar(&c.stateFilter, "open", "closed", "all")
 	conns.Flag("closed-reason", "Filter results based on a closed reason").PlaceHolder("REASON").StringVar(&c.filterReason)
 	conns.Flag("filter", "Expression based filter for connections").StringVar(&c.filterExpression)
+	conns.Flag("filter-empty", "Only shows responses that have connections").UnNegatableBoolVar(&c.filterEmpty)
+	conns.Flag("pending-bytes", "Filter out connections with fewer than pending bytes in the outbound buffer (accepts units: KB, MB, GB; or percentage: 50%)").PlaceHolder("BYTES").StringVar(&c.pendingBytes)
+	conns.Flag("subscription-detail", "Request detailed subscription information rather than a plain subject list").UnNegatableBoolVar(&c.subscriptionDetail)
 	addFilterOpts(conns)
 	conns.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
 	conns.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
@@ -1078,6 +1086,9 @@ func (c *SrvReportCmd) reportAccount(_ *fisk.ParseContext) error {
 
 	if c.account != "" {
 		accounts := c.accountInfo(connz)
+		if len(accounts) == 0 {
+			return fmt.Errorf("did not receive any results for account %s", c.account)
+		}
 		if len(accounts) != 1 {
 			return fmt.Errorf("received results for multiple accounts, expected %v", c.account)
 		}
@@ -1167,7 +1178,7 @@ func (c *SrvReportCmd) accountInfo(connz connzList) map[string]*srvReportAccount
 			account.OutBytes += info.OutBytes
 			account.InMsgs += info.InMsgs
 			account.OutMsgs += info.OutMsgs
-			account.Subs += len(info.Subs)
+			account.Subs += subCount(info)
 
 			// make sure we only store one server info per unique server
 			found := false
@@ -1191,6 +1202,23 @@ type connInfo struct {
 	Info *server.ServerInfo `json:"server"`
 }
 
+// subCount returns the number of subscriptions on a connection.
+//
+// The server populates either Subs or SubsDetail depending on whether
+// --subscription-detail was requested, never both, and populates neither when
+// the connection has no subscriptions. NumSubs is always set so it serves as
+// the fallback.
+func subCount(ci *server.ConnInfo) int {
+	switch {
+	case len(ci.SubsDetail) > 0:
+		return len(ci.SubsDetail)
+	case len(ci.Subs) > 0:
+		return len(ci.Subs)
+	default:
+		return int(ci.NumSubs)
+	}
+}
+
 func (c *SrvReportCmd) reportConnections(_ *fisk.ParseContext) error {
 	connz, err := c.getConnz(0, c.nc)
 	if err != nil {
@@ -1202,6 +1230,12 @@ func (c *SrvReportCmd) reportConnections(_ *fisk.ParseContext) error {
 	}
 
 	conns := connz.flatConnInfo()
+
+	// --filter-empty suppresses the report entirely when nothing matched, without
+	// it an empty result still renders a normal, empty report
+	if c.filterEmpty && len(conns) == 0 {
+		return nil
+	}
 
 	if c.json {
 		iu.PrintJSON(conns)
@@ -1221,6 +1255,81 @@ func (c *SrvReportCmd) boolReverse(v bool) bool {
 	return v
 }
 
+// pendingBytesFilter holds a parsed --pending-bytes value, either an absolute
+// byte count or a percentage of a servers max_pending setting
+type pendingBytesFilter struct {
+	set       bool
+	isPercent bool
+	bytes     int64
+	percent   float64
+}
+
+// threshold resolves the filter to an absolute byte count. maxPending is only
+// consulted for percentage based filters
+func (p pendingBytesFilter) threshold(maxPending int64) int64 {
+	if p.isPercent {
+		return int64(float64(maxPending) * p.percent / 100)
+	}
+
+	return p.bytes
+}
+
+// parsePendingBytes parses a --pending-bytes value, it accepts byte sizes with
+// units like "1MB" or "512KiB" as well as percentages like "50%" that are
+// relative to the servers max_pending setting
+func parsePendingBytes(s string) (pendingBytesFilter, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return pendingBytesFilter{}, nil
+	}
+
+	if strings.HasSuffix(s, "%") {
+		pct, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(s, "%")), 64)
+		if err != nil {
+			return pendingBytesFilter{}, fmt.Errorf("invalid --pending-bytes percentage %q: %v", s, err)
+		}
+		if pct < 0 || pct > 100 {
+			return pendingBytesFilter{}, fmt.Errorf("invalid --pending-bytes percentage %q: must be between 0%% and 100%%", s)
+		}
+
+		return pendingBytesFilter{set: true, isPercent: true, percent: pct}, nil
+	}
+
+	bytes, err := humanize.ParseBytes(s)
+	if err != nil {
+		return pendingBytesFilter{}, fmt.Errorf("invalid --pending-bytes value %q: %v", s, err)
+	}
+
+	return pendingBytesFilter{set: true, bytes: int64(bytes)}, nil
+}
+
+// serverMaxPending retrieves the max_pending setting for every server via VARZ,
+// keyed on server ID. This requires system account privileges
+func (c *SrvReportCmd) serverMaxPending(src serverdata.Source) (map[string]int64, error) {
+	privErr := fmt.Errorf("could not determine the max_pending setting of the servers, this is required to resolve a percentage based --pending-bytes filter and needs system account privileges, use an absolute size like 1MB instead")
+
+	responses, err := src.Varz(server.VarzEventOptions{EventFilterOptions: c.reqFilter()})
+	if err != nil {
+		return nil, privErr
+	}
+
+	maxPending := map[string]int64{}
+	for _, vz := range responses {
+		if vz.Error != nil || vz.Server == nil || vz.Data == nil {
+			continue
+		}
+		if vz.Data.MaxPending > 0 {
+			maxPending[vz.Server.ID] = vz.Data.MaxPending
+		}
+	}
+
+	if len(maxPending) == 0 {
+		return nil, privErr
+	}
+
+	return maxPending, nil
+}
+
 func (c *SrvReportCmd) sortConnections(conns []connInfo) {
 	sort.Slice(conns, func(i int, j int) bool {
 		switch c.sort {
@@ -1237,7 +1346,7 @@ func (c *SrvReportCmd) sortConnections(conns []connInfo) {
 		case "cid":
 			return c.boolReverse(conns[i].Cid < conns[j].Cid)
 		default:
-			return c.boolReverse(len(conns[i].Subs) < len(conns[j].Subs))
+			return c.boolReverse(subCount(conns[i].ConnInfo) < subCount(conns[j].ConnInfo))
 		}
 	})
 }
@@ -1264,7 +1373,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 	var iMsgs int64
 	var oBytes int64
 	var iBytes int64
-	var subs uint32
+	var subs int
 
 	type srvInfo struct {
 		cluster string
@@ -1286,7 +1395,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		iMsgs += info.InMsgs
 		oBytes += info.OutBytes
 		iBytes += info.InBytes
-		subs += info.NumSubs
+		subs += subCount(info.ConnInfo)
 
 		srvName := info.Info.Name
 		cluster := info.Info.Cluster
@@ -1310,7 +1419,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 		}
 
 		if i < limit {
-			values := []any{cid, name, srvName, cluster, fmt.Sprintf("%s:%d", info.IP, info.Port), acc, info.Uptime, f(info.InMsgs), f(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), f(len(info.Subs))}
+			values := []any{cid, name, srvName, cluster, fmt.Sprintf("%s:%d", info.IP, info.Port), acc, info.Uptime, f(info.InMsgs), f(info.OutMsgs), humanize.IBytes(uint64(info.InBytes)), humanize.IBytes(uint64(info.OutBytes)), f(subCount(info.ConnInfo))}
 			if showReason {
 				values = append(values, info.Reason)
 			}
@@ -1354,7 +1463,7 @@ func (c *SrvReportCmd) renderConnections(report []connInfo) {
 type connzList []*server.ServerAPIConnzResponse
 
 func (c connzList) flatConnInfo() []connInfo {
-	var conns []connInfo
+	conns := []connInfo{}
 
 	for _, conn := range c {
 		for _, c := range conn.Data.Conns {
@@ -1391,38 +1500,9 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		fisk.FatalIfError(err, "Invalid expression: %v", err)
 	}
 
-	removeFilteredConns := func(co *server.ServerAPIConnzResponse) error {
-		conns := make([]*server.ConnInfo, len(co.Data.Conns))
-		copy(conns, co.Data.Conns)
-		co.Data.Conns = []*server.ConnInfo{}
-		srv := iu.StructWithoutOmitEmpty(*co.Server)
-
-		for _, conn := range conns {
-			env["server"] = srv
-			env["Server"] = co.Server
-			env["conn"] = iu.StructWithoutOmitEmpty(*conn)
-			env["Conn"] = conn
-
-			// backward compat, the `s` here is a mistake
-			env["Conns"] = conn
-			env["conns"] = env["conn"]
-
-			out, err := expr.Run(program, env)
-			if err != nil {
-				fisk.FatalIfError(err, "Invalid expression: %v", err)
-			}
-
-			should, ok := out.(bool)
-			if !ok {
-				fisk.FatalIfError(err, "expression did not return a boolean")
-			}
-
-			if should {
-				co.Data.Conns = append(co.Data.Conns, conn)
-			}
-		}
-
-		return nil
+	pending, err := parsePendingBytes(c.pendingBytes)
+	if err != nil {
+		return nil, err
 	}
 
 	state := server.ConnOpen
@@ -1439,12 +1519,80 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 	}
 	defer src.Close()
 
+	// percentage based pending filters need each servers max_pending setting,
+	// absolute sizes can be resolved without asking the servers anything
+	var maxPending map[string]int64
+	if pending.set && pending.isPercent {
+		maxPending, err = c.serverMaxPending(src)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	removeFilteredConns := func(co *server.ServerAPIConnzResponse) error {
+		conns := make([]*server.ConnInfo, len(co.Data.Conns))
+		copy(conns, co.Data.Conns)
+		co.Data.Conns = []*server.ConnInfo{}
+		srv := iu.StructWithoutOmitEmpty(*co.Server)
+
+		var threshold int64
+		if pending.set {
+			if pending.isPercent {
+				mp, ok := maxPending[co.Server.ID]
+				if !ok {
+					return fmt.Errorf("could not determine the max_pending setting of server %s, this is required to resolve a percentage based --pending-bytes filter and needs system account privileges, use an absolute size like 1MB instead", co.Server.Name)
+				}
+				threshold = pending.threshold(mp)
+			} else {
+				threshold = pending.threshold(0)
+			}
+		}
+
+		for _, conn := range conns {
+			if pending.set && int64(conn.Pending) < threshold {
+				continue
+			}
+
+			// If we have an expression filter, evaluate it
+			if program != nil {
+				env["server"] = srv
+				env["Server"] = co.Server
+				env["conn"] = iu.StructWithoutOmitEmpty(*conn)
+				env["Conn"] = conn
+
+				// backward compat, the `s` here is a mistake
+				env["Conns"] = conn
+				env["conns"] = env["conn"]
+
+				out, err := expr.Run(program, env)
+				if err != nil {
+					fisk.FatalIfError(err, "Invalid expression: %v", err)
+				}
+
+				should, ok := out.(bool)
+				if !ok {
+					fisk.FatalIfError(err, "expression did not return a boolean")
+				}
+
+				if !should {
+					continue
+				}
+			}
+
+			co.Data.Conns = append(co.Data.Conns, conn)
+		}
+
+		return nil
+	}
+
 	offset := 0
 	more := false
 
 	connzOpts := server.ConnzOptions{
+		// the server treats these as mutually exclusive, when SubscriptionsDetail
+		// is set it populates ConnInfo.SubsDetail and leaves ConnInfo.Subs empty
 		Subscriptions:       true,
-		SubscriptionsDetail: false,
+		SubscriptionsDetail: c.subscriptionDetail,
 		Username:            true,
 		User:                c.user,
 		Account:             c.account,
@@ -1471,16 +1619,17 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 		}
 		found += len(co.Data.Conns)
 
-		if c.filterExpression != "" {
+		if c.filterExpression != "" || c.pendingBytes != "" {
 			err = removeFilteredConns(co)
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		if len(co.Data.Conns) > 0 {
-			result = append(result, co)
-		}
+		// responses with no connections are kept so that callers can tell the
+		// difference between "no server answered" and "no connection matched",
+		// dropping them is what --filter-empty does
+		result = append(result, co)
 	}
 
 	if limit != 0 && found > limit {
@@ -1539,7 +1688,7 @@ func (c *SrvReportCmd) getConnz(limit int, nc *nats.Conn) (connzList, error) {
 				continue
 			}
 
-			if c.filterExpression != "" {
+			if c.filterExpression != "" || c.pendingBytes != "" {
 				err = removeFilteredConns(co)
 				if err != nil {
 					return nil, err
