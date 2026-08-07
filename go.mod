@@ -18,18 +18,18 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/jedib0t/go-pretty/v6 v6.8.3
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.19.1
+	github.com/klauspost/compress v1.19.2
 	github.com/nats-io/jsm.go v0.4.2-0.20260720120757-eeb73841063f
 	github.com/nats-io/jwt/v2 v2.8.2
-	github.com/nats-io/nats-server/v2 v2.14.3
+	github.com/nats-io/nats-server/v2 v2.14.4
 	github.com/nats-io/nats.go v1.52.0
 	github.com/nats-io/nkeys v0.4.16
 	github.com/nats-io/nuid v1.0.1
-	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_golang v1.24.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/synadia-io/jwt-auth-builder.go v0.0.10
-	github.com/synadia-io/orbit.go/counters v0.1.1
-	github.com/synadia-io/orbit.go/jetstreamext v0.3.1
+	github.com/synadia-io/orbit.go/counters v0.1.2
+	github.com/synadia-io/orbit.go/jetstreamext v0.3.2
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.54.0
 	golang.org/x/term v0.45.0
@@ -54,8 +54,8 @@ require (
 	github.com/gosuri/uilive v0.0.4 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
-	github.com/mattn/go-isatty v0.0.23 // indirect
-	github.com/mattn/go-runewidth v0.0.24 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
+	github.com/mattn/go-runewidth v0.0.27 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/minio/highwayhash v1.0.4 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -65,12 +65,12 @@ require (
 	github.com/nats-io/nsc/v2 v2.15.0 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.70.0 // indirect
+	github.com/prometheus/common v0.70.1 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	github.com/synadia-io/orbit.go/natsext v0.1.2 // indirect
-	golang.org/x/exp v0.0.0-20260718201538-764159d718ef // indirect
+	github.com/synadia-io/orbit.go/natsext v0.1.3 // indirect
+	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
