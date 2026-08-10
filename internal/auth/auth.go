@@ -177,13 +177,17 @@ func SelectOperatorAccount(operatorName string, accountName string, pick bool) (
 		}
 
 		names := SortedAuthNames(operator.Accounts().List())
-		err = iu.AskOne(&survey.Select{
-			Message:  "Select an Account",
-			Options:  names,
-			PageSize: iu.SelectPageSize(len(names)),
-		}, &accountName)
-		if err != nil {
-			return nil, nil, nil, err
+		if len(names) == 1 {
+			accountName = names[0]
+		} else {
+			err = iu.AskOne(&survey.Select{
+				Message:  "Select an Account",
+				Options:  names,
+				PageSize: iu.SelectPageSize(len(names)),
+			}, &accountName)
+			if err != nil {
+				return nil, nil, nil, err
+			}
 		}
 	}
 
@@ -248,49 +252,64 @@ func SelectAccount(op ab.Operator, choice string, prompt string) (ab.Account, er
 	return accts[answ], nil
 }
 
-func SelectSigningKey(acct ab.Account, choice string) (ab.ScopeLimits, error) {
+func SelectSigningKey(acct ab.Account, choice string, scopedOnly bool) (ab.ScopeLimits, string, error) {
 	if choice != "" {
 		// choice is a role and we have just one key for that role
 		scopes, _ := acct.ScopedSigningKeys().GetScopeByRole(choice)
 		if len(scopes) == 1 {
-			return scopes[0], nil
+			return scopes[0], scopes[0].Key(), nil
 		}
 
 		// its a public key so we try that
 		scope, _ := acct.ScopedSigningKeys().GetScope(choice)
 		if scope != nil {
-			return scope, nil
+			return scope, choice, nil
 		}
 	}
 
 	sks := acct.ScopedSigningKeys().List()
 	if len(sks) == 0 {
-		return nil, fmt.Errorf("no signing keys found")
+		return nil, "", fmt.Errorf("no signing keys found")
 	}
 
 	type k struct {
 		scope       ab.ScopeLimits
+		key         string
 		description string
 	}
+
 	var choices []k
+	var scopes []string
 
 	for _, sk := range sks {
 		scope, _ := acct.ScopedSigningKeys().GetScope(sk)
 
-		// if they gave us a key and we have it just use that
-		if scope.Key() == choice {
-			return scope, nil
+		if scope == nil && scopedOnly {
+			continue
 		}
 
 		var description string
-		if scope.Description() == "" {
-			description = scope.Role()
-		} else {
-			description = fmt.Sprintf("%s %s", scope.Role(), scope.Description())
+		key := sk
+
+		if scope != nil {
+			// if they gave us a key and we have it just use that
+			if scope.Key() == choice {
+				return scope, scope.Key(), nil
+			}
+
+			key = scope.Key()
+
+			if scope.Description() == "" {
+				description = fmt.Sprintf("Scope %s", scope.Role())
+			} else {
+				description = fmt.Sprintf("Scope %s (%s)", scope.Role(), scope.Description())
+			}
 		}
 
+		scopes = append(scopes, sk)
 		choices = append(choices, k{
 			scope:       scope,
+			key:         key,
 			description: description,
 		})
 	}
@@ -299,16 +318,16 @@ func SelectSigningKey(acct ab.Account, choice string) (ab.ScopeLimits, error) {
 
 	err := survey.AskOne(&survey.Select{
 		Message: "Select Signing Key",
-		Options: sks,
+		Options: scopes,
 		Description: func(value string, index int) string {
 			return choices[index].description
 		},
 	}, &answ)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return choices[answ].scope, nil
+	return choices[answ].scope, choices[answ].key, nil
 }
 
 func RenderUserLimits(limits ab.UserLimits, cols *columns.Writer) error {
