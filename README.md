@@ -42,8 +42,7 @@ go install github.com/nats-io/natscli/nats@v0.0.33
 For macOS `brew` can be used to install the latest released version:
 
 ```nohighlight
-brew tap nats-io/nats-tools
-brew install nats-io/nats-tools/nats
+brew install nats
 ```
 #### Windows installation via scoop
 On Windows, [scoop](https://scoop.sh) has the latest released version:
