@@ -1,6 +1,9 @@
 # To publish 100 messages with a random body between 100 and 1000 characters
 nats pub destination.subject "{{ Random 100 1000 }}" -H Count:{{ Count }} --count 100
 
+# To publish 100 messages, pausing 1 second plus up to 500ms of random jitter between each
+nats pub destination.subject "hello world" --count 100 --sleep 1s --jitter 500ms
+
 # To publish messages from STDIN
 echo "hello world" | nats pub destination.subject
 

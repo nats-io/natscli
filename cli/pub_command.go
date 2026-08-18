@@ -16,6 +16,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"os/signal"
 	"syscall"
 	"time"
@@ -40,6 +41,7 @@ type pubCmd struct {
 	hdrs       []string
 	cnt        int
 	sleep      time.Duration
+	jitter     time.Duration
 	forceStdin bool
 	jetstream  bool
 	schedules  bool
@@ -96,6 +98,7 @@ Available template functions are:
 	pub.Flag("count", "Publish multiple messages").Default("1").IntVar(&c.cnt)
 	pub.Flag("force-stdin", "Force reading from stdin").UnNegatableBoolVar(&c.forceStdin)
 	pub.Flag("jetstream", "Publish messages to JetStream").Short('J').UnNegatableBoolVar(&c.jetstream)
+	pub.Flag("jitter", "When publishing multiple messages, adds a random delay of up to this duration between publishes, in addition to --sleep").PlaceHolder("DURATION").DurationVar(&c.jitter)
 	pub.Flag("quiet", "Show just the output received").Short('q').UnNegatableBoolVar(&c.quiet)
 	pub.Flag("schedule-after", "Schedule the message after a certain duration (implies --jetstream)").PlaceHolder("DURATION").IsSetByUser(&c.scheduleAfterIsSet).DurationVar(&c.scheduleAfter)
 	pub.Flag("schedule-at", "Schedule the message at a certain RFC3339 time (implies --jetstream)").PlaceHolder("TIME").StringVar(&c.scheduleAt)
@@ -111,6 +114,17 @@ Available template functions are:
 
 func init() {
 	registerCommand("pub", 11, configurePubCommand)
+}
+
+// delay returns the pause between publishes: the fixed --sleep duration
+// plus a random amount of up to --jitter.
+func (c *pubCmd) delay() time.Duration {
+	d := c.sleep
+	if c.jitter > 0 {
+		d += rand.N(c.jitter)
+	}
+
+	return d
 }
 
 func (c *pubCmd) writeAtomic(nc *nats.Conn) error {
@@ -312,8 +326,8 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, pub *iu.Publisher) error {
 		}
 
 		// If applicable, account for the wait duration in a publish sleep.
-		if c.cnt > 1 && c.sleep > 0 {
-			st := c.sleep - time.Since(start)
+		if c.cnt > 1 {
+			st := c.delay() - time.Since(start)
 			if st > 0 {
 				time.Sleep(st)
 			}
@@ -441,8 +455,10 @@ func (c *pubCmd) publishNatsMsg(ctx context.Context, nc *nats.Conn, pub *iu.Publ
 					return err
 				}
 
-				if c.cnt > 1 && c.sleep > 0 {
-					time.Sleep(c.sleep)
+				if c.cnt > 1 {
+					if d := c.delay(); d > 0 {
+						time.Sleep(d)
+					}
 				}
 
 				tracker := pub.Tracker
