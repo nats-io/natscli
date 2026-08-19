@@ -326,7 +326,8 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, pub *iu.Publisher) error {
 		}
 
 		// If applicable, account for the wait duration in a publish sleep.
-		if c.cnt > 1 {
+		// Only delay when another publish is pending, never after the final one.
+		if i < c.cnt {
 			st := c.delay() - time.Since(start)
 			if st > 0 {
 				time.Sleep(st)
@@ -455,7 +456,8 @@ func (c *pubCmd) publishNatsMsg(ctx context.Context, nc *nats.Conn, pub *iu.Publ
 					return err
 				}
 
-				if c.cnt > 1 {
+				// Only delay when another publish is pending, never after the final one.
+				if i < c.cnt {
 					if d := c.delay(); d > 0 {
 						time.Sleep(d)
 					}
