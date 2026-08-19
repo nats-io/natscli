@@ -42,6 +42,7 @@ type pubCmd struct {
 	cnt        int
 	sleep      time.Duration
 	jitter     time.Duration
+	lastPub    time.Time
 	forceStdin bool
 	jetstream  bool
 	schedules  bool
@@ -125,6 +126,22 @@ func (c *pubCmd) delay() time.Duration {
 	}
 
 	return d
+}
+
+// pauseBetweenPublishes sleeps so consecutive publishes are spaced by the
+// --sleep duration plus a random amount of up to --jitter, measured from when
+// the previous publish began. Time already spent since then, such as ack round
+// trips or waiting on stdin, is credited against the pause. The command's
+// first publish is never delayed, and neither is any publish once the
+// previous one is more than the target delay in the past.
+func (c *pubCmd) pauseBetweenPublishes() {
+	if !c.lastPub.IsZero() {
+		if st := c.delay() - time.Since(c.lastPub); st > 0 {
+			time.Sleep(st)
+		}
+	}
+
+	c.lastPub = time.Now()
 }
 
 func (c *pubCmd) writeAtomic(nc *nats.Conn) error {
@@ -270,7 +287,7 @@ func (c *pubCmd) addScheduleHeaders(msg *nats.Msg) error {
 
 func (c *pubCmd) doJetstream(nc *nats.Conn, pub *iu.Publisher) error {
 	for i := 1; i <= c.cnt; i++ {
-		start := time.Now()
+		c.pauseBetweenPublishes()
 		body, subj, bodyErr, subjErr := pub.ParseTemplates(c.body, c.subject, i)
 		if bodyErr != nil {
 			log.Printf("Could not parse body template: %s", bodyErr)
@@ -323,15 +340,6 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, pub *iu.Publisher) error {
 				msg += fmt.Sprintf(" Counter Value: %s", ack.Value)
 			}
 			log.Printf(msg)
-		}
-
-		// If applicable, account for the wait duration in a publish sleep.
-		// Only delay when another publish is pending, never after the final one.
-		if i < c.cnt {
-			st := c.delay() - time.Since(start)
-			if st > 0 {
-				time.Sleep(st)
-			}
 		}
 	}
 
@@ -445,6 +453,7 @@ func (c *pubCmd) publishNatsMsg(ctx context.Context, nc *nats.Conn, pub *iu.Publ
 					return err
 				}
 
+				c.pauseBetweenPublishes()
 				err = nc.PublishMsg(msg)
 				if err != nil {
 					return err
@@ -454,13 +463,6 @@ func (c *pubCmd) publishNatsMsg(ctx context.Context, nc *nats.Conn, pub *iu.Publ
 				err = nc.LastError()
 				if err != nil {
 					return err
-				}
-
-				// Only delay when another publish is pending, never after the final one.
-				if i < c.cnt {
-					if d := c.delay(); d > 0 {
-						time.Sleep(d)
-					}
 				}
 
 				tracker := pub.Tracker

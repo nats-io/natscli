@@ -417,6 +417,38 @@ func TestCLIPubJitter(t *testing.T) {
 			return nil
 		})
 	})
+
+	t.Run("Delays apply across --send-on newline batches", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			subject := "test-sleep-batches"
+			var received []time.Time
+			sub, _ := nc.Subscribe(subject, func(m *nats.Msg) {
+				received = append(received, time.Now())
+			})
+			defer sub.Unsubscribe()
+			nc.Flush()
+
+			count := 2
+			sleep := 50 * time.Millisecond
+			// Two input lines with --count 2 publish four messages; the pause
+			// must apply between all of them, including across the boundary
+			// between the last message of one line and the first of the next.
+			// --force-stdin required for testing as a terminal is not present
+			runNatsCliWithInput(t, "one\ntwo", fmt.Sprintf("--server='%s' pub --send-on newline --force-stdin %s --count %d --sleep %s", srv.ClientURL(), subject, count, sleep))
+
+			total := 2 * count
+			if len(received) != total {
+				t.Fatalf("expected %d messages and received %d", total, len(received))
+			}
+
+			spread := received[total-1].Sub(received[0])
+			floor := time.Duration(total-1)*sleep - 5*time.Millisecond
+			if spread < floor {
+				t.Errorf("expected at least %s between first and last message, got %s", floor, spread)
+			}
+			return nil
+		})
+	})
 }
 
 func TestCLIPubReply(t *testing.T) {
