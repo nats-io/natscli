@@ -2039,7 +2039,7 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 
 	// Asynchronous publish
 	if jsPubType == bench.TypeJSPubAsync {
-		latencies = make([]uint64, uint64(math.Ceil(float64(numMsg)/float64(c.batchSize))))
+		latencies = make([]uint64, 0, int(math.Ceil(float64(numMsg)/float64(c.batchSize))))
 		// attempts counts every PublishMsgAsync call including retries after
 		// ack failures, since `i` only advances on successful acks. Driving
 		// the throttler off attempts keeps pacing honest across retries.
@@ -2094,7 +2094,7 @@ func (c *benchCmd) jsPublisher(nc *nats.Conn, progress *uiprogress.Bar, jsPubTyp
 				return nil, fmt.Errorf("JS PubAsync ack timeout (pending=%d)", js.PublishAsyncPending())
 			}
 
-			latencies[uint64(math.Ceil(float64(i)/float64(c.batchSize)))-1] = uint64(time.Since(start).Nanoseconds())
+			latencies = append(latencies, uint64(time.Since(start).Nanoseconds()))
 		}
 
 		state = "Finished  "
@@ -2702,7 +2702,7 @@ func (c *benchCmd) runJSSubscriber(bm *bench.BenchmarkResults, errChan chan erro
 
 	// Fetch messages if in fetch mode
 	if benchType == bench.TypeJSFetch {
-		latencies = make([]uint64, int(math.Ceil(float64(numMsg)/float64(c.batchSize))))
+		latencies = make([]uint64, 0, int(math.Ceil(float64(numMsg)/float64(c.batchSize))))
 
 		for i := int64(0); i < numMsg; {
 			batchSize := func() int {
@@ -2728,9 +2728,12 @@ func (c *benchCmd) runJSSubscriber(bm *bench.BenchmarkResults, errChan chan erro
 					c.fetchTimeout = true
 				}
 			} else {
+				fetched := 0
+
 				for msg := range msgs.Messages() {
 					mh(msg)
 					i++
+					fetched++
 				}
 
 				if msgs.Error() != nil {
@@ -2740,7 +2743,14 @@ func (c *benchCmd) runJSSubscriber(bm *bench.BenchmarkResults, errChan chan erro
 					return
 				}
 
-				latencies[uint64(math.Ceil(float64(i)/float64(c.batchSize)))-1] = uint64(end.Sub(start).Nanoseconds())
+				if fetched == 0 {
+					errChan <- fmt.Errorf("fetching from the consumer '%s' returned no messages", c.consumerName)
+					c.fetchTimeout = true
+					donewg.Done()
+					return
+				}
+
+				latencies = append(latencies, uint64(end.Sub(start).Nanoseconds()))
 			}
 		}
 	}
@@ -2850,7 +2860,7 @@ func (c *benchCmd) runJSGetter(bm *bench.BenchmarkResults, errChan chan error, n
 	case bench.TypeJSGetDirectBatched:
 		var msgs iter.Seq2[*jetstream.RawStreamMsg, error]
 		var nextSeq uint64 = 1
-		latencies = make([]uint64, int(math.Ceil(float64(numMsg)/float64(c.batchSize))))
+		latencies = make([]uint64, 0, int(math.Ceil(float64(numMsg)/float64(c.batchSize))))
 
 		for i := int64(0); i < numMsg; {
 			batchSize := func() int {
@@ -2898,12 +2908,18 @@ func (c *benchCmd) runJSGetter(bm *bench.BenchmarkResults, errChan chan error, n
 				}
 			}
 
+			if gotten == 0 {
+				errChan <- fmt.Errorf("direct batch get from sequence %d returned no messages", nextSeq)
+				donewg.Done()
+				return
+			}
+
 			if gotten != batchSize {
 				log.Printf("[%d] Warning: Got %d (expected %d) messages in this batch\n", clientNumber+1, gotten, batchSize)
 				c.lessThanExpected.Store(true)
 			}
 
-			latencies[uint64(math.Ceil(float64(i)/float64(c.batchSize)))-1] = uint64(end.Sub(start).Nanoseconds())
+			latencies = append(latencies, uint64(end.Sub(start).Nanoseconds()))
 
 			if i >= numMsg {
 				ch <- end
