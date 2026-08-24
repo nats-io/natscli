@@ -193,7 +193,7 @@ func (c *pubCmd) writeAtomic(nc *nats.Conn) error {
 		if ack.Value != "" {
 			msg += fmt.Sprintf(" Counter Value: %s", ack.Value)
 		}
-		log.Printf(msg)
+		log.Print(msg)
 	}
 
 	return nil
@@ -339,7 +339,7 @@ func (c *pubCmd) doJetstream(nc *nats.Conn, pub *iu.Publisher) error {
 			if ack.Value != "" {
 				msg += fmt.Sprintf(" Counter Value: %s", ack.Value)
 			}
-			log.Printf(msg)
+			log.Print(msg)
 		}
 	}
 
