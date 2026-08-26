@@ -11,7 +11,7 @@ on: [push, pull_request]
 
 jobs:
   lint:
-    name: Running linting (ubuntu-latest/1.24)
+    name: Running linting
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -20,7 +20,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.25"
+          go-version: "1.27"
 
       - name: Install linting tools
         shell: bash --noprofile --norc -x -eo pipefail {0}
@@ -44,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: [ "1.25", "1.26" ]
+        go: [ "1.26", "1.27" ]
         os:
           - ubuntu-latest
           - windows-latest
@@ -98,7 +98,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: [ "1.25", "1.26" ]
+        go: [ "1.26", "1.27" ]
 
     runs-on: ubuntu-latest
     steps:

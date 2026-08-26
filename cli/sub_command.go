@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The NATS Authors
+// Copyright 2020-2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -466,7 +466,7 @@ func (c *subCmd) createJetStreamMsgHandler(subState subscriptionState, nc *nats.
 			defer func() {
 				err := m.Ack()
 				if err != nil && !subState.dump && !c.raw {
-					log.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply, err)
+					log.Printf("Acknowledging message via subject %s failed: %s\n", m.Reply(), err)
 				}
 			}()
 		}
