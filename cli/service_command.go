@@ -28,9 +28,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nats-io/jsm.go/registry"
 	"golang.org/x/term"
 
-	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/serverdata"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
@@ -215,9 +215,9 @@ func (c *serviceCmd) parseMessage(m []byte, expectedType string) (any, error) {
 	)
 
 	if os.Getenv("NOVALIDATE") == "" {
-		t, parsed, err = api.ParseAndValidateMessage(m, validator())
+		t, parsed, err = registry.ParseAndValidateMessage(m, validator())
 	} else {
-		t, parsed, err = api.ParseMessage(m)
+		t, parsed, err = registry.ParseMessage(m)
 	}
 	if err != nil {
 		return nil, err

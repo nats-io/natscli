@@ -24,7 +24,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/registry"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	iu "github.com/nats-io/natscli/internal/util"
@@ -186,12 +186,12 @@ func (c *srvWatchApiCmd) redraw() {
 }
 
 func (c *srvWatchApiCmd) handle(msg *nats.Msg) {
-	t, err := api.TypeForRequestSubject(msg.Subject)
+	t, err := registry.TypeForRequestSubject(msg.Subject)
 	if err != nil {
 		return
 	}
 
-	apiType, ok := t.(api.SchemaManagedType)
+	apiType, ok := t.(registry.SchemaManagedType)
 	if !ok {
 		return
 	}

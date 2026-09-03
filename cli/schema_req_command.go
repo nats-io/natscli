@@ -16,8 +16,9 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/choria-io/fisk"
-	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/registry"
 )
 
 type schemaReqCmd struct {
@@ -63,7 +64,7 @@ func (c *schemaReqCmd) requestAction(_ *fisk.ParseContext) error {
 		fmt.Println()
 	}
 
-	schemaType, msg, err := api.ParseMessage(res.Data)
+	schemaType, msg, err := registry.ParseMessage(res.Data)
 	if err != nil {
 		return err
 	}

@@ -18,7 +18,7 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/ghodss/yaml"
-	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/registry"
 )
 
 type schemaInfoCmd struct {
@@ -34,7 +34,7 @@ func configureSchemaInfoCommand(schema *fisk.CmdClause) {
 }
 
 func (c *schemaInfoCmd) info(_ *fisk.ParseContext) error {
-	schema, err := api.Schema(c.schema)
+	schema, err := registry.Schema(c.schema)
 	if err != nil {
 		return fmt.Errorf("could not load schema %q: %s", c.schema, err)
 	}

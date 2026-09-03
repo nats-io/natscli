@@ -18,10 +18,11 @@ import (
 	"time"
 
 	"github.com/nats-io/jsm.go/api"
+	rv "github.com/nats-io/jsm.go/registry/validator"
 )
 
 type mockValidator interface {
-	Validate(...api.StructValidator) (bool, []string)
+	Validate(...rv.StructValidator) (bool, []string)
 }
 
 func validateExpectSuccess(t *testing.T, cfg mockValidator) {

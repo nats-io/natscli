@@ -23,6 +23,7 @@ import (
 
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/registry"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
@@ -90,7 +91,7 @@ func (c *eventsCmd) handleNATSEventData(subject string, data []byte) {
 	}
 
 	handle := func() error {
-		kind, event, err := api.ParseMessage(data)
+		kind, event, err := registry.ParseMessage(data)
 		if err != nil {
 			return fmt.Errorf("parsing failed: %s", err)
 		}
@@ -103,22 +104,22 @@ func (c *eventsCmd) handleNATSEventData(subject string, data []byte) {
 			return fmt.Errorf("unknown event schema on subject %s", subject)
 		}
 
-		ne, ok := event.(api.Event)
+		ne, ok := event.(registry.Event)
 		if !ok {
 			return fmt.Errorf("event %q does not implement the Event interface", kind)
 		}
 
-		var format api.RenderFormat
+		var format registry.RenderFormat
 		switch {
 		case c.ce:
-			format = api.ApplicationCloudEventV1Format
+			format = registry.ApplicationCloudEventV1Format
 		case c.short:
-			format = api.TextCompactFormat
+			format = registry.TextCompactFormat
 		default:
-			format = api.TextExtendedFormat
+			format = registry.TextExtendedFormat
 		}
 
-		err = api.RenderEvent(os.Stdout, ne, format)
+		err = registry.RenderEvent(os.Stdout, ne, format)
 		if err != nil {
 			return fmt.Errorf("display failed: %s", err)
 		}
