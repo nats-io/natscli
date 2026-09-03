@@ -144,6 +144,35 @@ func TestNatsSubscribe(t *testing.T) {
 		})
 	})
 
+	t.Run("--raw and --translate with subject", func(t *testing.T) {
+		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+			out := make(chan []byte)
+			go func() {
+				out <- runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --raw --translate=\"sed 's/^/{{Subject}}: /'\"", srv.ClientURL()))
+			}()
+
+			time.Sleep(500 * time.Millisecond)
+
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := <-out
+			lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+			if len(lines) < 1 {
+				t.Fatalf("no output lines found")
+			}
+
+			expected := "TEST: " + primaryTestMsgData
+			resp := strings.TrimSpace(lines[len(lines)-1])
+			if resp != expected {
+				t.Errorf("unexpected response. Got %q, expected %q", resp, expected)
+			}
+			return nil
+		})
+	})
+
 	t.Run("--translate empty message", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
 			out := make(chan []byte)
@@ -649,6 +678,25 @@ func TestJetStreamSubscribe(t *testing.T) {
 			resp := strings.TrimSpace(strings.Split(output, "\n")[1])
 			if resp != "19" {
 				t.Errorf("unexpected response. Got \"%s\" expected \"%s\"", resp, "19")
+			}
+			return nil
+		})
+	})
+
+	t.Run("--raw and --translate with subject", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1)
+
+			err := nc.PublishMsg(defaultTestMsg)
+			if err != nil {
+				t.Fatalf("unable to publish message: %s", err)
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --last --count=1 --raw --translate=\"sed 's/^/{{Subject}}: /'\"", srv.ClientURL())))
+			expected := "TEST_STREAM.1: " + primaryTestMsgData
+			resp := strings.TrimSpace(strings.Split(output, "\n")[1])
+			if resp != expected {
+				t.Errorf("unexpected response. Got %q, expected %q", resp, expected)
 			}
 			return nil
 		})

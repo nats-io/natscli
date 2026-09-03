@@ -1100,7 +1100,7 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 
 	// Output format 2: raw
 	if c.raw {
-		outPutMSGBodyCompact(msg.Data, c.translate, "", "")
+		outPutMSGBodyCompact(msg.Data, c.translate, msg.Subject, "")
 		if replyMsg != nil {
 			fmt.Println(string(replyMsg.Data))
 		}
@@ -1177,7 +1177,7 @@ func (c *subCmd) printJetStreamMsg(msg jetstream.Msg, reply jetstream.Msg, ctr u
 
 	// Output format 2: raw
 	if c.raw {
-		outPutMSGBodyCompact(dataMsg.Data, c.translate, "", "")
+		outPutMSGBodyCompact(dataMsg.Data, c.translate, dataMsg.Subject, "")
 		if replyMsg != nil {
 			fmt.Println(string(replyMsg.Data))
 		}
@@ -1201,7 +1201,7 @@ func (c *subCmd) dumpMsg(msg *nats.Msg, stdout bool, filepath string, ctr uint) 
 	serMsg := c.makeMsg(msg.Subject, msg.Header, msg.Data, msg.Reply)
 
 	if c.translate != "" {
-		data, err := filterDataThroughCmd(msg.Data, c.translate, "", "")
+		data, err := filterDataThroughCmd(msg.Data, c.translate, msg.Subject, "")
 		if err != nil {
 			log.Printf("%q\nError while translating msg body: %s\n\n", data, err.Error())
 			return
