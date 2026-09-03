@@ -15,11 +15,12 @@ package cli
 
 import (
 	"fmt"
-	iu "github.com/nats-io/natscli/internal/util"
 	"strings"
 
+	"github.com/nats-io/jsm.go/registry"
+	iu "github.com/nats-io/natscli/internal/util"
+
 	"github.com/choria-io/fisk"
-	"github.com/nats-io/jsm.go/api"
 )
 
 type schemaSearchCmd struct {
@@ -35,7 +36,7 @@ func configureSchemaSearchCommand(schema *fisk.CmdClause) {
 }
 
 func (c *schemaSearchCmd) search(_ *fisk.ParseContext) error {
-	found, err := api.SchemaSearch(c.filter)
+	found, err := registry.SchemaSearch(c.filter)
 	if err != nil {
 		return fmt.Errorf("search failed: %s", err)
 	}

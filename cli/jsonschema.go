@@ -17,14 +17,14 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/registry"
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
 type SchemaValidator struct{}
 
 func (v SchemaValidator) ValidateStruct(data any, schemaType string) (ok bool, errs []string) {
-	s, err := api.Schema(schemaType)
+	s, err := registry.Schema(schemaType)
 	if err != nil {
 		return false, []string{fmt.Sprintf("unknown schema type %s", schemaType)}
 	}
