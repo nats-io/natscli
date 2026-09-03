@@ -30,7 +30,6 @@ import (
 )
 
 type SrvClusterCmd struct {
-	json              bool
 	force             bool
 	peer              string
 	placementCluster  string
@@ -66,14 +65,12 @@ func configureServerClusterCommand(srv *fisk.CmdClause) {
 	sd.Flag("cluster", "Request placement of the leader in a specific cluster").StringVar(&c.placementCluster)
 	sd.Flag("tags", "Request placement of the leader on nodes with specific tag(s)").StringsVar(&c.placementTags)
 	sd.Flag("host", "Request placement of the leader on a specific node").StringVar(&c.placementNode)
-	sd.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 	sd.Flag("force", "Force leader step down ignoring current leader").Short('f').UnNegatableBoolVar(&c.force)
 
 	rm := cluster.Command("peer-remove", "Removes a server from a JetStream cluster").Alias("rm").Alias("pr").Action(c.metaPeerRemoveAction)
 	rm.Tag("scope:system", "impact:rw")
 	rm.Arg("name", "The Server Name or ID to remove from the JetStream cluster").Required().StringVar(&c.peer)
 	rm.Flag("force", "Force removal without prompting").Short('f').UnNegatableBoolVar(&c.force)
-	rm.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 }
 
 func (c *SrvClusterCmd) balanceAction(_ *fisk.ParseContext) error {
