@@ -236,6 +236,11 @@ func natsOpts() []nats.Option {
 		connectionName = "NATS CLI Version " + Version
 	}
 
+	// nats.go applies its own default when this is 0, so only set it when asked for
+	if opts().ConnectTimeout > 0 {
+		copts = append(copts, nats.Timeout(opts().ConnectTimeout))
+	}
+
 	return append(copts, []nats.Option{
 		nats.Name(connectionName),
 		nats.MaxReconnects(-1),
