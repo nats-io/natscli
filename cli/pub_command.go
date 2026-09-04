@@ -268,7 +268,7 @@ func (c *pubCmd) addScheduleHeaders(msg *nats.Msg) error {
 	case c.scheduleAtParsed != "":
 		msg.Header.Set(api.JSSchedulePattern, fmt.Sprintf("@at %s", c.scheduleAtParsed))
 	case c.scheduleAfter > 0:
-		msg.Header.Set(api.JSSchedulePattern, time.Now().UTC().Add(c.scheduleAfter).Format(time.RFC3339))
+		msg.Header.Set(api.JSSchedulePattern, fmt.Sprintf("@at %s", time.Now().UTC().Add(c.scheduleAfter).Format(time.RFC3339)))
 	case c.scheduleEvery > 0:
 		msg.Header.Set(api.JSSchedulePattern, fmt.Sprintf("@every %s", c.scheduleEvery.String()))
 	case c.scheduleCron != "":
