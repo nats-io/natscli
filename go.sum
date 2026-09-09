@@ -124,8 +124,8 @@ github.com/nats-io/nats.go v1.53.1 h1:Otsq3uLc/kLdjmkNHkXH0jBqwUquwdKFoe3fq6/3/X
 github.com/nats-io/nats.go v1.53.1/go.mod h1:26HypzazeOkyO3/mqd1zZd53STJN0EjCYF9Uy2ZOBno=
 github.com/nats-io/nkeys v0.4.16 h1:rd5oAuLOb8mnAycB0xleuEBNS1pVVnN0fv/FF34Eypg=
 github.com/nats-io/nkeys v0.4.16/go.mod h1:llLgWoI0o4z/Q57q2R1kHfmocyhGV6VG/U18Glg1Afs=
-github.com/nats-io/nsc/v2 v2.12.2 h1:M+85ZONoDo3PymX1hYMHBt4LG9McahfpGpMfVKXsToE=
-github.com/nats-io/nsc/v2 v2.12.2/go.mod h1:suWy4bhAfZ5ferGkjuzqXFEPub7D+KqRKg0wTrrYc6s=
+github.com/nats-io/nsc/v2 v2.15.0 h1:3qOeZ7iX2q3Ae9GrsgE6Z7EgW2uYa0Tr4y97z7l2pKE=
+github.com/nats-io/nsc/v2 v2.15.0/go.mod h1:eirMP9u+OoJ7g0iN6ymlNrMnwM1t6/Hn2qi924aCNMo=
 github.com/nats-io/nuid v1.0.1 h1:5iA8DT8V7q8WK2EScv2padNa/rTESc1KdnPw4TC2paw=
 github.com/nats-io/nuid v1.0.1/go.mod h1:19wcPz3Ph3q0Jbyiqsd0kePYG7A95tJPxeL+1OSON2c=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=

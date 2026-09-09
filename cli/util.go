@@ -586,6 +586,44 @@ func loadContext(softFail bool) error {
 	return err
 }
 
+// subjectsTable lays subject counts out in one to three column pairs
+// depending on the widest subject, in the order the names are given
+func subjectsTable(title string, names []string, subs map[string]uint64) *iu.Table {
+	var longest int
+	var most uint64
+	for _, s := range names {
+		longest = max(longest, len(s))
+		most = max(most, subs[s])
+	}
+
+	cols := 1
+	table := iu.NewTableWriter(opts(), title)
+	switch {
+	case longest+len(f(most)) < 20:
+		cols = 3
+		table.AddHeaders("Subject", "Count", "Subject", "Count", "Subject", "Count")
+	case longest+len(f(most)) < 30:
+		cols = 2
+		table.AddHeaders("Subject", "Count", "Subject", "Count")
+	default:
+		table.AddHeaders("Subject", "Count")
+	}
+
+	iu.SliceGroups(names, cols, func(g []string) {
+		row := make([]any, 0, 2*cols)
+		for _, s := range g {
+			count := ""
+			if subs[s] > 0 {
+				count = f(subs[s])
+			}
+			row = append(row, s, count)
+		}
+		table.AddRow(row...)
+	})
+
+	return table
+}
+
 func renderCluster(cluster *api.ClusterInfo) string {
 	if cluster == nil {
 		return ""
