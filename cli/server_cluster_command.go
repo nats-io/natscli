@@ -359,8 +359,13 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 	// API subject which has no responders on the system account, causing an error the user
 	// won't expect. Silently ignoring it could cause us to accidentally remove a peer from a
 	// cluster we didn't expect, so we terminate early.
+	//
+	// However, since 2.15 the system account is domain aware
 	if opts().Config.JSDomain() != "" {
-		return fmt.Errorf("the --js-domain option cannot be used with peer-remove: JetStream domains do not apply to the system account, connect without a domain configured")
+		err = iu.RequireAPILevel(mgr, 5, "the --js-domain option cannot be used: JetStream domains do not apply to the system account, connect without a domain configured")
+		if err != nil {
+			return err
+		}
 	}
 
 	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
@@ -376,7 +381,11 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	jszResults, err := ds.Jsz(server.JszEventOptions{})
+	jszResults, err := ds.Jsz(server.JszEventOptions{
+		EventFilterOptions: server.EventFilterOptions{
+			Domain: opts().Config.JSDomain(),
+		},
+	})
 	if err != nil {
 		return err
 	}
@@ -587,12 +596,17 @@ func (c *SrvClusterCmd) metaLeaderStandDownAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	// a configured domain would make the manager send the request to a domain prefixed
+	// a configured domain would make the manager send the removal to a domain prefixed
 	// API subject which has no responders on the system account, causing an error the user
-	// won't expect. Silently ignoring it could cause us to accidentally step down a leader in
-	// a cluster we didn't expect, so we terminate early.
+	// won't expect. Silently ignoring it could cause us to accidentally remove a peer from a
+	// cluster we didn't expect, so we terminate early.
+	//
+	// However, since 2.15 the system account is domain aware
 	if opts().Config.JSDomain() != "" {
-		return fmt.Errorf("the --js-domain option cannot be used with step-down: JetStream domains do not apply to the system account, connect without a domain configured")
+		err = iu.RequireAPILevel(mgr, 5, "the --js-domain option cannot be used: JetStream domains do not apply to the system account, connect without a domain configured")
+		if err != nil {
+			return err
+		}
 	}
 
 	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
@@ -609,7 +623,11 @@ func (c *SrvClusterCmd) metaLeaderStandDownAction(_ *fisk.ParseContext) error {
 	}
 
 	getJSI := func() (*server.JSInfo, error) {
-		jszResults, err := ds.Jsz(server.JszEventOptions{})
+		jszResults, err := ds.Jsz(server.JszEventOptions{
+			EventFilterOptions: server.EventFilterOptions{
+				Domain: opts().Config.JSDomain(),
+			},
+		})
 		if err != nil {
 			return nil, err
 		}

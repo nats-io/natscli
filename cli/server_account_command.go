@@ -43,14 +43,6 @@ func configureServerAccountCommand(srv *fisk.CmdClause) {
 }
 
 func (c *srvAccountCommand) purgeAccount(_ *fisk.ParseContext) error {
-	// a configured domain would make the manager send the purge to a domain prefixed
-	// API subject which has no responders on the system account, causing an error the user
-	// won't expect. Silently ignoring it could cause us to accidentally purge an account in a
-	// domain we didn't expect, so we terminate early.
-	if opts().Config.JSDomain() != "" {
-		return fmt.Errorf("the --js-domain option cannot be used with account purge: JetStream domains do not apply to the system account, connect without a domain configured")
-	}
-
 	if !c.force {
 		fmt.Printf("This operation deletes all data from the %s account and cannot be reversed.\n\n", c.account)
 		remove, err := askConfirmation(fmt.Sprintf("Really purge account %s", c.account), false)
@@ -66,6 +58,19 @@ func (c *srvAccountCommand) purgeAccount(_ *fisk.ParseContext) error {
 	_, mgr, err := prepareHelper("", natsOpts()...)
 	if err != nil {
 		return err
+	}
+
+	// a configured domain would make the manager send the removal to a domain prefixed
+	// API subject which has no responders on the system account, causing an error the user
+	// won't expect. Silently ignoring it could cause us to accidentally remove a peer from a
+	// cluster we didn't expect, so we terminate early.
+	//
+	// However, since 2.15 the system account is domain aware
+	if opts().Config.JSDomain() != "" {
+		err = iu.RequireAPILevel(mgr, 5, "the --js-domain option cannot be used: JetStream domains do not apply to the system account, connect without a domain configured")
+		if err != nil {
+			return err
+		}
 	}
 
 	err = mgr.MetaPurgeAccount(c.account)
