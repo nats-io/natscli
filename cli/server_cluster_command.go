@@ -355,17 +355,15 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	// a configured domain would make the manager send the removal to a domain prefixed
+	// a configured domain would make the manager send the purge to a domain prefixed
 	// API subject which has no responders on the system account, causing an error the user
-	// won't expect. Silently ignoring it could cause us to accidentally remove a peer from a
-	// cluster we didn't expect, so we terminate early.
+	// won't expect. Silently ignoring it could cause us to accidentally purge an account in a
+	// domain we didn't expect, so we terminate early.
 	//
-	// However, since 2.15 the system account is domain aware
+	// This one can only change once serverdata.CurrentActiveServers is domain aware and then
+	// we need to pass a domain filter into ds.Jsz() below
 	if opts().Config.JSDomain() != "" {
-		err = iu.RequireAPILevel(mgr, 5, "the --js-domain option cannot be used: JetStream domains do not apply to the system account, connect without a domain configured")
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("the --js-domain option cannot be used with account purge: JetStream domains do not apply to the system account, connect without a domain configured")
 	}
 
 	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
@@ -381,11 +379,7 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	jszResults, err := ds.Jsz(server.JszEventOptions{
-		EventFilterOptions: server.EventFilterOptions{
-			Domain: opts().Config.JSDomain(),
-		},
-	})
+	jszResults, err := ds.Jsz(server.JszEventOptions{})
 	if err != nil {
 		return err
 	}
