@@ -767,33 +767,9 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 		return nil
 	}
 
-	var longest int
-	var most uint64
-	var names []string
-
-	for s, c := range subs {
+	names := make([]string, 0, len(subs))
+	for s := range subs {
 		names = append(names, s)
-		if len(s) > longest {
-			longest = len(s)
-		}
-		if c > most {
-			most = c
-		}
-	}
-
-	cols := 1
-	countWidth := len(f(most))
-	table := iu.NewTableWriterf(opts(), "%d Subjects in stream %s", len(names), c.stream)
-
-	switch {
-	case longest+countWidth < 20:
-		cols = 3
-		table.AddHeaders("Subject", "Count", "Subject", "Count", "Subject", "Count")
-	case longest+countWidth < 30:
-		cols = 2
-		table.AddHeaders("Subject", "Count", "Subject", "Count")
-	default:
-		table.AddHeaders("Subject", "Count")
 	}
 
 	sort.Slice(names, func(i, j int) bool {
@@ -811,24 +787,7 @@ func (c *streamCmd) subjectsAction(_ *fisk.ParseContext) (err error) {
 		return
 	}
 
-	comma := func(i uint64) string {
-		if i == 0 {
-			return ""
-		}
-		return f(i)
-	}
-
-	iu.SliceGroups(names, cols, func(g []string) {
-		if cols == 1 {
-			table.AddRow(g[0], comma(subs[g[0]]))
-		} else if cols == 2 {
-			table.AddRow(g[0], comma(subs[g[0]]), g[1], comma(subs[g[1]]))
-		} else {
-			table.AddRow(g[0], comma(subs[g[0]]), g[1], comma(subs[g[1]]), g[2], comma(subs[g[2]]))
-		}
-	})
-
-	fmt.Println(table.Render())
+	fmt.Println(subjectsTable(fmt.Sprintf("%d Subjects in stream %s", len(names), c.stream), names, subs).Render())
 
 	return nil
 }

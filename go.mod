@@ -19,7 +19,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.8.3
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.20.0
-	github.com/nats-io/jsm.go v0.4.2-0.20260910122818-2431e215a0fe
+	github.com/nats-io/jsm.go v0.4.2-0.20260915121646-509158439ab2
 	github.com/nats-io/jwt/v2 v2.8.2
 	github.com/nats-io/nats-server/v2 v2.15.0-preview.1
 	github.com/nats-io/nats.go v1.53.1
@@ -63,7 +63,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nats-io/nsc/v2 v2.12.2 // indirect
+	github.com/nats-io/nsc/v2 v2.15.0 // indirect
 	github.com/nsf/termbox-go v1.1.2 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/prometheus/common v0.71.0 // indirect
