@@ -977,7 +977,7 @@ func (c *kvCommand) showStatus(store jetstream.KeyValue) error {
 	cols.AddRow("Values Stored", status.Values())
 	cols.AddRow("Compressed", status.IsCompressed())
 	cols.AddRow("Per-Key TTL Supported", status.LimitMarkerTTL() > 0)
-	cols.AddRowIf("Limit Marker TTL", status.LimitMarkerTTL(), status.LimitMarkerTTL() > 0)
+	cols.AddRowIf("Limit Marker TTL", status.LimitMarkerTTL().String(), status.LimitMarkerTTL() > 0)
 	cols.AddRow("Backing Store Kind", status.BackingStore())
 
 	if nfo != nil {
