@@ -23,6 +23,7 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
+	"github.com/jedib0t/go-pretty/v6/progress"
 	"github.com/nats-io/jsm.go/backup"
 	iu "github.com/nats-io/natscli/internal/util"
 )
@@ -54,6 +55,7 @@ type backupCmd struct {
 	listSubjects        bool
 	keyFile             string
 	values              []string
+	showProgress        bool
 }
 
 func configureBackupCommand(app commandHost) {
@@ -83,16 +85,19 @@ func configureBackupCommand(app commandHost) {
 	edit.Flag("dry-run", "Only shows what the edit would do, does not write the target").UnNegatableBoolVar(&c.dryRun)
 	edit.Flag("obfuscate", "Replace names and subjects with keyed hashes and message bodies with zeros of the same length. Keeps counter stream values. Writes the key file beside the target").UnNegatableBoolVar(&c.obfuscate)
 	edit.Flag("obfuscation-key", "Reuse the secret and mappings from an earlier key file").PlaceHolder("FILE").StringVar(&c.obfuscationKey)
+	edit.Flag("progress", "Enables or disables progress reporting").Default("true").BoolVar(&c.showProgress)
 
 	info := bk.Command("info", "Stream backup information").Action(c.infoAction)
 	info.Tag("scope:user", "impact:ro")
 	info.Arg("source", "The directory holding the backup").Required().ExistingDirVar(&c.source)
 	info.Flag("subjects", "List every subject in the backup with its message count").UnNegatableBoolVar(&c.listSubjects)
+	info.Flag("progress", "Enables or disables progress reporting").Default("true").BoolVar(&c.showProgress)
 	info.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 
 	validate := bk.Command("validate", "Validates that a stream backup is complete and restorable").Action(c.validateAction)
 	validate.Tag("scope:user", "impact:ro")
 	validate.Arg("source", "The directory holding the backup").Required().ExistingDirVar(&c.source)
+	validate.Flag("progress", "Enables or disables progress reporting").Default("true").BoolVar(&c.showProgress)
 
 	lookup := bk.Command("lookup", "Looks up obfuscated values in a key file").Action(c.lookupAction)
 	lookup.Tag("scope:user", "impact:ro")
@@ -197,8 +202,11 @@ func (c *backupCmd) editAction(_ *fisk.ParseContext) error {
 	if err != nil {
 		return err
 	}
+	cb, finish := c.readProgress("Editing")
+	opts = append(opts, backup.EditNotify(cb))
 
 	res, err := backup.Edit(ctx, c.source, c.target, opts...)
+	finish()
 	if err != nil {
 		return err
 	}
@@ -206,6 +214,58 @@ func (c *backupCmd) editAction(_ *fisk.ParseContext) error {
 	c.showEditResult(res)
 
 	return nil
+}
+
+// readProgress shows the bar stream backup uses while an archive is read,
+// one bar spanning every pass. finish completes it before any report prints
+func (c *backupCmd) readProgress(verb string) (cb func(backup.Progress), finish func()) {
+	var progbar progress.Writer
+	var tracker *progress.Tracker
+	var total int64
+	first := true
+	header := c.showProgress && !c.json
+	bar := header && !opts().Trace
+
+	cb = func(p backup.Progress) {
+		if first {
+			first = false
+			total = int64(p.BytesTotal()) * int64(p.Passes())
+			if !header {
+				return
+			}
+			passes := ""
+			if p.Passes() > 1 {
+				passes = fmt.Sprintf(" in %d passes", p.Passes())
+			}
+			fmt.Printf("%s backup in %s with %s%s\n", verb, c.source, humanize.IBytes(p.BytesTotal()), passes)
+			if bar {
+				fmt.Println()
+				progbar, tracker, _ = iu.NewProgress(opts(), &progress.Tracker{
+					Total: total,
+					Units: iu.ProgressUnitsIBytes,
+				})
+			}
+		}
+
+		if tracker != nil {
+			tracker.SetValue(int64(p.Pass()-1)*int64(p.BytesTotal()) + int64(p.BytesRead()))
+		}
+	}
+
+	finish = func() {
+		if tracker != nil {
+			tracker.SetValue(total)
+			tracker.MarkAsDone()
+			time.Sleep(300 * time.Millisecond)
+			progbar.Stop()
+			tracker = nil
+		}
+		if header && !first {
+			fmt.Println()
+		}
+	}
+
+	return cb, finish
 }
 
 func (c *backupCmd) showEditResult(res *backup.Result) {
@@ -280,11 +340,13 @@ func (c *backupCmd) showEditResult(res *backup.Result) {
 }
 
 func (c *backupCmd) infoAction(_ *fisk.ParseContext) error {
-	var infoOpts []backup.InfoOption
+	cb, finish := c.readProgress("Reading")
+	infoOpts := []backup.ScanOption{backup.ScanNotify(cb)}
 	if c.listSubjects {
 		infoOpts = append(infoOpts, backup.WithSubjects())
 	}
 	nfo, err := backup.Info(c.source, infoOpts...)
+	finish()
 	if err != nil {
 		return err
 	}
@@ -315,12 +377,12 @@ func (c *backupCmd) infoAction(_ *fisk.ParseContext) error {
 
 	cols.AddSectionTitle("Messages")
 	cols.AddRow("Messages", nfo.Messages)
-	cols.AddRow("Subjects", nfo.NumSubjects)
 	cols.AddRow("Bytes", humanize.IBytes(nfo.Bytes))
 	if nfo.Messages > 0 {
 		cols.AddRowf("First Sequence", "%s @ %s", f(nfo.FirstSeq), f(nfo.FirstTime))
 		cols.AddRowf("Last Sequence", "%s @ %s", f(nfo.LastSeq), f(nfo.LastTime))
 	}
+	cols.AddRow("Subjects", nfo.NumSubjects)
 
 	if nfo.DeclaredCountsAdvisory {
 		cols.AddSectionTitle("Declared State (message and byte counts are advisory)")
@@ -366,7 +428,9 @@ func (c *backupCmd) showSubjects(nfo *backup.InfoReport) {
 }
 
 func (c *backupCmd) validateAction(_ *fisk.ParseContext) error {
-	rep, err := backup.Verify(c.source)
+	cb, finish := c.readProgress("Validating")
+	rep, err := backup.Verify(c.source, backup.ScanNotify(cb))
+	finish()
 	if err != nil {
 		return err
 	}

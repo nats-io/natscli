@@ -91,7 +91,7 @@ func TestBackupInfo(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 		fx := setupBackupFixture(t, srv, nc, mgr)
 
-		output := string(runNatsCli(t, fmt.Sprintf("backup info '%s'", fx.dir)))
+		output := string(runNatsCli(t, fmt.Sprintf("backup info '%s' --no-progress", fx.dir)))
 		err := expectMatchJSON(t, output, map[string]any{
 			"Configuration": map[string]any{"Name": "^" + fx.name + "$", "Subjects": `^ORDERS\.\*$`, "Storage": "^File$", "Retention": "^Limits$"},
 			"Consumers":     map[string]any{"Count": "^1$", "Names": "^C1$"},
@@ -151,7 +151,7 @@ func TestBackupEditIdentity(t *testing.T) {
 			t.Errorf("unexpected validate output: %s", output)
 		}
 
-		output = string(runNatsCli(t, fmt.Sprintf("backup info '%s'", target)))
+		output = string(runNatsCli(t, fmt.Sprintf("backup info '%s' --no-progress", target)))
 		err := expectMatchJSON(t, output, map[string]any{
 			"Edit": map[string]any{"Source Digest": "^sha256:[0-9a-f]{64}$", "Options": "^none$", "Obfuscated": "^false$"},
 		})
@@ -291,7 +291,7 @@ func TestBackupEditObfuscate(t *testing.T) {
 			}
 		}
 
-		output = string(runNatsCli(t, fmt.Sprintf("backup info '%s'", target)))
+		output = string(runNatsCli(t, fmt.Sprintf("backup info '%s' --no-progress", target)))
 		if err := expectMatchJSON(t, output, map[string]any{"Edit": map[string]any{"Obfuscated": "^true$"}}); err != nil {
 			t.Errorf("edit block missing from info: %v: %s", err, output)
 		}
