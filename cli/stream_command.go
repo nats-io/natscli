@@ -2047,6 +2047,10 @@ func (c *streamCmd) copyAndEditStream(cfg api.StreamConfig, pc *fisk.ParseContex
 		}
 	}
 
+	if c.noRepub {
+		cfg.RePublish = nil
+	}
+
 	if !c.noRepub && c.repubSource != "" && c.repubDest != "" {
 		cfg.RePublish = &api.RePublish{
 			Source:      c.repubSource,

@@ -308,6 +308,31 @@ func TestStreamEditMirrorPromote(t *testing.T) {
 	})
 }
 
+func TestStreamEditNoRepublish(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name := setupStreamTest(t, mgr, jsm.Republish(&api.RePublish{
+			Source:      "ORDERS.>",
+			Destination: "EVENTS.>",
+		}))
+
+		s, err := mgr.LoadStream(name)
+		checkErr(t, err, "unable to load stream")
+		if s.Republish() == nil {
+			t.Fatalf("stream has no republish configuration")
+		}
+
+		runNatsCli(t, fmt.Sprintf("--server='%s' stream edit %s --no-republish --force", srv.ClientURL(), name))
+
+		nfo, err := s.Information()
+		checkErr(t, err, "unable to get stream information")
+		if nfo.Config.RePublish != nil {
+			t.Fatalf("stream still has republish configuration: %+v", nfo.Config.RePublish)
+		}
+
+		return nil
+	})
+}
+
 func TestStreamRM(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 		name := setupStreamTest(t, mgr)
