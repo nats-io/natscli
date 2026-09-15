@@ -1,4 +1,4 @@
-// Copyright 2023-2024 The NATS Authors
+// Copyright 2026 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -13,20 +13,25 @@
 
 package cli
 
-func configureAuthCommand(app commandHost) {
-	auth := app.Command("auth", "NATS Decentralized Authentication")
-	addCheat("auth", auth)
+import (
+	"fmt"
 
-	// todo:
-	//  - Improve maintaining pub/sub permissions for a user, perhaps allow interactive edits of yaml?
+	"github.com/choria-io/fisk"
+	"github.com/nats-io/nuid"
+)
 
-	configureAuthOperatorCommand(auth)
-	configureAuthAccountCommand(auth)
-	configureAuthUserCommand(auth)
-	configureAuthNkeyCommand(auth)
-	configureAuthNuidCommand(auth)
+type authNuidCommand struct{}
+
+func configureAuthNuidCommand(auth commandHost) {
+	c := &authNuidCommand{}
+
+	nu := auth.Command("nuid", "Create NUIDs")
+
+	nuGen := nu.Command("gen", "Generates NUIDs").Action(c.genAction)
+	nuGen.Tag("impact:ro")
 }
 
-func init() {
-	registerCommand("auth", 0, configureAuthCommand)
+func (c *authNuidCommand) genAction(_ *fisk.ParseContext) error {
+	fmt.Println(nuid.Next())
+	return nil
 }
