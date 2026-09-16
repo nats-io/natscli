@@ -17,16 +17,13 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/serverdata"
 	"github.com/nats-io/nats-server/v2/server"
@@ -42,18 +39,10 @@ type actCmd struct {
 	subject string
 	topk    int
 
-	backupDirectory   string
-	healthCheck       bool
-	snapShotConsumers bool
-	force             bool
-	failOnWarn        bool
-
-	placementCluster string
-	placementTags    []string
-	reverse          bool
-	stateFilter      string
-	user             string
-	filterReason     string
+	reverse      bool
+	stateFilter  string
+	user         string
+	filterReason string
 }
 
 func configureActCommand(app commandHost) {
@@ -80,149 +69,15 @@ func configureActCommand(app commandHost) {
 	stats := report.Command("statistics", "Report on server statistics").Alias("stats").Alias("statsz").Action(c.reportServerStats)
 	stats.Tag("scope:user", "impact:ro")
 
-	backup := act.Command("backup", "Creates a backup of all  JetStream Streams over the NATS network").Alias("snapshot").Action(c.backupAction)
-	backup.Tag("scope:user", "impact:ro")
-	backup.Arg("target", "Directory to create the backup in").Required().StringVar(&c.backupDirectory)
-	backup.Flag("check", "Checks the Stream for health prior to backup").UnNegatableBoolVar(&c.healthCheck)
-	backup.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
-	backup.Flag("force", "Perform backup without prompting").Short('f').UnNegatableBoolVar(&c.force)
-	backup.Flag("critical-warnings", "Treat warnings as failures").Short('w').UnNegatableBoolVar(&c.failOnWarn)
-
-	restore := act.Command("restore", "Restore an account backup over the NATS network").Action(c.restoreAction)
-	restore.Tag("scope:user", "impact:rw")
-	restore.Arg("directory", "The directory holding the account backup to restore").Required().ExistingDirVar(&c.backupDirectory)
-	restore.Flag("cluster", "Place the stream in a specific cluster").StringVar(&c.placementCluster)
-	restore.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
+	backup := &backupCmd{}
+	backup.accountBackupCommand(act, "backup").Alias("snapshot").Hidden().PreAction(deprecatedCommand("nats account backup", "nats backup account"))
+	backup.accountRestoreCommand(act, "restore").Hidden().PreAction(deprecatedCommand("nats account restore", "nats backup restore account"))
 
 	configureAccountTLSCommand(act)
 }
 
 func init() {
 	registerCommand("account", 0, configureActCommand)
-}
-
-func (c *actCmd) backupAction(_ *fisk.ParseContext) error {
-	var err error
-
-	_, mgr, err := prepareHelper("", natsOpts()...)
-	fisk.FatalIfError(err, "setup failed")
-
-	streams, missing, offline, err := mgr.Streams(nil)
-	if err != nil {
-		return err
-	}
-
-	if len(missing) > 0 {
-		return fmt.Errorf("could not obtain stream information for %d streams", len(missing))
-	}
-	if !c.force && len(offline) > 0 {
-		return fmt.Errorf("could not obtain stream information for %d offline streams", len(offline))
-	}
-	if len(streams) == 0 {
-		return fmt.Errorf("no streams found")
-	}
-
-	totalSize := uint64(0)
-	totalConsumers := 0
-
-	for _, s := range streams {
-		state, _ := s.LatestState()
-		totalConsumers += state.Consumers
-		totalSize += state.Bytes
-	}
-
-	cols := newColumnsf("Performing backup of all streams to %s", c.backupDirectory)
-	cols.AddRow("Streams", len(streams))
-	cols.AddRow("Size", humanize.IBytes(totalSize))
-	cols.AddRow("Consumers:", totalConsumers)
-	cols.Println()
-	cols.Frender(os.Stdout)
-
-	if !c.force {
-		ok, err := askConfirmation("Perform backup", false)
-		if err != nil {
-			return err
-		}
-
-		if !ok {
-			return nil
-		}
-	}
-
-	err = os.MkdirAll(c.backupDirectory, 0700)
-	if err != nil {
-		return err
-	}
-
-	var errs []error
-	var warns []error
-
-	for _, s := range streams {
-		err = backupStream(s, false, c.snapShotConsumers, c.healthCheck, filepath.Join(c.backupDirectory, s.Name()), 128*1024, 0)
-		if errors.Is(err, jsm.ErrMemoryStreamNotSupported) {
-			fmt.Printf("Backup of %s failed: %v\n", s.Name(), err)
-			warns = append(warns, fmt.Errorf("%s: %w", s.Name(), err))
-		} else if err != nil {
-			fmt.Printf("Backup of %s failed: %s\n", s.Name(), err)
-			errs = append(errs, fmt.Errorf("%s: %s", s.Name(), err))
-		}
-		fmt.Println()
-	}
-
-	if len(warns) > 0 {
-		fmt.Printf("Backup Warnings: \n")
-		for _, err := range warns {
-			fmt.Printf("  %s\n", err)
-		}
-		fmt.Println()
-	}
-
-	if len(errs) > 0 {
-		fmt.Printf("Backup failures: \n")
-		for _, err := range errs {
-			fmt.Printf("  %s\n", err)
-		}
-		fmt.Println()
-	}
-
-	if len(errs) > 0 || len(warns) > 0 && c.failOnWarn {
-		return fmt.Errorf("backup failed")
-	}
-
-	return nil
-}
-
-func (c *actCmd) restoreAction(kp *fisk.ParseContext) error {
-	_, mgr, err := prepareHelper("", natsOpts()...)
-	fisk.FatalIfError(err, "setup failed")
-	streams, err := mgr.StreamNames(nil)
-	if err != nil {
-		return err
-	}
-	existingStreams := map[string]struct{}{}
-	for _, n := range streams {
-		existingStreams[n] = struct{}{}
-	}
-	de, err := os.ReadDir(c.backupDirectory)
-	fisk.FatalIfError(err, "setup failed")
-	for _, d := range de {
-		if !d.IsDir() {
-			fisk.Fatalf("expected a directory %q", d.Name())
-		}
-		if _, ok := existingStreams[d.Name()]; ok {
-			fisk.Fatalf("stream %q exists already", d.Name())
-		}
-		_, err := os.Stat(filepath.Join(c.backupDirectory, d.Name(), "backup.json"))
-		fisk.FatalIfError(err, "expected backup.json")
-	}
-	fmt.Printf("Restoring backup of all %d streams in directory %q\n\n", len(de), c.backupDirectory)
-	s := &streamCmd{msgID: -1, showProgress: false, placementCluster: c.placementCluster, placementTags: c.placementTags}
-	for _, d := range de {
-		s.backupDirectory = filepath.Join(c.backupDirectory, d.Name())
-		err := s.restoreAction(kp)
-		fisk.FatalIfError(err, "restore for %s failed", d.Name())
-	}
-	return nil
 }
 
 func (c *actCmd) reportConnectionsAction(pc *fisk.ParseContext) error {

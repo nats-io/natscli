@@ -20,10 +20,10 @@ nats kv watch CONFIG 'users.>''
 
 # create a bucket backup for CONFIG into backups/CONFIG
 nats kv status CONFIG
-nats stream backup <stream name> backups/CONFIG
+nats backup stream <stream name> backups/CONFIG
 
 # restore a bucket from a backup
-nats stream restore <stream name> backups/CONFIG
+nats backup restore stream <stream name> backups/CONFIG
 
 # list known buckets
 nats kv ls
