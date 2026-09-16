@@ -88,9 +88,11 @@ func selectConsumer(mgr *jsm.Manager, stream string, consumer string, force bool
 }
 
 func selectStream(mgr *jsm.Manager, stream string, force bool, all bool) (string, *jsm.Stream, error) {
-	s, err := mgr.LoadStream(stream)
-	if err == nil {
-		return s.Name(), s, nil
+	if stream != "" {
+		s, err := mgr.LoadStream(stream)
+		if err == nil {
+			return s.Name(), s, nil
+		}
 	}
 
 	streams, err := mgr.StreamNames(nil)
