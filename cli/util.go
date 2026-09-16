@@ -268,16 +268,15 @@ func natsOpts() []nats.Option {
 			time.AfterFunc(time.Second, func() { log.Fatalf(">>> Connection is closed: %v", nc.LastError()) })
 		}),
 		nats.ErrorHandler(func(nc *nats.Conn, _ *nats.Subscription, err error) {
+			if errors.Is(err, nats.ErrSlowConsumer) && !opts().Trace {
+				return
+			}
+
 			log.Printf(">>> Unexpected NATS error: %s", err)
 		}),
 		nats.ReconnectErrHandler(func(conn *nats.Conn, err error) {
 			if opts().Trace {
 				log.Printf(">>> Reconnect error: %s", err)
-			}
-		}),
-		nats.ErrorHandler(func(nc *nats.Conn, _ *nats.Subscription, err error) {
-			if opts().Trace {
-				log.Printf(">>> Unexpected NATS error: %s", err)
 			}
 		}),
 	}...)
