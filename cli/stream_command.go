@@ -451,6 +451,11 @@ Finding streams with certain subjects configured:
 	strClusterBalance.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	strClusterBalance.Flag("expression", "Balance matching streams using an expression language").StringVar(&c.fExpression)
 
+	strClusterCancelMove := strCluster.Command("cancel-move", "Cancels an in-progress stream move").Action(c.cancelMove)
+	strClusterCancelMove.Tag("scope:user", "impact:rw")
+	strClusterCancelMove.Arg("stream", "The stream to act on").StringVar(&c.stream)
+	strClusterCancelMove.Flag("force", "Force cancel without prompting or checks").Short('f').UnNegatableBoolVar(&c.force)
+
 	strClusterRemovePeer := strCluster.Command("peer-remove", "Removes a peer from the stream cluster").Alias("pr").Hidden().Action(c.removePeer)
 	strClusterRemovePeer.Tag("scope:user", "impact:rw")
 	strClusterRemovePeer.Arg("stream", "The stream to act on").StringVar(&c.stream)
@@ -1009,6 +1014,83 @@ func (c *streamCmd) leaderStandDown(_ *fisk.ParseContext) error {
 
 	fmt.Println()
 	return c.showStream(stream)
+}
+
+func (c *streamCmd) cancelMove(_ *fisk.ParseContext) error {
+	c.connectAndAskStream()
+
+	var err error
+
+	if !c.force {
+		if c.selectedStream == nil {
+			c.selectedStream, err = c.mgr.LoadStream(c.stream)
+			if err != nil {
+				return err
+			}
+		}
+
+		nfo, err := c.selectedStream.Information()
+		if err != nil {
+			return err
+		}
+
+		if nfo.Cluster == nil {
+			return fmt.Errorf("stream is not clustered")
+		}
+
+		if nfo.Cluster.Desired == nil {
+			return fmt.Errorf("stream is not busy moving")
+		}
+
+		ok, err := askConfirmation(fmt.Sprintf("Really cancel move of %q", c.selectedStream.Name()), false)
+		fisk.FatalIfError(err, "could not obtain confirmation")
+
+		if !ok {
+			return fmt.Errorf("canceling request")
+		}
+	}
+
+	_, err = c.mgr.CancelStreamMove(c.stream)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Canceled move of %q\n", c.stream)
+
+	if !c.force {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+
+		fmt.Print("Waiting for move to finish")
+
+		ctr := 0
+		for {
+			select {
+			case <-ticker.C:
+				ctr++
+				fmt.Print(".")
+				nfo, err := c.selectedStream.Information()
+				if err != nil {
+					continue
+				}
+
+				if nfo.Cluster == nil || nfo.Cluster.Desired == nil {
+					fmt.Println()
+					c.showStreamInfo(nfo)
+					return nil
+				}
+
+				if ctr == 20 {
+					fmt.Println("Canceling move did not complete, review status using 'nats stream info'")
+				}
+
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
+
+	return nil
 }
 
 func (c *streamCmd) evacuatePeer(_ *fisk.ParseContext) error {
