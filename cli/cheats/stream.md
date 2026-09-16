@@ -36,10 +36,6 @@ nats stream view --id 1000
 nats stream view --since 1h
 nats stream view --subject one.subject
 
-# Backup and restore
-nats stream backup ORDERS backups/orders/$(date +%Y-%m-%d)
-nats stream restore backups/orders/$(date +%Y-%m-%d)
-
 # Marks a stream as read only
 nats stream seal ORDERS
 

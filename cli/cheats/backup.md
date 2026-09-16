@@ -1,4 +1,11 @@
-# Checking a backup taken with nats stream backup
+# Backup and restore
+nats backup stream ORDERS backups/orders/$(date +%Y-%m-%d)
+nats backup restore stream backups/orders/$(date +%Y-%m-%d)
+
+# To backup all JetStream streams
+nats backup account /path/to/backup --check
+
+# Checking a backup taken with nats backup stream
 nats backup validate ./orders-backup
 nats backup info ./orders-backup
 

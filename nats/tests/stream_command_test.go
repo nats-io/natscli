@@ -14,10 +14,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"math/rand"
-	"os"
 	"testing"
 	"time"
 
@@ -26,17 +23,6 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
-
-func setupStreamTest(t *testing.T, mgr *jsm.Manager, args ...jsm.StreamOption) string {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	name := fmt.Sprintf("TEST_%d", rng.Intn(1000000))
-	_, err := mgr.NewStream(name, append(args, jsm.Subjects("ORDERS.*"))...)
-	if err != nil {
-		t.Fatalf("unable to create stream: %s", err)
-	}
-
-	return name
-}
 
 func TestStreamAdd(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
@@ -469,98 +455,6 @@ func TestStreamGet(t *testing.T) {
 		})
 		if err != nil {
 			t.Error(err)
-		}
-
-		return nil
-	})
-}
-
-func TestStreamBackup(t *testing.T) {
-	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		name := setupStreamTest(t, mgr)
-		tmpDir := t.TempDir()
-
-		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' stream backup %s %s", srv.ClientURL(), name, tmpDir)))
-		if !expectMatchLine(t, output, fmt.Sprintf("Starting backup of Stream \"%s\"", name)) ||
-			!expectMatchLine(t, output, "done") {
-			t.Errorf("Unexecpted output :%s", output)
-		}
-		return nil
-	})
-}
-
-func TestStreamRestore(t *testing.T) {
-	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		name := setupStreamTest(t, mgr)
-		tmpDir := t.TempDir()
-
-		runNatsCli(t, fmt.Sprintf("--server='%s' stream backup %s %s", srv.ClientURL(), name, tmpDir))
-		mgr.DeleteStream(name)
-		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' stream restore %s", srv.ClientURL(), tmpDir)))
-		if !expectMatchLine(t, output, fmt.Sprintf("Starting restore of Stream \"%s\"", name)) ||
-			!expectMatchLine(t, output, fmt.Sprintf("Restored stream \"%s\" in \\d+s", name)) {
-			t.Errorf("Unexecpted output :%s", output)
-		}
-		return nil
-	})
-}
-
-func TestStreamRestoreWithConfig(t *testing.T) {
-	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		name := setupStreamTest(t, mgr)
-		tmpDir := t.TempDir()
-
-		runNatsCli(t, fmt.Sprintf("--server='%s' stream backup %s %s", srv.ClientURL(), name, tmpDir))
-		mgr.DeleteStream(name)
-
-		overrideCfg := api.StreamConfig{
-			Name:         name,
-			Subjects:     []string{"ORDERS.*", "OVERRIDE.*"},
-			Description:  "restored with override",
-			Retention:    api.LimitsPolicy,
-			Storage:      api.FileStorage,
-			MaxConsumers: -1,
-			MaxMsgs:      -1,
-			MaxMsgsPer:   -1,
-			MaxBytes:     -1,
-			MaxMsgSize:   -1,
-			Replicas:     1,
-			Discard:      api.DiscardOld,
-			Duplicates:   2 * time.Minute,
-		}
-
-		cfgJSON, err := json.Marshal(overrideCfg)
-		if err != nil {
-			t.Fatalf("unable to marshal config: %v", err)
-		}
-
-		overrideFile, err := os.CreateTemp(t.TempDir(), "override.json")
-		if err != nil {
-			t.Fatalf("unable to create config file: %v", err)
-		}
-		if _, err := overrideFile.Write(cfgJSON); err != nil {
-			t.Fatalf("unable to write config file: %v", err)
-		}
-		cfgFile := overrideFile.Name()
-		overrideFile.Close()
-
-		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' stream restore %s --config='%s'", srv.ClientURL(), tmpDir, cfgFile)))
-		if !expectMatchLine(t, output, fmt.Sprintf("Restored stream \"%s\"", name)) {
-			t.Errorf("Unexpected output :%s", output)
-		}
-
-		stream, err := mgr.LoadStream(name)
-		if err != nil {
-			t.Errorf("failed to load stream %s: %s", name, err)
-		}
-
-		if stream.Description() != "restored with override" {
-			t.Errorf("expected description %q but got %q", "restored with override", stream.Description())
-		}
-
-		subjects := stream.Subjects()
-		if len(subjects) != 2 || subjects[0] != "ORDERS.*" || subjects[1] != "OVERRIDE.*" {
-			t.Errorf("expected subjects [ORDERS.* OVERRIDE.*] but got %v", subjects)
 		}
 
 		return nil

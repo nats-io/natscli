@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -25,7 +26,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/audit/archive"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/internal/scaffold"
@@ -391,4 +394,15 @@ func createTestArchive(t *testing.T) string {
 	}
 
 	return path
+}
+
+func setupStreamTest(t *testing.T, mgr *jsm.Manager, args ...jsm.StreamOption) string {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	name := fmt.Sprintf("TEST_%d", rng.Intn(1000000))
+	_, err := mgr.NewStream(name, append(args, jsm.Subjects("ORDERS.*"))...)
+	if err != nil {
+		t.Fatalf("unable to create stream: %s", err)
+	}
+
+	return name
 }

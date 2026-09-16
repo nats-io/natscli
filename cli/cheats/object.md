@@ -33,7 +33,7 @@ nats obj seal FILES
 
 # create a bucket backup for FILES into backups/FILES
 nats obj status FILES
-nats stream backup <stream name> backups/FILES
+nats backup stream <stream name> backups/FILES
 
 # restore a bucket from a backup
-nats stream restore <stream name> backups/FILES
+nats backup restore stream <stream name> backups/FILES

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -58,7 +59,7 @@ func setupBackupFixture(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *js
 	checkErr(t, err, "state failed: %v", err)
 
 	dir := filepath.Join(t.TempDir(), "src")
-	runNatsCli(t, fmt.Sprintf("--server='%s' stream backup %s '%s'", srv.ClientURL(), name, dir))
+	runNatsCli(t, fmt.Sprintf("--server='%s' backup stream %s '%s'", srv.ClientURL(), name, dir))
 
 	return &backupFixture{name: name, dir: dir, state: state}
 }
@@ -67,7 +68,7 @@ func restoreBackup(t *testing.T, srv *server.Server, mgr *jsm.Manager, name stri
 	t.Helper()
 
 	checkErr(t, mgr.DeleteStream(name), "delete failed")
-	runNatsCli(t, fmt.Sprintf("--server='%s' stream restore '%s'", srv.ClientURL(), dir))
+	runNatsCli(t, fmt.Sprintf("--server='%s' backup restore stream '%s'", srv.ClientURL(), dir))
 	stream, err := mgr.LoadStream(name)
 	checkErr(t, err, "restored stream missing: %v", err)
 
@@ -76,9 +77,9 @@ func restoreBackup(t *testing.T, srv *server.Server, mgr *jsm.Manager, name stri
 
 func TestBackupValidate(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		fx := setupBackupFixture(t, srv, nc, mgr)
+		fixture := setupBackupFixture(t, srv, nc, mgr)
 
-		output := string(runNatsCli(t, fmt.Sprintf("backup validate '%s'", fx.dir)))
+		output := string(runNatsCli(t, fmt.Sprintf("backup validate '%s'", fixture.dir)))
 		if !expectMatchLine(t, output, `^OK: 8 entries, 1 consumers, 5 messages, 2 subjects, sequences 1 to 5$`) {
 			t.Errorf("unexpected output: %s", output)
 		}
@@ -89,11 +90,11 @@ func TestBackupValidate(t *testing.T) {
 
 func TestBackupInfo(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		fx := setupBackupFixture(t, srv, nc, mgr)
+		fixture := setupBackupFixture(t, srv, nc, mgr)
 
-		output := string(runNatsCli(t, fmt.Sprintf("backup info '%s' --no-progress", fx.dir)))
+		output := string(runNatsCli(t, fmt.Sprintf("backup info '%s' --no-progress", fixture.dir)))
 		err := expectMatchJSON(t, output, map[string]any{
-			"Configuration": map[string]any{"Name": "^" + fx.name + "$", "Subjects": `^ORDERS\.\*$`, "Storage": "^File$", "Retention": "^Limits$"},
+			"Configuration": map[string]any{"Name": "^" + fixture.name + "$", "Subjects": `^ORDERS\.\*$`, "Storage": "^File$", "Retention": "^Limits$"},
 			"Consumers":     map[string]any{"Count": "^1$", "Names": "^C1$"},
 			"Messages":      map[string]any{"Messages": "^5$", "Subjects": "^2$", "First Sequence": "^1 @ ", "Last Sequence": "^5 @ "},
 		})
@@ -101,7 +102,7 @@ func TestBackupInfo(t *testing.T) {
 			t.Errorf("unexpected info: %v: %s", err, output)
 		}
 
-		output = string(runNatsCli(t, fmt.Sprintf("backup info '%s' --subjects", fx.dir)))
+		output = string(runNatsCli(t, fmt.Sprintf("backup info '%s' --subjects", fixture.dir)))
 		if !expectMatchLine(t, output, "ORDERS.new", "3") || !expectMatchLine(t, output, "ORDERS.paid", "2") {
 			t.Errorf("subjects not listed: %s", output)
 		}
@@ -109,9 +110,9 @@ func TestBackupInfo(t *testing.T) {
 			t.Errorf("server written backup reported as edited: %s", output)
 		}
 
-		output = string(runNatsCli(t, fmt.Sprintf("backup info '%s' --json", fx.dir)))
+		output = string(runNatsCli(t, fmt.Sprintf("backup info '%s' --json", fixture.dir)))
 		err = expectMatchJSON(t, output, map[string]any{
-			"config":    map[string]any{"name": "^" + fx.name + "$"},
+			"config":    map[string]any{"name": "^" + fixture.name + "$"},
 			"consumers": []any{"^C1$"},
 			"messages":  "^5$",
 			"first_seq": "^1$",
@@ -127,10 +128,10 @@ func TestBackupInfo(t *testing.T) {
 
 func TestBackupEditIdentity(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		fx := setupBackupFixture(t, srv, nc, mgr)
+		fixture := setupBackupFixture(t, srv, nc, mgr)
 		target := filepath.Join(t.TempDir(), "edited")
 
-		output := string(runNatsCli(t, fmt.Sprintf("backup edit '%s' '%s'", fx.dir, target)))
+		output := string(runNatsCli(t, fmt.Sprintf("backup edit '%s' '%s'", fixture.dir, target)))
 		for _, want := range [][]string{
 			{"Source Messages", "5"},
 			{"Messages Kept", "5"},
@@ -159,13 +160,13 @@ func TestBackupEditIdentity(t *testing.T) {
 			t.Errorf("edit block missing from info: %v: %s", err, output)
 		}
 
-		stream := restoreBackup(t, srv, mgr, fx.name, target)
+		stream := restoreBackup(t, srv, mgr, fixture.name, target)
 		state, err := stream.State()
 		checkErr(t, err, "state failed: %v", err)
-		if state.Msgs != fx.state.Msgs || state.FirstSeq != fx.state.FirstSeq || state.LastSeq != fx.state.LastSeq || state.Consumers != 1 {
-			t.Errorf("restored state %+v does not match source %+v", state, fx.state)
+		if state.Msgs != fixture.state.Msgs || state.FirstSeq != fixture.state.FirstSeq || state.LastSeq != fixture.state.LastSeq || state.Consumers != 1 {
+			t.Errorf("restored state %+v does not match source %+v", state, fixture.state)
 		}
-		if _, err := mgr.LoadConsumer(fx.name, "C1"); err != nil {
+		if _, err := mgr.LoadConsumer(fixture.name, "C1"); err != nil {
 			t.Errorf("consumer C1 missing after restore: %v", err)
 		}
 
@@ -175,10 +176,10 @@ func TestBackupEditIdentity(t *testing.T) {
 
 func TestBackupEditSubjectFilter(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		fx := setupBackupFixture(t, srv, nc, mgr)
+		fixture := setupBackupFixture(t, srv, nc, mgr)
 		target := filepath.Join(t.TempDir(), "edited")
 
-		output := string(runNatsCli(t, fmt.Sprintf("backup edit '%s' '%s' --subject ORDERS.new", fx.dir, target)))
+		output := string(runNatsCli(t, fmt.Sprintf("backup edit '%s' '%s' --subject ORDERS.new", fixture.dir, target)))
 		for _, want := range [][]string{
 			{"Messages Kept", "3"},
 			{"Dropped by Subject Filter", "2"},
@@ -196,10 +197,10 @@ func TestBackupEditSubjectFilter(t *testing.T) {
 
 func TestBackupEditRenumber(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		fx := setupBackupFixture(t, srv, nc, mgr)
+		fixture := setupBackupFixture(t, srv, nc, mgr)
 		target := filepath.Join(t.TempDir(), "edited")
 
-		output := string(runNatsCli(t, fmt.Sprintf("backup edit '%s' '%s' --subject ORDERS.new --renumber", fx.dir, target)))
+		output := string(runNatsCli(t, fmt.Sprintf("backup edit '%s' '%s' --subject ORDERS.new --renumber", fixture.dir, target)))
 		for _, want := range [][]string{
 			{"Messages Kept", "3"},
 			{"Consumers Dropped", "1"},
@@ -218,10 +219,10 @@ func TestBackupEditRenumber(t *testing.T) {
 
 func TestBackupEditDryRun(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		fx := setupBackupFixture(t, srv, nc, mgr)
+		fixture := setupBackupFixture(t, srv, nc, mgr)
 		target := filepath.Join(t.TempDir(), "edited")
 
-		output := string(runNatsCli(t, fmt.Sprintf("backup edit '%s' '%s' --subject ORDERS.paid --dry-run", fx.dir, target)))
+		output := string(runNatsCli(t, fmt.Sprintf("backup edit '%s' '%s' --subject ORDERS.paid --dry-run", fixture.dir, target)))
 		if !expectMatchLine(t, output, "Dry Run, Nothing Was Written") || !expectMatchLine(t, output, "Messages Kept", "2") {
 			t.Errorf("unexpected output: %s", output)
 		}
@@ -243,7 +244,7 @@ func TestBackupEditKVCompact(t *testing.T) {
 		runNatsCli(t, srvFlag+" kv del B k2 -f")
 
 		dir := filepath.Join(t.TempDir(), "src")
-		runNatsCli(t, fmt.Sprintf("%s stream backup KV_B '%s'", srvFlag, dir))
+		runNatsCli(t, fmt.Sprintf("%s backup stream KV_B '%s'", srvFlag, dir))
 		target := filepath.Join(t.TempDir(), "edited")
 
 		output := string(runNatsCli(t, fmt.Sprintf("backup edit '%s' '%s' --kv-compact", dir, target)))
@@ -265,11 +266,11 @@ func TestBackupEditKVCompact(t *testing.T) {
 
 func TestBackupEditObfuscate(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		fx := setupBackupFixture(t, srv, nc, mgr)
+		fixture := setupBackupFixture(t, srv, nc, mgr)
 		target := filepath.Join(t.TempDir(), "edited")
 		keyFile := target + ".keys.json"
 
-		output := string(runNatsCli(t, fmt.Sprintf("backup edit '%s' '%s' --obfuscate", fx.dir, target)))
+		output := string(runNatsCli(t, fmt.Sprintf("backup edit '%s' '%s' --obfuscate", fixture.dir, target)))
 		for _, want := range [][]string{
 			{"Message Bodies Padded", "5"},
 			{"Key File", regexp.QuoteMeta(keyFile)},
@@ -295,7 +296,7 @@ func TestBackupEditObfuscate(t *testing.T) {
 		if err := expectMatchJSON(t, output, map[string]any{"Edit": map[string]any{"Obfuscated": "^true$"}}); err != nil {
 			t.Errorf("edit block missing from info: %v: %s", err, output)
 		}
-		if strings.Contains(output, fx.name) {
+		if strings.Contains(output, fixture.name) {
 			t.Errorf("obfuscated backup still names the source stream: %s", output)
 		}
 
@@ -315,7 +316,7 @@ func TestBackupEditObfuscate(t *testing.T) {
 			t.Fatalf("info json failed: %v: %s", err, hashed)
 		}
 		output = string(runNatsCli(t, fmt.Sprintf("backup lookup '%s' %s %s", keyFile, nfo.Config.Name, nfo.Config.Subjects[0])))
-		if !expectMatchLine(t, output, "^"+fx.name+"$") || !expectMatchLine(t, output, `^ORDERS\.\*$`) {
+		if !expectMatchLine(t, output, "^"+fixture.name+"$") || !expectMatchLine(t, output, `^ORDERS\.\*$`) {
 			t.Errorf("lookup did not reveal the originals: %s", output)
 		}
 
@@ -325,7 +326,7 @@ func TestBackupEditObfuscate(t *testing.T) {
 
 func TestBackupEditErrors(t *testing.T) {
 	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
-		fx := setupBackupFixture(t, srv, nc, mgr)
+		fixture := setupBackupFixture(t, srv, nc, mgr)
 
 		v1 := t.TempDir()
 		checkErr(t, os.WriteFile(filepath.Join(v1, "backup.json"), []byte(`{"config":{"name":"OLD"}}`), 0o600), "write failed")
@@ -338,10 +339,10 @@ func TestBackupEditErrors(t *testing.T) {
 		}{
 			{"not a 2.15 backup", fmt.Sprintf("backup edit '%s' '%s'", v1, filepath.Join(t.TempDir(), "out")), "not a NATS Server 2.15 stream backup"},
 			{"validate not a 2.15 backup", fmt.Sprintf("backup validate '%s'", v1), "not a NATS Server 2.15 stream backup"},
-			{"kv-compact on a plain stream", fmt.Sprintf("backup edit '%s' '%s' --kv-compact", fx.dir, filepath.Join(t.TempDir(), "out")), "requires a KV bucket backup"},
-			{"kv-compact with last-per-subject", fmt.Sprintf("backup edit '%s' '%s' --kv-compact --last-per-subject 1", fx.dir, filepath.Join(t.TempDir(), "out")), "mutually exclusive"},
-			{"bad regex", fmt.Sprintf("backup edit '%s' '%s' --payload-match '('", fx.dir, filepath.Join(t.TempDir(), "out")), "invalid payload expression"},
-			{"bad time", fmt.Sprintf("backup edit '%s' '%s' --after yesterday", fx.dir, filepath.Join(t.TempDir(), "out")), "invalid time"},
+			{"kv-compact on a plain stream", fmt.Sprintf("backup edit '%s' '%s' --kv-compact", fixture.dir, filepath.Join(t.TempDir(), "out")), "requires a KV bucket backup"},
+			{"kv-compact with last-per-subject", fmt.Sprintf("backup edit '%s' '%s' --kv-compact --last-per-subject 1", fixture.dir, filepath.Join(t.TempDir(), "out")), "mutually exclusive"},
+			{"bad regex", fmt.Sprintf("backup edit '%s' '%s' --payload-match '('", fixture.dir, filepath.Join(t.TempDir(), "out")), "invalid payload expression"},
+			{"bad time", fmt.Sprintf("backup edit '%s' '%s' --after yesterday", fixture.dir, filepath.Join(t.TempDir(), "out")), "invalid time"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				err := runNatsCliWithError(t, tc.cmd)
@@ -352,6 +353,221 @@ func TestBackupEditErrors(t *testing.T) {
 					t.Errorf("expected error containing %q, got: %v", tc.want, err)
 				}
 			})
+		}
+
+		return nil
+	})
+}
+
+func TestBackupStream(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name := setupStreamTest(t, mgr)
+		tmpDir := t.TempDir()
+
+		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' backup stream %s %s", srv.ClientURL(), name, tmpDir)))
+		if !expectMatchLine(t, output, fmt.Sprintf("Starting backup of Stream \"%s\"", name)) ||
+			!expectMatchLine(t, output, "done") {
+			t.Errorf("Unexecpted output :%s", output)
+		}
+		return nil
+	})
+}
+
+func TestBackupRestoreStream(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name := setupStreamTest(t, mgr)
+		tmpDir := t.TempDir()
+
+		runNatsCli(t, fmt.Sprintf("--server='%s' backup stream %s %s", srv.ClientURL(), name, tmpDir))
+		mgr.DeleteStream(name)
+		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' backup restore stream %s", srv.ClientURL(), tmpDir)))
+		if !expectMatchLine(t, output, fmt.Sprintf("Starting restore of Stream \"%s\"", name)) ||
+			!expectMatchLine(t, output, fmt.Sprintf("Restored stream \"%s\" in \\d+s", name)) {
+			t.Errorf("Unexecpted output :%s", output)
+		}
+		return nil
+	})
+}
+
+func TestBackupRestoreStreamWithConfig(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		name := setupStreamTest(t, mgr)
+		tmpDir := t.TempDir()
+
+		runNatsCli(t, fmt.Sprintf("--server='%s' backup stream %s %s", srv.ClientURL(), name, tmpDir))
+		mgr.DeleteStream(name)
+
+		overrideCfg := api.StreamConfig{
+			Name:         name,
+			Subjects:     []string{"ORDERS.*", "OVERRIDE.*"},
+			Description:  "restored with override",
+			Retention:    api.LimitsPolicy,
+			Storage:      api.FileStorage,
+			MaxConsumers: -1,
+			MaxMsgs:      -1,
+			MaxMsgsPer:   -1,
+			MaxBytes:     -1,
+			MaxMsgSize:   -1,
+			Replicas:     1,
+			Discard:      api.DiscardOld,
+			Duplicates:   2 * time.Minute,
+		}
+
+		cfgJSON, err := json.Marshal(overrideCfg)
+		if err != nil {
+			t.Fatalf("unable to marshal config: %v", err)
+		}
+
+		overrideFile, err := os.CreateTemp(t.TempDir(), "override.json")
+		if err != nil {
+			t.Fatalf("unable to create config file: %v", err)
+		}
+		if _, err := overrideFile.Write(cfgJSON); err != nil {
+			t.Fatalf("unable to write config file: %v", err)
+		}
+		cfgFile := overrideFile.Name()
+		overrideFile.Close()
+
+		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' backup restore stream %s --config='%s'", srv.ClientURL(), tmpDir, cfgFile)))
+		if !expectMatchLine(t, output, fmt.Sprintf("Restored stream \"%s\"", name)) {
+			t.Errorf("Unexpected output :%s", output)
+		}
+
+		stream, err := mgr.LoadStream(name)
+		if err != nil {
+			t.Errorf("failed to load stream %s: %s", name, err)
+		}
+
+		if stream.Description() != "restored with override" {
+			t.Errorf("expected description %q but got %q", "restored with override", stream.Description())
+		}
+
+		subjects := stream.Subjects()
+		if len(subjects) != 2 || subjects[0] != "ORDERS.*" || subjects[1] != "OVERRIDE.*" {
+			t.Errorf("expected subjects [ORDERS.* OVERRIDE.*] but got %v", subjects)
+		}
+
+		return nil
+	})
+}
+
+func TestBackupStreamAndRestoreState(t *testing.T) {
+	srv, nc, mgr := setupJStreamTest(t)
+	defer srv.Shutdown()
+
+	stream, err := mgr.NewStreamFromDefault("file1", file1Stream())
+	checkErr(t, err, "could not create stream: %v", err)
+	streamShouldExist(t, mgr, "file1")
+
+	for i := 0; i < 1000; i++ {
+		nc.Publish("js.file.1", []byte(RandomString(5480)))
+	}
+
+	td, err := os.MkdirTemp("", "")
+	checkErr(t, err, "temp dir failed")
+	os.RemoveAll(td)
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' backup stream file1 '%s' --no-progress", srv.ClientURL(), td))
+
+	preState, err := stream.State()
+	checkErr(t, err, "state failed")
+	stream.Delete()
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' backup restore stream '%s' --no-progress", srv.ClientURL(), td))
+	stream, err = mgr.NewStreamFromDefault("file1", file1Stream())
+	checkErr(t, err, "could not create stream: %v", err)
+
+	postState, err := stream.State()
+	checkErr(t, err, "state failed")
+	if !reflect.DeepEqual(preState, postState) {
+		t.Fatalf("restored state differed")
+	}
+
+	if postState.Msgs != 1000 {
+		t.Fatalf("Expected 1000 messages got %d", postState.Msgs)
+	}
+}
+
+func TestBackupStreamRestoreSequence(t *testing.T) {
+	srv, nc, mgr := setupConsTest(t)
+	defer srv.Shutdown()
+
+	dir, err := os.MkdirTemp("", "")
+	checkErr(t, err, "temp dir failed")
+	defer os.RemoveAll(dir)
+	target := filepath.Join(dir, "backup.tgz")
+
+	stream, err := mgr.NewStreamFromDefault("file1", file1Stream())
+	checkErr(t, err, "could not create stream: %v", err)
+	streamShouldExist(t, mgr, "file1")
+
+	for i := 0; i < 1024; i++ {
+		_, err = nc.Request("js.file.1", []byte(fmt.Sprintf("message %d", i)), time.Second)
+		checkErr(t, err, "publish failed")
+	}
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' backup stream file1 '%s'", srv.ClientURL(), target))
+
+	err = stream.Delete()
+	checkErr(t, err, "delete failed")
+	streamShouldNotExist(t, mgr, "file1")
+
+	runNatsCli(t, fmt.Sprintf("--server='%s' backup restore stream '%s'", srv.ClientURL(), target))
+	streamShouldExist(t, mgr, "file1")
+
+	stream, err = mgr.LoadStream("file1")
+	checkErr(t, err, "load failed")
+	state, err := stream.State()
+	checkErr(t, err, "state failed")
+	if state.LastSeq != 1024 {
+		t.Fatalf("expected 1024 messages got %d", state.LastSeq)
+	}
+}
+
+func TestBackupAccount(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		_, err := mgr.NewStream("INVOICES", jsm.FileStorage(), jsm.Subjects("INVOICES.*"))
+		checkErr(t, err, "unable to create stream: %v", err)
+		streamNames := []string{setupStreamTest(t, mgr, jsm.FileStorage()), "INVOICES"}
+		publishSubjects := []string{"ORDERS.new", "INVOICES.new"}
+		statesBeforeBackup := map[string]api.StreamState{}
+
+		for i, streamName := range streamNames {
+			for msgNum := range 5 {
+				_, err := nc.Request(publishSubjects[i], fmt.Appendf(nil, "message %d", msgNum), time.Second)
+				checkErr(t, err, "publish failed: %v", err)
+			}
+			stream, err := mgr.LoadStream(streamName)
+			checkErr(t, err, "load failed: %v", err)
+			statesBeforeBackup[streamName], err = stream.State()
+			checkErr(t, err, "state failed: %v", err)
+		}
+
+		backupDir := filepath.Join(t.TempDir(), "account")
+		output := string(runNatsCli(t, fmt.Sprintf("--server='%s' backup account '%s' --force", srv.ClientURL(), backupDir)))
+		for _, streamName := range streamNames {
+			if !expectMatchLine(t, output, fmt.Sprintf("Starting backup of Stream \"%s\"", streamName)) {
+				t.Errorf("unexpected output: %s", output)
+			}
+			if _, err := os.Stat(filepath.Join(backupDir, streamName, "backup.json")); err != nil {
+				t.Errorf("expected a backup for %s: %v", streamName, err)
+			}
+			checkErr(t, mgr.DeleteStream(streamName), "delete failed")
+		}
+
+		output = string(runNatsCli(t, fmt.Sprintf("--server='%s' backup restore account '%s'", srv.ClientURL(), backupDir)))
+		if !expectMatchLine(t, output, "Restoring backup of all 2 streams") {
+			t.Errorf("unexpected output: %s", output)
+		}
+
+		for _, streamName := range streamNames {
+			stream, err := mgr.LoadStream(streamName)
+			checkErr(t, err, "restored stream missing: %v", err)
+			restoredState, err := stream.State()
+			checkErr(t, err, "state failed: %v", err)
+			if restoredState.Msgs != statesBeforeBackup[streamName].Msgs || restoredState.FirstSeq != statesBeforeBackup[streamName].FirstSeq || restoredState.LastSeq != statesBeforeBackup[streamName].LastSeq {
+				t.Errorf("restored state for %s differed: %+v vs %+v", streamName, restoredState, statesBeforeBackup[streamName])
+			}
 		}
 
 		return nil

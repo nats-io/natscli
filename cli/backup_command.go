@@ -14,16 +14,23 @@
 package cli
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/choria-io/fisk"
 	"github.com/dustin/go-humanize"
 	"github.com/jedib0t/go-pretty/v6/progress"
+	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jsm.go/api"
 	"github.com/nats-io/jsm.go/backup"
 	iu "github.com/nats-io/natscli/internal/util"
 )
@@ -32,6 +39,18 @@ type backupCmd struct {
 	source string
 	target string
 	json   bool
+
+	stream            string
+	healthCheck       bool
+	snapShotConsumers bool
+	chunkSize         string
+	wndSize           string
+	force             bool
+	failOnWarn        bool
+	inputFile         string
+	placementCluster  string
+	placementTags     []string
+	replicas          int64
 
 	subjects            []string
 	excludeSubjects     []string
@@ -61,9 +80,16 @@ type backupCmd struct {
 func configureBackupCommand(app commandHost) {
 	c := &backupCmd{}
 
-	bk := app.Command("backup", "Inspect and edit stream backups on disk")
-	bk.HelpLong(`These commands work on the directory written by 'nats stream backup'. Only backups taken from NATS Server 2.15 or newer are supported.`)
+	bk := app.Command("backup", "Backup, restore, inspect and edit JetStream streams")
+	bk.HelpLong(`Backups are taken over the NATS network into a directory. The edit, info, validate and lookup commands work on that directory and support only backups taken from NATS Server 2.15 or newer.`)
 	addCheat("backup", bk)
+
+	c.streamBackupCommand(bk, "stream")
+	c.accountBackupCommand(bk, "account")
+
+	restore := bk.Command("restore", "Restores backups over the NATS network")
+	c.streamRestoreCommand(restore, "stream")
+	c.accountRestoreCommand(restore, "account")
 
 	edit := bk.Command("edit", "Creates an edited copy of a stream backup").Action(c.editAction)
 	edit.Tag("scope:user", "impact:ro")
@@ -105,8 +131,434 @@ func configureBackupCommand(app commandHost) {
 	lookup.Arg("value", "Obfuscated values to look up, subjects are looked up token by token").Required().StringsVar(&c.values)
 }
 
+func (c *backupCmd) streamBackupCommand(parent *fisk.CmdClause, name string) *fisk.CmdClause {
+	cmd := parent.Command(name, "Creates a backup of a stream over the NATS network").Action(c.streamAction)
+	cmd.Tag("scope:user", "impact:ro")
+	cmd.Arg("stream", "Stream to backup").Required().StringVar(&c.stream)
+	cmd.Arg("target", "Directory to create the backup in").Required().StringVar(&c.target)
+	cmd.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
+	cmd.Flag("check", "Checks the stream for health prior to backup").UnNegatableBoolVar(&c.healthCheck)
+	cmd.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
+	cmd.Flag("chunk-size", "Sets a specific chunk size that the server will send").StringVar(&c.chunkSize)
+	cmd.Flag("window-size", "Sets a specific window size that the server will send").StringVar(&c.wndSize)
+
+	return cmd
+}
+
+func (c *backupCmd) accountBackupCommand(parent *fisk.CmdClause, name string) *fisk.CmdClause {
+	cmd := parent.Command(name, "Creates a backup of all  JetStream Streams over the NATS network").Action(c.accountAction)
+	cmd.Tag("scope:user", "impact:ro")
+	cmd.Arg("target", "Directory to create the backup in").Required().StringVar(&c.target)
+	cmd.Flag("check", "Checks the Stream for health prior to backup").UnNegatableBoolVar(&c.healthCheck)
+	cmd.Flag("consumers", "Enable or disable consumer backups").Default("true").BoolVar(&c.snapShotConsumers)
+	cmd.Flag("force", "Perform backup without prompting").Short('f').UnNegatableBoolVar(&c.force)
+	cmd.Flag("critical-warnings", "Treat warnings as failures").Short('w').UnNegatableBoolVar(&c.failOnWarn)
+
+	return cmd
+}
+
+func (c *backupCmd) streamRestoreCommand(parent *fisk.CmdClause, name string) *fisk.CmdClause {
+	cmd := parent.Command(name, "Restore a stream over the NATS network").Action(c.restoreStreamAction)
+	cmd.Tag("scope:user", "impact:rw")
+	cmd.Arg("file", "The directory holding the backup to restore").Required().ExistingDirVar(&c.source)
+	cmd.Flag("progress", "Enables or disables progress reporting using a progress bar").Default("true").BoolVar(&c.showProgress)
+	cmd.Flag("config", "Load a different configuration when restoring the stream").ExistingFileVar(&c.inputFile)
+	cmd.Flag("cluster", "Place the stream in a specific cluster").StringVar(&c.placementCluster)
+	cmd.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
+	cmd.Flag("replicas", "Override how many replicas of the data to create").Int64Var(&c.replicas)
+
+	return cmd
+}
+
+func (c *backupCmd) accountRestoreCommand(parent *fisk.CmdClause, name string) *fisk.CmdClause {
+	cmd := parent.Command(name, "Restore an account backup over the NATS network").Action(c.restoreAccountAction)
+	cmd.Tag("scope:user", "impact:rw")
+	cmd.Arg("directory", "The directory holding the account backup to restore").Required().ExistingDirVar(&c.source)
+	cmd.Flag("cluster", "Place the stream in a specific cluster").StringVar(&c.placementCluster)
+	cmd.Flag("tag", "Place the stream on servers that has specific tags (pass multiple times)").StringsVar(&c.placementTags)
+
+	return cmd
+}
+
+func deprecatedCommand(old string, replacement string) fisk.Action {
+	return func(_ *fisk.ParseContext) error {
+		fmt.Fprintf(os.Stderr, "WARNING: %q is deprecated and will be removed in a future release, use %q instead\n\n", old, replacement)
+		return nil
+	}
+}
+
 func init() {
 	registerCommand("backup", 1, configureBackupCommand)
+}
+
+func backupStream(stream *jsm.Stream, showProgress bool, consumers bool, check bool, target string, chunkSize, wndSize int) error {
+	first := true
+	pmu := sync.Mutex{}
+	expected := 1
+	timedOut := false
+
+	var progbar progress.Writer
+	var tracker *progress.Tracker
+	var err error
+	var prevMsg time.Time
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	idleTimeout := 5 * time.Second
+	if opts().Timeout > idleTimeout {
+		idleTimeout = opts().Timeout
+	}
+
+	timeout := time.AfterFunc(idleTimeout, func() {
+		cancel()
+		timedOut = true
+	})
+
+	var received uint32
+
+	cb := func(p jsm.SnapshotProgress) {
+		if tracker == nil && showProgress {
+			if p.BytesExpected() > 0 {
+				expected = int(p.BytesExpected())
+			}
+			progbar, tracker, err = iu.NewProgress(opts(), &progress.Tracker{
+				Total: int64(expected),
+				Units: iu.ProgressUnitsIBytes,
+			})
+		}
+
+		if first {
+			fmt.Printf("Starting backup of Stream %q with %s\n", stream.Name(), humanize.IBytes(p.BytesExpected()))
+			if showProgress {
+				fmt.Println()
+			}
+
+			if p.HealthCheck() {
+				fmt.Printf("Health Check was requested, this can take a long time without progress reports\n\n")
+			}
+
+			first = false
+		}
+
+		if opts().Trace {
+			if first {
+				fmt.Printf("Received %s chunk %s\n", fiBytes(uint64(p.ChunkSize())), f(p.ChunksReceived()))
+			} else {
+				fmt.Printf("Received %s chunk %s with time delta %s\n", fiBytes(uint64(p.ChunkSize())), f(p.ChunksReceived()), time.Since(prevMsg))
+			}
+		}
+
+		if p.ChunksReceived() != received {
+			timeout.Reset(idleTimeout)
+			received = p.ChunksReceived()
+		}
+
+		if tracker != nil {
+			tracker.SetValue(int64(p.UncompressedBytesReceived()))
+		}
+
+		prevMsg = time.Now()
+	}
+
+	sopts := []jsm.SnapshotOption{
+		jsm.SnapshotChunkSize(chunkSize),
+		jsm.SnapshotWindowSize(wndSize),
+		jsm.SnapshotNotify(cb),
+	}
+
+	if consumers {
+		sopts = append(sopts, jsm.SnapshotConsumers())
+	}
+
+	if opts().Trace {
+		sopts = append(sopts, jsm.SnapshotDebug())
+		showProgress = false
+	}
+
+	if check {
+		sopts = append(sopts, jsm.SnapshotHealthCheck())
+	}
+
+	fp, err := stream.SnapshotToDirectory(ctx, target, sopts...)
+	if err != nil {
+		return err
+	}
+
+	pmu.Lock()
+	if tracker != nil {
+		tracker.SetValue(int64(expected))
+		tracker.MarkAsDone()
+		time.Sleep(300 * time.Millisecond)
+		progbar.Stop()
+	}
+	pmu.Unlock()
+
+	fmt.Println()
+
+	if timedOut {
+		return fmt.Errorf("backup timed out after receiving no data for a long period")
+	}
+
+	fmt.Printf("Received %s compressed data in %s chunks for stream %q in %v, %s uncompressed \n", humanize.IBytes(fp.BytesReceived()), f(fp.ChunksReceived()), stream.Name(), fp.EndTime().Sub(fp.StartTime()).Round(time.Millisecond), fiBytes(fp.UncompressedBytesReceived()))
+
+	return nil
+}
+
+func (c *backupCmd) streamAction(_ *fisk.ParseContext) error {
+	var err error
+
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	fisk.FatalIfError(err, "setup failed")
+
+	stream, err := mgr.LoadStream(c.stream)
+	if err != nil {
+		return err
+	}
+
+	var chunkSize, wndSize int64
+	if c.chunkSize != "" {
+		if chunkSize, err = iu.ParseStringAsBytes(c.chunkSize, 32); err != nil {
+			return err
+		}
+	}
+	if c.wndSize != "" {
+		if wndSize, err = iu.ParseStringAsBytes(c.wndSize, 32); err != nil {
+			return err
+		}
+	}
+
+	err = backupStream(stream, c.showProgress, c.snapShotConsumers, c.healthCheck, c.target, int(chunkSize), int(wndSize))
+	fisk.FatalIfError(err, "snapshot failed")
+
+	return nil
+}
+
+func (c *backupCmd) accountAction(_ *fisk.ParseContext) error {
+	var err error
+
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	fisk.FatalIfError(err, "setup failed")
+
+	streams, missing, offline, err := mgr.Streams(nil)
+	if err != nil {
+		return err
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("could not obtain stream information for %d streams", len(missing))
+	}
+	if !c.force && len(offline) > 0 {
+		return fmt.Errorf("could not obtain stream information for %d offline streams", len(offline))
+	}
+	if len(streams) == 0 {
+		return fmt.Errorf("no streams found")
+	}
+
+	totalSize := uint64(0)
+	totalConsumers := 0
+
+	for _, s := range streams {
+		state, _ := s.LatestState()
+		totalConsumers += state.Consumers
+		totalSize += state.Bytes
+	}
+
+	cols := newColumnsf("Performing backup of all streams to %s", c.target)
+	cols.AddRow("Streams", len(streams))
+	cols.AddRow("Size", humanize.IBytes(totalSize))
+	cols.AddRow("Consumers:", totalConsumers)
+	cols.Println()
+	cols.Frender(os.Stdout)
+
+	if !c.force {
+		ok, err := askConfirmation("Perform backup", false)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			return nil
+		}
+	}
+
+	err = os.MkdirAll(c.target, 0700)
+	if err != nil {
+		return err
+	}
+
+	var errs []error
+	var warns []error
+
+	for _, s := range streams {
+		err = backupStream(s, false, c.snapShotConsumers, c.healthCheck, filepath.Join(c.target, s.Name()), 128*1024, 0)
+		if errors.Is(err, jsm.ErrMemoryStreamNotSupported) {
+			fmt.Printf("Backup of %s failed: %v\n", s.Name(), err)
+			warns = append(warns, fmt.Errorf("%s: %w", s.Name(), err))
+		} else if err != nil {
+			fmt.Printf("Backup of %s failed: %s\n", s.Name(), err)
+			errs = append(errs, fmt.Errorf("%s: %s", s.Name(), err))
+		}
+		fmt.Println()
+	}
+
+	if len(warns) > 0 {
+		fmt.Printf("Backup Warnings: \n")
+		for _, err := range warns {
+			fmt.Printf("  %s\n", err)
+		}
+		fmt.Println()
+	}
+
+	if len(errs) > 0 {
+		fmt.Printf("Backup failures: \n")
+		for _, err := range errs {
+			fmt.Printf("  %s\n", err)
+		}
+		fmt.Println()
+	}
+
+	if len(errs) > 0 || len(warns) > 0 && c.failOnWarn {
+		return fmt.Errorf("backup failed")
+	}
+
+	return nil
+}
+
+func (c *backupCmd) restoreStream(dir string) error {
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	fisk.FatalIfError(err, "setup failed")
+
+	var bm api.JSApiStreamRestoreRequest
+	bmj, err := os.ReadFile(filepath.Join(dir, "backup.json"))
+	fisk.FatalIfError(err, "restore failed")
+	err = json.Unmarshal(bmj, &bm)
+	fisk.FatalIfError(err, "restore failed")
+
+	var cfg *api.StreamConfig
+
+	known, err := mgr.IsKnownStream(bm.Config.Name)
+	fisk.FatalIfError(err, "Could not check if the stream already exist")
+	if known {
+		fisk.Fatalf("Stream %q already exist", bm.Config.Name)
+	}
+
+	var progbar progress.Writer
+	var tracker *progress.Tracker
+	var prevMsg time.Time
+
+	cb := func(p jsm.RestoreProgress) {
+		if opts().Trace && (p.ChunksSent()%100 == 0 || time.Since(prevMsg) > 500*time.Millisecond) {
+			fmt.Printf("Sent %v chunk %v / %v at %v / s\n", fiBytes(uint64(p.ChunkSize())), p.ChunksSent(), p.ChunksToSend(), fiBytes(p.BytesPerSecond()))
+			return
+		}
+
+		prevMsg = time.Now()
+
+		if progbar == nil {
+			progbar, tracker, _ = iu.NewProgress(opts(), &progress.Tracker{
+				Total: int64(p.ChunksToSend() * p.ChunkSize()),
+				Units: progress.UnitsBytes,
+			})
+		}
+
+		tracker.SetValue(int64(p.ChunksSent() * uint32(p.ChunkSize())))
+	}
+
+	var ropts []jsm.SnapshotOption
+
+	if c.showProgress {
+		ropts = append(ropts, jsm.RestoreNotify(cb))
+	} else {
+		ropts = append(ropts, jsm.SnapshotDebug())
+	}
+
+	if c.inputFile != "" {
+		cfg, err = (&streamCmd{}).loadConfigFile(c.inputFile)
+		if err != nil {
+			return err
+		}
+
+		// we need to confirm this new config has the same stream
+		// name as the snapshot else the server state can get confused
+		// see https://github.com/nats-io/nats-server/issues/2850
+		if bm.Config.Name != cfg.Name {
+			return fmt.Errorf("stream names may not be changed during restore")
+		}
+	} else {
+		cfg = &bm.Config
+	}
+
+	if c.placementCluster != "" || len(c.placementTags) > 0 {
+		cfg.Placement = &api.Placement{
+			Cluster: c.placementCluster,
+			Tags:    c.placementTags,
+		}
+	}
+
+	if c.replicas > 0 {
+		cfg.Replicas = int(c.replicas)
+	}
+
+	if cfg != nil {
+		ropts = append(ropts, jsm.RestoreConfiguration(*cfg))
+	}
+
+	fmt.Printf("Starting restore of Stream %q from file %q\n\n", bm.Config.Name, dir)
+
+	fp, _, err := mgr.RestoreSnapshotFromDirectory(ctx, bm.Config.Name, dir, ropts...)
+	fisk.FatalIfError(err, "restore failed")
+	if c.showProgress {
+		tracker.SetValue(int64(fp.ChunksSent() * uint32(fp.ChunkSize())))
+		time.Sleep(300 * time.Millisecond)
+		progbar.Stop()
+	}
+
+	fmt.Println()
+	fmt.Printf("Restored stream %q in %v\n", bm.Config.Name, fp.EndTime().Sub(fp.StartTime()).Round(time.Second))
+	fmt.Println()
+
+	stream, err := mgr.LoadStream(bm.Config.Name)
+	fisk.FatalIfError(err, "could not request Stream info")
+	err = (&streamCmd{}).showStream(stream)
+	fisk.FatalIfError(err, "could not show stream")
+
+	return nil
+}
+
+func (c *backupCmd) restoreStreamAction(_ *fisk.ParseContext) error {
+	return c.restoreStream(c.source)
+}
+
+func (c *backupCmd) restoreAccountAction(_ *fisk.ParseContext) error {
+	_, mgr, err := prepareHelper("", natsOpts()...)
+	fisk.FatalIfError(err, "setup failed")
+	streams, err := mgr.StreamNames(nil)
+	if err != nil {
+		return err
+	}
+	existingStreams := map[string]struct{}{}
+	for _, n := range streams {
+		existingStreams[n] = struct{}{}
+	}
+	de, err := os.ReadDir(c.source)
+	fisk.FatalIfError(err, "setup failed")
+	for _, d := range de {
+		if !d.IsDir() {
+			fisk.Fatalf("expected a directory %q", d.Name())
+		}
+		if _, ok := existingStreams[d.Name()]; ok {
+			fisk.Fatalf("stream %q exists already", d.Name())
+		}
+		_, err := os.Stat(filepath.Join(c.source, d.Name(), "backup.json"))
+		fisk.FatalIfError(err, "expected backup.json")
+	}
+	fmt.Printf("Restoring backup of all %d streams in directory %q\n\n", len(de), c.source)
+	for _, d := range de {
+		err := c.restoreStream(filepath.Join(c.source, d.Name()))
+		fisk.FatalIfError(err, "restore for %s failed", d.Name())
+	}
+	return nil
 }
 
 func (c *backupCmd) parseBackupTime(s string) (time.Time, error) {
@@ -216,7 +668,7 @@ func (c *backupCmd) editAction(_ *fisk.ParseContext) error {
 	return nil
 }
 
-// readProgress shows the bar stream backup uses while an archive is read,
+// readProgress shows the bar backup stream uses while an archive is read,
 // one bar spanning every pass. finish completes it before any report prints
 func (c *backupCmd) readProgress(verb string) (cb func(backup.Progress), finish func()) {
 	var progbar progress.Writer
