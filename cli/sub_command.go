@@ -89,8 +89,11 @@ type subscriptionState struct {
 	// cancelFn is called to terminate sub
 	cancelFn context.CancelFunc
 
-	// counter tracks how many messages have been received across all subjects
+	// counter is the printed sequence and includes messages the client dropped
 	counter uint
+
+	// received counts handled messages and drives --count
+	received uint
 
 	// startTime is the timestamp at which the command execution started
 	startTime time.Time
@@ -400,10 +403,19 @@ func (c *subCmd) validateInputs(ctx context.Context, nc *nats.Conn, mgr *jsm.Man
 	return nil
 }
 
-func (c *subCmd) createMsgHandler(subState subscriptionState, subs *[]*nats.Subscription, t *time.Timer) nats.MsgHandler {
+func (c *subCmd) createMsgHandler(subState *subscriptionState, subs *[]*nats.Subscription, t *time.Timer) nats.MsgHandler {
+	lastDropped := map[*nats.Subscription]int{}
+
 	return func(m *nats.Msg) {
 		subState.msgMu.Lock()
 		defer subState.msgMu.Unlock()
+
+		if m.Sub != nil {
+			if dropped, err := m.Sub.Dropped(); err == nil {
+				subState.counter += uint(dropped - lastDropped[m.Sub])
+				lastDropped[m.Sub] = dropped
+			}
+		}
 
 		if c.shouldIgnore(m.Subject, subState.ignoreSubjects) {
 			return
@@ -419,6 +431,7 @@ func (c *subCmd) createMsgHandler(subState subscriptionState, subs *[]*nats.Subs
 		}
 
 		subState.counter++
+		subState.received++
 
 		switch {
 		case c.reportSubjects:
@@ -429,7 +442,7 @@ func (c *subCmd) createMsgHandler(subState subscriptionState, subs *[]*nats.Subs
 			c.handleMsg(m, subState.matchMap, subState)
 		}
 
-		if c.limit > 0 && subState.counter == c.limit {
+		if c.limit > 0 && subState.received == c.limit {
 			for _, sub := range *subs {
 				sub.Unsubscribe()
 			}
@@ -449,7 +462,7 @@ func (c *subCmd) createMsgHandler(subState subscriptionState, subs *[]*nats.Subs
 }
 
 // createJetStreamMsgHandler sets up a message handler specifically for jetstream.Msg message types
-func (c *subCmd) createJetStreamMsgHandler(subState subscriptionState, nc *nats.Conn, consumers *[]jetstream.ConsumeContext, t *time.Timer) jetstream.MessageHandler {
+func (c *subCmd) createJetStreamMsgHandler(subState *subscriptionState, nc *nats.Conn, consumers *[]jetstream.ConsumeContext, t *time.Timer) jetstream.MessageHandler {
 	return func(m jetstream.Msg) {
 		subState.msgMu.Lock()
 		defer subState.msgMu.Unlock()
@@ -472,6 +485,7 @@ func (c *subCmd) createJetStreamMsgHandler(subState subscriptionState, nc *nats.
 		}
 
 		subState.counter++
+		subState.received++
 
 		if c.reportSubjects {
 			c.handleJetStreamSubjectReport(m, subState.subjMu, subState.subjectReportMap, subState.subjectBytesReportMap)
@@ -480,7 +494,7 @@ func (c *subCmd) createJetStreamMsgHandler(subState subscriptionState, nc *nats.
 		}
 
 		meta, _ := m.Metadata()
-		if (c.limit > 0 && subState.counter == c.limit) || (c.stopAtPendingZero && meta != nil && meta.NumPending == 0) {
+		if (c.limit > 0 && subState.received == c.limit) || (c.stopAtPendingZero && meta != nil && meta.NumPending == 0) {
 			for _, cCtx := range *consumers {
 				cCtx.Stop()
 			}
@@ -568,7 +582,7 @@ func (c *subCmd) handleGraphUpdate(m *nats.Msg, mu *sync.Mutex) {
 	mu.Unlock()
 }
 
-func (c *subCmd) handleMsg(m *nats.Msg, matchMap map[string]*nats.Msg, subState subscriptionState) {
+func (c *subCmd) handleMsg(m *nats.Msg, matchMap map[string]*nats.Msg, subState *subscriptionState) {
 	if c.match && m.Reply != "" {
 		matchMap[m.Reply] = m
 	} else {
@@ -576,7 +590,7 @@ func (c *subCmd) handleMsg(m *nats.Msg, matchMap map[string]*nats.Msg, subState 
 	}
 }
 
-func (c *subCmd) createMatchHandler(subState subscriptionState) nats.MsgHandler {
+func (c *subCmd) createMatchHandler(subState *subscriptionState) nats.MsgHandler {
 	return func(reply *nats.Msg) {
 		subState.msgMu.Lock()
 		defer subState.msgMu.Unlock()
@@ -590,7 +604,7 @@ func (c *subCmd) createMatchHandler(subState subscriptionState) nats.MsgHandler 
 		delete(subState.matchMap, reply.Subject)
 
 		// if reached limit and matched all requests
-		if subState.counter == c.limit && len(subState.matchMap) == 0 {
+		if c.limit > 0 && subState.received == c.limit && len(subState.matchMap) == 0 {
 			if reply.Sub != nil {
 				reply.Sub.Unsubscribe()
 			}
@@ -599,7 +613,7 @@ func (c *subCmd) createMatchHandler(subState subscriptionState) nats.MsgHandler 
 	}
 }
 
-func (c *subCmd) graphSubscribe(ctx context.Context, subState subscriptionState, nc *nats.Conn, handler nats.MsgHandler, subs *[]*nats.Subscription) error {
+func (c *subCmd) graphSubscribe(ctx context.Context, subState *subscriptionState, nc *nats.Conn, handler nats.MsgHandler, subs *[]*nats.Subscription) error {
 	width, height, err := terminal.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		return fmt.Errorf("failed to get terminal dimensions: %w", err)
@@ -636,7 +650,7 @@ func (c *subCmd) graphSubscribe(ctx context.Context, subState subscriptionState,
 	return nil
 }
 
-func (c *subCmd) reportSubscribe(ctx context.Context, subState subscriptionState, nc *nats.Conn, handler nats.MsgHandler, subs *[]*nats.Subscription) error {
+func (c *subCmd) reportSubscribe(ctx context.Context, subState *subscriptionState, nc *nats.Conn, handler nats.MsgHandler, subs *[]*nats.Subscription) error {
 	err := c.defaultSubscribe(nc, handler, subs)
 	if err != nil {
 		return err
@@ -647,7 +661,7 @@ func (c *subCmd) reportSubscribe(ctx context.Context, subState subscriptionState
 }
 
 // jetStreamSubscribe creates a jetstream specific subscription
-func (c *subCmd) jetStreamSubscribe(ctx context.Context, subState subscriptionState, handler jetstream.MessageHandler, consumerContexts *[]jetstream.ConsumeContext, js jetstream.JetStream) error {
+func (c *subCmd) jetStreamSubscribe(ctx context.Context, subState *subscriptionState, handler jetstream.MessageHandler, consumerContexts *[]jetstream.ConsumeContext, js jetstream.JetStream) error {
 	subMsg := c.firstSubject()
 	if subMsg == "" {
 		subMsg = ">"
@@ -701,7 +715,7 @@ func (c *subCmd) jetStreamSubscribe(ctx context.Context, subState subscriptionSt
 }
 
 // reportJetStreamSubscribe sets up a jetstream specific subscription for subject reporting
-func (c *subCmd) reportJetStreamSubscribe(ctx context.Context, subState subscriptionState, handler jetstream.MessageHandler, consumerContexts *[]jetstream.ConsumeContext, js jetstream.JetStream) error {
+func (c *subCmd) reportJetStreamSubscribe(ctx context.Context, subState *subscriptionState, handler jetstream.MessageHandler, consumerContexts *[]jetstream.ConsumeContext, js jetstream.JetStream) error {
 	err := c.jetStreamSubscribe(ctx, subState, handler, consumerContexts, js)
 	if err != nil {
 		return err
@@ -826,7 +840,7 @@ func (c *subCmd) defaultSubscribe(nc *nats.Conn, handler nats.MsgHandler, subs *
 	return nil
 }
 
-func (c *subCmd) directSubscribe(subCtx context.Context, subState subscriptionState, handler nats.MsgHandler, js jetstream.JetStream) error {
+func (c *subCmd) directSubscribe(subCtx context.Context, subState *subscriptionState, handler nats.MsgHandler, js jetstream.JetStream) error {
 	ignoredSubjInfo := ""
 	if len(subState.ignoreSubjects) > 0 {
 		ignoredSubjInfo = fmt.Sprintf("\nIgnored subjects: %s", f(subState.ignoreSubjects))
@@ -942,7 +956,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		ctx, cancel      = context.WithCancel(ctx)
 	)
 
-	subState := subscriptionState{
+	subState := &subscriptionState{
 		msgMu:                 &sync.Mutex{},
 		cancelFn:              cancel,
 		counter:               0,
