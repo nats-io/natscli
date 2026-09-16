@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -39,7 +40,10 @@ func (v SchemaValidator) ValidateStruct(data any, schemaType string) (ok bool, e
 	if err != nil {
 		return false, []string{fmt.Sprintf("could not serialize data: %s", err)}
 	}
-	err = json.Unmarshal(dj, &d)
+
+	dec := json.NewDecoder(bytes.NewReader(dj))
+	dec.UseNumber()
+	err = dec.Decode(&d)
 	if err != nil {
 		return false, []string{fmt.Sprintf("could not de-serialize data: %s", err)}
 	}
