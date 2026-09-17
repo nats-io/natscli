@@ -19,9 +19,9 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.8.3
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.20.0
-	github.com/nats-io/jsm.go v0.4.2-0.20260916120655-ae04ad477a0c
+	github.com/nats-io/jsm.go v0.5.0
 	github.com/nats-io/jwt/v2 v2.8.2
-	github.com/nats-io/nats-server/v2 v2.15.0-preview.1
+	github.com/nats-io/nats-server/v2 v2.15.0
 	github.com/nats-io/nats.go v1.53.1
 	github.com/nats-io/nkeys v0.4.16
 	github.com/nats-io/nuid v1.0.1
@@ -32,8 +32,8 @@ require (
 	github.com/synadia-io/orbit.go/jetstreamext v0.3.2
 	github.com/synadia-io/orbit.go/natsext v0.1.3
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
-	golang.org/x/crypto v0.56.0
-	golang.org/x/term v0.45.0
+	golang.org/x/crypto v0.57.0
+	golang.org/x/term v0.46.0
 	gopkg.in/gizak/termui.v1 v1.0.0-20151021151108-e62b5929642a
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -53,10 +53,10 @@ require (
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gosuri/uilive v0.0.4 // indirect
-	github.com/huandu/xstrings v1.5.0 // indirect
+	github.com/huandu/xstrings v1.6.0 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
-	github.com/mattn/go-runewidth v0.0.29 // indirect
+	github.com/mattn/go-runewidth v0.0.30 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/minio/highwayhash v1.0.4 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -70,10 +70,10 @@ require (
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	golang.org/x/exp v0.0.0-20260824195058-e88cd73687aa // indirect
-	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
+	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
