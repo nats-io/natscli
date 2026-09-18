@@ -174,7 +174,7 @@ func (c *SrvClusterCmd) metaRescueAction(_ *fisk.ParseContext) error {
 	}
 
 	if matched == 0 {
-		if len(domains) > 1 {
+		if len(domains) > 0 {
 			names := iu.MapKeys(domains)
 			slices.Sort(names)
 			for i, d := range names {
@@ -182,7 +182,9 @@ func (c *SrvClusterCmd) metaRescueAction(_ *fisk.ParseContext) error {
 					names[i] = "no domain"
 				}
 			}
-
+			if len(names) == 1 {
+				return fmt.Errorf("domain found, explicitly set it to %s", names[0])
+			}
 			return fmt.Errorf("multiple domains found, pick one from %s", strings.Join(names, ", "))
 		}
 		return fmt.Errorf("no compatible servers found")
