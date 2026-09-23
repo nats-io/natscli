@@ -859,6 +859,15 @@ func (c *backupCmd) infoAction(_ *fisk.ParseContext) error {
 		cols.AddRow("Obfuscated", nfo.Edit.Obfuscated)
 	}
 
+	if nfo.Source != nil {
+		cols.AddSectionTitle("Source")
+		cols.AddRowIf("Subjects", nfo.Source.Subjects, len(nfo.Source.Subjects) > 0)
+		cols.AddRowIf("Stream", nfo.Source.Stream, nfo.Source.Stream != "")
+		cols.AddRow("Started", f(nfo.Source.Started))
+		cols.AddRow("Ended", f(nfo.Source.Ended))
+		cols.AddRow("Dropped", nfo.Source.Dropped)
+	}
+
 	cols.Frender(os.Stdout)
 
 	if c.listSubjects {

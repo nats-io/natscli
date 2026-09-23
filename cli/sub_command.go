@@ -20,14 +20,19 @@ import (
 	"fmt"
 	"iter"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/jsm.go/backup"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -75,6 +80,11 @@ type subCmd struct {
 	messageRates          map[string]*subMessageRate
 	direct                bool
 	streamObj             jetstream.Stream
+	backup                string
+	quiet                 bool
+	rec                   *backup.Recorder
+	recCancel             context.CancelFunc
+	recErr                error
 }
 
 type subMessageRate struct {
@@ -116,6 +126,19 @@ type subscriptionState struct {
 
 	// dump determines whether messages should be dumped to stdout or files
 	dump bool
+
+	// lastDropped is the drop count already added to counter, per subscription
+	lastDropped map[*nats.Subscription]int
+}
+
+func (s *subscriptionState) countDropped(m *nats.Msg) {
+	if m.Sub == nil {
+		return
+	}
+	if dropped, err := m.Sub.Dropped(); err == nil {
+		s.counter += uint(dropped - s.lastDropped[m.Sub])
+		s.lastDropped[m.Sub] = dropped
+	}
 }
 
 func configureSubCommand(app commandHost) {
@@ -170,6 +193,8 @@ func configureSubCommand(app commandHost) {
 	sub.Flag("delta-time", "Show time since start in output").Short('d').UnNegatableBoolVar(&c.deltaTimeStamps)
 	sub.Flag("graph", "Graph the rate of messages received").UnNegatableBoolVar(&c.graphOnly)
 	sub.Flag("direct", "Subscribe using batched direct gets instead of a durable consumer (requires JetStream)").UnNegatableBoolVar(&c.direct)
+	sub.Flag("backup", "Records every received message into a stream backup in this directory").PlaceHolder("DIRECTORY").StringVar(&c.backup)
+	sub.Flag("quiet", "Do not print received messages, only record them with --backup").Short('q').UnNegatableBoolVar(&c.quiet)
 }
 
 func init() {
@@ -348,6 +373,15 @@ func (c *subCmd) validateInputs(ctx context.Context, nc *nats.Conn, mgr *jsm.Man
 	if c.timeStamps && c.deltaTimeStamps {
 		return fmt.Errorf("timestamp and delta-time flags are mutually exclusive")
 	}
+	if c.backup != "" && (c.reportSubjects || c.graphOnly) {
+		return fmt.Errorf("--backup cannot be combined with --report-subjects, --report-subscriptions or --graph")
+	}
+	if c.quiet && c.backup == "" {
+		return fmt.Errorf("--quiet requires --backup")
+	}
+	if c.quiet && c.dump != "" {
+		return fmt.Errorf("--quiet cannot be combined with --dump")
+	}
 
 	if c.dump != "" && c.dump != "-" {
 		err := os.MkdirAll(c.dump, 0700)
@@ -399,24 +433,20 @@ func (c *subCmd) validateInputs(ctx context.Context, nc *nats.Conn, mgr *jsm.Man
 		if c.match {
 			return fmt.Errorf("cannot enable --match-replies for JetStream streams")
 		}
+		if c.backup != "" && c.direct && c.deliverLastPerSubject {
+			return fmt.Errorf("--backup cannot be combined with --last-per-subject on a direct get subscription, it delivers one message per batch")
+		}
 	}
 
 	return nil
 }
 
 func (c *subCmd) createMsgHandler(subState *subscriptionState, subs *[]*nats.Subscription, t *time.Timer) nats.MsgHandler {
-	lastDropped := map[*nats.Subscription]int{}
-
 	return func(m *nats.Msg) {
 		subState.msgMu.Lock()
 		defer subState.msgMu.Unlock()
 
-		if m.Sub != nil {
-			if dropped, err := m.Sub.Dropped(); err == nil {
-				subState.counter += uint(dropped - lastDropped[m.Sub])
-				lastDropped[m.Sub] = dropped
-			}
-		}
+		subState.countDropped(m)
 
 		if c.shouldIgnore(m.Subject, subState.ignoreSubjects) {
 			return
@@ -595,6 +625,8 @@ func (c *subCmd) createMatchHandler(subState *subscriptionState) nats.MsgHandler
 	return func(reply *nats.Msg) {
 		subState.msgMu.Lock()
 		defer subState.msgMu.Unlock()
+
+		subState.countDropped(reply)
 
 		request, ok := subState.matchMap[reply.Subject]
 		if !ok {
@@ -935,6 +967,10 @@ func (c *subCmd) directSubscribe(subCtx context.Context, subState *subscriptionS
 		for msg, err := range msgs {
 			switch {
 			case errors.Is(err, jetstreamext.ErrNoMessages):
+				if c.stopAtPendingZero {
+					subState.cancelFn()
+					return nil
+				}
 				break msgProcessing
 			case errors.Is(err, context.Canceled):
 				return nil
@@ -951,9 +987,25 @@ func (c *subCmd) directSubscribe(subCtx context.Context, subState *subscriptionS
 			}
 
 			handler(nmsg)
-			batchSequence += uint64(batchSize)
+			if lastForSubjects {
+				batchSequence += uint64(batchSize)
+			} else {
+				batchSequence = directSequence(msg) + 1
+			}
 		}
 	}
+}
+
+// directSequence is the last Nats-Sequence value, the server's. A republished
+// message carries its own before it
+func directSequence(msg *jetstream.RawStreamMsg) uint64 {
+	vals := msg.Header.Values(jetstream.SequenceHeader)
+	if len(vals) > 1 {
+		if seq, err := strconv.ParseUint(vals[len(vals)-1], 10, 64); err == nil {
+			return seq
+		}
+	}
+	return msg.Sequence
 }
 
 func (c *subCmd) subscribe(p *fisk.ParseContext) error {
@@ -985,6 +1037,7 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		subjectBytesReportMap: make(map[string]int64),
 		matchMap:              make(map[string]*nats.Msg),
 		dump:                  c.dump != "",
+		lastDropped:           make(map[*nats.Subscription]int),
 	}
 
 	js, err := newJetStreamWithOptions(nc, opts())
@@ -997,6 +1050,18 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 
 	defer cancel()
+
+	if c.backup != "" {
+		var stop context.CancelFunc
+		ctx, stop = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+		defer stop()
+
+		err = c.openRecorder(mgr, cancel)
+		if err != nil {
+			return err
+		}
+		defer c.discardRecorder(subState)
+	}
 
 	// If the wait timeout is set, then we will cancel after the timer fires.
 	var t *time.Timer
@@ -1063,6 +1128,10 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 		}
 	case c.direct:
 		err = c.directSubscribe(ctx, subState, msgHandler, js)
+		if err != nil && subState.received > 0 {
+			c.closeConn(nc)
+			return errors.Join(err, c.closeRecorder(subState))
+		}
 	case c.jetStream:
 		err = c.jetStreamSubscribe(ctx, subState, jetstreamMsgHandler, &consumerContexts, js)
 	default:
@@ -1080,8 +1149,117 @@ func (c *subCmd) subscribe(p *fisk.ParseContext) error {
 	}
 
 	<-ctx.Done()
+	c.closeConn(nc)
+
+	return c.closeRecorder(subState)
+}
+
+// closeConn closes the connection before the recorder commits. The closed
+// handler in natsOpts exits the process a second after any close, which
+// would cut a long commit short
+func (c *subCmd) closeConn(nc *nats.Conn) {
+	nc.SetClosedHandler(nil)
+	nc.Close()
+}
+
+func (c *subCmd) openRecorder(mgr *jsm.Manager, cancel context.CancelFunc) error {
+	var cfg api.StreamConfig
+	if c.jetStream {
+		stream, err := mgr.LoadStream(c.stream)
+		if err != nil {
+			return err
+		}
+		cfg = stream.Configuration()
+	} else {
+		cfg = jsm.DefaultStream
+		cfg.Subjects = c.subjects
+		cfg.Name = filepath.Base(filepath.Clean(c.backup))
+		if !jsm.IsValidName(cfg.Name) {
+			return fmt.Errorf("backup directory name %q is not a valid stream name", cfg.Name)
+		}
+	}
+	src := backup.SourceInfo{Subjects: c.subjects, Stream: c.stream, Started: time.Now()}
+	if c.durable != "" {
+		if cons, err := mgr.LoadConsumer(c.stream, c.durable); err == nil {
+			nfo, err := cons.LatestState()
+			if err != nil {
+				return err
+			}
+			if nfo.NumAckPending > 0 {
+				return fmt.Errorf("--backup cannot start on durable %q with %d unacknowledged messages, their redeliveries would arrive out of sequence order", c.durable, nfo.NumAckPending)
+			}
+			switch {
+			case len(cons.FilterSubjects()) > 0:
+				src.Subjects = cons.FilterSubjects()
+			case cons.FilterSubject() != "":
+				src.Subjects = []string{cons.FilterSubject()}
+			}
+		}
+	}
+	if len(src.Subjects) == 0 {
+		src.Subjects = cfg.Subjects
+	}
+
+	rec, err := backup.NewRecorder(c.backup, cfg, src)
+	if err != nil {
+		return err
+	}
+	c.rec = rec
+	c.recCancel = cancel
 
 	return nil
+}
+
+// record runs under msgMu
+func (c *subCmd) record(m *nats.Msg) {
+	if c.rec == nil {
+		return
+	}
+	var err error
+	if c.direct {
+		err = c.rec.WriteDirect(m)
+	} else {
+		err = c.rec.Write(m)
+	}
+	if err == nil {
+		return
+	}
+
+	c.recErr = fmt.Errorf("backup to %s failed: %w", c.backup, err)
+	log.Printf("%v, stopping", c.recErr)
+	c.rec.Discard()
+	c.rec = nil
+	c.recCancel()
+}
+
+func (c *subCmd) closeRecorder(subState *subscriptionState) error {
+	subState.msgMu.Lock()
+	rec := c.rec
+	c.rec = nil
+	dropped := uint64(subState.counter - subState.received)
+	subState.msgMu.Unlock()
+
+	if rec == nil {
+		return c.recErr
+	}
+
+	res, err := rec.Close(dropped)
+	if err != nil {
+		return fmt.Errorf("backup to %s failed: %w", c.backup, err)
+	}
+	log.Printf("Backup of %s messages (%s) written to %s, %s dropped", f(res.Messages), fiBytes(res.Bytes), res.Dir, f(dropped))
+
+	return nil
+}
+
+func (c *subCmd) discardRecorder(subState *subscriptionState) {
+	subState.msgMu.Lock()
+	defer subState.msgMu.Unlock()
+
+	if c.rec != nil {
+		c.rec.Discard()
+		c.rec = nil
+	}
 }
 
 func (c *subCmd) firstSubject() string {
@@ -1096,6 +1274,14 @@ func (c *subCmd) printMsg(msg *nats.Msg, reply *nats.Msg, ctr uint, startTime ti
 	var replyMsg *nats.Msg
 	if reply != nil {
 		replyMsg = c.makeMsg(reply.Subject, reply.Header, reply.Data, reply.Reply)
+	}
+
+	c.record(msg)
+	if replyMsg != nil {
+		c.record(replyMsg)
+	}
+	if c.quiet {
+		return
 	}
 
 	var ts string
@@ -1181,6 +1367,14 @@ func (c *subCmd) printJetStreamMsg(msg jetstream.Msg, reply jetstream.Msg, ctr u
 	var replyMsg *nats.Msg
 	if reply != nil {
 		replyMsg = c.makeMsg(reply.Subject(), reply.Headers(), reply.Data(), reply.Reply())
+	}
+
+	c.record(dataMsg)
+	if replyMsg != nil {
+		c.record(replyMsg)
+	}
+	if c.quiet {
+		return
 	}
 
 	var ts string
