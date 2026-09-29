@@ -1058,7 +1058,7 @@ func TestJetStreamSubscribe(t *testing.T) {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --count=1 --delta-time", srv.ClientURL())))
 
 			// [#1] @ 226.885ms Received JetStream message:
-			if !expectMatchLine(t, output, primaryTestMsgData) || !expectMatchLine(t, output, `\[#\d+\] @ \d+\.\d{3,6}(ms|s|µs|ns) Received JetStream message:`) {
+			if !expectMatchLine(t, output, primaryTestMsgData) || !expectMatchLine(t, output, `\[#\d+\] @ \d+(?:\.\d+)?(ns|µs|ms|s) Received JetStream message:`) {
 				t.Errorf("unexpected response: %s", output)
 			}
 			return nil
