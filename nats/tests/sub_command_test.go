@@ -48,24 +48,17 @@ func TestNatsSubscribe(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
 			dumpDir := t.TempDir()
 
-			done := make(chan struct{})
-			go func(t *testing.T) {
-				t.Helper()
-				out := runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --dump='%s'", srv.ClientURL(), dumpDir))
-				if strings.Contains(string(out), "Could not save message") {
-					t.Errorf("unexpected error: %s", string(out))
-				}
-				close(done)
-			}(t)
-
-			time.Sleep(500 * time.Millisecond)
+			out := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST --count=1 --dump='%s'", srv.ClientURL(), dumpDir))
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			<-done
+			output := <-out
+			if strings.Contains(output, "Could not save message") {
+				t.Errorf("unexpected error: %s", output)
+			}
 
 			resp, err := os.ReadFile(filepath.Join(dumpDir, "1.json"))
 			if err != nil {
@@ -87,12 +80,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--dump=-", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			out := make(chan []byte)
-			go func() {
-				out <- runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --dump=-", srv.ClientURL()))
-			}()
-
-			time.Sleep(500 * time.Millisecond)
+			out := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST --count=1 --dump=-", srv.ClientURL()))
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -101,7 +89,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 			output := <-out
 
-			resp := strings.TrimSpace(string(output))
+			resp := strings.TrimSpace(output)
 			resp = resp[:len(resp)-1]
 
 			responseObj := nats.Msg{}
@@ -119,12 +107,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--translate", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			out := make(chan []byte)
-			go func() {
-				out <- runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --raw --translate='wc -c'", srv.ClientURL()))
-			}()
-
-			time.Sleep(500 * time.Millisecond)
+			out := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST --count=1 --raw --translate='wc -c'", srv.ClientURL()))
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -132,7 +115,7 @@ func TestNatsSubscribe(t *testing.T) {
 			}
 
 			output := <-out
-			resp := strings.TrimSpace(string(output))
+			resp := strings.TrimSpace(output)
 			lines := strings.Split(resp, "\n")
 			if len(lines) < 1 {
 				t.Fatalf("no output lines found")
@@ -146,12 +129,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--raw and --translate with subject", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			out := make(chan []byte)
-			go func() {
-				out <- runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --raw --translate=\"sed 's/^/{{Subject}}: /'\"", srv.ClientURL()))
-			}()
-
-			time.Sleep(500 * time.Millisecond)
+			out := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST --count=1 --raw --translate=\"sed 's/^/{{Subject}}: /'\"", srv.ClientURL()))
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -159,7 +137,7 @@ func TestNatsSubscribe(t *testing.T) {
 			}
 
 			output := <-out
-			lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+			lines := strings.Split(strings.TrimSpace(output), "\n")
 			if len(lines) < 1 {
 				t.Fatalf("no output lines found")
 			}
@@ -175,12 +153,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--translate empty message", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			out := make(chan []byte)
-			go func() {
-				out <- runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --translate=\"wc -c\"", srv.ClientURL()))
-			}()
-
-			time.Sleep(500 * time.Millisecond)
+			out := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST --count=1 --translate=\"wc -c\"", srv.ClientURL()))
 
 			err := nc.PublishMsg(&nats.Msg{
 				Subject: "TEST",
@@ -191,7 +164,7 @@ func TestNatsSubscribe(t *testing.T) {
 			}
 
 			output := <-out
-			lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+			lines := strings.Split(strings.TrimSpace(output), "\n")
 			if len(lines) < 1 {
 				t.Fatalf("no output from CLI")
 			}
@@ -208,13 +181,7 @@ func TestNatsSubscribe(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
 			dumpDir := t.TempDir()
 
-			done := make(chan struct{})
-			go func() {
-				runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --dump='%s' --translate=\"wc -c\"", srv.ClientURL(), dumpDir))
-				close(done)
-			}()
-
-			time.Sleep(500 * time.Millisecond)
+			done := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST --count=1 --dump='%s' --translate=\"wc -c\"", srv.ClientURL(), dumpDir))
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -261,12 +228,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--raw", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			out := make(chan []byte)
-			go func() {
-				out <- runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1 --raw", srv.ClientURL()))
-			}()
-
-			time.Sleep(500 * time.Millisecond)
+			out := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST --count=1 --raw", srv.ClientURL()))
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -274,7 +236,7 @@ func TestNatsSubscribe(t *testing.T) {
 			}
 
 			output := <-out
-			lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+			lines := strings.Split(strings.TrimSpace(output), "\n")
 
 			if len(lines) < 1 {
 				t.Fatalf("no CLI output")
@@ -290,12 +252,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--pretty", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			out := make(chan string)
-			go func() {
-				out <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --count=1", srv.ClientURL())))
-			}()
-
-			time.Sleep(500 * time.Millisecond)
+			out := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST --count=1", srv.ClientURL()))
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -329,12 +286,7 @@ func TestNatsSubscribe(t *testing.T) {
 				t.Error(err)
 			}
 
-			outputCh := make(chan string)
-			go func() {
-				outputCh <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub %s --queue=%s --count=1", srv.ClientURL(), subject, queue)))
-			}()
-			// Give the process time to spawn in the go routine. it can be slow in a test environment
-			time.Sleep(500 * time.Millisecond)
+			outputCh := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub %s --queue=%s --count=1", srv.ClientURL(), subject, queue))
 
 			// Send a lot of messages. This should be enough to make sure both subscribers get at least 1 msg each and
 			// we can test that the subscription is to a named queue group
@@ -358,12 +310,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--ack", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			outputCh := make(chan string)
-			go func() {
-				outputCh <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST_STREAM --count=1 --ack", srv.ClientURL())))
-			}()
-			// Give the process time to spawn in the go routine. it can be slow in a test environment
-			time.Sleep(1 * time.Second)
+			outputCh := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST_STREAM --count=1 --ack", srv.ClientURL()))
 			err := nc.Publish("TEST_STREAM", []byte(primaryTestMsgData))
 			if err != nil {
 				t.Error(err)
@@ -387,10 +334,7 @@ func TestNatsSubscribe(t *testing.T) {
 				t.Error(err)
 			}
 
-			outputCh := make(chan string)
-			go func() {
-				outputCh <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub > --match-replies --count=1 --wait=2s", srv.ClientURL())))
-			}()
+			outputCh := startNatsCli(t, srv, nc, 2, fmt.Sprintf("--server='%s' sub > --match-replies --count=1 --wait=2s", srv.ClientURL()))
 
 			_, err = nc.Request("TEST_STREAMJECT", []byte("test request"), 1*time.Second)
 			if err != nil {
@@ -398,8 +342,7 @@ func TestNatsSubscribe(t *testing.T) {
 			}
 
 			output := <-outputCh
-			if !expectMatchLine(t, output, `Matched reply on "_INBOX\.`) &&
-				!expectMatchLine(t, output, `Matching replies with inbox prefix _INBOX\.>?`) {
+			if !expectMatchLine(t, output, `Matched reply on "_INBOX\.`) {
 				t.Errorf("unexpected response: %s", output)
 			}
 			return nil
@@ -418,12 +361,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--headers-only", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			done := make(chan string)
-			go func() {
-				done <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --headers-only --count=1", srv.ClientURL())))
-			}()
-
-			time.Sleep(500 * time.Millisecond)
+			done := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST --headers-only --count=1", srv.ClientURL()))
 
 			err := nc.PublishMsg(&nats.Msg{
 				Subject: "TEST",
@@ -451,12 +389,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--subjects-only", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			done := make(chan string)
-			go func() {
-				done <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST --subjects-only --count=1", srv.ClientURL())))
-			}()
-
-			time.Sleep(500 * time.Millisecond)
+			done := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST --subjects-only --count=1", srv.ClientURL()))
 
 			err := nc.PublishMsg(defaultTestMsg)
 			if err != nil {
@@ -478,12 +411,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--ignore-subject", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			done := make(chan string)
-			go func() {
-				done <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST.* --ignore-subject=TEST --count=1", srv.ClientURL())))
-			}()
-
-			time.Sleep(500 * time.Millisecond)
+			done := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST.* --ignore-subject=TEST --count=1", srv.ClientURL()))
 
 			// Publish the message to be ignored
 			if err := nc.PublishMsg(defaultTestMsg); err != nil {
@@ -537,12 +465,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--timestamp", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			outputCh := make(chan string)
-			go func() {
-				outputCh <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST.* --count=1 --timestamp", srv.ClientURL())))
-			}()
-			// Give the process time to spawn in the go routine. it can be slow in a test environment
-			time.Sleep(1 * time.Second)
+			outputCh := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST.* --count=1 --timestamp", srv.ClientURL()))
 			nc.Publish("TEST.1", []byte(nonJetstreamTestMsgData))
 			output := <-outputCh
 
@@ -556,12 +479,7 @@ func TestNatsSubscribe(t *testing.T) {
 
 	t.Run("--delta-time", func(t *testing.T) {
 		withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
-			outputCh := make(chan string)
-			go func() {
-				outputCh <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub TEST.* --count=1 --delta-time", srv.ClientURL())))
-			}()
-			// Give the process time to spawn in the go routine. it can be slow in a test environment
-			time.Sleep(1 * time.Second)
+			outputCh := startNatsCli(t, srv, nc, 1, fmt.Sprintf("--server='%s' sub TEST.* --count=1 --delta-time", srv.ClientURL()))
 			nc.Publish("TEST.1", []byte(nonJetstreamTestMsgData))
 			output := <-outputCh
 
@@ -1016,12 +934,7 @@ func TestJetStreamSubscribe(t *testing.T) {
 				t.Fatalf("unable to publish message: %s", err)
 			}
 
-			outputCh := make(chan string)
-			go func() {
-				outputCh <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --new --count=1", srv.ClientURL())))
-			}()
-			// Give the process time to spawn in the go routine. it can be slow in a test environment
-			time.Sleep(500 * time.Millisecond)
+			outputCh := startNatsCliConsumer(t, mgr, "TEST_STREAM", fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --new --count=1", srv.ClientURL()))
 
 			newMsg := &nats.Msg{
 				Subject: "TEST_STREAM.1",
@@ -1260,13 +1173,7 @@ func TestJetStreamSubscribe(t *testing.T) {
 				t.Fatalf("unable to publish message: %s", err)
 			}
 
-			outputCh := make(chan string)
-			go func() {
-				outputCh <- string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1 --new", srv.ClientURL())))
-			}()
-
-			// Give the process time to spawn in the go routine. it can be slow in a test environment
-			time.Sleep(1 * time.Second)
+			outputCh := startNatsCli(t, srv, nc, 2, fmt.Sprintf("--server='%s' sub --stream=TEST_STREAM --direct --raw --count=1 --new", srv.ClientURL()))
 			err = nc.Publish("TEST_STREAM.new", []byte(secondaryTestMsgData))
 			if err != nil {
 				t.Fatalf("unable to publish message: %s", err)
