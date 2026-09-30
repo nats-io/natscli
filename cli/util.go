@@ -235,6 +235,7 @@ func natsOpts() []nats.Option {
 		nats.Name(connectionName),
 		nats.MaxReconnects(-1),
 		nats.IgnoreAuthErrorAbort(),
+		nats.NoCallbacksAfterClientClose(),
 		nats.CustomReconnectDelay(func(attempts int) time.Duration {
 			d := iu.DefaultBackoff.Duration(attempts)
 
