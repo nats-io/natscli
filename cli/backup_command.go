@@ -448,12 +448,13 @@ func (c *backupCmd) restoreStream(dir string) error {
 	var prevMsg time.Time
 
 	cb := func(p jsm.RestoreProgress) {
-		if opts().Trace && (p.ChunksSent()%100 == 0 || time.Since(prevMsg) > 500*time.Millisecond) {
-			fmt.Printf("Sent %v chunk %v / %v at %v / s\n", fiBytes(uint64(p.ChunkSize())), p.ChunksSent(), p.ChunksToSend(), fiBytes(p.BytesPerSecond()))
+		if opts().Trace {
+			if p.ChunksSent()%100 == 0 || time.Since(prevMsg) > 500*time.Millisecond {
+				fmt.Printf("Sent %v chunk %v / %v at %v / s\n", fiBytes(uint64(p.ChunkSize())), p.ChunksSent(), p.ChunksToSend(), fiBytes(p.BytesPerSecond()))
+				prevMsg = time.Now()
+			}
 			return
 		}
-
-		prevMsg = time.Now()
 
 		if progbar == nil {
 			progbar, tracker, _ = iu.NewProgress(opts(), &progress.Tracker{
@@ -508,7 +509,7 @@ func (c *backupCmd) restoreStream(dir string) error {
 
 	fp, _, err := mgr.RestoreSnapshotFromDirectory(ctx, bm.Config.Name, dir, ropts...)
 	fisk.FatalIfError(err, "restore failed")
-	if c.showProgress {
+	if progbar != nil {
 		tracker.SetValue(int64(fp.ChunksSent() * uint32(fp.ChunkSize())))
 		time.Sleep(300 * time.Millisecond)
 		progbar.Stop()
