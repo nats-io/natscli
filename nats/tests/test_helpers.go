@@ -149,6 +149,11 @@ func matchRecursive(actual any, expected any) error {
 		actualStr := fmt.Sprint(actual)
 		patternStr := fmt.Sprint(expected)
 
+		// if actual and expected is 1.08756e+05 the + and . is treated as a command and not as a literal
+		if actualStr == patternStr {
+			return nil
+		}
+
 		re, err := regexp.Compile(patternStr)
 		if err != nil {
 			return fmt.Errorf("invalid regex: %v", err)
