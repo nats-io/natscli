@@ -120,7 +120,7 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 			fmt.Printf("Connected in %.3fs\n", time.Since(start).Seconds())
 
 			if c.expected == 0 {
-				c.expected, err = serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, traceLogger())
+				c.expected, err = serverdata.CurrentActiveServers(ctx, nc, "", opts().Timeout, traceLogger())
 				if err != nil {
 					return fmt.Errorf("failed to get current active servers: %s", err)
 				}
