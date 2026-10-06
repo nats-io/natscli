@@ -15,8 +15,11 @@ package cli
 
 import (
 	"testing"
+	"time"
 
 	"github.com/nats-io/jsm.go/api"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/natscli/options"
 )
 
 func TestRenderCluster(t *testing.T) {
@@ -35,5 +38,35 @@ func TestRenderCluster(t *testing.T) {
 
 	if result := renderCluster(&api.ClusterInfo{Name: "test"}); result != "" {
 		t.Fatalf("invalid result: %q", result)
+	}
+}
+
+func TestNatsOptsConnectTimeout(t *testing.T) {
+	// natsOpts reads the global options, so swap in our own for the test
+	origOpts := options.DefaultOptions
+	t.Cleanup(func() { options.DefaultOptions = origOpts })
+
+	resolve := func(t *testing.T) nats.Options {
+		t.Helper()
+
+		res := nats.GetDefaultOptions()
+		for _, o := range natsOpts() {
+			if err := o(&res); err != nil {
+				t.Fatalf("applying connection option: %v", err)
+			}
+		}
+
+		return res
+	}
+
+	options.DefaultOptions = &options.Options{ConnectTimeout: 30 * time.Second}
+	if to := resolve(t).Timeout; to != 30*time.Second {
+		t.Fatalf("expected a 30s connect timeout, got %v", to)
+	}
+
+	// unset should leave the nats.go default in place
+	options.DefaultOptions = &options.Options{}
+	if to := resolve(t).Timeout; to != nats.GetDefaultOptions().Timeout {
+		t.Fatalf("expected the default connect timeout of %v, got %v", nats.GetDefaultOptions().Timeout, to)
 	}
 }

@@ -40,6 +40,9 @@ type Options struct {
 	TlsCA string
 	// Timeout is how long to wait for operations
 	Timeout time.Duration
+	// ConnectTimeout is how long to wait for a connection to a server to be
+	// established, when 0 the nats.go default is used
+	ConnectTimeout time.Duration
 	// ConnectionName is the name to use for the underlying NATS connection
 	ConnectionName string
 	// Username is the username or token to connect with
