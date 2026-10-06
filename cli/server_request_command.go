@@ -225,7 +225,7 @@ func (c *SrvRequestCmd) dataSource() (serverdata.Source, error) {
 		if c.host != "" || c.name != "" {
 			waitFor = 1
 		} else {
-			w, _ := serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, traceLogger())
+			w, _ := serverdata.CurrentActiveServers(ctx, nc, c.reqFilter().Domain, opts().Timeout, traceLogger())
 			waitFor = uint32(w)
 		}
 	}

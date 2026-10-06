@@ -18,11 +18,11 @@ require (
 	github.com/gosuri/uiprogress v0.0.1
 	github.com/jedib0t/go-pretty/v6 v6.8.3
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.20.0
-	github.com/nats-io/jsm.go v0.5.1-0.20260929131652-8a8772714cf3
+	github.com/klauspost/compress v1.20.1
+	github.com/nats-io/jsm.go v0.5.1-0.20261006121902-865e5bcf049a
 	github.com/nats-io/jwt/v2 v2.8.2
 	github.com/nats-io/nats-server/v2 v2.15.0
-	github.com/nats-io/nats.go v1.53.1
+	github.com/nats-io/nats.go v1.54.0
 	github.com/nats-io/nkeys v0.4.16
 	github.com/nats-io/nuid v1.0.1
 	github.com/prometheus/client_golang v1.24.1

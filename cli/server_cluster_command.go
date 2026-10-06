@@ -355,22 +355,13 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	// a configured domain would make the manager send the purge to a domain prefixed
-	// API subject which has no responders on the system account, causing an error the user
-	// won't expect. Silently ignoring it could cause us to accidentally purge an account in a
-	// domain we didn't expect, so we terminate early.
-	//
-	// This one can only change once serverdata.CurrentActiveServers is domain aware and then
-	// we need to pass a domain filter into ds.Jsz() below
-	if opts().Config.JSDomain() != "" {
-		return fmt.Errorf("the --js-domain option cannot be used: JetStream domains do not apply to the system account, connect without a domain configured")
-	}
+	domain := opts().Config.JSDomain()
 
 	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
 		return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, traceLogger())
 	}
 
-	expected, err := serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, traceLogger())
+	expected, err := serverdata.CurrentActiveServers(ctx, nc, domain, opts().Timeout, traceLogger())
 	if err != nil {
 		return err
 	}
@@ -379,7 +370,9 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	jszResults, err := ds.Jsz(server.JszEventOptions{})
+	jszResults, err := ds.Jsz(server.JszEventOptions{
+		EventFilterOptions: server.EventFilterOptions{Domain: domain},
+	})
 	if err != nil {
 		return err
 	}
@@ -411,6 +404,10 @@ func (c *SrvClusterCmd) metaPeerRemoveAction(_ *fisk.ParseContext) error {
 	}
 
 	srv := leaders[0]
+
+	if domain != "" && srv.Data.API.Level < 5 {
+		return fmt.Errorf("the --js-domain option with the system account requires NATS Server 2.15")
+	}
 
 	for _, r := range srv.Data.Meta.Replicas {
 		if r.Name == c.peer || r.Peer == c.peer {
@@ -590,24 +587,11 @@ func (c *SrvClusterCmd) metaLeaderStandDownAction(_ *fisk.ParseContext) error {
 		return err
 	}
 
-	// a configured domain would make the manager send the removal to a domain prefixed
-	// API subject which has no responders on the system account, causing an error the user
-	// won't expect. Silently ignoring it could cause us to accidentally remove a peer from a
-	// cluster we didn't expect, so we terminate early.
-	//
-	// However, since 2.15 the system account is domain aware
-	if opts().Config.JSDomain() != "" {
-		err = iu.RequireAPILevel(mgr, 5, "the --js-domain option cannot be used: JetStream domains do not apply to the system account, connect without a domain configured")
-		if err != nil {
-			return err
-		}
-	}
-
 	reqFn := func(req any, subj string, waitFor int, nc *nats.Conn) ([][]byte, error) {
 		return serverdata.DoReq(ctx, req, subj, waitFor, nc, opts().Timeout, traceLogger())
 	}
 
-	expected, err := serverdata.CurrentActiveServers(ctx, nc, opts().Timeout, traceLogger())
+	expected, err := serverdata.CurrentActiveServers(ctx, nc, opts().Config.JSDomain(), opts().Timeout, traceLogger())
 	if err != nil {
 		return err
 	}
@@ -653,6 +637,10 @@ func (c *SrvClusterCmd) metaLeaderStandDownAction(_ *fisk.ParseContext) error {
 	resp, err := getJSI()
 	if err != nil {
 		return err
+	}
+
+	if opts().Config.JSDomain() != "" && resp.API.Level < 5 {
+		return fmt.Errorf("the --js-domain option with the system account requires NATS Server 2.15")
 	}
 
 	leader := resp.Meta.Leader
