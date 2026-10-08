@@ -643,6 +643,56 @@ func TestServerCluster(t *testing.T) {
 			return nil
 		})
 	})
+
+	t.Run("rescue without a domain", func(t *testing.T) {
+		withJSCluster(t, func(t *testing.T, servers []*server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server cluster rescue", servers[0].ClientURL(), sysUserCreds)))
+			if !expectMatchRegex(t, "Cluster is healthy with a leader, no rescue needed", output) {
+				t.Errorf("unexpected output: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("rescue with a domain the servers do not have", func(t *testing.T) {
+		withJSCluster(t, func(t *testing.T, servers []*server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			err := runNatsCliWithError(t, fmt.Sprintf("--server='%s' %s server cluster rescue --js-domain hub", servers[0].ClientURL(), sysUserCreds))
+			if err == nil || !strings.Contains(err.Error(), "servers are not in a JetStream domain, remove the domain set using --js-domain or the context") {
+				t.Errorf("expected servers are not in a JetStream domain error, got: %v", err)
+			}
+			return nil
+		})
+	})
+
+	t.Run("rescue without the domain the servers have", func(t *testing.T) {
+		withJSClusterDomain(t, "hub", func(t *testing.T, servers []*server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			err := runNatsCliWithError(t, fmt.Sprintf("--server='%s' %s server cluster rescue", servers[0].ClientURL(), sysUserCreds))
+			if err == nil || !strings.Contains(err.Error(), "servers are in domain hub, specify it using --js-domain") {
+				t.Errorf("expected servers are in domain error, got: %v", err)
+			}
+			return nil
+		})
+	})
+
+	t.Run("rescue with the matching domain", func(t *testing.T) {
+		withJSClusterDomain(t, "hub", func(t *testing.T, servers []*server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server cluster rescue --js-domain hub", servers[0].ClientURL(), sysUserCreds)))
+			if !expectMatchRegex(t, "Cluster is healthy with a leader, no rescue needed", output) {
+				t.Errorf("unexpected output: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("rescue with the wrong domain", func(t *testing.T) {
+		withJSClusterDomain(t, "hub", func(t *testing.T, servers []*server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			err := runNatsCliWithError(t, fmt.Sprintf("--server='%s' %s server cluster rescue --js-domain leaf", servers[0].ClientURL(), sysUserCreds))
+			if err == nil || !strings.Contains(err.Error(), "no compatible servers found") {
+				t.Errorf("expected no compatible servers error, got: %v", err)
+			}
+			return nil
+		})
+	})
 }
 
 func TestServerConfig(t *testing.T) {
