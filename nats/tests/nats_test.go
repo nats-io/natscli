@@ -254,23 +254,28 @@ func setupJStreamTest(t *testing.T) (srv *server.Server, nc *nats.Conn, mgr *jsm
 
 func withNatsServer(t *testing.T, cb func(*testing.T, *server.Server, *nats.Conn) error) {
 	t.Helper()
-	createServersWithCallback(t, 1, false, cb)
+	createServersWithCallback(t, 1, false, "", cb)
 }
 
 func withJSServer(t *testing.T, cb func(*testing.T, *server.Server, *nats.Conn, *jsm.Manager) error) {
 	t.Helper()
-	createServersWithCallback(t, 1, true, cb)
+	createServersWithCallback(t, 1, true, "", cb)
 }
 
 func withJSCluster(t *testing.T, cb func(*testing.T, []*server.Server, *nats.Conn, *jsm.Manager) error) {
 	t.Helper()
+	withJSClusterDomain(t, "", cb)
+}
+
+func withJSClusterDomain(t *testing.T, domain string, cb func(*testing.T, []*server.Server, *nats.Conn, *jsm.Manager) error) {
+	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping on Windows due to GitHub Actions resource constraints")
 	}
-	createServersWithCallback(t, 3, true, cb)
+	createServersWithCallback(t, 3, true, domain, cb)
 }
 
-func createServersWithCallback(t *testing.T, serverCount int, jsEnabled bool, cb any) {
+func createServersWithCallback(t *testing.T, serverCount int, jsEnabled bool, jsDomain string, cb any) {
 	t.Helper()
 
 	d, err := os.MkdirTemp("", "jstest")
@@ -289,15 +294,16 @@ func createServersWithCallback(t *testing.T, serverCount int, jsEnabled bool, cb
 
 	for i := 1; i <= serverCount; i++ {
 		opts := &server.Options{
-			JetStream:     jsEnabled,
-			StoreDir:      filepath.Join(d, fmt.Sprintf("s%d", i)),
-			Port:          -1,
-			Host:          "localhost",
-			ServerName:    fmt.Sprintf("s%d", i),
-			LogFile:       filepath.Join(d, fmt.Sprintf("s%d.log", i)),
-			Routes:        routes,
-			SystemAccount: "SYS",
-			Accounts:      []*server.Account{sysAcc},
+			JetStream:       jsEnabled,
+			JetStreamDomain: jsDomain,
+			StoreDir:        filepath.Join(d, fmt.Sprintf("s%d", i)),
+			Port:            -1,
+			Host:            "localhost",
+			ServerName:      fmt.Sprintf("s%d", i),
+			LogFile:         filepath.Join(d, fmt.Sprintf("s%d.log", i)),
+			Routes:          routes,
+			SystemAccount:   "SYS",
+			Accounts:        []*server.Account{sysAcc},
 			Users: []*server.User{{
 				Username: "sys",
 				Password: "pass",
