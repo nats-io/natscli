@@ -28,6 +28,7 @@ func configureJwtDecodeCommand(jwtCmd commandHost) {
 	decode.Arg("jwt", "Jwt string or location").Required().StringVar(&c.jwt)
 	decode.Flag("json", "Produce json output").Short('j').UnNegatableBoolVar(&c.json)
 }
+
 func (c *jwtDecodeCmd) loadToken() error {
 
 	if _, err := os.Stat(c.jwt); err == nil {
@@ -62,9 +63,8 @@ func (c *jwtDecodeCmd) extractToken() error {
 		return err
 	}
 
-	c.token = strings.TrimSpace(string(bytes))
 	if token, err := jwt.ParseDecoratedJWT(bytes); err == nil {
-		c.token = token
+		c.token = strings.TrimSpace(token)
 	}
 
 	return nil
