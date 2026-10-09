@@ -1,5 +1,8 @@
-# to decode jwt from .creds file and get prettified readable json in stdout
-nats jwt --creds ./some.creds
+# decode a user creds file, shows the JWT part only, never the seed
+nats jwt decode ~/.local/share/nats/nsc/keys/creds/O/A/user.creds
 
-# to decode jwt from a creds file and get json bytes in stdout that you can pipe to tools like jq
-nats jwt --creds ./some.creds --json
+# decode a raw JWT
+nats jwt decode eyJ0eXAiOiJKV1Qi...
+
+# full claims as JSON for jq
+nats jwt decode user.jwt --json | jq .nats
