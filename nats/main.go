@@ -76,6 +76,8 @@ LLM optimized help output can be obtained using --help-llm for any command. You 
 	ncli.Flag("tlskey", "TLS private key").Envar("NATS_KEY").PlaceHolder("FILE").ExistingFileVar(&opts.TlsKey)
 	ncli.Flag("tlsca", "TLS certificate authority chain").Envar("NATS_CA").PlaceHolder("FILE").ExistingFileVar(&opts.TlsCA)
 	ncli.Flag("tlsfirst", "Perform TLS handshake before expecting the server greeting").BoolVar(&opts.TlsFirst)
+	ncli.Flag("ws-headers", "HTTP headers for use when connecting with websockets").Envar("NATS_WS_HEADERS").PlaceHolder("HEADERS").StringsVar(&opts.WebSocketHeaders)
+	ncli.Flag("proxy-path", "URL path to append to the server URL.  Useful for when a proxying traffic to nats.").Envar("NATS_PROXY_PATH").PlaceHolder("PATH").StringVar(&opts.ProxyPath)
 	// Alias to match nsc's spelling (--tls-first). Hidden so --help keeps
 	// showing only the canonical --tlsfirst; both names bind to the same
 	// variable so either spelling works in scripts.
