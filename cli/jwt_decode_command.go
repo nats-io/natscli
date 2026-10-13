@@ -139,11 +139,11 @@ func (c *jwtDecodeCmd) decodeClaimsAndDisplay(w io.Writer) error {
 			return err
 		}
 	default:
-		return fmt.Errorf("Jwt claims type not recognized")
+		return fmt.Errorf("JWT claims type not recognized")
 	}
 
 	if vr.IsBlocking(true) {
-		return fmt.Errorf("Jwt validation failed")
+		return fmt.Errorf("JWT validation failed")
 	}
 
 	return nil
