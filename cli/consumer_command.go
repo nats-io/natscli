@@ -127,6 +127,7 @@ type consumerCmd struct {
 	prioritizedGroups  []string
 	groupName          string
 	fPinned            bool
+	balanceAll         bool
 	placementPreferred string
 	apiLevel           int
 	resetSeq           uint64
@@ -350,6 +351,7 @@ func configureConsumerCommand(app commandHost) {
 	conClusterBalance.Flag("pinned", "Balance Pinned Client priority group consumers that are fully pinned").UnNegatableBoolVar(&c.fPinned)
 	conClusterBalance.Flag("invert", "Invert the check - before becomes after, with becomes without").BoolVar(&c.fInvert)
 	conClusterBalance.Flag("expression", "Balance matching consumers using an expression language").StringVar(&c.fExpression)
+	conClusterBalance.Flag("all-streams", "Balance consumers on all streams").UnNegatableBoolVar(&c.balanceAll)
 
 	conClusterEvacuate := conCluster.Command("evacuate", "Removes a consumer from a peer").Action(c.evacuatePeer)
 	conClusterEvacuate.Tag("scope:user", "impact:rw")
@@ -729,21 +731,7 @@ func (c *consumerCmd) graphAction(_ *fisk.ParseContext) error {
 	}
 }
 
-func (c *consumerCmd) balanceAction(_ *fisk.ParseContext) error {
-	var err error
-	var stream *jsm.Stream
-
-	c.connectAndSetup(true, false)
-
-	c.stream, stream, err = selectStream(c.mgr, c.stream, c.force, c.showAll)
-	if err != nil {
-		return err
-	}
-
-	if stream == nil {
-		return fmt.Errorf("no stream selected")
-	}
-
+func (c *consumerCmd) balanceQueryOpts() []jsm.ConsumerQueryOpt {
 	var opts []jsm.ConsumerQueryOpt
 	if c.fPush {
 		opts = append(opts, jsm.ConsumerQueryIsPush())
@@ -785,27 +773,159 @@ func (c *consumerCmd) balanceAction(_ *fisk.ParseContext) error {
 		opts = append(opts, jsm.ConsumerQueryIsPinned())
 	}
 
+	return opts
+}
+
+func (c *consumerCmd) balanceStreamConsumers(stream *jsm.Stream, b *balancer.Balancer, opts []jsm.ConsumerQueryOpt, quietEmpty bool) (int, error) {
 	consumers, err := stream.QueryConsumers(opts...)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	if len(consumers) > 0 {
-		balancer, err := balancer.New(c.mgr.NatsConn(), api.NewDefaultLogger(api.InfoLevel))
+	if len(consumers) == 0 {
+		if !quietEmpty {
+			fmt.Printf("No consumers on %s\n", stream.Name())
+		}
+		return 0, nil
+	}
+
+	balanced, err := b.BalanceConsumers(consumers)
+	if err != nil {
+		return 0, fmt.Errorf("failed to balance consumers on %s - %s", stream.Name(), err)
+	}
+	fmt.Printf("Balanced %d consumers on %s\n", balanced, stream.Name())
+
+	return balanced, nil
+}
+
+func (c *consumerCmd) balanceAction(_ *fisk.ParseContext) error {
+	if c.balanceAll && c.stream != "" {
+		return fmt.Errorf("cannot specify a stream when --all-streams is given")
+	}
+
+	if c.balanceAll {
+		var err error
+
+		c.nc, c.mgr, err = prepareHelper("", natsOpts()...)
+		if err != nil {
+			return fmt.Errorf("setup failed: %v", err)
+		}
+
+		opts := c.balanceQueryOpts()
+
+		b, err := balancer.New(c.mgr.NatsConn(), api.NewDefaultLogger(api.InfoLevel))
 		if err != nil {
 			return err
 		}
 
-		balanced, err := balancer.BalanceConsumers(consumers)
+		var streams []*jsm.Stream
+		missing, offline, err := c.mgr.EachStream(nil, func(s *jsm.Stream) {
+			if !c.showAll && s.IsInternal() {
+				return
+			}
+			streams = append(streams, s)
+		})
 		if err != nil {
-			return fmt.Errorf("failed to balance consumers on %s - %s", c.stream, err)
+			return err
 		}
-		fmt.Printf("Balanced %d consumers on %s\n", balanced, c.stream)
 
-	} else {
-		fmt.Printf("No consumers on %s\n", c.stream)
+		var errs []string
+		if len(missing) > 0 {
+			var names []string
+			for _, name := range missing {
+				if !c.showAll && jsm.IsInternalStream(name) {
+					continue
+				}
+				names = append(names, name)
+			}
+			if len(names) > 0 {
+				errs = append(errs, fmt.Sprintf("inaccessible streams: %s", strings.Join(names, ", ")))
+			}
+		}
+		if len(offline) > 0 {
+			var names []string
+			for name := range offline {
+				if !c.showAll && jsm.IsInternalStream(name) {
+					continue
+				}
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				errs = append(errs, fmt.Sprintf("offline stream %s: %s", name, offline[name]))
+			}
+		}
+		total := 0
+		var allConsumers []*jsm.Consumer
+		for _, stream := range streams {
+			consumers, err := stream.QueryConsumers(opts...)
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %s", stream.Name(), err))
+				continue
+			}
+			// QueryConsumers discards per-consumer missing/offline, so validate
+			// completeness separately before adding to the global set.
+			missingC, offlineC, err := stream.EachConsumer(func(*jsm.Consumer) {})
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %s", stream.Name(), err))
+				continue
+			}
+			if len(missingC) > 0 {
+				errs = append(errs, fmt.Sprintf("inaccessible consumers on %s: %s", stream.Name(), strings.Join(missingC, ", ")))
+			}
+			if len(offlineC) > 0 {
+				var cnames []string
+				for name := range offlineC {
+					cnames = append(cnames, name)
+				}
+				sort.Strings(cnames)
+				for _, name := range cnames {
+					errs = append(errs, fmt.Sprintf("offline consumer %s on %s: %s", name, stream.Name(), offlineC[name]))
+				}
+			}
+			allConsumers = append(allConsumers, consumers...)
+		}
+		balanced := 0
+		if len(allConsumers) > 0 {
+			var err error
+			balanced, err = b.BalanceConsumers(allConsumers)
+			if err != nil {
+				errs = append(errs, err.Error())
+			} else {
+				total = balanced
+			}
+		}
+		fmt.Printf("Balanced %d consumers on %d streams\n", total, len(streams))
+
+		if len(errs) > 0 {
+			return fmt.Errorf("failed to balance consumers on %d streams: %s", len(errs), strings.Join(errs, "; "))
+		}
+		return nil
 	}
-	return nil
+
+	var err error
+	var stream *jsm.Stream
+
+	c.connectAndSetup(true, false)
+
+	c.stream, stream, err = selectStream(c.mgr, c.stream, c.force, c.showAll)
+	if err != nil {
+		return err
+	}
+
+	if stream == nil {
+		return fmt.Errorf("no stream selected")
+	}
+
+	opts := c.balanceQueryOpts()
+
+	b, err := balancer.New(c.mgr.NatsConn(), api.NewDefaultLogger(api.InfoLevel))
+	if err != nil {
+		return err
+	}
+
+	_, err = c.balanceStreamConsumers(stream, b, opts, false)
+	return err
 }
 
 func (c *consumerCmd) leaderStandDownAction(_ *fisk.ParseContext) error {
