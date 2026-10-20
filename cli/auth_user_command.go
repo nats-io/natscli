@@ -493,24 +493,7 @@ func (c *authUserCommand) showUser(user ab.User, acct ab.Account) (string, error
 	}
 
 	cols := newColumnsf("User %s (%s)", user.Name(), user.Subject())
-	cols.AddSectionTitle("Configuration")
-	cols.AddRow("Account", fmt.Sprintf("%s (%s)", acct.Name(), user.IssuerAccount()))
-	cols.AddRow("Issuer", user.Issuer())
-	cols.AddRow("Scoped", user.IsScoped())
-	if tags, _ := user.Tags().All(); len(tags) > 0 {
-		cols.AddStringsAsValue("Tags", tags)
-	}
-
-	limits := ab.UserLimits(user)
-	if user.IsScoped() {
-		scope, err := acct.ScopedSigningKeys().GetScope(user.Issuer())
-		if err != nil {
-			return "", fmt.Errorf("could not find signing scope %s", user.Issuer())
-		}
-		limits = scope
-	}
-
-	err := au.RenderUserLimits(limits, cols)
+	err := au.RenderUser(user, acct, cols)
 	if err != nil {
 		return "", err
 	}
