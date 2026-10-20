@@ -1,6 +1,20 @@
+// Copyright 2026 The NATS Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,160 +28,73 @@ import (
 )
 
 type jwtDecodeCmd struct {
-	//contains jwtstring or location
-	jwt   string
-	json  bool
-	token string
+	jwt  string
+	json bool
 }
 
 func configureJwtDecodeCommand(jwtCmd commandHost) {
 	c := &jwtDecodeCmd{}
 
-	decode := jwtCmd.Command("decode", "Decode Jwt Claims").Alias("de").Alias("d").Action(c.decodeAction)
+	decode := jwtCmd.Command("decode", "Decode JWT claims").Alias("de").Alias("d").Action(c.decodeAction)
 	decode.Tag("impact:ro")
-	decode.Arg("jwt", "Jwt string or location").Required().StringVar(&c.jwt)
-	decode.Flag("json", "Produce json output").Short('j').UnNegatableBoolVar(&c.json)
-}
-
-func (c *jwtDecodeCmd) loadToken() error {
-
-	if _, err := os.Stat(c.jwt); err == nil {
-		return c.extractToken()
-	}
-
-	if strings.Count(c.jwt, ".") == 2 {
-		c.token = c.jwt
-		return nil
-	}
-
-	return fmt.Errorf("%q is neither a file nor a JWT", c.jwt)
+	decode.Arg("jwt", "JWT string or file holding a JWT").Required().StringVar(&c.jwt)
+	decode.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
 }
 
 func (c *jwtDecodeCmd) decodeAction(_ *fisk.ParseContext) error {
-	if c.jwt != "" {
-		c.jwt = strings.TrimSpace(c.jwt)
-		c.loadToken()
-	}
-
-	err := c.decodeClaimsAndDisplay(os.Stdout)
+	token, err := c.loadToken()
 	if err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func (c *jwtDecodeCmd) extractToken() error {
-	bytes, err := os.ReadFile(c.jwt)
+	claims, err := jwt.Decode(token)
 	if err != nil {
 		return err
 	}
 
-	if token, err := jwt.ParseDecoratedJWT(bytes); err == nil {
-		c.token = strings.TrimSpace(token)
-	}
-
-	return nil
+	return c.fShowClaims(os.Stdout, claims)
 }
 
-func (c *jwtDecodeCmd) decodeClaimsAndDisplay(w io.Writer) error {
-	gc, err := jwt.DecodeGeneric(c.token)
+func (c *jwtDecodeCmd) loadToken() (string, error) {
+	input := strings.TrimSpace(c.jwt)
+
+	_, err := os.Stat(input)
 	if err != nil {
-		return err
+		switch {
+		case c.looksLikeJWT(input):
+			return input, nil
+		case errors.Is(err, os.ErrNotExist):
+			return "", fmt.Errorf("%q is neither a file nor a JWT", input)
+		default:
+			return "", err
+		}
 	}
 
-	var vr jwt.ValidationResults
-	switch gc.ClaimType() {
-	case jwt.UserClaim:
-		claims, err := jwt.DecodeUserClaims(c.token)
-		if err != nil {
-			return err
-		}
-		claims.Validate(&vr)
-		err = c.fShowAny(w, jwt.UserClaim, *claims)
-		if err != nil {
-			return err
-		}
-	case jwt.AccountClaim:
-		claims, err := jwt.DecodeAccountClaims(c.token)
-		if err != nil {
-			return err
-		}
-		claims.Validate(&vr)
-		err = c.fShowAny(w, jwt.AccountClaim, *claims)
-		if err != nil {
-			return err
-		}
-	case jwt.OperatorClaim:
-		claims, err := jwt.DecodeOperatorClaims(c.token)
-		if err != nil {
-			return err
-		}
-		claims.Validate(&vr)
-		err = c.fShowAny(w, jwt.OperatorClaim, *claims)
-		if err != nil {
-			return err
-		}
-	case jwt.ActivationClaim:
-		claims, err := jwt.DecodeActivationClaims(c.token)
-		if err != nil {
-			return err
-		}
-		claims.Validate(&vr)
-		err = c.fShowAny(w, jwt.ActivationClaim, *claims)
-		if err != nil {
-			return err
-		}
-	case jwt.AuthorizationRequestClaim:
-		claims, err := jwt.DecodeAuthorizationRequestClaims(c.token)
-		if err != nil {
-			return err
-		}
-		claims.Validate(&vr)
-		err = c.fShowAny(w, jwt.AuthorizationRequestClaim, *claims)
-		if err != nil {
-			return err
-		}
-	case jwt.AuthorizationResponseClaim:
-		claims, err := jwt.DecodeAuthorizationResponseClaims(c.token)
-		if err != nil {
-			return err
-		}
-		claims.Validate(&vr)
-		err = c.fShowAny(w, jwt.AuthorizationResponseClaim, *claims)
-		if err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("JWT claims type not recognized")
+	contents, err := os.ReadFile(input)
+	if err != nil {
+		return "", err
 	}
 
-	if vr.IsBlocking(true) {
-		return fmt.Errorf("JWT validation failed")
+	token, err := jwt.ParseDecoratedJWT(contents)
+	if err != nil {
+		return "", err
 	}
 
-	return nil
+	token = strings.TrimSpace(token)
+	if !c.looksLikeJWT(token) {
+		return "", fmt.Errorf("%s does not contain a JWT", input)
+	}
+
+	return token, nil
 }
 
-func (c *jwtDecodeCmd) fShowAny(w io.Writer, t jwt.ClaimType, claims any) error {
-	var out string
-	var err error
-	switch t {
-	case jwt.UserClaim:
-		out, err = c.showUser(claims.(jwt.UserClaims))
-	case jwt.AccountClaim:
-		out, err = c.showAccount(claims.(jwt.AccountClaims))
-	case jwt.OperatorClaim:
-		out, err = c.showOperator(claims.(jwt.OperatorClaims))
-	case jwt.ActivationClaim:
-		out, err = c.showActivation(claims.(jwt.ActivationClaims))
-	case jwt.AuthorizationRequestClaim:
-		out, err = c.showAuthRequest(claims.(jwt.AuthorizationRequestClaims))
-	case jwt.AuthorizationResponseClaim:
-		out, err = c.showAuthResponse(claims.(jwt.AuthorizationResponseClaims))
-	default:
-		return fmt.Errorf("claim type not supported")
-	}
+// a JWT header is base64 encoded JSON, so it always starts with eyJ, the encoding of {"
+func (c *jwtDecodeCmd) looksLikeJWT(s string) bool {
+	return strings.HasPrefix(s, "eyJ") && strings.Count(s, ".") == 2
+}
+
+func (c *jwtDecodeCmd) fShowClaims(w io.Writer, claims jwt.Claims) error {
+	out, err := c.showClaims(claims)
 	if err != nil {
 		return err
 	}
@@ -176,11 +103,39 @@ func (c *jwtDecodeCmd) fShowAny(w io.Writer, t jwt.ClaimType, claims any) error 
 	return err
 }
 
-func (c *jwtDecodeCmd) fmtTime(ts int64, zero string) string {
-	if ts == 0 {
-		return zero
+func (c *jwtDecodeCmd) showClaims(claims jwt.Claims) (string, error) {
+	if c.json {
+		return iu.ToJSON(claims)
 	}
-	return time.Unix(ts, 0).UTC().Format(time.RFC3339)
+
+	var cols *columns.Writer
+	switch claims := claims.(type) {
+	case *jwt.UserClaims:
+		cols = c.showUser(claims)
+	case *jwt.AccountClaims:
+		cols = c.showAccount(claims)
+	case *jwt.OperatorClaims:
+		cols = c.showOperator(claims)
+	case *jwt.ActivationClaims:
+		cols = c.showActivation(claims)
+	case *jwt.AuthorizationRequestClaims:
+		cols = c.showAuthRequest(claims)
+	case *jwt.AuthorizationResponseClaims:
+		cols = c.showAuthResponse(claims)
+	default:
+		return "", fmt.Errorf("unsupported JWT claim type %q", claims.ClaimType())
+	}
+
+	var vr jwt.ValidationResults
+	claims.Validate(&vr)
+	if len(vr.Issues) > 0 {
+		cols.AddSectionTitle("Validation Issues")
+		for _, issue := range vr.Issues {
+			cols.Println(issue.Description)
+		}
+	}
+
+	return cols.Render()
 }
 
 func (c *jwtDecodeCmd) addClaimsData(cols *columns.Writer, d *jwt.ClaimsData) {
@@ -188,9 +143,13 @@ func (c *jwtDecodeCmd) addClaimsData(cols *columns.Writer, d *jwt.ClaimsData) {
 	cols.AddRowIfNotEmpty("Audience", d.Audience)
 	cols.AddRow("Issuer", d.Issuer)
 	cols.AddRow("Subject", d.Subject)
-	cols.AddRow("Issued At", c.fmtTime(d.IssuedAt, "Unknown"))
-	cols.AddRow("Expires", c.fmtTime(d.Expires, "Never"))
-	cols.AddRow("Not Before", c.fmtTime(d.NotBefore, "Not set"))
+	cols.AddRow("Issued At", time.Unix(d.IssuedAt, 0))
+	if d.Expires > 0 {
+		cols.AddRow("Expires", time.Unix(d.Expires, 0))
+	} else {
+		cols.AddRow("Expires", "never")
+	}
+	cols.AddRowIf("Not Before", time.Unix(d.NotBefore, 0), d.NotBefore > 0)
 }
 
 func (c *jwtDecodeCmd) addPermission(cols *columns.Writer, p jwt.Permission) {
@@ -206,17 +165,10 @@ func (c *jwtDecodeCmd) addPermission(cols *columns.Writer, p jwt.Permission) {
 	}
 }
 
-func (c *jwtDecodeCmd) showUser(uc jwt.UserClaims) (string, error) {
-	if c.json {
-		return iu.ToJSON(uc)
-	}
-
+func (c *jwtDecodeCmd) showUser(uc *jwt.UserClaims) *columns.Writer {
 	cols := newColumnsf("User %s (%s)", uc.Name, uc.Subject)
 	cols.AddSectionTitle("Configuration")
-
 	c.addClaimsData(cols, uc.Claims())
-	cols.AddRow("Name", uc.Name)
-	cols.AddRow("Subject", uc.Subject)
 	cols.AddRowIfNotEmpty("Locale", uc.Locale)
 	cols.AddRow("Bearer Token", uc.BearerToken)
 
@@ -238,39 +190,15 @@ func (c *jwtDecodeCmd) showUser(uc jwt.UserClaims) (string, error) {
 	cols.AddSectionTitle("Permissions")
 	cols.Indent(2)
 	cols.AddSectionTitle("Publish")
-	if len(uc.Pub.Allow) > 0 || len(uc.Pub.Deny) > 0 {
-		if len(uc.Pub.Allow) > 0 {
-			cols.AddStringsAsValue("Allow", uc.Pub.Allow)
-		}
-		if len(uc.Pub.Deny) > 0 {
-			cols.AddStringsAsValue("Deny", uc.Pub.Deny)
-		}
-	} else {
-		cols.Println("No permissions defined")
-	}
-
+	c.addPermission(cols, uc.Pub)
 	cols.AddSectionTitle("Subscribe")
-	if len(uc.Sub.Allow) > 0 || len(uc.Sub.Deny) > 0 {
-		if len(uc.Sub.Allow) > 0 {
-			cols.AddStringsAsValue("Allow", uc.Sub.Allow)
-		}
-		if len(uc.Sub.Deny) > 0 {
-			cols.AddStringsAsValue("Deny", uc.Sub.Deny)
-		}
-	} else {
-		cols.Println("No permissions defined")
-	}
-
+	c.addPermission(cols, uc.Sub)
 	cols.Indent(0)
 
-	return cols.Render()
+	return cols
 }
 
-func (c *jwtDecodeCmd) showOperator(oc jwt.OperatorClaims) (string, error) {
-	if c.json {
-		return iu.ToJSON(oc)
-	}
-
+func (c *jwtDecodeCmd) showOperator(oc *jwt.OperatorClaims) *columns.Writer {
 	cols := newColumnsf("Operator %s (%s)", oc.Name, oc.Subject)
 	cols.AddSectionTitle("Configuration")
 	c.addClaimsData(cols, oc.Claims())
@@ -288,14 +216,10 @@ func (c *jwtDecodeCmd) showOperator(oc jwt.OperatorClaims) (string, error) {
 		cols.AddRow("Tags", strings.Join(oc.Tags, ", "))
 	}
 
-	return cols.Render()
+	return cols
 }
 
-func (c *jwtDecodeCmd) showAccount(ac jwt.AccountClaims) (string, error) {
-	if c.json {
-		return iu.ToJSON(ac)
-	}
-
+func (c *jwtDecodeCmd) showAccount(ac *jwt.AccountClaims) *columns.Writer {
 	cols := newColumnsf("Account %s (%s)", ac.Name, ac.Subject)
 	cols.AddSectionTitle("Configuration")
 	c.addClaimsData(cols, ac.Claims())
@@ -362,14 +286,10 @@ func (c *jwtDecodeCmd) showAccount(ac jwt.AccountClaims) (string, error) {
 		cols.AddRowIfNotEmpty("XKey", ac.Authorization.XKey)
 	}
 
-	return cols.Render()
+	return cols
 }
 
-func (c *jwtDecodeCmd) showActivation(a jwt.ActivationClaims) (string, error) {
-	if c.json {
-		return iu.ToJSON(a)
-	}
-
+func (c *jwtDecodeCmd) showActivation(a *jwt.ActivationClaims) *columns.Writer {
 	cols := newColumnsf("Activation %s (%s)", a.Name, a.Subject)
 	cols.AddSectionTitle("Configuration")
 	c.addClaimsData(cols, a.Claims())
@@ -380,14 +300,10 @@ func (c *jwtDecodeCmd) showActivation(a jwt.ActivationClaims) (string, error) {
 		cols.AddRow("Tags", strings.Join(a.Tags, ", "))
 	}
 
-	return cols.Render()
+	return cols
 }
 
-func (c *jwtDecodeCmd) showAuthRequest(ar jwt.AuthorizationRequestClaims) (string, error) {
-	if c.json {
-		return iu.ToJSON(ar)
-	}
-
+func (c *jwtDecodeCmd) showAuthRequest(ar *jwt.AuthorizationRequestClaims) *columns.Writer {
 	cols := newColumnsf("Authorization Request %s (%s)", ar.Name, ar.Subject)
 	cols.AddSectionTitle("Configuration")
 	c.addClaimsData(cols, ar.Claims())
@@ -421,14 +337,10 @@ func (c *jwtDecodeCmd) showAuthRequest(ar jwt.AuthorizationRequestClaims) (strin
 		cols.AddRowIfNotEmpty("Cipher", ar.TLS.Cipher)
 	}
 
-	return cols.Render()
+	return cols
 }
 
-func (c *jwtDecodeCmd) showAuthResponse(ar jwt.AuthorizationResponseClaims) (string, error) {
-	if c.json {
-		return iu.ToJSON(ar)
-	}
-
+func (c *jwtDecodeCmd) showAuthResponse(ar *jwt.AuthorizationResponseClaims) *columns.Writer {
 	cols := newColumnsf("Authorization Response %s (%s)", ar.Name, ar.Subject)
 	cols.AddSectionTitle("Configuration")
 	c.addClaimsData(cols, ar.Claims())
@@ -438,5 +350,5 @@ func (c *jwtDecodeCmd) showAuthResponse(ar jwt.AuthorizationResponseClaims) (str
 	}
 	cols.AddRow("User JWT Issued", ar.Jwt != "")
 
-	return cols.Render()
+	return cols
 }
