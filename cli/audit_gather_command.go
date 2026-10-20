@@ -39,6 +39,7 @@ func configureAuditGatherCommand(app *fisk.CmdClause) {
 	gather.Flag("cluster", "Limit audit to servers from the named cluster").PlaceHolder("CLUSTER").Default("").StringVar(&c.config.ClusterFilter)
 	gather.Flag("server-endpoints", "Capture monitoring endpoints for each server").Default("true").BoolVar(&c.config.Include.ServerEndpoints)
 	gather.Flag("server-profiles", "Capture profiles for each server").Default("true").BoolVar(&c.config.Include.ServerProfiles)
+	gather.Flag("cpu-profile-duration", "Duration of the CPU profile captured from each server (max 15s)").Default("5s").DurationVar(&c.config.CPUProfileDuration)
 	gather.Flag("account-endpoints", "Capture monitoring endpoints for each account").Default("true").BoolVar(&c.config.Include.AccountEndpoints)
 	gather.Flag("streams", "Capture state of each stream").Default("true").BoolVar(&c.config.Include.Streams)
 	gather.Flag("consumers", "Capture state of each stream consumers").Default("true").BoolVar(&c.config.Include.Consumers)
