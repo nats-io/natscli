@@ -23,6 +23,7 @@ import (
 
 	"github.com/choria-io/fisk"
 	"github.com/nats-io/jwt/v2"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/natscli/columns"
 	au "github.com/nats-io/natscli/internal/auth"
 	iu "github.com/nats-io/natscli/internal/util"
@@ -115,7 +116,7 @@ func (c *jwtDecodeCmd) showClaims(claims jwt.Claims) (string, error) {
 	switch claims := claims.(type) {
 	case *jwt.UserClaims:
 		cols = c.newClaimsColumns("User", claims.Claims())
-		err = au.RenderUser(&ab.UserData{Claim: claims, BaseData: ab.BaseData{EntityName: claims.Name}}, nil, cols)
+		err = c.showUser(claims, cols)
 	case *jwt.AccountClaims:
 		cols = c.newClaimsColumns("Account", claims.Claims())
 		err = c.showAccount(claims, cols)
@@ -167,14 +168,53 @@ func (c *jwtDecodeCmd) newClaimsColumns(kind string, d *jwt.ClaimsData) *columns
 	return cols
 }
 
+func (c *jwtDecodeCmd) showUser(uc *jwt.UserClaims, cols *columns.Writer) error {
+	err := au.RenderUser(&ab.UserData{Claim: uc, BaseData: ab.BaseData{EntityName: uc.Name}}, nil, cols)
+	if err != nil {
+		return err
+	}
+
+	if uc.ProxyRequired || uc.Resp != nil {
+		cols.AddSectionTitle("Additional Settings")
+		cols.AddRowIf("Proxy Required", true, uc.ProxyRequired)
+		if uc.Resp != nil {
+			cols.AddRow("Allow Responses", c.responsePermission(uc.Resp))
+		}
+	}
+
+	return nil
+}
+
+// the server replaces zero response limits with its defaults, negative values are unlimited
+func (c *jwtDecodeCmd) responsePermission(resp *jwt.ResponsePermission) string {
+	msgs := fmt.Sprint(resp.MaxMsgs)
+	switch {
+	case resp.MaxMsgs < 0:
+		msgs = "unlimited"
+	case resp.MaxMsgs == 0:
+		msgs = fmt.Sprint(server.DEFAULT_ALLOW_RESPONSE_MAX_MSGS)
+	}
+
+	expires := resp.Expires.String()
+	switch {
+	case resp.Expires < 0:
+		expires = "never"
+	case resp.Expires == 0:
+		expires = server.DEFAULT_ALLOW_RESPONSE_EXPIRATION.String()
+	}
+
+	return fmt.Sprintf("%s messages, expires %s", msgs, expires)
+}
+
 func (c *jwtDecodeCmd) showOperator(oc *jwt.OperatorClaims, cols *columns.Writer) error {
 	err := au.RenderOperator(&ab.OperatorData{Claim: oc, BaseData: ab.BaseData{EntityName: oc.Name}}, oc, cols)
 	if err != nil {
 		return err
 	}
 
-	if oc.AssertServerVersion != "" || oc.StrictSigningKeyUsage {
+	if oc.Issuer != oc.Subject || oc.AssertServerVersion != "" || oc.StrictSigningKeyUsage {
 		cols.AddSectionTitle("Additional Settings")
+		cols.AddRowIf("Issuer", oc.Issuer, oc.Issuer != oc.Subject)
 		cols.AddRowIfNotEmpty("Assert Server Version", oc.AssertServerVersion)
 		cols.AddRowIf("Strict Signing Key Usage", true, oc.StrictSigningKeyUsage)
 	}
@@ -237,7 +277,11 @@ func (c *jwtDecodeCmd) showAccount(ac *jwt.AccountClaims, cols *columns.Writer) 
 	if len(ac.Exports)+len(ac.Imports) > 0 {
 		exports := []string{}
 		for _, e := range ac.Exports {
-			exports = append(exports, fmt.Sprintf("%s (%s)", e.Subject, e.Type))
+			if e.TokenReq {
+				exports = append(exports, fmt.Sprintf("%s (%s, token required)", e.Subject, e.Type))
+			} else {
+				exports = append(exports, fmt.Sprintf("%s (%s)", e.Subject, e.Type))
+			}
 		}
 		imports := []string{}
 		for _, i := range ac.Imports {

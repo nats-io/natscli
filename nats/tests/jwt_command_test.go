@@ -77,7 +77,7 @@ func TestJwtDecode(t *testing.T) {
 
 	ac := jwt.NewAccountClaims(accPub)
 	ac.Name = "A"
-	ac.Exports.Add(&jwt.Export{Subject: "svc.>", Type: jwt.Service})
+	ac.Exports.Add(&jwt.Export{Subject: "svc.>", Type: jwt.Service, TokenReq: true})
 	ac.Limits.WildcardExports = false
 	scope := jwt.NewUserScope()
 	scope.Key = skPub
@@ -89,6 +89,8 @@ func TestJwtDecode(t *testing.T) {
 	uc.Name = "U"
 	uc.Pub.Allow.Add("orders.>")
 	uc.Sub.Allow.Add("_INBOX.>")
+	uc.ProxyRequired = true
+	uc.Resp = &jwt.ResponsePermission{MaxMsgs: 5, Expires: time.Minute}
 	userJwt := mustEncode(uc, accKP)
 
 	act := jwt.NewActivationClaims(targetAccPub)
@@ -197,11 +199,41 @@ func TestJwtDecode(t *testing.T) {
 		}
 	})
 
+	opSKKP, opSKPub := mustKey(nkeys.CreateOperator)
+	signed := jwt.NewOperatorClaims(opPub)
+	signed.Name = "O"
+	signedJwt := mustEncode(signed, opSKKP)
+
+	t.Run("operator signed by another key", func(t *testing.T) {
+		output := string(runNatsCli(t, "jwt decode", signedJwt))
+
+		err := expectMatchJSON(t, output, map[string]any{
+			"Additional Settings": map[string]any{"Issuer": "^" + opSKPub + "$"},
+		})
+		if err != nil {
+			t.Errorf("%v\noutput: %s", err, output)
+		}
+	})
+
+	t.Run("user", func(t *testing.T) {
+		output := string(runNatsCli(t, "jwt decode", userJwt))
+
+		err := expectMatchJSON(t, output, map[string]any{
+			"Additional Settings": map[string]any{
+				"Proxy Required":  "^true$",
+				"Allow Responses": "^5 messages, expires 1m0s$",
+			},
+		})
+		if err != nil {
+			t.Errorf("%v\noutput: %s", err, output)
+		}
+	})
+
 	t.Run("account", func(t *testing.T) {
 		output := string(runNatsCli(t, "jwt decode", accountJwt))
 
 		err := expectMatchJSON(t, output, map[string]any{
-			"Exports and Imports": map[string]any{"Exported Subjects": `^svc\.> \(service\)$`},
+			"Exports and Imports": map[string]any{"Exported Subjects": `^svc\.> \(service, token required\)$`},
 			"Additional Settings": map[string]any{
 				"Signing Keys":     "^" + skPub + ` \(scoped: service\)$`,
 				"Wildcard Exports": "^false$",
