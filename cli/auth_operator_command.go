@@ -21,7 +21,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"sort"
 
 	au "github.com/nats-io/natscli/internal/auth"
 	"github.com/nats-io/natscli/internal/fips"
@@ -565,29 +564,9 @@ func (c *authOperatorCommand) showOperator(operator ab.Operator) (string, error)
 	}
 
 	cols := newColumnsf("Operator %s (%s)", operator.Name(), operator.Subject())
-	cols.AddSectionTitle("Configuration")
-	cols.AddRow("Name", operator.Name())
-	cols.AddRow("Subject", operator.Subject())
-	if tags, _ := operator.Tags().All(); len(tags) > 0 {
-		cols.AddStringsAsValue("Tags", tags)
-	}
-	cols.AddRowIf("Service URL(s)", operator.OperatorServiceURLs(), len(operator.OperatorServiceURLs()) > 0)
-	cols.AddRowIfNotEmpty("Account Server", operator.AccountServerURL())
-	cols.AddRow("Accounts", len(operator.Accounts().List()))
-
-	sa, err := operator.SystemAccount()
-	if err == nil {
-		cols.AddRowf("System Account", "%s (%s)", sa.Name(), sa.Subject())
-	} else {
-		cols.AddRow("System Account", "not set")
-	}
-
-	if len(operator.SigningKeys().List()) > 0 {
-		list := []string{}
-		list = append(list, operator.SigningKeys().List()...)
-		sort.Strings(list)
-
-		cols.AddStringsAsValue("Signing Keys", list)
+	err := au.RenderOperator(operator, nil, cols)
+	if err != nil {
+		return "", err
 	}
 
 	return cols.Render()

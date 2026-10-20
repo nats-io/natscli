@@ -70,10 +70,19 @@ func TestJwtDecode(t *testing.T) {
 
 	oc := jwt.NewOperatorClaims(opPub)
 	oc.Name = "O"
+	oc.SystemAccount = accPub
 	operatorJwt := mustEncode(oc, opKP)
+
+	skKP, skPub := mustKey(nkeys.CreateAccount)
 
 	ac := jwt.NewAccountClaims(accPub)
 	ac.Name = "A"
+	ac.Exports.Add(&jwt.Export{Subject: "svc.>", Type: jwt.Service})
+	ac.Limits.WildcardExports = false
+	scope := jwt.NewUserScope()
+	scope.Key = skPub
+	scope.Role = "service"
+	ac.SigningKeys.AddScopedSigner(scope)
 	accountJwt := mustEncode(ac, opKP)
 
 	uc := jwt.NewUserClaims(usrPub)
@@ -167,13 +176,86 @@ func TestJwtDecode(t *testing.T) {
 		err = os.WriteFile(credsFile, creds, 0600)
 		checkErr(t, err, "writing creds: %v", err)
 
-		output := string(runNatsCli(t, "jwt decode", credsFile))
+		output := string(runNatsCli(t, fmt.Sprintf("jwt decode '%s'", credsFile)))
 
 		if !expectMatchRegex(t, fmt.Sprintf(`User U \(%s\)`, usrPub), output) {
 			t.Errorf("user heading not found in output: %s", output)
 		}
 		if strings.Contains(output, string(seed)) {
 			t.Errorf("seed found in output: %s", output)
+		}
+	})
+
+	t.Run("operator", func(t *testing.T) {
+		output := string(runNatsCli(t, "jwt decode", operatorJwt))
+
+		err := expectMatchJSON(t, output, map[string]any{
+			"Configuration": map[string]any{"System Account": "^" + accPub + "$"},
+		})
+		if err != nil {
+			t.Errorf("%v\noutput: %s", err, output)
+		}
+	})
+
+	t.Run("account", func(t *testing.T) {
+		output := string(runNatsCli(t, "jwt decode", accountJwt))
+
+		err := expectMatchJSON(t, output, map[string]any{
+			"Exports and Imports": map[string]any{"Exported Subjects": `^svc\.> \(service\)$`},
+			"Additional Settings": map[string]any{
+				"Signing Keys":     "^" + skPub + ` \(scoped: service\)$`,
+				"Wildcard Exports": "^false$",
+			},
+		})
+		if err != nil {
+			t.Errorf("%v\noutput: %s", err, output)
+		}
+
+		var got struct {
+			Configuration map[string]any
+		}
+		err = json.Unmarshal([]byte(output), &got)
+		checkErr(t, err, "output is not valid JSON: %v\noutput: %s", err, output)
+		if _, ok := got.Configuration["Users"]; ok {
+			t.Errorf("user count found in output: %s", output)
+		}
+	})
+
+	mixed := jwt.NewAccountClaims(accPub)
+	mixed.Name = "mixed"
+	mixed.Limits.JetStreamLimits = jwt.JetStreamLimits{DiskStorage: -1, MemoryStorage: 1024 * 1024, Streams: 10, Consumer: -1, MaxAckPending: -1}
+	mixedJwt := mustEncode(mixed, opKP)
+
+	t.Run("mixed JetStream limits", func(t *testing.T) {
+		output := string(runNatsCli(t, "jwt decode", mixedJwt))
+
+		err := expectMatchJSON(t, output, map[string]any{
+			"Account Default Limits": map[string]any{
+				"Max File Storage":   "^unlimited$",
+				"Max Memory Storage": `^1\.0 MiB$`,
+				"Max Ack Pending":    "^unlimited$",
+			},
+		})
+		if err != nil {
+			t.Errorf("%v\noutput: %s", err, output)
+		}
+	})
+
+	scoped := jwt.NewUserClaims(usrPub)
+	scoped.Name = "scoped"
+	scoped.IssuerAccount = accPub
+	scoped.UserPermissionLimits = jwt.UserPermissionLimits{}
+	scopedJwt := mustEncode(scoped, skKP)
+
+	t.Run("scoped user", func(t *testing.T) {
+		output := string(runNatsCli(t, "jwt decode", scopedJwt))
+
+		err := expectMatchJSON(t, output, map[string]any{
+			"Configuration": map[string]any{"Scoped": "^true$"},
+			"Limits":        map[string]any{"header": []any{"^Set by the signing key scope in the account JWT$"}},
+		})
+		if err != nil {
+			t.Errorf("%v\noutput: %s", err, output)
 		}
 	})
 
@@ -220,7 +302,7 @@ func TestJwtDecode(t *testing.T) {
 		err := os.WriteFile(file, []byte("hello world\n"), 0600)
 		checkErr(t, err, "writing file: %v", err)
 
-		err = runNatsCliWithError(t, "jwt decode", file)
+		err = runNatsCliWithError(t, fmt.Sprintf("jwt decode '%s'", file))
 		if err == nil || !strings.Contains(err.Error(), file+" does not contain a JWT") {
 			t.Errorf("unexpected error: %v", err)
 		}

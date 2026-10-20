@@ -21,8 +21,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/dustin/go-humanize"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/natscli/columns"
 	iu "github.com/nats-io/natscli/internal/util"
@@ -342,43 +344,217 @@ func RenderUserLimits(limits ab.UserLimits, cols *columns.Writer) error {
 	cols.AddRowIfNotEmpty("Connection Types", strings.Join(limits.ConnectionTypes().Types(), ", "))
 	cols.AddRowIfNotEmpty("Connection Sources", strings.Join(limits.ConnectionSources().Sources(), ", "))
 
-	ctimes := limits.ConnectionTimes().List()
-	if len(ctimes) > 0 {
-		ranges := []string{}
-		for _, tr := range ctimes {
-			ranges = append(ranges, fmt.Sprintf("%s to %s", tr.Start, tr.End))
-		}
-		cols.AddStringsAsValue("Connection Times", ranges)
+	ranges := []string{}
+	for _, tr := range limits.ConnectionTimes().List() {
+		ranges = append(ranges, fmt.Sprintf("%s to %s", tr.Start, tr.End))
 	}
+	cols.AddStringsAsValue("Connection Times", ranges)
 
 	cols.AddSectionTitle("Permissions")
 	cols.Indent(2)
-	cols.AddSectionTitle("Publish")
-	if len(limits.PubPermissions().Allow()) > 0 || len(limits.PubPermissions().Deny()) > 0 {
-		if len(limits.PubPermissions().Allow()) > 0 {
-			cols.AddStringsAsValue("Allow", limits.PubPermissions().Allow())
-		}
-		if len(limits.PubPermissions().Deny()) > 0 {
-			cols.AddStringsAsValue("Deny", limits.PubPermissions().Deny())
-		}
-	} else {
-		cols.Println("No permissions defined")
-	}
-
-	cols.AddSectionTitle("Subscribe")
-	if len(limits.SubPermissions().Allow()) > 0 || len(limits.SubPermissions().Deny()) > 0 {
-		if len(limits.SubPermissions().Allow()) > 0 {
-			cols.AddStringsAsValue("Allow", limits.SubPermissions().Allow())
-		}
-
-		if len(limits.SubPermissions().Deny()) > 0 {
-			cols.AddStringsAsValue("Deny", limits.SubPermissions().Deny())
-		}
-	} else {
-		cols.Println("No permissions defined")
-	}
-
+	RenderPermission(cols, "Publish", limits.PubPermissions().Allow(), limits.PubPermissions().Deny())
+	RenderPermission(cols, "Subscribe", limits.SubPermissions().Allow(), limits.SubPermissions().Deny())
 	cols.Indent(0)
 
 	return nil
+}
+
+func RenderPermission(cols *columns.Writer, title string, allow []string, deny []string) {
+	cols.AddSectionTitle("%s", title)
+	if len(allow) == 0 && len(deny) == 0 {
+		cols.Println("No permissions defined")
+		return
+	}
+
+	cols.AddStringsAsValue("Allow", allow)
+	cols.AddStringsAsValue("Deny", deny)
+}
+
+// RenderOperator renders an operator, claims is set for an operator decoded from a JWT. Such an
+// operator has no accounts loaded, so the account count is left out and the system account is
+// shown by its key.
+func RenderOperator(operator ab.Operator, claims *jwt.OperatorClaims, cols *columns.Writer) error {
+	cols.AddSectionTitle("Configuration")
+	cols.AddRow("Name", operator.Name())
+	cols.AddRow("Subject", operator.Subject())
+	if tags, _ := operator.Tags().All(); len(tags) > 0 {
+		cols.AddStringsAsValue("Tags", tags)
+	}
+	cols.AddRowIf("Service URL(s)", operator.OperatorServiceURLs(), len(operator.OperatorServiceURLs()) > 0)
+	cols.AddRowIfNotEmpty("Account Server", operator.AccountServerURL())
+
+	switch {
+	case claims != nil && claims.SystemAccount != "":
+		cols.AddRow("System Account", claims.SystemAccount)
+	case claims != nil:
+		cols.AddRow("System Account", "not set")
+	default:
+		cols.AddRow("Accounts", len(operator.Accounts().List()))
+		sa, err := operator.SystemAccount()
+		if err == nil && sa != nil {
+			cols.AddRowf("System Account", "%s (%s)", sa.Name(), sa.Subject())
+		} else {
+			cols.AddRow("System Account", "not set")
+		}
+	}
+
+	cols.AddStringsAsValue("Signing Keys", operator.SigningKeys().List())
+
+	return nil
+}
+
+// RenderAccount renders an account, operator is nil when the account is not in the store. claims is
+// set for an account decoded from a JWT, which does not carry its users, so the user count is left out.
+func RenderAccount(acct ab.Account, operator ab.Operator, claims *jwt.AccountClaims, cols *columns.Writer) error {
+	limits := acct.Limits()
+	js := limits.JetStream()
+	serviceExports := len(acct.Exports().Services().List())
+	streamExports := len(acct.Exports().Streams().List())
+	serviceImports := len(acct.Imports().Services().List())
+	streamImports := len(acct.Imports().Streams().List())
+
+	cols.AddSectionTitle("Configuration")
+	cols.AddRow("Name", acct.Name())
+	cols.AddRow("Issuer", acct.Issuer())
+	if operator != nil {
+		cols.AddRow("Operator", operator.Name())
+		sa, err := operator.SystemAccount()
+		cols.AddRow("System Account", err == nil && sa != nil && sa.Subject() == acct.Subject())
+	}
+	if tags, _ := acct.Tags().All(); len(tags) > 0 {
+		cols.AddStringsAsValue("Tags", tags)
+	}
+	cols.AddRow("JetStream", js.IsJetStreamEnabled())
+	cols.AddRowIf("Expiry", time.Unix(acct.Expiry(), 0), acct.Expiry() > 0)
+	if claims == nil {
+		cols.AddRow("Users", len(acct.Users().List()))
+	}
+	cols.AddRow("Revocations", len(acct.Revocations().List()))
+	cols.AddRow("Service Exports", serviceExports)
+	cols.AddRow("Stream Exports", streamExports)
+	cols.AddRow("Service Imports", serviceImports)
+	cols.AddRow("Stream Imports", streamImports)
+
+	cols.AddSectionTitle("Limits")
+	cols.AddRow("Bearer Tokens Allowed", !limits.DisallowBearerTokens())
+	cols.AddRowUnlimited("Subscriptions", limits.MaxSubscriptions(), -1)
+	cols.AddRowUnlimited("Connections", limits.MaxConnections(), -1)
+	cols.AddRowUnlimitedIf("Maximum Payload", humanize.IBytes(uint64(limits.MaxPayload())), limits.MaxPayload() <= 0)
+	if limits.MaxData() > 0 {
+		cols.AddRow("Data", limits.MaxData()) // only showing when set as afaik its a ngs thing
+	}
+	cols.AddRowUnlimited("Leafnodes", limits.MaxLeafNodeConnections(), -1)
+	cols.AddRowUnlimited("Imports", limits.MaxImports(), -1)
+	cols.AddRowUnlimited("Exports", limits.MaxExports(), -1)
+
+	if js.IsJetStreamEnabled() {
+		cols.Indent(2)
+		cols.AddSectionTitle("JetStream Settings")
+
+		traffic := acct.ClusterTraffic()
+		if traffic == "" {
+			traffic = "system"
+		}
+		cols.AddRow("Cluster Traffic", traffic)
+
+		cols.Indent(4)
+		for _, tc := range validTiers(acct) {
+			tier, _ := js.Get(tc)
+			if tier == nil {
+				continue
+			}
+
+			if tc == 0 {
+				cols.AddSectionTitle("Account Default Limits")
+			} else {
+				cols.AddSectionTitle("Tier %d", tc)
+			}
+
+			if unlimited, _ := tier.IsUnlimited(); unlimited {
+				cols.Indent(6)
+				cols.Println("Unlimited")
+				cols.Indent(4)
+				continue
+			}
+
+			maxAck, _ := tier.MaxAckPending()
+			maxMem, _ := tier.MaxMemoryStorage()
+			maxMemStream, _ := tier.MaxMemoryStreamSize()
+			maxConns, _ := tier.MaxConsumers()
+			maxDisk, _ := tier.MaxDiskStorage()
+			maxDiskStream, _ := tier.MaxDiskStreamSize()
+			streams, _ := tier.MaxStreams()
+			streamSizeRequired, _ := tier.MaxStreamSizeRequired()
+
+			cols.AddRowUnlimitedIf("Max Ack Pending", maxAck, maxAck <= 0)
+			cols.AddRowUnlimited("Maximum Streams", streams, -1)
+			cols.AddRowUnlimited("Max Consumers Per Stream", maxConns, -1)
+			cols.AddRow("Max Stream Size Required", streamSizeRequired)
+			cols.AddRowUnlimitedIf("Max File Storage", humanize.IBytes(uint64(maxDisk)), maxDisk < 0)
+			cols.AddRowIf("Max File Storage Stream Size", humanize.IBytes(uint64(maxDiskStream)), maxDiskStream > 0)
+			cols.AddRowUnlimitedIf("Max Memory Storage", humanize.IBytes(uint64(maxMem)), maxMem < 0)
+			cols.AddRowIf("Max Memory Storage Stream Size", humanize.IBytes(uint64(maxMemStream)), maxMemStream > 0)
+		}
+
+		cols.Indent(0)
+	}
+
+	return nil
+}
+
+func validTiers(acct ab.Account) []int8 {
+	tiers := []int8{}
+	for i := int8(0); i <= 5; i++ {
+		tier, _ := acct.Limits().JetStream().Get(i)
+		if tier != nil {
+			tiers = append(tiers, i)
+		}
+	}
+
+	if len(tiers) > 1 {
+		tiers = tiers[1:]
+	}
+
+	return tiers
+}
+
+// RenderUser renders a user, acct is nil for a user decoded from a JWT. Without the account the
+// signing key scope is unknown, a user issued by a signing key with empty permissions is scoped
+// as the server rejects scoped users that carry permissions of their own.
+func RenderUser(user ab.User, acct ab.Account, cols *columns.Writer) error {
+	var scoped bool
+	if acct != nil {
+		scoped = user.IsScoped()
+	} else if ud, ok := user.(*ab.UserData); ok {
+		scoped = user.Issuer() != user.IssuerAccount() && ud.Claim.HasEmptyPermissions()
+	}
+
+	cols.AddSectionTitle("Configuration")
+	if acct != nil {
+		cols.AddRow("Account", fmt.Sprintf("%s (%s)", acct.Name(), user.IssuerAccount()))
+	} else {
+		cols.AddRow("Account", user.IssuerAccount())
+	}
+	cols.AddRow("Issuer", user.Issuer())
+	cols.AddRow("Scoped", scoped)
+	if tags, _ := user.Tags().All(); len(tags) > 0 {
+		cols.AddStringsAsValue("Tags", tags)
+	}
+
+	if scoped && acct == nil {
+		cols.AddSectionTitle("Limits")
+		cols.Println("Set by the signing key scope in the account JWT")
+		return nil
+	}
+
+	limits := ab.UserLimits(user)
+	if scoped {
+		scope, err := acct.ScopedSigningKeys().GetScope(user.Issuer())
+		if err != nil {
+			return fmt.Errorf("could not find signing scope %s", user.Issuer())
+		}
+		limits = scope
+	}
+
+	return RenderUserLimits(limits, cols)
 }

@@ -28,7 +28,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/nats-io/nats-server/v2/server"
 	ab "github.com/synadia-io/jwt-auth-builder.go"
@@ -1124,122 +1123,13 @@ func (c *authAccountCommand) showAccount(operator ab.Operator, acct ab.Account) 
 		return iu.ToJSON(acct)
 	}
 
-	limits := acct.Limits()
-	js := limits.JetStream()
-	serviceExports := len(acct.Exports().Services().List())
-	streamExports := len(acct.Exports().Streams().List())
-	serviceImports := len(acct.Imports().Services().List())
-	streamImports := len(acct.Imports().Streams().List())
-
 	cols := newColumnsf("Account %s (%s)", acct.Name(), acct.Subject())
-
-	cols.AddSectionTitle("Configuration")
-	cols.AddRow("Name", acct.Name())
-	cols.AddRow("Issuer", acct.Issuer())
-	if operator != nil {
-		cols.AddRow("Operator", operator.Name())
-		sa, err := operator.SystemAccount()
-		if err == nil {
-			cols.AddRow("System Account", sa.Subject() == acct.Subject())
-		} else {
-			cols.AddRow("System Account", false)
-		}
-	}
-	if tags, _ := acct.Tags().All(); len(tags) > 0 {
-		cols.AddStringsAsValue("Tags", tags)
-	}
-	cols.AddRow("JetStream", js.IsJetStreamEnabled())
-	cols.AddRowIf("Expiry", time.Unix(acct.Expiry(), 0), acct.Expiry() > 0)
-	cols.AddRow("Users", len(acct.Users().List()))
-	cols.AddRow("Revocations", len(acct.Revocations().List()))
-	cols.AddRow("Service Exports", serviceExports)
-	cols.AddRow("Stream Exports", streamExports)
-	cols.AddRow("Service Imports", serviceImports)
-	cols.AddRow("Stream Imports", streamImports)
-
-	cols.AddSectionTitle("Limits")
-	cols.AddRow("Bearer Tokens Allowed", !limits.DisallowBearerTokens())
-	cols.AddRowUnlimited("Subscriptions", limits.MaxSubscriptions(), -1)
-	cols.AddRowUnlimited("Connections", limits.MaxConnections(), -1)
-	cols.AddRowUnlimitedIf("Maximum Payload", humanize.IBytes(uint64(limits.MaxPayload())), limits.MaxPayload() <= 0)
-	if limits.MaxData() > 0 {
-		cols.AddRow("Data", limits.MaxData()) // only showing when set as afaik its a ngs thing
-	}
-	cols.AddRowUnlimited("Leafnodes", limits.MaxLeafNodeConnections(), -1)
-	cols.AddRowUnlimited("Imports", limits.MaxImports(), -1)
-	cols.AddRowUnlimited("Exports", limits.MaxExports(), -1)
-
-	if js.IsJetStreamEnabled() {
-		cols.Indent(2)
-		cols.AddSectionTitle("JetStream Settings")
-
-		traffic := acct.ClusterTraffic()
-		if traffic == "" {
-			traffic = "system"
-		}
-		cols.AddRow("Cluster Traffic", traffic)
-
-		tiers := c.validTiers(acct)
-
-		cols.Indent(4)
-		for _, tc := range tiers {
-			tier, _ := js.Get(tc)
-			if tier == nil {
-				continue
-			}
-
-			if tc == 0 {
-				cols.AddSectionTitle("Account Default Limits")
-			} else {
-				cols.AddSectionTitle("Tier %d", tc)
-			}
-
-			if unlimited, _ := tier.IsUnlimited(); unlimited {
-				cols.Indent(6)
-				cols.Println("Unlimited")
-				cols.Indent(4)
-				continue
-			}
-
-			maxAck, _ := tier.MaxAckPending()
-			maxMem, _ := tier.MaxMemoryStorage()
-			maxMemStream, _ := tier.MaxMemoryStreamSize()
-			maxConns, _ := tier.MaxConsumers()
-			maxDisk, _ := tier.MaxDiskStorage()
-			maxDiskStream, _ := tier.MaxDiskStreamSize()
-			streams, _ := tier.MaxStreams()
-			streamSizeRequired, _ := tier.MaxStreamSizeRequired()
-
-			cols.AddRowUnlimited("Max Ack Pending", maxAck, 0)
-			cols.AddRowUnlimited("Maximum Streams", streams, -1)
-			cols.AddRowUnlimited("Max Consumers Per Stream", maxConns, -1)
-			cols.AddRow("Max Stream Size Required", streamSizeRequired)
-			cols.AddRow("Max File Storage", humanize.IBytes(uint64(maxDisk)))
-			cols.AddRowIf("Max File Storage Stream Size", humanize.IBytes(uint64(maxDiskStream)), maxDiskStream > 0)
-			cols.AddRow("Max Memory Storage", humanize.IBytes(uint64(maxMem)))
-			cols.AddRowIf("Max Memory Storage Stream Size", humanize.IBytes(uint64(maxMemStream)), maxMemStream > 0)
-		}
-
-		cols.Indent(0)
+	err := au.RenderAccount(acct, operator, nil, cols)
+	if err != nil {
+		return "", err
 	}
 
 	return cols.Render()
-}
-
-func (c *authAccountCommand) validTiers(acct ab.Account) []int8 {
-	tiers := []int8{}
-	for i := int8(0); i <= 5; i++ {
-		tier, _ := acct.Limits().JetStream().Get(i)
-		if tier != nil {
-			tiers = append(tiers, i)
-		}
-	}
-
-	if len(tiers) > 1 {
-		tiers = tiers[1:]
-	}
-
-	return tiers
 }
 
 func (c *authAccountCommand) loadMappingsConfig() (map[string][]ab.Mapping, error) {
