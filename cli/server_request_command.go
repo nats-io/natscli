@@ -343,7 +343,7 @@ func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
 	}
 
 	if len(responses) == 0 && c.archivePath != "" {
-		fmt.Fprintf(os.Stderr, "no captured profiles matched %q at level %d in %s; audit gather typically captures goroutine at level 1 and 2\n", c.profileName, c.profileDebug, c.archivePath)
+		fmt.Fprintf(os.Stderr, "no captured profiles matched %q at level %d in %s. audit gather captures goroutine at level 1, and at level 2 only when goroutine_2 is selected\n", c.profileName, c.profileDebug, c.archivePath)
 	}
 
 	prefix := fmt.Sprintf("%s-%s-", c.profileName, time.Now().Format("20060102-150405"))
