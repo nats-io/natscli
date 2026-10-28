@@ -71,6 +71,28 @@ func archiveHasServerEndpoints(t *testing.T, path string) bool {
 	return count > 0
 }
 
+func archiveSubszPageSizes(t *testing.T, path string) ([]int, int) {
+	t.Helper()
+
+	ar, err := archive.NewReader(path)
+	checkErr(t, err, "opening archive failed: %v", err)
+	defer ar.Close()
+
+	var sizes []int
+	var total int
+	_, err = archive.EachClusterServerArtifact(ar, archive.TagServerSubs(), func(_ *archive.Tag, _ *archive.Tag, err error, sz *server.ServerAPISubszResponse) error {
+		if err != nil {
+			return err
+		}
+		sizes = append(sizes, len(sz.Data.Subs))
+		total = sz.Data.Total
+		return nil
+	})
+	checkErr(t, err, "reading SUBSZ pages failed: %v", err)
+
+	return sizes, total
+}
+
 func writeAuditGatherConfig(t *testing.T, content string) string {
 	t.Helper()
 
@@ -115,7 +137,7 @@ func TestAuditGather(t *testing.T) {
 			})
 		}
 
-		full := writeAuditGatherConfig(t, `{"cluster": "c1", "server_endpoints": false, "account_endpoints": false, "streams": false, "consumers": false, "details": false, "server_profiles": {"enabled": false, "cpu_duration": "1s", "profiles": ["heap"]}}`)
+		full := writeAuditGatherConfig(t, `{"cluster": "c1", "server_endpoints": false, "account_endpoints": false, "streams": false, "consumers": false, "details": false, "subsz_page_size": 100, "server_profiles": {"enabled": false, "cpu_duration": "1s", "profiles": ["heap"]}}`)
 		noProfiles := writeAuditGatherConfig(t, `{"server_profiles": {"enabled": false, "profiles": []}}`)
 		durationOnly := writeAuditGatherConfig(t, `{"server_profiles": {"cpu_duration": "1s"}}`)
 
@@ -124,12 +146,12 @@ func TestAuditGather(t *testing.T) {
 			args string
 			want string
 		}{
-			{"write config from file and flags", fmt.Sprintf("--config '%s' --skip-profile mutex --no-streams --cpu-profile-duration 2s", config), `{"cluster":"","server_endpoints":false,"account_endpoints":true,"streams":false,"consumers":true,"details":true,"server_profiles":{"enabled":true,"cpu_duration":"2s","profiles":["heap"]}}`},
-			{"write config with every key from file", fmt.Sprintf("--config '%s'", full), `{"cluster":"c1","server_endpoints":false,"account_endpoints":false,"streams":false,"consumers":false,"details":false,"server_profiles":{"enabled":false,"cpu_duration":"1s","profiles":["heap"]}}`},
-			{"write config with flags overriding every key", fmt.Sprintf("--config '%s' --cluster c2 --server-endpoints --account-endpoints --streams --consumers --details --server-profiles --cpu-profile-duration 3s --profile mutex", full), `{"cluster":"c2","server_endpoints":true,"account_endpoints":true,"streams":true,"consumers":true,"details":true,"server_profiles":{"enabled":true,"cpu_duration":"3s","profiles":["mutex"]}}`},
-			{"write config with default profiles when file omits them", fmt.Sprintf("--config '%s'", durationOnly), `{"cluster":"","server_endpoints":true,"account_endpoints":true,"streams":true,"consumers":true,"details":true,"server_profiles":{"enabled":true,"cpu_duration":"1s","profiles":["goroutine_1","heap","allocs","mutex","threadcreate","block","cpu"]}}`},
-			{"write config with maximum cpu duration", "--cpu-profile-duration 15s", `{"cluster":"","server_endpoints":true,"account_endpoints":true,"streams":true,"consumers":true,"details":true,"server_profiles":{"enabled":true,"cpu_duration":"15s","profiles":["goroutine_1","heap","allocs","mutex","threadcreate","block","cpu"]}}`},
-			{"write config with no profiles while disabled", fmt.Sprintf("--config '%s' --no-server-profiles", noProfiles), `{"cluster":"","server_endpoints":true,"account_endpoints":true,"streams":true,"consumers":true,"details":true,"server_profiles":{"enabled":false,"cpu_duration":"5s","profiles":[]}}`},
+			{"write config from file and flags", fmt.Sprintf("--config '%s' --skip-profile mutex --no-streams --cpu-profile-duration 2s", config), `{"cluster":"","server_endpoints":false,"account_endpoints":true,"streams":false,"consumers":true,"details":true,"subsz_page_size":4096,"server_profiles":{"enabled":true,"cpu_duration":"2s","profiles":["heap"]}}`},
+			{"write config with every key from file", fmt.Sprintf("--config '%s'", full), `{"cluster":"c1","server_endpoints":false,"account_endpoints":false,"streams":false,"consumers":false,"details":false,"subsz_page_size":100,"server_profiles":{"enabled":false,"cpu_duration":"1s","profiles":["heap"]}}`},
+			{"write config with flags overriding every key", fmt.Sprintf("--config '%s' --cluster c2 --server-endpoints --account-endpoints --streams --consumers --details --server-profiles --cpu-profile-duration 3s --profile mutex --subsz-page-size 200", full), `{"cluster":"c2","server_endpoints":true,"account_endpoints":true,"streams":true,"consumers":true,"details":true,"subsz_page_size":200,"server_profiles":{"enabled":true,"cpu_duration":"3s","profiles":["mutex"]}}`},
+			{"write config with default profiles when file omits them", fmt.Sprintf("--config '%s'", durationOnly), `{"cluster":"","server_endpoints":true,"account_endpoints":true,"streams":true,"consumers":true,"details":true,"subsz_page_size":4096,"server_profiles":{"enabled":true,"cpu_duration":"1s","profiles":["goroutine_1","heap","allocs","mutex","threadcreate","block","cpu"]}}`},
+			{"write config with maximum cpu duration", "--cpu-profile-duration 15s", `{"cluster":"","server_endpoints":true,"account_endpoints":true,"streams":true,"consumers":true,"details":true,"subsz_page_size":4096,"server_profiles":{"enabled":true,"cpu_duration":"15s","profiles":["goroutine_1","heap","allocs","mutex","threadcreate","block","cpu"]}}`},
+			{"write config with no profiles while disabled", fmt.Sprintf("--config '%s' --no-server-profiles", noProfiles), `{"cluster":"","server_endpoints":true,"account_endpoints":true,"streams":true,"consumers":true,"details":true,"subsz_page_size":4096,"server_profiles":{"enabled":false,"cpu_duration":"5s","profiles":[]}}`},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				archivePath := filepath.Join(t.TempDir(), "audit.zip")
@@ -151,6 +173,41 @@ func TestAuditGather(t *testing.T) {
 				checkErr(t, err, "written config is not valid JSON: %v", err)
 				if compact.String() != tc.want {
 					t.Errorf("expected config:\n%s\ngot:\n%s", tc.want, compact.String())
+				}
+			})
+		}
+
+		for _, tc := range []struct {
+			name     string
+			args     string
+			pageSize int
+			paged    bool
+		}{
+			{"subsz default page size", "", 4096, false},
+			{"subsz page size flag", "--subsz-page-size 5", 5, true},
+			{"subsz page size from file", fmt.Sprintf("--config '%s'", writeAuditGatherConfig(t, `{"subsz_page_size": 5}`)), 5, true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				archivePath := filepath.Join(t.TempDir(), "audit.zip")
+				output, err := runNatsCliCore(t, "", nil, auditGatherCmd(srv, archivePath, tc.args+" --no-server-profiles"))
+				checkErr(t, err, "gather failed: %v: %s", err, output)
+
+				pages, total := archiveSubszPageSizes(t, archivePath)
+				if len(pages) == 0 {
+					t.Fatalf("no SUBSZ pages captured")
+				}
+				if (len(pages) > 1) != tc.paged {
+					t.Errorf("expected paged to be %t, got %d pages", tc.paged, len(pages))
+				}
+				captured := 0
+				for _, size := range pages {
+					if size > tc.pageSize {
+						t.Errorf("expected at most %d subscriptions per page, got %d", tc.pageSize, size)
+					}
+					captured += size
+				}
+				if captured != total {
+					t.Errorf("expected %d subscriptions captured, got %d", total, captured)
 				}
 			})
 		}
@@ -209,6 +266,8 @@ func TestAuditGather(t *testing.T) {
 			{"invalid cpu duration", "", `{"server_profiles": {"cpu_duration": "5 seconds"}}`, "cpu_duration: invalid duration"},
 			{"zero cpu duration in file", "", `{"server_profiles": {"cpu_duration": "0s"}}`, "cpu_duration: must be more than 0s and at most 15s, got 0s"},
 			{"cpu duration in file out of range", "", `{"server_profiles": {"cpu_duration": "20s"}}`, "cpu_duration: must be more than 0s and at most 15s, got 20s"},
+			{"zero subsz page size", "--subsz-page-size 0", "", "subsz page size must be more than 0, got 0"},
+			{"negative subsz page size in file", "", `{"subsz_page_size": -1}`, "subsz page size must be more than 0, got -1"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				archivePath := filepath.Join(t.TempDir(), "audit.zip")
