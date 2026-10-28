@@ -43,6 +43,7 @@ type auditGatherCmd struct {
 	streamsIsSet          bool
 	consumersIsSet        bool
 	detailsIsSet          bool
+	subszPageSizeIsSet    bool
 }
 
 type auditGatherConfigFile struct {
@@ -52,6 +53,7 @@ type auditGatherConfigFile struct {
 	Streams          *bool                    `json:"streams"`
 	Consumers        *bool                    `json:"consumers"`
 	Details          *bool                    `json:"details"`
+	SubszPageSize    *int                     `json:"subsz_page_size"`
 	ServerProfiles   *auditGatherProfilesFile `json:"server_profiles"`
 }
 
@@ -118,6 +120,7 @@ func configureAuditGatherCommand(app *fisk.CmdClause) {
 	gather.Flag("streams", "Capture state of each stream").Default("true").IsSetByUser(&c.streamsIsSet).BoolVar(&c.config.Include.Streams)
 	gather.Flag("consumers", "Capture state of each stream consumers").Default("true").IsSetByUser(&c.consumersIsSet).BoolVar(&c.config.Include.Consumers)
 	gather.Flag("details", "Capture detailed server information from the audit").Default("true").IsSetByUser(&c.detailsIsSet).BoolVar(&c.config.Detailed)
+	gather.Flag("subsz-page-size", "Number of subscriptions requested per SUBSZ page").Default("4096").IsSetByUser(&c.subszPageSizeIsSet).IntVar(&c.config.SubszPageSize)
 }
 
 func setUnlessFlagged[T any](flagged bool, value *T, target *T) {
@@ -144,6 +147,7 @@ func (c *auditGatherCmd) applyConfigFile() error {
 	setUnlessFlagged(c.streamsIsSet, cfg.Streams, &c.config.Include.Streams)
 	setUnlessFlagged(c.consumersIsSet, cfg.Consumers, &c.config.Include.Consumers)
 	setUnlessFlagged(c.detailsIsSet, cfg.Details, &c.config.Detailed)
+	setUnlessFlagged(c.subszPageSizeIsSet, cfg.SubszPageSize, &c.config.SubszPageSize)
 
 	if cfg.ServerProfiles != nil {
 		cpuDuration, err := cfg.ServerProfiles.validate("cpu_duration")
@@ -170,6 +174,7 @@ func (c *auditGatherCmd) writeConfigFile() error {
 		Streams:          &c.config.Include.Streams,
 		Consumers:        &c.config.Include.Consumers,
 		Details:          &c.config.Detailed,
+		SubszPageSize:    &c.config.SubszPageSize,
 		ServerProfiles: &auditGatherProfilesFile{
 			Enabled:     &c.config.Include.ServerProfiles,
 			CPUDuration: &cpuDuration,
@@ -200,6 +205,10 @@ func (c *auditGatherCmd) gather(_ *fisk.ParseContext) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if c.config.SubszPageSize <= 0 {
+		return fmt.Errorf("subsz page size must be more than 0, got %d", c.config.SubszPageSize)
 	}
 
 	if !c.config.Include.ServerProfiles && (len(profiles) > 0 || len(skipProfiles) > 0) {
