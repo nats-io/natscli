@@ -30,6 +30,7 @@ import (
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
 	"github.com/fatih/color"
+	"github.com/nats-io/jsm.go/api/server/zmonitor"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
@@ -57,6 +58,7 @@ type SrvReportCmd struct {
 	gatewayName             string
 	jsEnabled               bool
 	jsServerOnly            bool
+	leafRemotesConnected    bool
 	stream                  string
 	consumer                string
 	watchInterval           int
@@ -135,6 +137,7 @@ func configureServerReportCommand(srv *fisk.CmdClause) {
 	health.Arg("limit", "Limit the responses to a certain amount of servers").IntVar(&c.waitFor)
 	health.Flag("js-enabled", "Checks that JetStream should be enabled on all servers").Short('J').BoolVar(&c.jsEnabled)
 	health.Flag("server-only", "Restricts the health check to the JetStream server only, do not check streams and consumers").Short('S').BoolVar(&c.jsServerOnly)
+	health.Flag("leaf-remotes-connected", "Checks that all enabled Leafnode remotes are connected").BoolVar(&c.leafRemotesConnected)
 	health.Flag("account", "Check only a specific Account").StringVar(&c.account)
 	health.Flag("stream", "Check only a specific Stream").StringVar(&c.stream)
 	health.Flag("consumer", "Check only a specific Consumer").StringVar(&c.consumer)
@@ -334,17 +337,15 @@ func (c *SrvReportCmd) reportHealth(_ *fisk.ParseContext) error {
 	}
 	defer src.Close()
 
-	responses, err := src.Healthz(server.HealthzEventOptions{
-		HealthzOptions: server.HealthzOptions{
-			JSEnabledOnly: c.jsEnabled,
-			JSServerOnly:  c.jsServerOnly,
-			Account:       c.account,
-			Stream:        c.stream,
-			Consumer:      c.consumer,
-			Details:       true,
-		},
-		EventFilterOptions: c.reqFilter(),
-	})
+	responses, err := src.Healthz(zmonitor.HealthzOptionsV1{
+		JSEnabledOnly:        c.jsEnabled,
+		JSServerOnly:         c.jsServerOnly,
+		LeafRemotesConnected: c.leafRemotesConnected,
+		Account:              c.account,
+		Stream:               c.stream,
+		Consumer:             c.consumer,
+		Details:              true,
+	}, c.reqFilter())
 	if err != nil {
 		return err
 	}
