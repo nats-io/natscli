@@ -935,6 +935,7 @@ func TestServerList(t *testing.T) {
 						},
 						"gomaxprocs": `\d+`,
 					},
+					"leafnodes": `\d+`,
 				},
 			}
 			err := expectMatchJSON(t, output, expected)
