@@ -556,12 +556,12 @@ func CompactStrings(source []string) []string {
 	toRemove := ""
 
 	// we dont chop the 0 item off
-	for i := shortest - 1; i > 0; i-- {
-		s := hnParts[0][i]
+	for i := 1; i < shortest; i++ {
+		s := hnParts[0][len(hnParts[0])-i]
 
 		remove := true
 		for _, name := range hnParts {
-			if name[i] != s {
+			if name[len(name)-i] != s {
 				remove = false
 				break
 			}
