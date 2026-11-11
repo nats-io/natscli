@@ -63,7 +63,7 @@ func archiveHasServerEndpoints(t *testing.T, path string) bool {
 	checkErr(t, err, "opening archive failed: %v", err)
 	defer ar.Close()
 
-	count, err := ar.EachClusterServerVarz(func(_ *archive.Tag, _ *archive.Tag, _ error, _ *server.ServerAPIVarzResponse) error {
+	count, err := ar.EachClusterServerVarz(func(_ archive.ClusterRef, _ string, _ error, _ *server.ServerAPIVarzResponse) error {
 		return nil
 	})
 	checkErr(t, err, "reading server endpoints failed: %v", err)
@@ -80,7 +80,7 @@ func archiveSubszPageSizes(t *testing.T, path string) ([]int, int) {
 
 	var sizes []int
 	var total int
-	_, err = archive.EachClusterServerArtifact(ar, archive.TagServerSubs(), func(_ *archive.Tag, _ *archive.Tag, err error, sz *server.ServerAPISubszResponse) error {
+	_, err = archive.EachClusterServerArtifact(ar, archive.TagServerSubs(), func(_ archive.ClusterRef, _ string, err error, sz *server.ServerAPISubszResponse) error {
 		if err != nil {
 			return err
 		}

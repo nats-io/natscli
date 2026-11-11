@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"sort"
 	"syscall"
 	"time"
@@ -1596,12 +1597,14 @@ type jsDowngradeAsset struct {
 
 type jsDowngradeStreamAsset struct {
 	Account  string `json:"account"`
+	Domain   string `json:"domain,omitempty"`
 	Name     string `json:"name"`
 	APILevel uint   `json:"api_level"`
 }
 
 type jsDowngradeConsumerAsset struct {
 	Account  string `json:"account"`
+	Domain   string `json:"domain,omitempty"`
 	Name     string `json:"name"`
 	Stream   string `json:"stream"`
 	APILevel uint   `json:"api_level"`
@@ -1647,6 +1650,7 @@ func (c *SrvReportCmd) downgradeCheckAction(_ *fisk.ParseContext) error {
 			if incompatibleStream {
 				as.Streams = append(as.Streams, jsDowngradeStreamAsset{
 					Account:  acc.Name,
+					Domain:   acc.Domain,
 					Name:     s.Name,
 					APILevel: streamApiLevel,
 				})
@@ -1665,6 +1669,7 @@ func (c *SrvReportCmd) downgradeCheckAction(_ *fisk.ParseContext) error {
 					}
 					as.Consumers = append(as.Consumers, jsDowngradeConsumerAsset{
 						Account:  acc.Name,
+						Domain:   acc.Domain,
 						Name:     con.Name,
 						Stream:   displayStream,
 						APILevel: consumerApiLevel,
@@ -1690,13 +1695,23 @@ func (c *SrvReportCmd) renderDowngrade(as jsDowngradeAsset) {
 }
 
 func (c *SrvReportCmd) printDowngradeReport(as jsDowngradeAsset) {
+	renderDomain := slices.ContainsFunc(as.Streams, func(s jsDowngradeStreamAsset) bool { return s.Domain != "" }) ||
+		slices.ContainsFunc(as.Consumers, func(c jsDowngradeConsumerAsset) bool { return c.Domain != "" })
+
+	withDomain := func(domain string, cols ...any) []any {
+		if !renderDomain {
+			return cols
+		}
+		return append([]any{cols[0], domain}, cols[1:]...)
+	}
+
 	empty := true
 	if len(as.Streams) > 0 {
 		empty = false
 		streamsTable := iu.NewTableWriterf(opts(), "Assets: Streams")
-		streamsTable.AddHeaders("Account", "Stream", "Required API level")
+		streamsTable.AddHeaders(withDomain("Domain", "Account", "Stream", "Required API level")...)
 		for _, s := range as.Streams {
-			streamsTable.AddRow(s.Account, s.Name, s.APILevel)
+			streamsTable.AddRow(withDomain(s.Domain, s.Account, s.Name, s.APILevel)...)
 		}
 		fmt.Println(streamsTable.Render())
 	}
@@ -1704,9 +1719,9 @@ func (c *SrvReportCmd) printDowngradeReport(as jsDowngradeAsset) {
 	if len(as.Consumers) > 0 {
 		empty = false
 		consumersTable := iu.NewTableWriterf(opts(), "Assets: Consumers")
-		consumersTable.AddHeaders("Account", "Stream", "Consumer", "Required API level")
+		consumersTable.AddHeaders(withDomain("Domain", "Account", "Stream", "Consumer", "Required API level")...)
 		for _, c := range as.Consumers {
-			consumersTable.AddRow(c.Account, c.Stream, c.Name, c.APILevel)
+			consumersTable.AddRow(withDomain(c.Domain, c.Account, c.Stream, c.Name, c.APILevel)...)
 		}
 		fmt.Println(consumersTable.Render())
 	}
