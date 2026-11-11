@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -112,6 +112,8 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 			}
 		}
 	} else {
+		domain := opts().Config.JSDomain()
+
 		if c.archivePath == "" {
 			nc, _, err = prepareHelper(opts().Servers, natsOpts()...)
 			if err != nil {
@@ -120,7 +122,7 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 			fmt.Printf("Connected in %.3fs\n", time.Since(start).Seconds())
 
 			if c.expected == 0 {
-				c.expected, err = serverdata.CurrentActiveServers(ctx, nc, "", opts().Timeout, traceLogger())
+				c.expected, err = serverdata.CurrentActiveServers(ctx, nc, domain, opts().Timeout, traceLogger())
 				if err != nil {
 					return fmt.Errorf("failed to get current active servers: %s", err)
 				}
@@ -135,7 +137,8 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 
 		start = time.Now()
 		responses, err = ds.Jsz(server.JszEventOptions{
-			JSzOptions: server.JSzOptions{Streams: true, RaftGroups: true},
+			JSzOptions:         server.JSzOptions{Streams: true, RaftGroups: true},
+			EventFilterOptions: server.EventFilterOptions{Domain: domain},
 		})
 		if err != nil {
 			return err
@@ -155,7 +158,7 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 	}
 
 	// Collect all info from servers.
-	streams := make(map[string]map[string]*streamDetail)
+	streams := make(map[replicaGroup]map[string]*streamDetail)
 	for _, resp := range responses {
 		if resp.Server == nil || resp.Data == nil {
 			continue
@@ -169,7 +172,7 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 				if stream.RaftGroup == "" && stream.Cluster != nil {
 					stream.RaftGroup = stream.Cluster.RaftGroup
 				}
-				key := fmt.Sprintf("%s|%s", acc.Name, stream.RaftGroup)
+				key := newReplicaGroup(acc.Name, stream.RaftGroup, server.ID, stream.Name)
 				if m, ok = streams[key]; !ok {
 					m = make(map[string]*streamDetail)
 					streams[key] = m
@@ -186,13 +189,7 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 			}
 		}
 	}
-	keys := make([]string, 0)
-	for k := range streams {
-		for kk := range streams[k] {
-			keys = append(keys, fmt.Sprintf("%s/%s", k, kk))
-		}
-	}
-	sort.Strings(keys)
+	keys := sortedReplicaKeys(streams)
 
 	title := ""
 	if !c.csv {
@@ -210,17 +207,13 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 	var prev, prevAccount string
 	for i, k := range keys {
 		var unsynced bool
-		av := strings.Split(k, "|")
-		accName := av[0]
-		v := strings.Split(av[1], "/")
-		raftName, serverName := v[0], v[1]
-		if c.raftGroup != "" && raftName != c.raftGroup {
+		accName, serverName := k.account, k.server
+		stream := streams[k.replicaGroup]
+		replica := stream[serverName]
+		if c.raftGroup != "" && replica.RaftGroup != c.raftGroup {
 			continue
 		}
 
-		key := fmt.Sprintf("%s|%s", accName, raftName)
-		stream := streams[key]
-		replica := stream[serverName]
 		status := "IN SYNC"
 
 		if c.streamName != "" && replica.StreamName != c.streamName {
@@ -322,8 +315,8 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 
 		node := fmt.Sprintf("%s%s", serverName, suffix)
 
-		if c.unsyncedFilter && !isStreamLeader {
-			ld := stream[replica.Cluster.Leader]
+		ld := stream[replica.Cluster.Leader]
+		if c.unsyncedFilter && !isStreamLeader && ld != nil {
 			table.AddRow(replica.StreamName, replica.RaftGroup, account, replica.AccountID, node,
 				util.FmtReplicaDrift(float64(replica.State.Msgs), float64(ld.State.Msgs)),
 				util.FmtReplicaDrift(float64(replica.State.Bytes), float64(ld.State.Bytes)),
@@ -349,4 +342,35 @@ func (c *StreamCheckCmd) streamCheck(_ *fisk.ParseContext) error {
 	}
 
 	return nil
+}
+
+// replicaGroup identifies the replicas of one stream or consumer. Assets without a raft group exist on a single
+// server, so the server ID and asset name stand in for the group.
+type replicaGroup struct {
+	account string
+	group   string
+}
+
+func newReplicaGroup(account, raftGroup, serverID, name string) replicaGroup {
+	if raftGroup == "" {
+		return replicaGroup{account: account, group: serverID + "/" + name}
+	}
+	return replicaGroup{account: account, group: raftGroup}
+}
+
+type replicaKey struct {
+	replicaGroup
+	server  string
+	sortKey string
+}
+
+func sortedReplicaKeys[T any](groups map[replicaGroup]map[string]T) []replicaKey {
+	var keys []replicaKey
+	for g, replicas := range groups {
+		for srv := range replicas {
+			keys = append(keys, replicaKey{replicaGroup: g, server: srv, sortKey: fmt.Sprintf("%s|%s/%s", g.account, g.group, srv)})
+		}
+	}
+	slices.SortFunc(keys, func(a, b replicaKey) int { return strings.Compare(a.sortKey, b.sortKey) })
+	return keys
 }

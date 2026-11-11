@@ -352,7 +352,9 @@ func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
 	prefix := fmt.Sprintf("%s-%s-", c.profileName, time.Now().Format("20060102-150405"))
 	prefix = filepath.Join(c.profileDir, prefix)
 
-	for _, resp := range responses {
+	suffixes := profileFileSuffixes(responses)
+
+	for i, resp := range responses {
 		if resp.Data != nil && resp.Data.Error != "" {
 			fmt.Fprintf(os.Stderr, "Server %q error: %s\n", resp.Server.Name, resp.Data.Error)
 			continue
@@ -361,7 +363,7 @@ func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
 			continue
 		}
 
-		filename := prefix + resp.Server.Name
+		filename := prefix + suffixes[i]
 		if err := c.profilezWrite(filename, resp); err != nil {
 			fmt.Fprintf(os.Stderr, "Server %q error: %s\n", resp.Server.Name, err)
 		} else {
@@ -372,8 +374,42 @@ func (c *SrvRequestCmd) profilez(_ *fisk.ParseContext) error {
 	return nil
 }
 
+func profileFileSuffixes(responses []*serverdata.ProfilezResponse) []string {
+	suffixes := make([]string, len(responses))
+	for i, resp := range responses {
+		suffixes[i] = resp.Server.Name
+	}
+
+	qualifyRepeatedSuffixes(suffixes, func(i int) []string {
+		return []string{responses[i].Server.Domain, responses[i].Server.Cluster}
+	})
+	qualifyRepeatedSuffixes(suffixes, func(i int) []string {
+		return []string{responses[i].Server.ID}
+	})
+
+	return suffixes
+}
+
+func qualifyRepeatedSuffixes(suffixes []string, qualifiers func(int) []string) {
+	counts := make(map[string]int, len(suffixes))
+	for _, suffix := range suffixes {
+		counts[suffix]++
+	}
+
+	for i, suffix := range suffixes {
+		if counts[suffix] < 2 {
+			continue
+		}
+		for _, qualifier := range qualifiers(i) {
+			if qualifier != "" {
+				suffixes[i] += "-" + qualifier
+			}
+		}
+	}
+}
+
 func (c *SrvRequestCmd) profilezWrite(filename string, resp *serverdata.ProfilezResponse) error {
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}

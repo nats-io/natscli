@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"time"
 
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/jsm.go/audit/archive"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -1679,6 +1681,87 @@ func TestServerRequest(t *testing.T) {
 		})
 	})
 
+	t.Run("profile archive command with repeated server names", func(t *testing.T) {
+		archivePath := filepath.Join(t.TempDir(), "profiles.zip")
+		w, err := archive.NewWriter(archivePath)
+		if err != nil {
+			t.Fatalf("creating archive writer: %v", err)
+		}
+		profiles := []struct {
+			domain  string
+			cluster string
+			server  string
+			id      string
+		}{
+			{"", "SITE", "n1", "NA"},
+			{"d1", "SITE", "n1", "NB"},
+			{"hub", "HUB", "h1", "NC"},
+			{"hub", "HUB", "n1-SITE", "ND"},
+		}
+		for _, p := range profiles {
+			tags := []*archive.Tag{archive.TagCluster(p.cluster), archive.TagServer(p.server)}
+			if p.domain != "" {
+				tags = append(tags, archive.TagDomain(p.domain))
+			}
+			varz := &server.ServerAPIVarzResponse{
+				Server: &server.ServerInfo{Name: p.server, Cluster: p.cluster, Domain: p.domain, ID: p.id},
+				Data:   &server.Varz{},
+			}
+			if err := w.Add(varz, append(tags, archive.TagServerVars())...); err != nil {
+				t.Fatalf("adding varz: %v", err)
+			}
+			err := w.AddRaw(strings.NewReader("heap-"+p.domain+"-"+p.server), "prof", append(tags, archive.TagServerProfile(), archive.TagProfileName("heap"))...)
+			if err != nil {
+				t.Fatalf("adding profile: %v", err)
+			}
+		}
+		if err := w.Close(); err != nil {
+			t.Fatalf("closing archive: %v", err)
+		}
+
+		dir := t.TempDir()
+		output := string(runNatsCli(t, fmt.Sprintf("server request profile heap '%s' --archive='%s'", dir, archivePath)))
+
+		expected := map[string]string{
+			`heap-\d{8}-\d{6}-n1-SITE-NA$`: "heap--n1",
+			`heap-\d{8}-\d{6}-n1-d1-SITE$`: "heap-d1-n1",
+			`heap-\d{8}-\d{6}-h1$`:         "heap-hub-h1",
+			`heap-\d{8}-\d{6}-n1-SITE-ND$`: "heap-hub-n1-SITE",
+		}
+		for pattern := range expected {
+			if !expectMatchLine(t, output, `profile written: .*`+pattern) {
+				t.Errorf("expected a profile matching %s: %s", pattern, output)
+			}
+		}
+
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("reading profile dir: %v", err)
+		}
+		if len(entries) != len(expected) {
+			t.Fatalf("expected %d profile files, got %d", len(expected), len(entries))
+		}
+		for _, entry := range entries {
+			found := false
+			for pattern, content := range expected {
+				if !regexp.MustCompile(pattern).MatchString(entry.Name()) {
+					continue
+				}
+				found = true
+				data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+				if err != nil {
+					t.Fatalf("reading %s: %v", entry.Name(), err)
+				}
+				if string(data) != content {
+					t.Errorf("expected %s to contain %q, got %q", entry.Name(), content, data)
+				}
+			}
+			if !found {
+				t.Errorf("unexpected profile file %s", entry.Name())
+			}
+		}
+	})
+
 	t.Run("raftz command", func(t *testing.T) {
 		withJSCluster(t, func(t *testing.T, servers []*server.Server, conn *nats.Conn, mgr *jsm.Manager) error {
 			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server request raft", servers[0].ClientURL(), sysUserCreds)))
@@ -2020,6 +2103,39 @@ func TestServerStreamCheck(t *testing.T) {
 			t.Errorf("expected -100%% when leader=10 replica=0:\n%s", out)
 		}
 	})
+
+	t.Run("standalone streams are listed separately", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			for _, name := range []string{"SOLO_A", "SOLO_B", "SOLO_C"} {
+				_, err := mgr.NewStream(name, jsm.Subjects(name))
+				if err != nil {
+					t.Fatalf("unable to create stream %s: %v", name, err)
+				}
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server stream-check", srv.ClientURL(), sysUserCreds)))
+			if !expectMatchLine(t, output, `^Streams: 3`) ||
+				!expectMatchLine(t, output, `SOLO_A`) ||
+				!expectMatchLine(t, output, `SOLO_B`) ||
+				!expectMatchLine(t, output, `SOLO_C`) {
+				t.Errorf("failed stream-check: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("unsynced without a response from the leader", func(t *testing.T) {
+		replica2 := makeStreamCheckResp(t, "s2", "ID2", 990, 9800, 50, 5, 3, 1, 990)
+		replica3 := makeStreamCheckResp(t, "s3", "ID3", 1010, 10200, 55, 15, 4, 1, 1010)
+
+		output, err := runNatsCliWithInput(t, replica2+"\n"+replica3+"\n", "server stream-check --stdin --unsynced")
+		if err != nil {
+			t.Fatalf("stream-check failed: %v\nOutput: %s", err, output)
+		}
+		if !expectMatchLine(t, string(output), `ORDERS`, `s2`, `990`) || !expectMatchLine(t, string(output), `ORDERS`, `s3`, `1010`) {
+			t.Errorf("failed stream-check: %s", output)
+		}
+	})
 }
 
 func TestServerConsumerCheck(t *testing.T) {
@@ -2207,6 +2323,42 @@ func TestServerConsumerCheck(t *testing.T) {
 			}
 			return nil
 		})
+	})
+
+	t.Run("standalone consumers are listed separately", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			for _, name := range []string{"SOLO_A", "SOLO_B"} {
+				_, err := mgr.NewStream(name, jsm.Subjects(name))
+				if err != nil {
+					t.Fatalf("unable to create stream %s: %v", name, err)
+				}
+				_, err = mgr.NewConsumer(name, jsm.DurableName("C1"), jsm.AcknowledgeExplicit())
+				if err != nil {
+					t.Fatalf("unable to create consumer on %s: %v", name, err)
+				}
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' %s server consumer-check", srv.ClientURL(), sysUserCreds)))
+			if !expectMatchLine(t, output, `^Consumers: 2`) ||
+				!expectMatchLine(t, output, `C1`, `SOLO_A`) ||
+				!expectMatchLine(t, output, `C1`, `SOLO_B`) {
+				t.Errorf("failed consumer-check: %s", output)
+			}
+			return nil
+		})
+	})
+
+	t.Run("unsynced without a response from the leader", func(t *testing.T) {
+		replica2 := makeConsumerCheckResp(t, "s2", "ID2", 490, 490, 380, 380)
+		replica3 := makeConsumerCheckResp(t, "s3", "ID3", 510, 520, 420, 440)
+
+		output, err := runNatsCliWithInput(t, replica2+"\n"+replica3+"\n", "server consumer-check --stdin --unsynced")
+		if err != nil {
+			t.Fatalf("consumer-check failed: %v\nOutput: %s", err, output)
+		}
+		if !expectMatchLine(t, string(output), `MY_CONSUMER`, `s2`, `490`) || !expectMatchLine(t, string(output), `MY_CONSUMER`, `s3`, `510`) {
+			t.Errorf("failed consumer-check: %s", output)
+		}
 	})
 }
 

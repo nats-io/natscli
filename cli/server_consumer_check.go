@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -124,6 +123,8 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 			}
 		}
 	} else {
+		domain := opts().Config.JSDomain()
+
 		if c.archivePath == "" {
 			nc, _, err = prepareHelper(opts().Servers, natsOpts()...)
 			if err != nil {
@@ -132,7 +133,7 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 			fmt.Printf("Connected in %.3fs\n", time.Since(start).Seconds())
 
 			if c.expected == 0 {
-				c.expected, err = serverdata.CurrentActiveServers(ctx, nc, "", opts().Timeout, traceLogger())
+				c.expected, err = serverdata.CurrentActiveServers(ctx, nc, domain, opts().Timeout, traceLogger())
 				if err != nil {
 					return fmt.Errorf("failed to get current active servers: %s", err)
 				}
@@ -147,7 +148,8 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 
 		start = time.Now()
 		responses, err = ds.Jsz(server.JszEventOptions{
-			JSzOptions: server.JSzOptions{Streams: true, Consumer: true, RaftGroups: true},
+			JSzOptions:         server.JSzOptions{Streams: true, Consumer: true, RaftGroups: true},
+			EventFilterOptions: server.EventFilterOptions{Domain: domain},
 		})
 		if err != nil {
 			return err
@@ -166,8 +168,8 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 		}
 	}
 
-	streams := make(map[string]map[string]*streamDetail)
-	consumers := make(map[string]map[string]*ConsumerDetail)
+	streams := make(map[replicaGroup]map[string]*streamDetail)
+	consumers := make(map[replicaGroup]map[string]*ConsumerDetail)
 	// Collect all info from servers.
 	for _, resp := range responses {
 		if resp.Server == nil || resp.Data == nil {
@@ -182,7 +184,7 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 				if stream.RaftGroup == "" && stream.Cluster != nil {
 					stream.RaftGroup = stream.Cluster.RaftGroup
 				}
-				mkey := fmt.Sprintf("%s|%s", acc.Name, stream.RaftGroup)
+				mkey := newReplicaGroup(acc.Name, stream.RaftGroup, server.ID, stream.Name)
 				if ms, mok = streams[mkey]; !mok {
 					ms = make(map[string]*streamDetail)
 					streams[mkey] = ms
@@ -211,7 +213,7 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 
 					var ok bool
 					var m map[string]*ConsumerDetail
-					key := fmt.Sprintf("%s|%s", acc.Name, raftGroup)
+					key := newReplicaGroup(acc.Name, raftGroup, server.ID, consumer.Stream+"/"+consumer.Name)
 					if m, ok = consumers[key]; !ok {
 						m = make(map[string]*ConsumerDetail)
 						consumers[key] = m
@@ -241,14 +243,7 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 		}
 	}
 
-	keys := make([]string, 0)
-	for k := range consumers {
-		for kk := range consumers[k] {
-			key := fmt.Sprintf("%s/%s", k, kk)
-			keys = append(keys, key)
-		}
-	}
-	sort.Strings(keys)
+	keys := sortedReplicaKeys(consumers)
 
 	title := ""
 	if !c.csv {
@@ -267,18 +262,14 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 	var prev, prevAccount string
 	for i, k := range keys {
 		var unsynced bool
-		av := strings.Split(k, "|")
-		accName := av[0]
-		v := strings.Split(av[1], "/")
-		raftGroup, serverName := v[0], v[1]
+		accName, serverName := k.account, k.server
+		consumer := consumers[k.replicaGroup]
+		replica := consumer[serverName]
 
-		if c.raftGroup != "" && raftGroup != c.raftGroup {
+		if c.raftGroup != "" && replica.RaftGroup != c.raftGroup {
 			continue
 		}
 
-		key := fmt.Sprintf("%s|%s", accName, raftGroup)
-		consumer := consumers[key]
-		replica := consumer[serverName]
 		var status string
 		statuses := make(map[string]bool)
 
@@ -380,9 +371,13 @@ func (c *ConsumerCheckCmd) consumerCheck(_ *fisk.ParseContext) error {
 
 		isLeader := replica.Cluster != nil && serverName == replica.Cluster.Leader
 
+		var lc *ConsumerDetail
+		if replica.Cluster != nil {
+			lc = consumer[replica.Cluster.Leader]
+		}
+
 		var delivered, ackfloor string
-		if c.unsyncedFilter && !isLeader {
-			lc := consumer[replica.Cluster.Leader]
+		if c.unsyncedFilter && !isLeader && lc != nil {
 			delivered = fmt.Sprintf("%s [%d, %d] %-3s | %s",
 				util.FmtReplicaDrift(float64(replica.DeliveredStreamSeq), float64(lc.DeliveredStreamSeq)),
 				replica.State.FirstSeq, replica.State.LastSeq, progress,
