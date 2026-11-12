@@ -87,6 +87,7 @@ LLM optimized help output can be obtained using --help-llm for any command. You 
 		ncli.Flag("certstore-ca-match", "Which certificate authority should be used from the store").StringsVar(&opts.WinCertCaStoreMatch)
 	}
 	ncli.Flag("timeout", "Time to wait on responses from NATS").Default("5s").Envar("NATS_TIMEOUT").DurationVar(&opts.Timeout)
+	ncli.Flag("connect-timeout", "Time to wait for a connection to a server to be established").Default("2s").Envar("NATS_CONNECT_TIMEOUT").DurationVar(&opts.ConnectTimeout)
 	ncli.Flag("socks-proxy", "SOCKS5 proxy for connecting to NATS server").Envar("NATS_SOCKS_PROXY").PlaceHolder("PROXY").StringVar(&opts.SocksProxy)
 	ncli.Flag("js-api-prefix", "Subject prefix for access to JetStream API").PlaceHolder("PREFIX").StringVar(&opts.JsApiPrefix)
 	ncli.Flag("js-event-prefix", "Subject prefix for access to JetStream Advisories").PlaceHolder("PREFIX").StringVar(&opts.JsEventPrefix)
