@@ -14,13 +14,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	ntfsvc "github.com/synadia-io/orbit.go/ntf"
+	ntf "github.com/synadia-io/orbit.go/ntf-client"
 )
 
 func TestCLIRTTMultipleTargets(t *testing.T) {
@@ -58,4 +63,49 @@ func TestCLIRTTMultipleTargets(t *testing.T) {
 
 		return nil
 	})
+}
+
+func TestCLIRTTHostnamePlainServer(t *testing.T) {
+	withNatsServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn) error {
+		addr := srv.Addr().(*net.TCPAddr)
+
+		output, err := runNatsCliCore(t, "", nil, fmt.Sprintf("--server=nats://localhost:%d rtt", addr.Port))
+		if err != nil {
+			t.Fatalf("rtt failed: %v: %s", err, output)
+		}
+
+		if !expectMatchLine(t, string(output), fmt.Sprintf(`^%s: \d`, regexp.QuoteMeta("nats://"+addr.String()))) {
+			t.Errorf("missing rtt for %s: %s", addr, output)
+		}
+
+		return nil
+	})
+}
+
+func TestCLIRTTHostnameTLSServer(t *testing.T) {
+	svc, err := ntfsvc.New(context.Background(), ntfsvc.Options{})
+	if err != nil {
+		t.Fatalf("ntf service failed: %v", err)
+	}
+	defer svc.Close()
+
+	inst := ntf.New(t, svc.ClientURL()).CreateServer(t, false, ntf.WithGeneratedTLS(ntf.TLSServerOnly(), ntf.TLSSANs("localhost")))
+	defer inst.Destroy(t)
+
+	caFile := filepath.Join(t.TempDir(), "ca.pem")
+	err = os.WriteFile(caFile, []byte(inst.TLS.CAPEM), 0600)
+	if err != nil {
+		t.Fatalf("write ca failed: %v", err)
+	}
+
+	port := inst.Servers[0].Port
+
+	output, err := runNatsCliCore(t, "", nil, fmt.Sprintf("--server=nats://localhost:%d --tlsca='%s' rtt", port, caFile))
+	if err != nil {
+		t.Fatalf("rtt failed: %v: %s", err, output)
+	}
+
+	if !expectMatchLine(t, string(output), fmt.Sprintf(`^nats://127\.0\.0\.1:%d: \d`, port)) {
+		t.Errorf("missing rtt for 127.0.0.1:%d: %s", port, output)
+	}
 }
