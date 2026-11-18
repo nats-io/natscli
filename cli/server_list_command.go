@@ -44,6 +44,7 @@ type srvListCluster struct {
 	gwOut      int
 	gwIn       int
 	conns      int
+	leafs      int
 	routeSizes []int
 }
 
@@ -54,7 +55,7 @@ func configureServerListCommand(srv *fisk.CmdClause) {
 	ls.Tag("scope:system", "impact:ro")
 	ls.Arg("expect", "How many servers to expect").Uint32Var(&c.expect)
 	ls.Flag("json", "Produce JSON output").Short('j').UnNegatableBoolVar(&c.json)
-	ls.Flag("sort", "Sort servers by a specific key (name,cluster,conns,subs,routes,gws,mem,cpu,slow,uptime,rtt").Default("rtt").EnumVar(&c.sort, strings.Split("name,cluster,conns,conn,subs,sub,routes,route,gw,mem,cpu,slow,uptime,rtt", ",")...)
+	ls.Flag("sort", "Sort servers by a specific key (name,cluster,conns,subs,routes,gws,leafs,mem,cpu,slow,uptime,rtt)").Default("rtt").EnumVar(&c.sort, strings.Split("name,cluster,conns,conn,subs,sub,routes,route,gw,gws,leafs,leaf,mem,cpu,slow,uptime,rtt", ",")...)
 	ls.Flag("reverse", "Reverse sort servers").Short('R').UnNegatableBoolVar(&c.reverse)
 	ls.Flag("compact", "Compact server names").Default("true").BoolVar(&c.compact)
 	ls.Flag("archive", "Read data from an archive file").StringVar(&c.archivePath)
@@ -63,7 +64,8 @@ func configureServerListCommand(srv *fisk.CmdClause) {
 func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 	type result struct {
 		*server.ServerStatsMsg
-		rtt time.Duration
+		Leafs int `json:"leafnodes"`
+		rtt   time.Duration
 	}
 
 	var (
@@ -71,12 +73,14 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		names       []string
 		hosts       []string
 		clusters    = make(map[string]*srvListCluster)
+		leafCounts  = make(map[string]int)
 		servers     int
 		connections int
 		memory      int64
 		slow        int64
 		subs        uint32
 		js          int
+		totalLeafs  int
 	)
 
 	accumulate := func(ssm *server.ServerStatsMsg, rtt time.Duration) {
@@ -123,6 +127,15 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		for _, ssm := range statz {
 			accumulate(ssm, 0)
 		}
+
+		if varz, err := src.Varz(server.VarzEventOptions{}); err == nil {
+			for _, v := range varz {
+				if v.Server == nil || v.Data == nil || v.Server.ID == "" || v.Error != nil {
+					continue
+				}
+				leafCounts[v.Server.ID] = v.Data.Leafs
+			}
+		}
 	} else {
 		nc, err := newNatsConn("", natsOpts()...)
 		if err != nil {
@@ -144,6 +157,20 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			defer mu.Unlock()
 			accumulate(ssm, time.Since(start))
 		})
+
+		serverdata.DoReqAsync(ctx, nil, "$SYS.REQ.SERVER.PING.VARZ", int(c.expect), nc, opts().Timeout, traceLogger(), func(data []byte) {
+			vz := &server.ServerAPIVarzResponse{}
+			if err := json.Unmarshal(data, vz); err != nil {
+				return
+			}
+			if vz.Server == nil || vz.Data == nil || vz.Server.ID == "" || vz.Error != nil {
+				return
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+			leafCounts[vz.Server.ID] = vz.Data.Leafs
+		})
 	}
 
 	if len(results) == 0 {
@@ -151,6 +178,18 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			return fmt.Errorf("no captured server data in %s", c.archivePath)
 		}
 		return fmt.Errorf("no results received, ensure the account used has system privileges and appropriate permissions")
+	}
+
+	for _, res := range results {
+		leafs := leafCounts[res.Server.ID]
+		res.Leafs = leafs
+		totalLeafs += leafs
+
+		if res.Server.Cluster != "" {
+			if cl := clusters[res.Server.Cluster]; cl != nil {
+				cl.leafs += leafs
+			}
+		}
 	}
 
 	// rtt is meaningless from a static archive, so fall back to name when the
@@ -204,6 +243,16 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			}
 
 			return rev(results[i].Server.Name > results[j].Server.Name)
+		case "leafs", "leaf":
+			// if leaf counts are the same, most typical, we sort by name
+			il := leafCounts[results[i].Server.ID]
+			jl := leafCounts[results[j].Server.ID]
+
+			if il != jl {
+				return rev(il < jl)
+			}
+
+			return rev(results[i].Server.Name > results[j].Server.Name)
 		case "mem":
 			return rev(stati.Mem < statj.Mem)
 		case "cpu":
@@ -225,7 +274,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 	})
 
 	table := iu.NewTableWriterf(opts(), "Server Overview")
-	table.AddHeaders("Name", "Cluster", "Host", "Version", "JS", "Conns", "Subs", "Routes", "GWs", "Mem", "CPU %", "Cores", "Slow", "Uptime", "RTT")
+	table.AddHeaders("Name", "Cluster", "Host", "Version", "JS", "Conns", "Subs", "Routes", "GWs", "Leaf Nodes", "Mem", "CPU %", "Cores", "Slow", "Uptime", "RTT")
 
 	// here so its after the sort
 	for _, ssm := range results {
@@ -304,6 +353,11 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			rttCell = f(ssm.rtt.Round(time.Millisecond))
 		}
 
+		leafCell := "-"
+		if leafs, ok := leafCounts[ssm.Server.ID]; ok {
+			leafCell = f(leafs)
+		}
+
 		table.AddRow(
 			cNames[i],
 			cluster,
@@ -314,6 +368,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 			f(ssm.Stats.NumSubs),
 			len(ssm.Stats.Routes),
 			len(ssm.Stats.Gateways),
+			leafCell,
 			humanize.IBytes(uint64(ssm.Stats.Mem)),
 			fmt.Sprintf("%.0f", ssm.Stats.CPU),
 			ssm.Stats.Cores,
@@ -332,6 +387,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 		f(subs),
 		routesOk,
 		gwaysOk,
+		f(totalLeafs),
 		humanize.IBytes(uint64(memory)),
 		"",
 		"",
@@ -351,7 +407,7 @@ func (c *SrvLsCmd) list(_ *fisk.ParseContext) error {
 func (c *SrvLsCmd) showClusters(cl map[string]*srvListCluster) {
 	fmt.Println()
 	table := iu.NewTableWriterf(opts(), "Cluster Overview")
-	table.AddHeaders("Cluster", "Node Count", "Outgoing Gateways", "Incoming Gateways", "Connections")
+	table.AddHeaders("Cluster", "Node Count", "Outgoing Gateways", "Incoming Gateways", "Connections", "Leaf Nodes")
 
 	var clusters []*srvListCluster
 	for c := range cl {
@@ -366,16 +422,18 @@ func (c *SrvLsCmd) showClusters(cl map[string]*srvListCluster) {
 	out := 0
 	nodes := 0
 	conns := 0
+	leafs := 0
 
 	for _, c := range clusters {
 		in += c.gwIn
 		out += c.gwOut
 		nodes += len(c.nodes)
 		conns += c.conns
-		table.AddRow(c.name, len(c.nodes), c.gwOut, c.gwIn, c.conns)
+		leafs += c.leafs
+		table.AddRow(c.name, len(c.nodes), c.gwOut, c.gwIn, c.conns, c.leafs)
 	}
 
-	table.AddFooter("", nodes, out, in, conns)
+	table.AddFooter("", nodes, out, in, conns, leafs)
 
 	fmt.Print(table.Render())
 }
