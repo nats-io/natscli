@@ -16,10 +16,10 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gosuri/uiprogress v0.0.1
-	github.com/jedib0t/go-pretty/v6 v6.8.3
+	github.com/jedib0t/go-pretty/v6 v6.9.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/klauspost/compress v1.20.4
-	github.com/nats-io/jsm.go v0.5.2-0.20261111152059-af9f0be17f9e
+	github.com/nats-io/jsm.go v0.5.2
 	github.com/nats-io/jwt/v2 v2.8.3
 	github.com/nats-io/nats-server/v2 v2.15.3
 	github.com/nats-io/nats.go v1.56.0
@@ -28,11 +28,11 @@ require (
 	github.com/prometheus/client_golang v1.25.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/synadia-io/jwt-auth-builder.go v0.0.10
-	github.com/synadia-io/orbit.go/counters v0.1.2
-	github.com/synadia-io/orbit.go/jetstreamext v0.3.2
-	github.com/synadia-io/orbit.go/natsext v0.1.3
+	github.com/synadia-io/orbit.go/counters v0.1.3
+	github.com/synadia-io/orbit.go/jetstreamext v0.4.0
+	github.com/synadia-io/orbit.go/natsext v0.1.4
 	github.com/synadia-io/orbit.go/ntf v0.0.6
-	github.com/synadia-io/orbit.go/ntf-client v0.0.4
+	github.com/synadia-io/orbit.go/ntf-client v0.0.5
 	github.com/tylertreat/hdrhistogram-writer v0.0.0-20210816161836-2e440612a39f
 	golang.org/x/crypto v0.59.0
 	golang.org/x/term v0.48.0
@@ -67,14 +67,16 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nats-io/nsc/v2 v2.15.0 // indirect
 	github.com/nsf/termbox-go v1.1.2 // indirect
+	github.com/pandatix/go-abnf v0.5.5 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.72.1 // indirect
+	github.com/prometheus/common v0.74.0 // indirect
 	github.com/prometheus/procfs v0.23.0 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/shopspring/decimal v1.6.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e // indirect
-	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/exp v0.0.0-20261117202309-7a49493bfd90 // indirect
+	golang.org/x/net v0.63.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.44.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
