@@ -75,13 +75,14 @@ type backupCmd struct {
 	keyFile             string
 	values              []string
 	showProgress        bool
+	maxCount            uint64
 }
 
 func configureBackupCommand(app commandHost) {
 	c := &backupCmd{}
 
 	bk := app.Command("backup", "Backup, restore, inspect and edit JetStream streams")
-	bk.HelpLong(`Backups are taken over the NATS network into a directory. The edit, info, validate and lookup commands work on that directory and support only backups taken from NATS Server 2.15 or newer.`)
+	bk.HelpLong(`Backups are taken over the NATS network into a directory. The edit, extract, info, validate and lookup commands work on that directory and support only backups taken from NATS Server 2.15 or newer.`)
 	addCheat("backup", bk)
 
 	c.streamBackupCommand(bk, "stream")
@@ -95,23 +96,21 @@ func configureBackupCommand(app commandHost) {
 	edit.Tag("scope:user", "impact:ro")
 	edit.Arg("source", "The directory holding the backup to edit").Required().ExistingDirVar(&c.source)
 	edit.Arg("target", "Directory to create the edited backup in").Required().StringVar(&c.target)
-	edit.Flag("subject", "Keep messages matching a subject pattern").PlaceHolder("PATTERN").StringsVar(&c.subjects)
-	edit.Flag("exclude-subject", "Drop messages matching a subject pattern").PlaceHolder("PATTERN").StringsVar(&c.excludeSubjects)
-	edit.Flag("after", "Keep messages stored at or after an RFC3339 time or a duration like 2h").PlaceHolder("TIME").StringVar(&c.after)
-	edit.Flag("before", "Keep messages stored before an RFC3339 time or a duration like 2h").PlaceHolder("TIME").StringVar(&c.before)
-	edit.Flag("first-seq", "Keep messages with this sequence or higher").PlaceHolder("N").IsSetByUser(&c.firstSeqSet).Uint64Var(&c.firstSeq)
-	edit.Flag("last-seq", "Keep messages with this sequence or lower").PlaceHolder("N").IsSetByUser(&c.lastSeqSet).Uint64Var(&c.lastSeq)
-	edit.Flag("header", "Keep messages carrying a header, as NAME or NAME:VALUE").PlaceHolder("NAME[:VALUE]").StringsVar(&c.headers)
-	edit.Flag("exclude-header", "Drop messages carrying a header").PlaceHolder("NAME").StringsVar(&c.excludeHeaders)
-	edit.Flag("payload-match", "Keep messages whose payload matches a regular expression").PlaceHolder("REGEX").StringsVar(&c.payloadMatch)
-	edit.Flag("exclude-payload-match", "Drop messages whose payload matches a regular expression").PlaceHolder("REGEX").StringsVar(&c.excludePayloadMatch)
-	edit.Flag("last-per-subject", "Keep only the newest N messages of every subject").PlaceHolder("N").IsSetByUser(&c.lastPerSubjectSet).IntVar(&c.lastPerSubject)
-	edit.Flag("kv-compact", "Keep the latest revision of each key and drop deleted keys. KV backups only, exclusive with --last-per-subject").UnNegatableBoolVar(&c.kvCompact)
+	c.filterFlags(edit)
 	edit.Flag("renumber", "Number the kept messages from 1 and drop all consumers").UnNegatableBoolVar(&c.renumber)
 	edit.Flag("dry-run", "Only shows what the edit would do, does not write the target").UnNegatableBoolVar(&c.dryRun)
 	edit.Flag("obfuscate", "Replace names and subjects with keyed hashes and message bodies with zeros of the same length. Keeps counter stream values. Writes the key file beside the target").UnNegatableBoolVar(&c.obfuscate)
 	edit.Flag("obfuscation-key", "Reuse the secret and mappings from an earlier key file").PlaceHolder("FILE").StringVar(&c.obfuscationKey)
 	edit.Flag("progress", "Enables or disables progress reporting").Default("true").BoolVar(&c.showProgress)
+
+	extract := bk.Command("extract", "Writes the messages of a stream backup to JSON files").Action(c.extractAction)
+	extract.Tag("scope:user", "impact:ro")
+	extract.HelpLong("Writes one <seq>.json file per message in the same format as nats stream get --json")
+	extract.Arg("source", "The directory holding the backup to extract from").Required().ExistingDirVar(&c.source)
+	extract.Arg("target", "Directory to write the messages to").Required().StringVar(&c.target)
+	extract.Flag("max-count", "Extract at most this many messages").Required().PlaceHolder("N").Uint64Var(&c.maxCount)
+	c.filterFlags(extract)
+	extract.Flag("progress", "Enables or disables progress reporting").Default("true").BoolVar(&c.showProgress)
 
 	info := bk.Command("info", "Stream backup information").Action(c.infoAction)
 	info.Tag("scope:user", "impact:ro")
@@ -129,6 +128,21 @@ func configureBackupCommand(app commandHost) {
 	lookup.Tag("scope:user", "impact:ro")
 	lookup.Arg("keyfile", "The key file written beside an obfuscated backup").Required().ExistingFileVar(&c.keyFile)
 	lookup.Arg("value", "Obfuscated values to look up, subjects are looked up token by token").Required().StringsVar(&c.values)
+}
+
+func (c *backupCmd) filterFlags(cmd *fisk.CmdClause) {
+	cmd.Flag("subject", "Keep messages matching a subject pattern").PlaceHolder("PATTERN").StringsVar(&c.subjects)
+	cmd.Flag("exclude-subject", "Drop messages matching a subject pattern").PlaceHolder("PATTERN").StringsVar(&c.excludeSubjects)
+	cmd.Flag("after", "Keep messages stored at or after an RFC3339 time or a duration like 2h").PlaceHolder("TIME").StringVar(&c.after)
+	cmd.Flag("before", "Keep messages stored before an RFC3339 time or a duration like 2h").PlaceHolder("TIME").StringVar(&c.before)
+	cmd.Flag("first-seq", "Keep messages with this sequence or higher").PlaceHolder("N").IsSetByUser(&c.firstSeqSet).Uint64Var(&c.firstSeq)
+	cmd.Flag("last-seq", "Keep messages with this sequence or lower").PlaceHolder("N").IsSetByUser(&c.lastSeqSet).Uint64Var(&c.lastSeq)
+	cmd.Flag("header", "Keep messages carrying a header, as NAME or NAME:VALUE").PlaceHolder("NAME[:VALUE]").StringsVar(&c.headers)
+	cmd.Flag("exclude-header", "Drop messages carrying a header").PlaceHolder("NAME").StringsVar(&c.excludeHeaders)
+	cmd.Flag("payload-match", "Keep messages whose payload matches a regular expression").PlaceHolder("REGEX").StringsVar(&c.payloadMatch)
+	cmd.Flag("exclude-payload-match", "Drop messages whose payload matches a regular expression").PlaceHolder("REGEX").StringsVar(&c.excludePayloadMatch)
+	cmd.Flag("last-per-subject", "Keep only the newest N messages of every subject").PlaceHolder("N").IsSetByUser(&c.lastPerSubjectSet).IntVar(&c.lastPerSubject)
+	cmd.Flag("kv-compact", "Keep the latest revision of each key and drop deleted keys. KV backups only, exclusive with --last-per-subject").UnNegatableBoolVar(&c.kvCompact)
 }
 
 func (c *backupCmd) streamBackupCommand(parent *fisk.CmdClause, name string) *fisk.CmdClause {
@@ -666,6 +680,74 @@ func (c *backupCmd) editAction(_ *fisk.ParseContext) error {
 
 	c.showEditResult(res)
 
+	return nil
+}
+
+func (c *backupCmd) extractAction(_ *fisk.ParseContext) error {
+	if c.maxCount == 0 {
+		return errors.New("--max-count must be at least 1")
+	}
+	opts, err := c.editOptions()
+	if err != nil {
+		return err
+	}
+
+	if err := c.checkExtractTarget(); err != nil {
+		return err
+	}
+
+	cb, finish := c.readProgress("Extracting")
+	opts = append(opts, backup.EditNotify(cb))
+
+	errMaxCount := errors.New("max count reached")
+	var written uint64
+	err = backup.Extract(ctx, c.source, func(msg *api.StoredMsg) error {
+		if written == c.maxCount {
+			return errMaxCount
+		}
+		if written == 0 {
+			if err := os.MkdirAll(c.target, 0700); err != nil {
+				return err
+			}
+		}
+		jm, err := json.Marshal(msg)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(c.target, fmt.Sprintf("%d.json", msg.Sequence)), jm, 0600); err != nil {
+			return err
+		}
+		written++
+		return nil
+	}, opts...)
+	finish()
+
+	truncated := errors.Is(err, errMaxCount)
+	if err != nil && !truncated {
+		return err
+	}
+	if err := os.MkdirAll(c.target, 0700); err != nil {
+		return err
+	}
+
+	fmt.Printf("Extracted %s messages to %s\n", f(written), c.target)
+	if truncated {
+		fmt.Printf("Stopped at --max-count %s, more messages match\n", f(c.maxCount))
+	}
+
+	return nil
+}
+
+func (c *backupCmd) checkExtractTarget() error {
+	entries, err := os.ReadDir(c.target)
+	switch {
+	case os.IsNotExist(err):
+		return nil
+	case err != nil:
+		return err
+	case len(entries) > 0:
+		return fmt.Errorf("target %s is not empty", c.target)
+	}
 	return nil
 }
 
