@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -343,6 +344,132 @@ func TestBackupEditErrors(t *testing.T) {
 			{"kv-compact with last-per-subject", fmt.Sprintf("backup edit '%s' '%s' --kv-compact --last-per-subject 1", fixture.dir, filepath.Join(t.TempDir(), "out")), "mutually exclusive"},
 			{"bad regex", fmt.Sprintf("backup edit '%s' '%s' --payload-match '('", fixture.dir, filepath.Join(t.TempDir(), "out")), "invalid payload expression"},
 			{"bad time", fmt.Sprintf("backup edit '%s' '%s' --after yesterday", fixture.dir, filepath.Join(t.TempDir(), "out")), "invalid time"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				err := runNatsCliWithError(t, tc.cmd)
+				if err == nil {
+					t.Fatalf("expected an error")
+				}
+				if !strings.Contains(err.Error(), tc.want) {
+					t.Errorf("expected error containing %q, got: %v", tc.want, err)
+				}
+			})
+		}
+
+		return nil
+	})
+}
+
+func extractedMessages(t *testing.T, dir string) map[uint64]api.StoredMsg {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	checkErr(t, err, "read target failed: %v", err)
+
+	msgs := map[uint64]api.StoredMsg{}
+	for _, entry := range entries {
+		seq, err := strconv.ParseUint(strings.TrimSuffix(entry.Name(), ".json"), 10, 64)
+		checkErr(t, err, "unexpected file %s: %v", entry.Name(), err)
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		checkErr(t, err, "read failed: %v", err)
+		var msg api.StoredMsg
+		checkErr(t, json.Unmarshal(data, &msg), "invalid json in %s", entry.Name())
+		if msg.Sequence != seq {
+			t.Fatalf("%s has sequence %d", entry.Name(), msg.Sequence)
+		}
+		msgs[seq] = msg
+	}
+
+	return msgs
+}
+
+func TestBackupExtract(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		fixture := setupBackupFixture(t, srv, nc, mgr)
+
+		for _, tc := range []struct {
+			name   string
+			flags  string
+			seqs   []uint64
+			output []string
+		}{
+			{"all", "--max-count 10", []uint64{1, 2, 3, 4, 5}, []string{"Extracted 5 messages"}},
+			{"subject filter", "--max-count 10 --subject ORDERS.new", []uint64{1, 3, 5}, []string{"Extracted 3 messages"}},
+			{"header filter", "--max-count 10 --header X-Batch:7", []uint64{2, 4}, []string{"Extracted 2 messages"}},
+			{"last per subject", "--max-count 10 --last-per-subject 1", []uint64{4, 5}, []string{"Extracted 2 messages"}},
+			{"max count", "--max-count 2", []uint64{1, 2}, []string{"Extracted 2 messages", "Stopped at --max-count 2, more messages match"}},
+			{"max count equal to matches", "--max-count 3 --subject ORDERS.new", []uint64{1, 3, 5}, []string{"Extracted 3 messages"}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				target := filepath.Join(t.TempDir(), "extracted")
+
+				output := string(runNatsCli(t, fmt.Sprintf("backup extract '%s' '%s' %s --no-progress", fixture.dir, target, tc.flags)))
+				for _, want := range tc.output {
+					if !strings.Contains(output, want) {
+						t.Errorf("missing %q in output: %s", want, output)
+					}
+				}
+				if len(tc.output) == 1 && strings.Contains(output, "Stopped at") {
+					t.Errorf("unexpected truncation: %s", output)
+				}
+
+				msgs := extractedMessages(t, target)
+				if len(msgs) != len(tc.seqs) {
+					t.Fatalf("expected sequences %v, got %d files", tc.seqs, len(msgs))
+				}
+				for _, seq := range tc.seqs {
+					msg, ok := msgs[seq]
+					if !ok {
+						t.Fatalf("missing %d.json", seq)
+					}
+					if string(msg.Data) != fmt.Sprintf("message %d", seq) {
+						t.Errorf("seq %d has data %q", seq, msg.Data)
+					}
+					wantSubject := "ORDERS.new"
+					wantBatch := ""
+					if seq%2 == 0 {
+						wantSubject = "ORDERS.paid"
+						wantBatch = "7"
+					}
+					if msg.Subject != wantSubject {
+						t.Errorf("seq %d has subject %q", seq, msg.Subject)
+					}
+					var hdr nats.Header
+					if len(msg.Header) > 0 {
+						var err error
+						hdr, err = nats.DecodeHeadersMsg(msg.Header)
+						checkErr(t, err, "seq %d has invalid headers: %v", seq, err)
+					}
+					if hdr.Get("X-Batch") != wantBatch {
+						t.Errorf("seq %d has headers %v", seq, hdr)
+					}
+					if msg.Time.Before(fixture.state.FirstTime) || msg.Time.After(fixture.state.LastTime) {
+						t.Errorf("seq %d has time %v outside %v to %v", seq, msg.Time, fixture.state.FirstTime, fixture.state.LastTime)
+					}
+				}
+			})
+		}
+
+		return nil
+	})
+}
+
+func TestBackupExtractErrors(t *testing.T) {
+	withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+		fixture := setupBackupFixture(t, srv, nc, mgr)
+
+		nonEmpty := t.TempDir()
+		checkErr(t, os.WriteFile(filepath.Join(nonEmpty, "1.json"), []byte("{}"), 0o600), "write failed")
+
+		for _, tc := range []struct {
+			name string
+			cmd  string
+			want string
+		}{
+			{"missing max count", fmt.Sprintf("backup extract '%s' '%s'", fixture.dir, filepath.Join(t.TempDir(), "out")), "required flag --max-count not provided"},
+			{"zero max count", fmt.Sprintf("backup extract '%s' '%s' --max-count 0", fixture.dir, filepath.Join(t.TempDir(), "out")), "--max-count must be at least 1"},
+			{"non empty target", fmt.Sprintf("backup extract '%s' '%s' --max-count 10", fixture.dir, nonEmpty), "is not empty"},
+			{"kv-compact on a plain stream", fmt.Sprintf("backup extract '%s' '%s' --max-count 10 --kv-compact", fixture.dir, filepath.Join(t.TempDir(), "out")), "requires a KV bucket backup"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				err := runNatsCliWithError(t, tc.cmd)

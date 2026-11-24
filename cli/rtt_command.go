@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/url"
@@ -39,12 +38,14 @@ type rttResult struct {
 	RTT     time.Duration `json:"rtt"`
 	URL     string        `json:"url"`
 	failed  bool
+	dial    string
 }
 
 type rttTarget struct {
-	URL     string       `json:"url"`
-	Results []*rttResult `json:"results"`
-	tlsName string
+	URL      string       `json:"url"`
+	Results  []*rttResult `json:"results"`
+	hostPort string
+	scheme   string
 }
 
 func configureRTTCommand(app commandHost) {
@@ -114,30 +115,60 @@ func (c *rttCmd) calcIndent(targets []*rttTarget, prefix int) int {
 
 func (c *rttCmd) performTest(targets []*rttTarget) (err error) {
 	for _, target := range targets {
-		opts := natsOpts()
-		if target.tlsName != "" {
-			opts = append(opts, func(o *nats.Options) error {
-				if o.TLSConfig == nil {
-					o.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, ServerName: target.tlsName}
-				} else {
-					o.TLSConfig.ServerName = target.tlsName
-				}
-
-				return nil
-			})
-		}
-
 		for _, r := range target.Results {
+			copts := natsOpts()
+			server := r.Address
+
+			if target.hostPort != "" {
+				server = fmt.Sprintf("%s://%s", target.scheme, target.hostPort)
+				copts = append(copts, c.pinnedDialOption(target.hostPort, r.dial))
+			}
+
 			r.Time = time.Now()
-			r.URL, r.RTT, err = c.calcRTT(r.Address, opts)
+			r.URL, r.RTT, err = c.calcRTT(server, copts)
 			if err != nil {
 				r.failed = true
 				log.Printf("Failed to compute rtt for %s: %v", r.Address, err)
+				continue
+			}
+
+			if r.URL == server {
+				r.URL = r.Address
 			}
 		}
 	}
 
 	return nil
+}
+
+type rttPinnedDialer struct {
+	hostPort string
+	dial     string
+	timeout  time.Duration
+	next     nats.CustomDialer
+}
+
+func (d *rttPinnedDialer) Dial(network, address string) (net.Conn, error) {
+	if address == d.hostPort {
+		address = d.dial
+	}
+
+	if d.next != nil {
+		return d.next.Dial(network, address)
+	}
+
+	return (&net.Dialer{Timeout: d.timeout}).Dial(network, address)
+}
+
+// pinnedDialOption connects to hostPort by dialing a single resolved address, so the URL
+// keeps the host name for TLS verification while each address is measured separately
+func (c *rttCmd) pinnedDialOption(hostPort string, dial string) nats.Option {
+	return func(o *nats.Options) error {
+		o.SkipHostLookup = true
+		o.CustomDialer = &rttPinnedDialer{hostPort: hostPort, dial: dial, timeout: o.Timeout, next: o.CustomDialer}
+
+		return nil
+	}
 }
 
 func (c *rttCmd) calcRTT(server string, copts []nats.Option) (string, time.Duration, error) {
@@ -219,13 +250,12 @@ func (c *rttCmd) targets() (targets []*rttTarget, err error) {
 			continue
 		}
 
-		// if we have many addresses we'll connect to each IP but we have to use the
-		// name of the original server address to do validate TLS, connect here, check it
-		// requires TLS and store the name to use when connecting to each IP
-		target.tlsName = u.Hostname()
+		target.hostPort = net.JoinHostPort(u.Hostname(), port)
+		target.scheme = u.Scheme
 
 		for _, a := range addrs {
-			target.Results = append(target.Results, &rttResult{Address: fmt.Sprintf("%s://%s", u.Scheme, net.JoinHostPort(a, port))})
+			dial := net.JoinHostPort(a, port)
+			target.Results = append(target.Results, &rttResult{Address: fmt.Sprintf("%s://%s", u.Scheme, dial), dial: dial})
 		}
 	}
 

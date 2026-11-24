@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/nats-io/jsm.go/api"
@@ -185,6 +186,14 @@ func (c *auditAnalyzeCmd) renderConsole(report *audit.Analysis) error {
 		fmt.Printf("NATS Audit Report %q captured at %s\n\n", c.archivePath, f(report.Metadata.Timestamp))
 	} else {
 		fmt.Printf("NATS Audit Report %q captured at %s\n\n", c.loadPath, f(report.Metadata.Timestamp))
+	}
+
+	for _, shared := range report.NumberedClusters {
+		fmt.Println(shared.Description() + " They cannot be used with --cluster.")
+		for _, cluster := range shared.Clusters {
+			fmt.Printf("  %s: %s\n", cluster.Label, strings.Join(cluster.Servers, ", "))
+		}
+		fmt.Println()
 	}
 
 	for _, res := range report.Results {

@@ -17,6 +17,9 @@ nats backup edit ./orders-backup ./orders-range --first-seq 1000 --last-seq 2000
 nats backup edit ./orders-backup ./orders-batch --header X-Batch:7 --exclude-header X-Test
 nats backup edit ./orders-backup ./orders-urgent --payload-match urgent
 
+# Writing at most 100 messages as <seq>.json files in the nats stream get --json format, the target must not exist or be empty
+nats backup extract ./orders-backup ./orders-json --max-count 100 --subject 'ORDERS.new.>'
+
 # Keeping only the newest messages of every subject, or the latest revision of every key
 nats backup edit ./orders-backup ./orders-latest --last-per-subject 1
 nats backup edit ./kv-backup ./kv-compacted --kv-compact
