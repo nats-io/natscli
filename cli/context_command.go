@@ -562,12 +562,15 @@ func (c *ctxCommand) showCommand(_ *fisk.ParseContext) error {
 	cols.AddRowIfNotEmpty("Color Scheme", cfg.ColorScheme())
 
 	checkConn := func() error {
-		opts, err := cfg.NATSOptions()
-		opts = append(opts, nats.MaxReconnects(1))
+		nopts, err := cfg.NATSOptions()
 		if err != nil {
 			return err
 		}
-		nc, err := nats.Connect(cfg.ServerURL(), opts...)
+		nopts = append(nopts, nats.MaxReconnects(1))
+		if opts().ConnectTimeout > 0 {
+			nopts = append(nopts, nats.Timeout(opts().ConnectTimeout))
+		}
+		nc, err := nats.Connect(cfg.ServerURL(), nopts...)
 		if err != nil {
 			return err
 		}
