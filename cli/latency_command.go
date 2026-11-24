@@ -84,13 +84,13 @@ func (c *latencyCmd) latencyAction(_ *fisk.ParseContext) error {
 	log.Println("==============================")
 	rtt, err := c1.RTT()
 	if err != nil {
-		return fmt.Errorf("could not determin RTT for first connection: %v", err)
+		return fmt.Errorf("could not determine RTT for first connection: %v", err)
 	}
 	log.Printf("Pub Server RTT : %v\n", c.fmtDur(rtt))
 
 	rtt, err = c2.RTT()
 	if err != nil {
-		return fmt.Errorf("could not determin RTT for second connection: %v", err)
+		return fmt.Errorf("could not determine RTT for second connection: %v", err)
 	}
 	log.Printf("Sub Server RTT : %v\n", c.fmtDur(rtt))
 

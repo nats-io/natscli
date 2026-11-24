@@ -303,7 +303,7 @@ Now the `nats` CLI parses the subject, extracts the `{london,newyork}` from the 
 
 Additional to the raw output of messages using `nats sub` and `nats stream view` you can also translate the message data by running it through a command. 
 
-The command receives the message data as raw bytes through stdin and the output of the command will be the shown output for the message. There is the additional possibility to add the filter subject by using `{{Subject}}` as part of the arguments for the tranlation command.
+The command receives the message data as raw bytes through stdin and the output of the command will be the shown output for the message. There is the additional possibility to add the filter subject by using `{{Subject}}` as part of the arguments for the translation command.
 
 #### Examples for using the translation feature:
 
@@ -449,7 +449,7 @@ Output
 Sub stats: 621,415 msgs/sec ~ 75.86 MB/sec
 ```
 
-Similarily you can benchmark synchronous request-reply type of interactions using the NATS service functionality through the `nats service serve` and `nats service request` commands. For example you can first start 2 service instances in one window
+Similarly you can benchmark synchronous request-reply type of interactions using the NATS service functionality through the `nats service serve` and `nats service request` commands. For example you can first start 2 service instances in one window
 
 ```
 nats bench service serve test.service --clients 2
