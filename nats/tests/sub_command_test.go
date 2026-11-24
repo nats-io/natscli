@@ -929,6 +929,26 @@ func TestJetStreamSubscribe(t *testing.T) {
 		})
 	})
 
+	t.Run("--count", func(t *testing.T) {
+		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
+			createDefaultTestStream(t, mgr, 1)
+
+			for range 5 {
+				err := nc.PublishMsg(defaultTestMsg)
+				if err != nil {
+					t.Fatalf("unable to publish message: %s", err)
+				}
+			}
+
+			output := string(runNatsCli(t, fmt.Sprintf("--server='%s' sub --stream TEST_STREAM --all --count=3", srv.ClientURL())))
+			received := strings.Count(output, "Received JetStream message")
+			if received != 3 {
+				t.Errorf("expected 3 messages, got %d: %s", received, output)
+			}
+			return nil
+		})
+	})
+
 	t.Run("--new", func(t *testing.T) {
 		withJSServer(t, func(t *testing.T, srv *server.Server, nc *nats.Conn, mgr *jsm.Manager) error {
 			createDefaultTestStream(t, mgr, 1)
