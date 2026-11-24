@@ -297,3 +297,17 @@ func TestFmtReplicaDrift(t *testing.T) {
 		}
 	}
 }
+
+func TestCompactStringsUnevenDepth(t *testing.T) {
+	names := []string{
+		"broker-0.broker-ss.choria.svc.cluster.local",
+		"edge.broker-1.broker-ss.choria.svc.cluster.local",
+		"broker-2.broker-ss.choria.svc.cluster.local",
+	}
+
+	result := CompactStrings(names)
+	expected := []string{"broker-0", "edge.broker-1", "broker-2"}
+	if !cmp.Equal(result, expected) {
+		t.Fatalf("Received %#v", result)
+	}
+}
