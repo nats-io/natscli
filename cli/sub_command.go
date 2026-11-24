@@ -129,6 +129,8 @@ type subscriptionState struct {
 
 	// lastDropped is the drop count already added to counter, per subscription
 	lastDropped map[*nats.Subscription]int
+
+	stopped bool
 }
 
 func (s *subscriptionState) countDropped(m *nats.Msg) {
@@ -498,6 +500,10 @@ func (c *subCmd) createJetStreamMsgHandler(subState *subscriptionState, nc *nats
 		subState.msgMu.Lock()
 		defer subState.msgMu.Unlock()
 
+		if subState.stopped {
+			return
+		}
+
 		if c.shouldIgnore(m.Subject(), subState.ignoreSubjects) {
 			return
 		}
@@ -526,6 +532,7 @@ func (c *subCmd) createJetStreamMsgHandler(subState *subscriptionState, nc *nats
 
 		meta, _ := m.Metadata()
 		if (c.limit > 0 && subState.received == c.limit) || (c.stopAtPendingZero && meta != nil && meta.NumPending == 0) {
+			subState.stopped = true
 			for _, cCtx := range *consumers {
 				cCtx.Stop()
 			}
